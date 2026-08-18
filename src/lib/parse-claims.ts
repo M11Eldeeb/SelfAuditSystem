@@ -17,8 +17,31 @@ export interface SkippedRow {
   reason: string;
 }
 
+/**
+ * JIAD's MG/SAIC GWS export identifies the branch two different ways
+ * depending on the row: either a "Dealer" code like "220309A7" (the last
+ * letter+digit pair is the actual per-branch code, see
+ * JIAD_DEALER_CODE_SUFFIX_MAP below) or, when Dealer/Dealer Name are blank,
+ * a prefix on the work order number like "HER-11838-1". Both map to the
+ * same 11 branches - confirmed against the real export on 2026-08-18.
+ */
+const JIAD_DEALER_CODE_SUFFIX_MAP: Record<string, string> = {
+  A7: "HER", // Jeddah Heraa
+  B7: "MRB", // Jeddah Madina Rd
+  C7: "RSS", // Riyadh Al Saleh
+  E7: "RNQ", // Riyadh North
+  F7: "QSM", // Qassim
+  G7: "DMM", // Dammam
+  I7: "NKH", // Jeddah Nakheel
+  J7: "MAD", // Madinah
+  K7: "JZN", // Jizan
+  L7: "ABH", // Abha
+  P7: "RKR", // Riyadh Khurais
+};
+
 const FIELD_ALIASES = {
   branch: ["branch", "branch code", "branch name", "dealer", "dealer code", "outlet", "dealer name"],
+  work_order_no: ["work order no", "work order number", "job card no", "job card number", "repair order no"],
   claim_number: ["claim number", "claim no", "claim #", "claim id", "warranty claim"],
   vin: ["vin", "chassis number", "chassis no"],
   vehicle_model: ["model", "vehicle model", "model version"],
@@ -51,7 +74,9 @@ const FIELD_ALIASES = {
 
 type Field = keyof typeof FIELD_ALIASES;
 
-const REQUIRED_FIELDS: Field[] = ["branch", "claim_number", "creation_date"];
+// "branch" is handled separately below since it can come from either a
+// dedicated branch column or a Work Order No prefix.
+const REQUIRED_FIELDS: Field[] = ["claim_number", "creation_date"];
 
 function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/\s+/g, " ");
@@ -103,6 +128,21 @@ export function parseDateValue(value: unknown): string | null {
   return isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 }
 
+/** Pulls a leading letters-only branch code off a work order number, e.g. "HER-11838-1" -> "HER". */
+export function extractBranchCodeFromWorkOrder(value: unknown): string | null {
+  if (value == null) return null;
+  const match = String(value).trim().match(/^([A-Za-z]+)\s*-/);
+  return match ? match[1].toUpperCase() : null;
+}
+
+/** Maps a JIAD dealer code like "220309A7" -> "HER" via the trailing letter+digit suffix. */
+export function extractBranchCodeFromDealerField(value: unknown): string | null {
+  if (value == null) return null;
+  const match = String(value).trim().match(/([A-Za-z]\d)$/);
+  if (!match) return null;
+  return JIAD_DEALER_CODE_SUFFIX_MAP[match[1].toUpperCase()] ?? null;
+}
+
 export function parseClaimRows(
   headers: string[],
   rows: unknown[][],
@@ -111,6 +151,9 @@ export function parseClaimRows(
   const cols = matchColumns(headers);
 
   const missing = REQUIRED_FIELDS.filter((f) => !cols[f]?.length);
+  if (!cols.branch?.length && !cols.work_order_no?.length) {
+    missing.push("branch" as Field);
+  }
   if (missing.length > 0) {
     throw new Error(
       `Missing required column(s): ${missing.join(", ")}. Found headers: ${headers.join(", ") || "(none)"}`
@@ -139,7 +182,12 @@ export function parseClaimRows(
   rows.forEach((row, i) => {
     const rowNum = i + 2; // header is row 1
 
-    const branchRaw = String(get(row, "branch") ?? "").trim();
+    const branchFieldRaw = String(get(row, "branch") ?? "").trim();
+    const branchRaw =
+      extractBranchCodeFromDealerField(branchFieldRaw) ||
+      branchFieldRaw ||
+      extractBranchCodeFromWorkOrder(get(row, "work_order_no")) ||
+      "";
     const branchId = branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined;
     const claimNumber = str(get(row, "claim_number"));
     const creationDate = parseDateValue(get(row, "creation_date"));
