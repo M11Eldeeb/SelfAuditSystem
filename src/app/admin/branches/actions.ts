@@ -29,6 +29,29 @@ export async function createBranch(_prev: ActionState, formData: FormData): Prom
   return { success: `Branch "${name}" created.` };
 }
 
+export async function updateBranch(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole("officer");
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+
+  if (!branchId) return { error: "Missing branch." };
+  if (!name || !code) {
+    return { error: "Branch name and code are required." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branches").update({ name, code }).eq("id", branchId);
+
+  if (error) {
+    return { error: error.message.includes("duplicate") ? "That branch code is already in use." : error.message };
+  }
+
+  revalidatePath("/admin/branches");
+  return { success: `Branch "${name}" updated.` };
+}
+
 export async function createUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("officer");
 
@@ -108,9 +131,12 @@ export async function deleteBranch(_prev: ActionState, formData: FormData): Prom
   const { error } = await supabase.from("branches").delete().eq("id", branchId);
 
   if (error) {
-    if (error.code === "23503") {
+    // 23503 = the branch row itself is still referenced elsewhere (claims, cycles...).
+    // 23514 = deleting it would null out a branch_admin's branch_id, which a check
+    // constraint on `users` forbids - i.e. a branch admin account still points here.
+    if (error.code === "23503" || error.code === "23514") {
       return {
-        error: `Can't delete "${name}" - it still has claims, users, or audit history attached to it.`,
+        error: `Can't delete "${name}" - it still has claims, a branch admin account, or audit history attached to it. Move or delete those first.`,
       };
     }
     return { error: error.message };

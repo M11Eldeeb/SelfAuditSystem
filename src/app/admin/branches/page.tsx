@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BranchForm } from "./branch-form";
 import { UserForm } from "./user-form";
 import { ResetPasswordButton } from "./reset-password-button";
-import { DeleteBranchButton } from "./delete-branch-button";
+import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
 
 export default async function BranchesPage() {
@@ -35,13 +35,7 @@ export default async function BranchesPage() {
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {branchList.map((b) => (
-                <tr key={b.id}>
-                  <td className="px-4 py-2 text-neutral-900">{b.name}</td>
-                  <td className="px-4 py-2 text-neutral-600">{b.code}</td>
-                  <td className="px-4 py-2 text-right">
-                    <DeleteBranchButton branchId={b.id} name={b.name} />
-                  </td>
-                </tr>
+                <BranchRow key={b.id} branch={b} />
               ))}
               {branchList.length === 0 && (
                 <tr>
