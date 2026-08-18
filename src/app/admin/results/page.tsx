@@ -25,7 +25,7 @@ export default async function ResultsPage() {
   if (cyclesWithResults.length === 0) {
     return (
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-neutral-900">Results</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Results</h1>
         <p className="text-sm text-neutral-600">
           No audit cycles have been finalized yet. Finalize a branch&apos;s review to see results here.
         </p>
@@ -35,7 +35,7 @@ export default async function ResultsPage() {
 
   return (
     <div className="space-y-3">
-      <h1 className="text-xl font-semibold text-neutral-900">Results</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Results</h1>
       <p className="text-sm text-neutral-600">
         Compliance score per branch per audit cycle. Click a score to see that branch&apos;s claim-by-claim
         review.

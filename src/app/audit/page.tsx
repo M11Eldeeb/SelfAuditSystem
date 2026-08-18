@@ -15,7 +15,7 @@ export default async function AuditDashboardPage() {
   if (!cycles || cycles.length === 0) {
     return (
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-neutral-900">My Audits</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
         <p className="text-sm text-neutral-600">
           No audit cycle has been opened yet. Check back once your warranty officer starts this
           month&apos;s audit.
@@ -55,7 +55,7 @@ export default async function AuditDashboardPage() {
   if (cyclesWithWork.length === 0) {
     return (
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-neutral-900">My Audits</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
         <p className="text-sm text-neutral-600">
           No claims have been assigned to your branch yet for the current cycle.
         </p>
@@ -65,7 +65,7 @@ export default async function AuditDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-semibold text-neutral-900">My Audits</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
 
       {results && results.length > 0 && (
         <section className="space-y-3">
@@ -124,7 +124,7 @@ export default async function AuditDashboardPage() {
                       </td>
                       <td className="px-4 py-2 text-neutral-600">{ASSIGNMENT_STATUS_LABELS[a.status]}</td>
                       <td className="px-4 py-2 text-right">
-                        <Link href={`/audit/${a.id}`} className="text-sm text-blue-600 hover:underline">
+                        <Link href={`/audit/${a.id}`} className="text-sm text-brand hover:underline">
                           {a.status === "not_started" || a.status === "in_progress" ? "Continue" : "View"}
                         </Link>
                       </td>

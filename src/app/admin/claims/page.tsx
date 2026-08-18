@@ -15,7 +15,7 @@ export default async function ClaimsPage() {
   return (
     <div className="space-y-10">
       <section className="space-y-3">
-        <h1 className="text-xl font-semibold text-neutral-900">Upload claims</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Upload claims</h1>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <UploadForm />
         </div>

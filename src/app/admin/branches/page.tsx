@@ -1,10 +1,13 @@
+import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BranchForm } from "./branch-form";
 import { UserForm } from "./user-form";
 import { ResetPasswordButton } from "./reset-password-button";
+import { DeleteBranchButton } from "./delete-branch-button";
+import { DeleteUserButton } from "./delete-user-button";
 
 export default async function BranchesPage() {
-  const supabase = await createClient();
+  const [currentUser, supabase] = await Promise.all([getCurrentUser(), createClient()]);
 
   const [{ data: branches }, { data: users }] = await Promise.all([
     supabase.from("branches").select("*").order("name"),
@@ -17,7 +20,7 @@ export default async function BranchesPage() {
   return (
     <div className="space-y-10">
       <section className="space-y-3">
-        <h1 className="text-xl font-semibold text-neutral-900">Branches</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Branches</h1>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <BranchForm />
         </div>
@@ -27,6 +30,7 @@ export default async function BranchesPage() {
               <tr>
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Code</th>
+                <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -34,11 +38,14 @@ export default async function BranchesPage() {
                 <tr key={b.id}>
                   <td className="px-4 py-2 text-neutral-900">{b.name}</td>
                   <td className="px-4 py-2 text-neutral-600">{b.code}</td>
+                  <td className="px-4 py-2 text-right">
+                    <DeleteBranchButton branchId={b.id} name={b.name} />
+                  </td>
                 </tr>
               ))}
               {branchList.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={3} className="px-4 py-6 text-center text-neutral-400">
                     No branches yet.
                   </td>
                 </tr>
@@ -49,7 +56,7 @@ export default async function BranchesPage() {
       </section>
 
       <section className="space-y-3">
-        <h1 className="text-xl font-semibold text-neutral-900">Users</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Users</h1>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <UserForm branches={branchList} />
         </div>
@@ -76,7 +83,10 @@ export default async function BranchesPage() {
                     {u.branch_id ? (branchNameById.get(u.branch_id) ?? "—") : "—"}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <ResetPasswordButton userId={u.id} email={u.email} />
+                    <div className="flex items-start justify-end gap-3">
+                      <ResetPasswordButton userId={u.id} email={u.email} />
+                      {u.id !== currentUser?.id && <DeleteUserButton userId={u.id} email={u.email} />}
+                    </div>
                   </td>
                 </tr>
               ))}

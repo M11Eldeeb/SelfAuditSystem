@@ -36,6 +36,7 @@ export function QuestionField({
               onChange={() => setValue(opt)}
               required={question.required}
               disabled={locked}
+              className="accent-brand"
             />
             {opt}
           </label>

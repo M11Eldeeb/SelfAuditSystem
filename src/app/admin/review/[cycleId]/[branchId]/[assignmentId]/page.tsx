@@ -66,7 +66,7 @@ export default async function ClaimReviewPage({
         <Link href={`/admin/review/${cycleId}/${branchId}`} className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to branch
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-neutral-900">
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           Claim {claim?.claim_number ?? assignment.claim_id}
         </h1>
       </div>

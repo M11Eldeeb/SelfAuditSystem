@@ -41,7 +41,7 @@ export default async function BranchReviewPage({
         <Link href="/admin/review" className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to review
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-neutral-900">
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           {branch.name} &mdash; {cycle.cycle_month.slice(0, 7)}
         </h1>
       </div>
@@ -75,7 +75,7 @@ export default async function BranchReviewPage({
                   ) : (
                     <Link
                       href={`/admin/review/${cycleId}/${branchId}/${a.id}`}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-brand hover:underline"
                     >
                       {a.status === "reviewed" ? "View" : "Review"}
                     </Link>

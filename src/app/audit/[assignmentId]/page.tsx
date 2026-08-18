@@ -54,7 +54,7 @@ export default async function AuditAssignmentPage({
         <Link href="/audit" className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to my audits
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-neutral-900">
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           Claim {claim?.claim_number ?? assignment.claim_id}
         </h1>
         <p className="text-sm text-neutral-500">{ASSIGNMENT_STATUS_LABELS[assignment.status]}</p>

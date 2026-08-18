@@ -96,3 +96,53 @@ export async function resetUserPassword(_prev: ActionState, formData: FormData):
 
   return { success: `Password reset for ${email}.`, tempPassword };
 }
+
+export async function deleteBranch(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole("officer");
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const name = String(formData.get("name") ?? "this branch");
+  if (!branchId) return { error: "Missing branch." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branches").delete().eq("id", branchId);
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        error: `Can't delete "${name}" - it still has claims, users, or audit history attached to it.`,
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/branches");
+  return { success: `Branch "${name}" deleted.` };
+}
+
+export async function deleteUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const officer = await requireRole("officer");
+
+  const userId = String(formData.get("user_id") ?? "");
+  const email = String(formData.get("email") ?? "this account");
+  if (!userId) return { error: "Missing user." };
+
+  if (userId === officer.id) {
+    return { error: "You can't delete your own account." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+
+  if (error) {
+    if (error.message?.toLowerCase().includes("foreign key") || (error as { code?: string }).code === "23503") {
+      return {
+        error: `Can't delete ${email} - they have uploads, submissions, or reviews on record. Reset their password instead if you need to revoke access.`,
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/branches");
+  return { success: `${email} deleted.` };
+}

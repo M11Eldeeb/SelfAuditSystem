@@ -10,26 +10,31 @@ export function NavBar({
   links: { href: string; label: string }[];
 }) {
   return (
-    <header className="border-b border-neutral-200 bg-white">
+    <header className="border-b-4 border-brand bg-brand-ink">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-6">
-          <span className="text-sm font-semibold text-neutral-900">Warranty Self-Audit</span>
-          <nav className="flex items-center gap-4">
+        <div className="flex items-center gap-8">
+          <span className="text-sm font-bold tracking-wide text-white uppercase">
+            MG <span className="text-brand">Warranty</span>
+          </span>
+          <nav className="flex items-center gap-5">
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm text-neutral-600 hover:text-neutral-900"
+                className="text-sm font-medium text-neutral-300 transition hover:text-white"
               >
                 {link.label}
               </Link>
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-neutral-500">{user.email}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-neutral-400">{user.email}</span>
           <form action={logout}>
-            <button type="submit" className="text-sm text-neutral-600 hover:text-neutral-900">
+            <button
+              type="submit"
+              className="text-sm font-medium text-neutral-300 transition hover:text-white"
+            >
               Sign out
             </button>
           </form>

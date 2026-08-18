@@ -36,7 +36,7 @@ export default async function ReviewIndexPage() {
 
   return (
     <div className="space-y-3">
-      <h1 className="text-xl font-semibold text-neutral-900">Review</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Review</h1>
       <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
@@ -64,7 +64,7 @@ export default async function ReviewIndexPage() {
                 <td className="px-4 py-2 text-right">
                   <Link
                     href={`/admin/review/${r.cycleId}/${r.branchId}`}
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-brand hover:underline"
                   >
                     Open
                   </Link>

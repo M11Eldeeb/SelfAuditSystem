@@ -55,6 +55,7 @@ export function ReviewField({
               checked={value === opt}
               onChange={() => setValue(opt)}
               required
+              className="accent-brand"
             />
             {opt}
           </label>
