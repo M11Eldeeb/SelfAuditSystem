@@ -18,22 +18,35 @@ export interface SkippedRow {
 }
 
 const FIELD_ALIASES = {
-  branch: ["branch", "branch code", "branch name", "dealer", "dealer code", "outlet"],
-  claim_number: ["claim number", "claim no", "claim #", "claim id"],
+  branch: ["branch", "branch code", "branch name", "dealer", "dealer code", "outlet", "dealer name"],
+  claim_number: ["claim number", "claim no", "claim #", "claim id", "warranty claim"],
   vin: ["vin", "chassis number", "chassis no"],
-  vehicle_model: ["model", "vehicle model"],
+  vehicle_model: ["model", "vehicle model", "model version"],
   mileage: ["mileage", "odometer", "km", "kilometers", "kilometres"],
   part_serial_number: ["part serial", "part serial number", "serial number"],
   part_production_date: ["part production date", "production date"],
-  repair_end_date: ["repair end date", "end of repair date", "repair completion date"],
+  repair_end_date: [
+    "repair end date",
+    "repair end dat", // matches a known truncated header in some OEM exports
+    "end of repair date",
+    "repair completion date",
+  ],
   dealer_submit_date: [
     "dealer submit date",
     "submission date",
     "submit date",
     "claim submission date",
     "dealer submission date",
+    "last submit date(dealer)",
+    "last submit date (dealer)",
   ],
-  creation_date: ["creation date", "claim creation date", "job card open date", "created date"],
+  creation_date: [
+    "creation date",
+    "claim creation date",
+    "job card open date",
+    "created date",
+    "reception date",
+  ],
 } as const;
 
 type Field = keyof typeof FIELD_ALIASES;
