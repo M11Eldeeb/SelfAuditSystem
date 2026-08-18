@@ -57,12 +57,20 @@ function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-export function matchColumns(headers: string[]): Partial<Record<Field, number>> {
+/**
+ * Maps each field to every column that matches one of its aliases (not just
+ * the first), since some exports have multiple candidate columns for the
+ * same field where only one is actually populated per row (e.g. a "Dealer"
+ * code column left blank alongside a populated "Dealer Name" column).
+ */
+export function matchColumns(headers: string[]): Partial<Record<Field, number[]>> {
   const normalized = headers.map(normalizeHeader);
-  const result: Partial<Record<Field, number>> = {};
+  const result: Partial<Record<Field, number[]>> = {};
   (Object.keys(FIELD_ALIASES) as Field[]).forEach((field) => {
-    const idx = normalized.findIndex((h) => (FIELD_ALIASES[field] as readonly string[]).includes(h));
-    if (idx !== -1) result[field] = idx;
+    const indices = normalized
+      .map((h, idx) => ((FIELD_ALIASES[field] as readonly string[]).includes(h) ? idx : -1))
+      .filter((idx) => idx !== -1);
+    if (indices.length > 0) result[field] = indices;
   });
   return result;
 }
@@ -102,16 +110,23 @@ export function parseClaimRows(
 ): { claims: ParsedClaimRow[]; skipped: SkippedRow[] } {
   const cols = matchColumns(headers);
 
-  const missing = REQUIRED_FIELDS.filter((f) => cols[f] === undefined);
+  const missing = REQUIRED_FIELDS.filter((f) => !cols[f]?.length);
   if (missing.length > 0) {
     throw new Error(
       `Missing required column(s): ${missing.join(", ")}. Found headers: ${headers.join(", ") || "(none)"}`
     );
   }
 
+  // Tries each candidate column for this field, in header order, and returns
+  // the first one that actually has a value for this row.
   const get = (row: unknown[], field: Field) => {
-    const idx = cols[field];
-    return idx === undefined ? undefined : row[idx];
+    const indices = cols[field];
+    if (!indices) return undefined;
+    for (const idx of indices) {
+      const value = row[idx];
+      if (value != null && String(value).trim() !== "") return value;
+    }
+    return undefined;
   };
   const str = (v: unknown) => {
     const s = v == null ? "" : String(v).trim();
