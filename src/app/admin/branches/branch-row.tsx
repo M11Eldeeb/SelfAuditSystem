@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateBranch } from "./actions";
+import { updateBranch, setBranchActive } from "./actions";
 import { DeleteBranchButton } from "./delete-branch-button";
 import type { Database } from "@/lib/supabase/types";
 
@@ -11,6 +11,7 @@ export function BranchRow({ branch }: { branch: Branch }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isTogglingActive, startToggleTransition] = useTransition();
 
   const handleSubmit = (formData: FormData) => {
     setError(null);
@@ -24,13 +25,36 @@ export function BranchRow({ branch }: { branch: Branch }) {
     });
   };
 
+  const handleToggleActive = () => {
+    startToggleTransition(async () => {
+      await setBranchActive(branch.id, !branch.active);
+    });
+  };
+
   if (!editing) {
     return (
       <tr>
         <td className="px-4 py-2 text-neutral-900">{branch.name}</td>
         <td className="px-4 py-2 text-neutral-600">{branch.code}</td>
+        <td className="px-4 py-2">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              branch.active ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"
+            }`}
+          >
+            {branch.active ? "Active" : "Closed"}
+          </span>
+        </td>
         <td className="px-4 py-2 text-right">
           <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleToggleActive}
+              disabled={isTogglingActive}
+              className="text-xs text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+            >
+              {branch.active ? "Mark closed" : "Reopen"}
+            </button>
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -47,7 +71,7 @@ export function BranchRow({ branch }: { branch: Branch }) {
 
   return (
     <tr>
-      <td colSpan={3} className="px-4 py-3">
+      <td colSpan={4} className="px-4 py-3">
         <form action={handleSubmit} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="branch_id" value={branch.id} />
           <div className="space-y-1">

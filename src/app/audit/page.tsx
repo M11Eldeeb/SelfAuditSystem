@@ -39,9 +39,9 @@ export default async function AuditDashboardPage() {
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
     claimIds.length > 0
-      ? await supabase.from("claims").select("id, claim_number").in("id", claimIds)
+      ? await supabase.from("claims").select("id, claim_number, work_order_no").in("id", claimIds)
       : { data: [] };
-  const claimNumberById = new Map((claims ?? []).map((c) => [c.id, c.claim_number]));
+  const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
 
   const assignmentsByCycle = new Map<string, typeof assignments>();
   (assignments ?? []).forEach((a) => {
@@ -112,6 +112,7 @@ export default async function AuditDashboardPage() {
                 <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
                   <tr>
                     <th className="px-4 py-2">Claim #</th>
+                    <th className="px-4 py-2">Work order #</th>
                     <th className="px-4 py-2">Status</th>
                     <th className="px-4 py-2" />
                   </tr>
@@ -120,7 +121,10 @@ export default async function AuditDashboardPage() {
                   {cycleAssignments.map((a) => (
                     <tr key={a.id}>
                       <td className="px-4 py-2 text-neutral-900">
-                        {claimNumberById.get(a.claim_id) ?? a.claim_id}
+                        {claimById.get(a.claim_id)?.claim_number ?? a.claim_id}
+                      </td>
+                      <td className="px-4 py-2 text-neutral-600">
+                        {claimById.get(a.claim_id)?.work_order_no ?? "—"}
                       </td>
                       <td className="px-4 py-2 text-neutral-600">{ASSIGNMENT_STATUS_LABELS[a.status]}</td>
                       <td className="px-4 py-2 text-right">

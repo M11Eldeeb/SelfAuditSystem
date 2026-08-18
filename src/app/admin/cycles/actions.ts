@@ -32,9 +32,13 @@ export async function generateCycle(
 
   const supabase = await createClient();
 
-  const { data: branches } = await supabase.from("branches").select("id, name").order("name");
+  const { data: branches } = await supabase
+    .from("branches")
+    .select("id, name")
+    .eq("active", true)
+    .order("name");
   if (!branches || branches.length === 0) {
-    return { error: "Add at least one branch first." };
+    return { error: "Add at least one active branch first." };
   }
 
   const { data: cycle, error: cycleError } = await supabase
@@ -63,6 +67,7 @@ export async function generateCycle(
       .from("claims")
       .select("id")
       .eq("branch_id", branch.id)
+      .eq("has_parts", true)
       .gte("creation_date", claimsMonth)
       .lt("creation_date", cycleMonth);
 
@@ -92,4 +97,28 @@ export async function generateCycle(
     success: `Audit cycle for ${cycleMonthInput} created (auditing claims from ${claimsMonth.slice(0, 7)}).`,
     perBranch,
   };
+}
+
+export async function deleteCycle(cycleId: string): Promise<{ error?: string }> {
+  await requireRole("officer");
+
+  const supabase = await createClient();
+
+  const { data: assignments } = await supabase
+    .from("audit_assignments")
+    .select("status")
+    .eq("cycle_id", cycleId);
+
+  const hasStartedWork = (assignments ?? []).some((a) => a.status !== "not_started");
+  if (hasStartedWork) {
+    return {
+      error: "Can't delete - at least one branch has already started or submitted this cycle's audit.",
+    };
+  }
+
+  const { error } = await supabase.from("audit_cycles").delete().eq("id", cycleId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/cycles");
+  return {};
 }

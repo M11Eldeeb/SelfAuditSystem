@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CycleForm } from "./cycle-form";
+import { DeleteCycleButton } from "./delete-cycle-button";
 
 export default async function CyclesPage() {
   const supabase = await createClient();
@@ -41,6 +42,7 @@ export default async function CyclesPage() {
                 <th className="px-4 py-2">Assignments</th>
                 <th className="px-4 py-2">Submitted</th>
                 <th className="px-4 py-2">Reviewed</th>
+                <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -54,12 +56,15 @@ export default async function CyclesPage() {
                     <td className="px-4 py-2 text-neutral-600">{stat.total}</td>
                     <td className="px-4 py-2 text-neutral-600">{stat.submitted}</td>
                     <td className="px-4 py-2 text-neutral-600">{stat.reviewed}</td>
+                    <td className="px-4 py-2 text-right">
+                      <DeleteCycleButton cycleId={c.id} cycleMonth={c.cycle_month.slice(0, 7)} />
+                    </td>
                   </tr>
                 );
               })}
               {(cycles ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-neutral-400">
                     No audit cycles yet.
                   </td>
                 </tr>

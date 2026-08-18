@@ -32,8 +32,9 @@ export function CycleForm() {
         </button>
       </form>
       <p className="text-xs text-neutral-500">
-        Picks up to 10 random claims per branch created during the previous month and assigns them
-        for self-audit.
+        Picks up to 10 random claims (parts claims only - labor-only claims are skipped) per active
+        branch, created during the previous month, and assigns them for self-audit. Closed branches
+        are skipped entirely.
       </p>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

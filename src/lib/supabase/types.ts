@@ -22,8 +22,8 @@ export interface Database {
   public: {
     Tables: {
       branches: {
-        Row: { id: string; name: string; code: string; created_at: string };
-        Insert: { id?: string; name: string; code: string; created_at?: string };
+        Row: { id: string; name: string; code: string; active: boolean; created_at: string };
+        Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["branches"]["Insert"]>;
         Relationships: [];
       };
@@ -73,6 +73,8 @@ export interface Database {
           branch_id: string;
           upload_batch_id: string;
           claim_number: string;
+          work_order_no: string | null;
+          has_parts: boolean;
           vin: string | null;
           vehicle_model: string | null;
           mileage: number | null;
@@ -89,6 +91,8 @@ export interface Database {
           branch_id: string;
           upload_batch_id: string;
           claim_number: string;
+          work_order_no?: string | null;
+          has_parts?: boolean;
           vin?: string | null;
           vehicle_model?: string | null;
           mileage?: number | null;

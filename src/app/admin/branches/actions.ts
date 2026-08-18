@@ -52,6 +52,17 @@ export async function updateBranch(_prev: ActionState, formData: FormData): Prom
   return { success: `Branch "${name}" updated.` };
 }
 
+export async function setBranchActive(branchId: string, active: boolean): Promise<{ error?: string }> {
+  await requireRole("officer");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branches").update({ active }).eq("id", branchId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/branches");
+  return {};
+}
+
 export async function createUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("officer");
 

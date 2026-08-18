@@ -1,6 +1,8 @@
 export interface ParsedClaimRow {
   branch_id: string;
   claim_number: string;
+  work_order_no: string | null;
+  has_parts: boolean;
   vin: string | null;
   vehicle_model: string | null;
   mileage: number | null;
@@ -42,6 +44,9 @@ const JIAD_DEALER_CODE_SUFFIX_MAP: Record<string, string> = {
 const FIELD_ALIASES = {
   branch: ["branch", "branch code", "branch name", "dealer", "dealer code", "outlet", "dealer name"],
   work_order_no: ["work order no", "work order number", "job card no", "job card number", "repair order no"],
+  // Presence of a part here (vs. blank, meaning a labor-only claim) is used
+  // to derive has_parts - cycle generation only samples claims with parts.
+  main_part: ["main part", "part number", "part no", "part code"],
   claim_number: ["claim number", "claim no", "claim #", "claim id", "warranty claim"],
   vin: ["vin", "chassis number", "chassis no"],
   vehicle_model: ["model", "vehicle model", "model version"],
@@ -213,9 +218,13 @@ export function parseClaimRows(
       raw_row[h] = row[idx] ?? null;
     });
 
+    const mainPartRaw = get(row, "main_part");
+
     claims.push({
       branch_id: branchId,
       claim_number: claimNumber,
+      work_order_no: str(get(row, "work_order_no")),
+      has_parts: mainPartRaw != null && String(mainPartRaw).trim() !== "",
       vin: str(get(row, "vin")),
       vehicle_model: str(get(row, "vehicle_model")),
       mileage: isNaN(mileageNum) ? null : mileageNum,

@@ -30,6 +30,7 @@ export default async function BranchesPage() {
               <tr>
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Code</th>
+                <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
@@ -39,7 +40,7 @@ export default async function BranchesPage() {
               ))}
               {branchList.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
                     No branches yet.
                   </td>
                 </tr>
@@ -52,7 +53,7 @@ export default async function BranchesPage() {
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Users</h1>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
-          <UserForm branches={branchList} />
+          <UserForm branches={branchList.filter((b) => b.active)} />
         </div>
         <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
           <table className="w-full text-sm">

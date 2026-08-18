@@ -56,6 +56,11 @@ export default async function AuditAssignmentPage({
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           Claim {claim?.claim_number ?? assignment.claim_id}
+          {claim?.work_order_no && (
+            <span className="ml-2 text-lg font-medium text-neutral-500">
+              &middot; WO {claim.work_order_no}
+            </span>
+          )}
         </h1>
         <p className="text-sm text-neutral-500">{ASSIGNMENT_STATUS_LABELS[assignment.status]}</p>
       </div>

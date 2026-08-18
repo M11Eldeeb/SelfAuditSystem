@@ -67,7 +67,7 @@ export function AuditForm({
                 type="file"
                 name={`photo_${pt.id}`}
                 accept="image/*,application/pdf"
-                className="block text-sm"
+                className="block w-full text-sm text-neutral-700 file:mr-3 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-neutral-700 file:shadow-sm hover:file:bg-neutral-50"
               />
             )}
           </div>

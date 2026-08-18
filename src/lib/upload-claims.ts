@@ -75,19 +75,27 @@ export async function processClaimsUpload(officerId: string, formData: FormData)
     return { error: batchError?.message ?? "Could not create the upload batch." };
   }
 
+  // Upsert on (branch_id, claim_number): the monthly export is cumulative
+  // (every prior claim plus new ones), so this updates existing claims in
+  // place instead of duplicating them. Deleting old rows outright isn't
+  // safe once a claim is referenced by an audit_assignment - upsert keeps
+  // the same row/id, so generated cycles and in-progress submissions never
+  // break.
   for (let i = 0; i < claims.length; i += CHUNK_SIZE) {
     const chunk = claims.slice(i, i + CHUNK_SIZE).map((c) => ({ ...c, upload_batch_id: batch.id }));
-    const { error: insertError } = await supabase.from("claims").insert(chunk);
-    if (insertError) {
+    const { error: upsertError } = await supabase
+      .from("claims")
+      .upsert(chunk, { onConflict: "branch_id,claim_number" });
+    if (upsertError) {
       return {
-        error: `Imported ${i} of ${claims.length} rows before failing: ${insertError.message}`,
+        error: `Processed ${i} of ${claims.length} rows before failing: ${upsertError.message}`,
         skipped,
       };
     }
   }
 
   return {
-    success: `Imported ${claims.length} claim(s) from "${file.name}".`,
+    success: `Processed ${claims.length} claim(s) from "${file.name}" (new claims added, existing ones updated).`,
     inserted: claims.length,
     skipped,
   };
