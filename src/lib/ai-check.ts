@@ -43,9 +43,9 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
 
   if (visionQuestions.length > 0 && process.env.ANTHROPIC_API_KEY) {
     await runVisionChecks(supabase, assignmentId, claim, visionQuestions, answerByQuestion, photos ?? []);
-  } else if (visionQuestions.length > 0) {
-    console.error("ANTHROPIC_API_KEY not set - skipping AI vision checks for assignment", assignmentId);
   }
+  // No ANTHROPIC_API_KEY configured: AI checks are optional, so this is expected, not an error.
+  // The officer just judges every question manually in the review screen.
 
   await supabase
     .from("audit_assignments")
