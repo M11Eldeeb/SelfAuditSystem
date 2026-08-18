@@ -50,10 +50,15 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static assets and image optimization.
-     * Role-based routing (officer vs branch_admin) is handled in layouts,
-     * since it needs a DB lookup that shouldn't run on every prefetch.
+     * Match all request paths except static assets, image optimization, and
+     * /api routes. Route Handlers under /api do their own auth checks and
+     * return JSON directly - routing them through proxy would (a) redirect
+     * unauthenticated fetch() calls to an HTML login page instead of a JSON
+     * 401, and (b) subject their request bodies to proxy's body-buffering
+     * limit for no benefit. Role-based routing for pages (officer vs
+     * branch_admin) is handled in layouts, since it needs a DB lookup that
+     * shouldn't run on every prefetch.
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
   ],
 };
