@@ -16,7 +16,7 @@ export default function LoginPage() {
         <div className="space-y-5 p-6">
           <div>
             <p className="text-xs font-bold tracking-widest text-brand uppercase">MG</p>
-            <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Self-Audit</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Self Audit</h1>
             <p className="mt-1 text-sm text-neutral-500">
               Sign in with the account your warranty officer set up for you.
             </p>

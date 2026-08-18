@@ -19,12 +19,13 @@
   --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * This app is deliberately light-themed only (no dark mode support). Every
+ * component hardcodes light-mode colors (bg-white, text-neutral-900, etc.),
+ * so letting :root flip to dark values here made text invisible - anything
+ * relying on the inherited body color would go near-white on a still-white
+ * card whenever the OS/browser was in dark mode.
+ */
 
 body {
   background: var(--background);

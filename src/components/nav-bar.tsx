@@ -14,7 +14,7 @@ export function NavBar({
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-8">
           <span className="text-sm font-bold tracking-wide text-white uppercase">
-            MG <span className="text-brand">Warranty</span>
+            MG <span className="text-brand">Self Audit</span>
           </span>
           <nav className="flex items-center gap-5">
             {links.map((link) => (

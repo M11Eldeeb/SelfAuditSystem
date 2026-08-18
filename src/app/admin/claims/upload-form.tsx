@@ -1,7 +1,21 @@
 "use client";
 
 import { useActionState, useRef, useEffect } from "react";
-import { uploadClaims } from "./actions";
+import { useRouter } from "next/navigation";
+import type { SkippedRow } from "@/lib/parse-claims";
+
+type UploadState =
+  | { error?: string; success?: string; inserted?: number; skipped?: SkippedRow[] }
+  | undefined;
+
+async function uploadClaims(_prev: UploadState, formData: FormData): Promise<UploadState> {
+  try {
+    const res = await fetch("/api/claims/upload", { method: "POST", body: formData });
+    return await res.json();
+  } catch {
+    return { error: "Upload failed - check your connection and try again." };
+  }
+}
 
 function defaultClaimMonth(): string {
   const now = new Date();
@@ -12,10 +26,14 @@ function defaultClaimMonth(): string {
 export function UploadForm() {
   const [state, formAction, pending] = useActionState(uploadClaims, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    if (state?.success) formRef.current?.reset();
-  }, [state?.success]);
+    if (state?.success) {
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }, [state?.success, router]);
 
   return (
     <form ref={formRef} action={formAction} className="space-y-3">
@@ -30,7 +48,7 @@ export function UploadForm() {
             type="month"
             required
             defaultValue={defaultClaimMonth()}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
           />
         </div>
         <div className="space-y-1">
@@ -43,7 +61,7 @@ export function UploadForm() {
             type="file"
             accept=".xlsx,.csv"
             required
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-2 file:py-1 file:text-xs"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900 file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-2 file:py-1 file:text-xs file:text-neutral-900"
           />
         </div>
         <button

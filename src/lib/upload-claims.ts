@@ -1,25 +1,18 @@
-"use server";
-
-import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth";
+import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { readSpreadsheet } from "@/lib/read-spreadsheet";
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 
-export type UploadState =
-  | {
-      error?: string;
-      success?: string;
-      inserted?: number;
-      skipped?: SkippedRow[];
-    }
-  | undefined;
+export type UploadResult = {
+  error?: string;
+  success?: string;
+  inserted?: number;
+  skipped?: SkippedRow[];
+};
 
 const CHUNK_SIZE = 500;
 
-export async function uploadClaims(_prev: UploadState, formData: FormData): Promise<UploadState> {
-  const officer = await requireRole("officer");
-
+export async function processClaimsUpload(officerId: string, formData: FormData): Promise<UploadResult> {
   const file = formData.get("file");
   const claimMonth = String(formData.get("claim_month") ?? "");
 
@@ -70,7 +63,7 @@ export async function uploadClaims(_prev: UploadState, formData: FormData): Prom
   const { data: batch, error: batchError } = await supabase
     .from("upload_batches")
     .insert({
-      uploaded_by: officer.id,
+      uploaded_by: officerId,
       source_filename: file.name,
       claim_month: `${claimMonth}-01`,
       row_count: claims.length,
@@ -92,8 +85,6 @@ export async function uploadClaims(_prev: UploadState, formData: FormData): Prom
       };
     }
   }
-
-  revalidatePath("/admin/claims");
 
   return {
     success: `Imported ${claims.length} claim(s) from "${file.name}".`,
