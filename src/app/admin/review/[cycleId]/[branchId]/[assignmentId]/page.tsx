@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewForm } from "./review-form";
+import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { PhotoLinks } from "@/components/photo-links";
 
 export default async function ClaimReviewPage({
   params,
@@ -28,7 +30,7 @@ export default async function ClaimReviewPage({
     await Promise.all([
       supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
       supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
-      supabase.from("audit_photo_types").select("*").order("sort_order"),
+      supabase.from("audit_photo_types").select("*").eq("scope", "claim").order("sort_order"),
       supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_notes").select("*").eq("assignment_id", assignmentId).maybeSingle(),
@@ -50,13 +52,7 @@ export default async function ClaimReviewPage({
     ])
   );
 
-  const photoUrls = new Map<string, string>();
-  for (const photo of photos ?? []) {
-    const { data: signed } = await supabase.storage
-      .from("audit-photos")
-      .createSignedUrl(photo.storage_path, 3600);
-    if (signed?.signedUrl) photoUrls.set(photo.photo_type_id, signed.signedUrl);
-  }
+  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
 
   const locked = assignment.status === "reviewed";
 
@@ -96,23 +92,7 @@ export default async function ClaimReviewPage({
 
       <div className="rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Photos</h2>
-        <div className="flex flex-wrap gap-3">
-          {(photoTypes ?? []).map((pt) => (
-            <a
-              key={pt.id}
-              href={photoUrls.get(pt.id)}
-              target="_blank"
-              rel="noreferrer"
-              className={`rounded-md border px-3 py-1.5 text-xs ${
-                photoUrls.get(pt.id)
-                  ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                  : "border-neutral-200 bg-neutral-50 text-neutral-400"
-              }`}
-            >
-              {pt.label} {photoUrls.get(pt.id) ? "" : "(not uploaded)"}
-            </a>
-          ))}
-        </div>
+        <PhotoLinks photoTypes={photoTypes ?? []} statusByType={photoStatus} />
         {note?.note_text && (
           <p className="mt-3 text-sm text-neutral-600">
             <span className="font-medium text-neutral-800">Branch admin note:</span> {note.note_text}

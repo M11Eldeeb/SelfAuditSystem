@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { saveAudit } from "./actions";
 import { QuestionField } from "@/components/question-field";
 import type { Database } from "@/lib/supabase/types";
+import type { PhotoStatus } from "@/lib/photo-status";
 
 type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
 type PhotoType = Database["public"]["Tables"]["audit_photo_types"]["Row"];
@@ -13,7 +14,7 @@ export function AuditForm({
   questions,
   photoTypes,
   answers,
-  photoUrls,
+  photoStatus,
   noteText,
   locked,
 }: {
@@ -21,7 +22,7 @@ export function AuditForm({
   questions: Question[];
   photoTypes: PhotoType[];
   answers: Map<string, { answer_value: string | null; conditional_value: string | null }>;
-  photoUrls: Map<string, string>;
+  photoStatus: Map<string, PhotoStatus>;
   noteText: string;
   locked: boolean;
 }) {
@@ -51,16 +52,29 @@ export function AuditForm({
               {pt.required && <span className="text-red-500"> *</span>}
             </label>
             {pt.help_text && <p className="text-xs text-neutral-500">{pt.help_text}</p>}
-            {photoUrls.get(pt.id) && (
-              <a
-                href={photoUrls.get(pt.id)}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-xs text-brand underline"
-              >
-                View current photo
-              </a>
-            )}
+            {(() => {
+              const status = photoStatus.get(pt.id);
+              if (status && "url" in status) {
+                return (
+                  <a
+                    href={status.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-xs text-brand underline"
+                  >
+                    View current photo
+                  </a>
+                );
+              }
+              if (status && "removed" in status) {
+                return (
+                  <p className="text-xs text-neutral-400">
+                    Photo removed after review to save storage.
+                  </p>
+                );
+              }
+              return null;
+            })()}
             {!locked && (
               <input
                 type="file"

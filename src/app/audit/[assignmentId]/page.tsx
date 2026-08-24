@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AuditForm } from "./audit-form";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
+import { buildPhotoStatusMap } from "@/lib/photo-status";
 
 export default async function AuditAssignmentPage({
   params,
@@ -28,7 +29,7 @@ export default async function AuditAssignmentPage({
     await Promise.all([
       supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
       supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
-      supabase.from("audit_photo_types").select("*").order("sort_order"),
+      supabase.from("audit_photo_types").select("*").eq("scope", "claim").order("sort_order"),
       supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_notes").select("*").eq("assignment_id", assignmentId).maybeSingle(),
@@ -38,13 +39,7 @@ export default async function AuditAssignmentPage({
     (answers ?? []).map((a) => [a.question_id, { answer_value: a.answer_value, conditional_value: a.conditional_value }])
   );
 
-  const photoUrls = new Map<string, string>();
-  for (const photo of photos ?? []) {
-    const { data: signed } = await supabase.storage
-      .from("audit-photos")
-      .createSignedUrl(photo.storage_path, 3600);
-    if (signed?.signedUrl) photoUrls.set(photo.photo_type_id, signed.signedUrl);
-  }
+  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
 
   const locked = assignment.status !== "not_started" && assignment.status !== "in_progress";
 
@@ -89,7 +84,7 @@ export default async function AuditAssignmentPage({
         questions={questions ?? []}
         photoTypes={photoTypes ?? []}
         answers={answersMap}
-        photoUrls={photoUrls}
+        photoStatus={photoStatus}
         noteText={note?.note_text ?? ""}
         locked={locked}
       />

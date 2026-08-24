@@ -133,6 +133,7 @@ export interface Database {
         Row: {
           id: string;
           sort_order: number;
+          scope: QuestionScope;
           label: string;
           help_text: string | null;
           required: boolean;
@@ -214,6 +215,7 @@ export interface Database {
           photo_type_id: string;
           storage_path: string;
           uploaded_at: string;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -221,6 +223,7 @@ export interface Database {
           photo_type_id: string;
           storage_path: string;
           uploaded_at?: string;
+          deleted_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["audit_photos"]["Insert"]>;
         Relationships: [];
@@ -323,6 +326,26 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["branch_operation_answers"]["Insert"]>;
+        Relationships: [];
+      };
+      branch_operation_photos: {
+        Row: {
+          cycle_id: string;
+          branch_id: string;
+          photo_type_id: string;
+          storage_path: string;
+          uploaded_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          cycle_id: string;
+          branch_id: string;
+          photo_type_id: string;
+          storage_path: string;
+          uploaded_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_operation_photos"]["Insert"]>;
         Relationships: [];
       };
     };

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BranchOpsReviewForm } from "./branch-ops-review-form";
+import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { PhotoLinks } from "@/components/photo-links";
 
 export default async function BranchOpsReviewPage({
   params,
@@ -25,14 +27,17 @@ export default async function BranchOpsReviewPage({
   if (!branch || !cycle) notFound();
   if (!progress || progress.status === "not_started") notFound();
 
-  const [{ data: questions }, { data: answers }] = await Promise.all([
+  const [{ data: questions }, { data: answers }, { data: photoTypes }, { data: photos }] = await Promise.all([
     supabase.from("audit_questions").select("*").eq("scope", "branch").order("sort_order"),
     supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+    supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+    supabase.from("branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
   ]);
 
   const answersMap = new Map(
     (answers ?? []).map((a) => [a.question_id, { answer_value: a.answer_value, officer_value: a.officer_value }])
   );
+  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
 
   return (
     <div className="space-y-6">
@@ -43,6 +48,11 @@ export default async function BranchOpsReviewPage({
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           {branch.name} Branch Operations &mdash; {cycle.cycle_month.slice(0, 7)}
         </h1>
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <h2 className="mb-2 text-sm font-semibold text-neutral-900">Photos</h2>
+        <PhotoLinks photoTypes={photoTypes ?? []} statusByType={photoStatus} />
       </div>
 
       <BranchOpsReviewForm

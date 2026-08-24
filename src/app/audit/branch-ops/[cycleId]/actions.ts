@@ -40,13 +40,18 @@ export async function saveBranchOps(
     return { error: "This has already been submitted." };
   }
 
-  const { data: questions } = await supabase
-    .from("audit_questions")
-    .select("id")
-    .eq("scope", "branch")
-    .order("sort_order");
+  const [{ data: questions }, { data: photoTypes }, { data: existingPhotos }] = await Promise.all([
+    supabase.from("audit_questions").select("id").eq("scope", "branch").order("sort_order"),
+    supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+    supabase
+      .from("branch_operation_photos")
+      .select("photo_type_id")
+      .eq("cycle_id", cycleId)
+      .eq("branch_id", branchId)
+      .is("deleted_at", null),
+  ]);
 
-  const rows = (questions ?? []).map((q) => {
+  const answerRows = (questions ?? []).map((q) => {
     const value = formData.get(`answer_${q.id}`);
     return {
       cycle_id: cycleId,
@@ -56,13 +61,39 @@ export async function saveBranchOps(
     };
   });
 
-  if (rows.some((r) => !r.answer_value)) {
+  if (answerRows.some((r) => !r.answer_value)) {
     return { error: "Answer all questions before submitting." };
+  }
+
+  const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
+  for (const pt of photoTypes ?? []) {
+    const file = formData.get(`photo_${pt.id}`);
+    if (file instanceof File && file.size > 0) {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `branch-ops/${branchId}/${cycleId}/${pt.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("audit-photos")
+        .upload(path, file, { upsert: true, contentType: file.type || undefined });
+      if (uploadError) {
+        return { error: `Photo upload failed (${pt.label}): ${uploadError.message}` };
+      }
+      const { error: photoRowError } = await supabase.from("branch_operation_photos").upsert(
+        { cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path },
+        { onConflict: "cycle_id,branch_id,photo_type_id" }
+      );
+      if (photoRowError) return { error: photoRowError.message };
+      uploadedPhotoTypeIds.add(pt.id);
+    }
+  }
+
+  const missingPhotos = (photoTypes ?? []).filter((p) => p.required && !uploadedPhotoTypeIds.has(p.id));
+  if (missingPhotos.length > 0) {
+    return { error: `Missing required photo(s): ${missingPhotos.map((p) => p.label).join(", ")}` };
   }
 
   const { error: answersError } = await supabase
     .from("branch_operation_answers")
-    .upsert(rows, { onConflict: "cycle_id,branch_id,question_id" });
+    .upsert(answerRows, { onConflict: "cycle_id,branch_id,question_id" });
   if (answersError) return { error: answersError.message };
 
   const { error: progressError } = await supabase.from("branch_operation_progress").upsert(

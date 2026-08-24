@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BranchOpsForm } from "./branch-ops-form";
+import { buildPhotoStatusMap } from "@/lib/photo-status";
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: "Not started",
@@ -30,19 +31,23 @@ export default async function BranchOpsPage({
 
   const allClaimsDone = assignments.every((a) => a.status !== "not_started" && a.status !== "in_progress");
 
-  const [{ data: questions }, { data: progress }, { data: existingAnswers }, { data: cycle }] = await Promise.all([
-    supabase.from("audit_questions").select("*").eq("scope", "branch").order("sort_order"),
-    supabase
-      .from("branch_operation_progress")
-      .select("*")
-      .eq("cycle_id", cycleId)
-      .eq("branch_id", branchId)
-      .maybeSingle(),
-    supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
-    supabase.from("audit_cycles").select("cycle_month").eq("id", cycleId).single(),
-  ]);
+  const [{ data: questions }, { data: photoTypes }, { data: progress }, { data: existingAnswers }, { data: existingPhotos }, { data: cycle }] =
+    await Promise.all([
+      supabase.from("audit_questions").select("*").eq("scope", "branch").order("sort_order"),
+      supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+      supabase
+        .from("branch_operation_progress")
+        .select("*")
+        .eq("cycle_id", cycleId)
+        .eq("branch_id", branchId)
+        .maybeSingle(),
+      supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase.from("branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase.from("audit_cycles").select("cycle_month").eq("id", cycleId).single(),
+    ]);
 
   const answersMap = new Map((existingAnswers ?? []).map((a) => [a.question_id, a.answer_value]));
+  const photoStatus = await buildPhotoStatusMap(supabase, existingPhotos ?? []);
   const status = progress?.status ?? "not_started";
   const locked = !allClaimsDone || status !== "not_started";
 
@@ -66,7 +71,14 @@ export default async function BranchOpsPage({
         </p>
       )}
 
-      <BranchOpsForm cycleId={cycleId} questions={questions ?? []} answers={answersMap} locked={locked} />
+      <BranchOpsForm
+        cycleId={cycleId}
+        questions={questions ?? []}
+        answers={answersMap}
+        photoTypes={photoTypes ?? []}
+        photoStatus={photoStatus}
+        locked={locked}
+      />
     </div>
   );
 }
