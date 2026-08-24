@@ -99,22 +99,13 @@ export async function generateCycle(
   };
 }
 
+// Deletes a cycle regardless of progress - including submitted/reviewed work,
+// which is permanently lost (cascades away assignments, answers, photos, and
+// ai_reviews). The confirm dialog on the client is the safety check here.
 export async function deleteCycle(cycleId: string): Promise<{ error?: string }> {
   await requireRole("officer");
 
   const supabase = await createClient();
-
-  const { data: assignments } = await supabase
-    .from("audit_assignments")
-    .select("status")
-    .eq("cycle_id", cycleId);
-
-  const hasStartedWork = (assignments ?? []).some((a) => a.status !== "not_started");
-  if (hasStartedWork) {
-    return {
-      error: "Can't delete - at least one branch has already started or submitted this cycle's audit.",
-    };
-  }
 
   const { error } = await supabase.from("audit_cycles").delete().eq("id", cycleId);
   if (error) return { error: error.message };

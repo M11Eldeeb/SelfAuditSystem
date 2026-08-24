@@ -17,7 +17,7 @@ export async function saveReview(
   const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const { data: questions } = await supabase.from("audit_questions").select("id");
+  const { data: questions } = await supabase.from("audit_questions").select("id").eq("scope", "claim");
   const { data: existingReviews } = await supabase
     .from("ai_reviews")
     .select("question_id, ai_suggested_value")

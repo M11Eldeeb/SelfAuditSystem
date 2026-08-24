@@ -10,8 +10,6 @@ type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 /**
  * Runs AI checks for every ai_checkable question on a submitted assignment,
  * storing suggestions in ai_reviews for the officer to confirm/override.
- * q18 (submission lead time) is computed deterministically from claim dates
- * rather than via the model, since it's exact data.
  */
 export async function runAiChecks(assignmentId: string): Promise<void> {
   const supabase = createAdminClient();
@@ -25,7 +23,7 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
 
   const [{ data: claim }, { data: questions }, { data: answers }, { data: photos }] = await Promise.all([
     supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
-    supabase.from("audit_questions").select("*").eq("ai_checkable", true).order("sort_order"),
+    supabase.from("audit_questions").select("*").eq("scope", "claim").eq("ai_checkable", true).order("sort_order"),
     supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
     supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
   ]);
@@ -34,15 +32,8 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
 
   const answerByQuestion = new Map((answers ?? []).map((a) => [a.question_id, a]));
 
-  const q18 = questions.find((q) => q.id === "q18");
-  if (q18) {
-    await checkSubmissionLeadTime(supabase, assignmentId, claim);
-  }
-
-  const visionQuestions = questions.filter((q) => q.id !== "q18");
-
-  if (visionQuestions.length > 0 && process.env.ANTHROPIC_API_KEY) {
-    await runVisionChecks(supabase, assignmentId, claim, visionQuestions, answerByQuestion, photos ?? []);
+  if (questions.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    await runVisionChecks(supabase, assignmentId, claim, questions, answerByQuestion, photos ?? []);
   }
   // No ANTHROPIC_API_KEY configured: AI checks are optional, so this is expected, not an error.
   // The officer just judges every question manually in the review screen.
@@ -54,29 +45,6 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
     .eq("status", "submitted");
 }
 
-async function checkSubmissionLeadTime(
-  supabase: AdminClient,
-  assignmentId: string,
-  claim: { repair_end_date: string | null; dealer_submit_date: string | null }
-) {
-  if (!claim.repair_end_date || !claim.dealer_submit_date) return;
-
-  const days = Math.round(
-    (new Date(claim.dealer_submit_date).getTime() - new Date(claim.repair_end_date).getTime()) / 86_400_000
-  );
-
-  await supabase.from("ai_reviews").upsert(
-    {
-      assignment_id: assignmentId,
-      question_id: "q18",
-      ai_suggested_value: days < 5 ? "Yes" : "Other",
-      ai_reasoning: `${days} day(s) between repair end date (${claim.repair_end_date}) and dealer submit date (${claim.dealer_submit_date}), per claims data.`,
-      ai_confidence: "high",
-    },
-    { onConflict: "assignment_id,question_id" }
-  );
-}
-
 async function runVisionChecks(
   supabase: AdminClient,
   assignmentId: string,
@@ -84,10 +52,11 @@ async function runVisionChecks(
     claim_number: string;
     vin: string | null;
     mileage: number | null;
-    part_serial_number: string | null;
-    part_production_date: string | null;
+    repair_end_date: string | null;
+    dealer_submit_date: string | null;
+    creation_date: string;
   },
-  questions: { id: string; text: string; options: string[]; ai_check_note: string | null }[],
+  questions: { id: string; text: string; ai_check_note: string | null }[],
   answerByQuestion: Map<string, { answer_value: string | null }>,
   photos: { photo_type_id: string; storage_path: string }[]
 ) {
@@ -115,8 +84,8 @@ async function runVisionChecks(
 
   const questionBlock = questions
     .map((q) => {
-      const answer = answerByQuestion.get(q.id)?.answer_value ?? "(not answered)";
-      return `- ${q.id}: "${q.text}"\n  Options: ${q.options.join(", ")}\n  Branch admin's answer: ${answer}\n  Check guidance: ${q.ai_check_note ?? "n/a"}`;
+      const answer = answerByQuestion.get(q.id)?.answer_value;
+      return `- ${q.id}: "${q.text}"\n  Branch admin's answer: ${answer != null ? `${answer}%` : "(not answered)"}\n  Check guidance: ${q.ai_check_note ?? "n/a"}`;
     })
     .join("\n");
 
@@ -124,13 +93,14 @@ async function runVisionChecks(
     `Claim number: ${claim.claim_number}`,
     `VIN: ${claim.vin ?? "n/a"}`,
     `Mileage per claims data: ${claim.mileage ?? "n/a"}`,
-    `Part serial number per claims data: ${claim.part_serial_number ?? "n/a"}`,
-    `Part production date per claims data: ${claim.part_production_date ?? "n/a"}`,
+    `Reception/creation date per claims data: ${claim.creation_date}`,
+    `Repair end date per claims data: ${claim.repair_end_date ?? "n/a"}`,
+    `Dealer submit date per claims data: ${claim.dealer_submit_date ?? "n/a"}`,
   ].join("\n");
 
   const tool: Anthropic.Tool = {
     name: "report_audit_checks",
-    description: "Report the suggested verdict for each audit question under review.",
+    description: "Report the suggested score for each audit question under review.",
     input_schema: {
       type: "object",
       properties: {
@@ -140,7 +110,11 @@ async function runVisionChecks(
             type: "object",
             properties: {
               question_id: { type: "string" },
-              suggested_value: { type: "string" },
+              suggested_value: {
+                type: "string",
+                enum: ["0", "25", "50", "75", "100"],
+                description: "Compliance score for this question.",
+              },
               reasoning: { type: "string" },
               confidence: { type: "string", enum: ["high", "medium", "low"] },
             },
@@ -165,14 +139,19 @@ async function runVisionChecks(
         content: [
           {
             type: "text",
-            text: `You are assisting a warranty auditor. Review the attached job card / repair agreement / parts requisition photos for one warranty claim, and the claims data below, then judge each question.
+            text: `You are assisting a warranty auditor. Review the attached job card / repair agreement / parts requisition photos for one warranty claim, and the claims data below, then score each question on a 0/25/50/75/100 scale:
+- 100: fully compliant, no issues.
+- 75: compliant with a minor issue (e.g. present but slightly incomplete or hard to read).
+- 50: partially compliant (e.g. present but missing a required element).
+- 25: mostly missing or a significant issue.
+- 0: completely missing or absent.
 
 ${claimContext}
 
 Questions to check:
 ${questionBlock}
 
-For each question, pick a suggested_value from that question's Options list, give a short reasoning citing what you saw in the photos or data, and a confidence level. If a photo needed for a question is missing or illegible, say so in the reasoning and use "low" confidence.`,
+For each question, give a suggested_value from that scale, a short reasoning citing what you saw in the photos or data, and a confidence level. If a photo needed for a question is missing or illegible, say so in the reasoning and use "low" confidence.`,
           },
           ...content,
         ],

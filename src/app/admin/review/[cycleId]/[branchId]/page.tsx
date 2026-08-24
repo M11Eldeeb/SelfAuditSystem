@@ -12,17 +12,24 @@ export default async function BranchReviewPage({
   const { cycleId, branchId } = await params;
   const supabase = await createClient();
 
-  const [{ data: cycle }, { data: branch }, { data: assignments }, { data: result }] = await Promise.all([
-    supabase.from("audit_cycles").select("*").eq("id", cycleId).single(),
-    supabase.from("branches").select("*").eq("id", branchId).single(),
-    supabase.from("audit_assignments").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
-    supabase
-      .from("audit_results")
-      .select("*")
-      .eq("cycle_id", cycleId)
-      .eq("branch_id", branchId)
-      .maybeSingle(),
-  ]);
+  const [{ data: cycle }, { data: branch }, { data: assignments }, { data: result }, { data: opsProgress }] =
+    await Promise.all([
+      supabase.from("audit_cycles").select("*").eq("id", cycleId).single(),
+      supabase.from("branches").select("*").eq("id", branchId).single(),
+      supabase.from("audit_assignments").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase
+        .from("audit_results")
+        .select("*")
+        .eq("cycle_id", cycleId)
+        .eq("branch_id", branchId)
+        .maybeSingle(),
+      supabase
+        .from("branch_operation_progress")
+        .select("*")
+        .eq("cycle_id", cycleId)
+        .eq("branch_id", branchId)
+        .maybeSingle(),
+    ]);
 
   if (!cycle || !branch) notFound();
 
@@ -34,6 +41,7 @@ export default async function BranchReviewPage({
   const claimNumberById = new Map((claims ?? []).map((c) => [c.id, c.claim_number]));
 
   const allReviewed = (assignments ?? []).length > 0 && (assignments ?? []).every((a) => a.status === "reviewed");
+  const opsStatus = opsProgress?.status ?? "not_started";
 
   return (
     <div className="space-y-6">
@@ -87,7 +95,30 @@ export default async function BranchReviewPage({
         </table>
       </div>
 
-      {!result && <FinalizeButton cycleId={cycleId} branchId={branchId} disabled={!allReviewed} />}
+      <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-neutral-900">Branch Operations</p>
+          <p className="text-xs text-neutral-500">
+            {opsStatus === "not_started"
+              ? "Not submitted by the branch admin yet."
+              : opsStatus === "submitted"
+                ? "Submitted - needs your review."
+                : "Reviewed."}
+          </p>
+        </div>
+        {opsStatus !== "not_started" && (
+          <Link
+            href={`/admin/review/${cycleId}/${branchId}/branch-ops`}
+            className="text-sm text-brand hover:underline"
+          >
+            {opsStatus === "reviewed" ? "View" : "Review"}
+          </Link>
+        )}
+      </div>
+
+      {!result && (
+        <FinalizeButton cycleId={cycleId} branchId={branchId} disabled={!allReviewed || opsStatus !== "reviewed"} />
+      )}
     </div>
   );
 }

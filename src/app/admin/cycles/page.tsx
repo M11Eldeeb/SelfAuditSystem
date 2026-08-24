@@ -57,7 +57,11 @@ export default async function CyclesPage() {
                     <td className="px-4 py-2 text-neutral-600">{stat.submitted}</td>
                     <td className="px-4 py-2 text-neutral-600">{stat.reviewed}</td>
                     <td className="px-4 py-2 text-right">
-                      <DeleteCycleButton cycleId={c.id} cycleMonth={c.cycle_month.slice(0, 7)} />
+                      <DeleteCycleButton
+                        cycleId={c.id}
+                        cycleMonth={c.cycle_month.slice(0, 7)}
+                        hasStartedWork={stat.submitted > 0}
+                      />
                     </td>
                   </tr>
                 );

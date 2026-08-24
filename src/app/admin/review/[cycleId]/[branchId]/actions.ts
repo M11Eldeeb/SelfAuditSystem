@@ -31,10 +31,21 @@ export async function finalizeBranchAudit(
     return { error: "All claims must be reviewed before finalizing." };
   }
 
+  const { data: opsProgress } = await supabase
+    .from("branch_operation_progress")
+    .select("status")
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (!opsProgress || opsProgress.status !== "reviewed") {
+    return { error: "The branch operation questionnaire must be reviewed before finalizing." };
+  }
+
   const assignmentIds = assignments.map((a) => a.id);
-  const [{ data: questions }, { data: reviews }] = await Promise.all([
+  const [{ data: questions }, { data: reviews }, { data: opsAnswers }] = await Promise.all([
     supabase.from("audit_questions").select("*"),
     supabase.from("ai_reviews").select("*").in("assignment_id", assignmentIds),
+    supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
   ]);
 
   const questionById = new Map((questions ?? []).map((q) => [q.id, q]));
@@ -51,6 +62,17 @@ export async function finalizeBranchAudit(
     const list = perQuestionScores.get(r.question_id) ?? [];
     list.push(score);
     perQuestionScores.set(r.question_id, list);
+  });
+
+  (opsAnswers ?? []).forEach((a) => {
+    const question = questionById.get(a.question_id);
+    if (!question) return;
+    const finalValue = a.officer_value ?? a.answer_value;
+    const score = scoreAnswer(question, finalValue);
+    allScores.push(score);
+    const list = perQuestionScores.get(a.question_id) ?? [];
+    list.push(score);
+    perQuestionScores.set(a.question_id, list);
   });
 
   const breakdown: Record<string, number> = {};

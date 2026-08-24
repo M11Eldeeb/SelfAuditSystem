@@ -27,13 +27,18 @@ export default async function AuditDashboardPage() {
   const cycleIds = cycles.map((c) => c.id);
   const cycleMonthById = new Map(cycles.map((c) => [c.id, c.cycle_month]));
 
-  const [{ data: assignments }, { data: results }] = await Promise.all([
+  const [{ data: assignments }, { data: results }, { data: opsProgress }] = await Promise.all([
     supabase.from("audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
     supabase
       .from("audit_results")
       .select("*")
       .eq("branch_id", user.branch_id!)
-      .order("finalized_at", { ascending: false }),
+      .order("finalized_at", { ascending: true }),
+    supabase
+      .from("branch_operation_progress")
+      .select("*")
+      .eq("branch_id", user.branch_id!)
+      .in("cycle_id", cycleIds),
   ]);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
@@ -42,6 +47,8 @@ export default async function AuditDashboardPage() {
       ? await supabase.from("claims").select("id, claim_number, work_order_no").in("id", claimIds)
       : { data: [] };
   const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
+
+  const opsProgressByCycle = new Map((opsProgress ?? []).map((p) => [p.cycle_id, p]));
 
   const assignmentsByCycle = new Map<string, typeof assignments>();
   (assignments ?? []).forEach((a) => {
@@ -63,32 +70,51 @@ export default async function AuditDashboardPage() {
     );
   }
 
+  const trend = (results ?? []).slice(-6); // last 6 finalized cycles, oldest to newest
+  const latest = trend[trend.length - 1];
+  const previous = trend.length > 1 ? trend[trend.length - 2] : null;
+  const delta = latest && previous ? Math.round((latest.score_pct - previous.score_pct) * 10) / 10 : null;
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
 
-      {results && results.length > 0 && (
+      {trend.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-neutral-900">Past results</h2>
-          <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
-                <tr>
-                  <th className="px-4 py-2">Cycle</th>
-                  <th className="px-4 py-2">Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {results.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-2 text-neutral-900">
-                      {(cycleMonthById.get(r.cycle_id) ?? "").slice(0, 7)}
-                    </td>
-                    <td className="px-4 py-2 font-medium text-neutral-900">{r.score_pct}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h2 className="text-base font-semibold text-neutral-900">Overview</h2>
+          <div className="rounded-lg border border-neutral-200 bg-white p-4">
+            {delta !== null && (
+              <p className="mb-3 text-sm text-neutral-700">
+                {delta > 0 && (
+                  <span className="font-medium text-emerald-700">
+                    Up {delta} point{Math.abs(delta) === 1 ? "" : "s"}
+                  </span>
+                )}
+                {delta < 0 && (
+                  <span className="font-medium text-red-700">
+                    Down {Math.abs(delta)} point{Math.abs(delta) === 1 ? "" : "s"}
+                  </span>
+                )}
+                {delta === 0 && <span className="font-medium text-neutral-700">Unchanged</span>}{" "}
+                vs. the previous audit cycle.
+              </p>
+            )}
+            <div className="flex items-end gap-3">
+              {trend.map((r) => (
+                <div key={r.id} className="flex flex-1 flex-col items-center gap-1">
+                  <span className="text-xs font-medium text-neutral-700">{r.score_pct}%</span>
+                  <div className="flex h-24 w-full items-end rounded bg-neutral-100">
+                    <div
+                      className={`w-full rounded ${r.score_pct >= 90 ? "bg-emerald-500" : r.score_pct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
+                      style={{ height: `${Math.max(r.score_pct, 4)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-neutral-500">
+                    {(cycleMonthById.get(r.cycle_id) ?? "").slice(0, 7)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -96,6 +122,8 @@ export default async function AuditDashboardPage() {
       {cyclesWithWork.map((cycle) => {
         const cycleAssignments = assignmentsByCycle.get(cycle.id) ?? [];
         const submittedCount = cycleAssignments.filter((a) => a.status !== "not_started" && a.status !== "in_progress").length;
+        const allClaimsDone = cycleAssignments.every((a) => a.status !== "not_started" && a.status !== "in_progress");
+        const opsStatus = opsProgressByCycle.get(cycle.id)?.status ?? "not_started";
 
         return (
           <section key={cycle.id} className="space-y-3">
@@ -137,6 +165,27 @@ export default async function AuditDashboardPage() {
                 </tbody>
               </table>
             </div>
+
+            {allClaimsDone && (
+              <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-neutral-900">Branch Operations</p>
+                  <p className="text-xs text-neutral-500">
+                    {opsStatus === "not_started"
+                      ? "3 questions about branch-wide processes, answered once."
+                      : opsStatus === "submitted"
+                        ? "Submitted - awaiting officer review."
+                        : "Reviewed."}
+                  </p>
+                </div>
+                <Link
+                  href={`/audit/branch-ops/${cycle.id}`}
+                  className="text-sm text-brand hover:underline"
+                >
+                  {opsStatus === "not_started" ? "Start" : "View"}
+                </Link>
+              </div>
+            )}
           </section>
         );
       })}

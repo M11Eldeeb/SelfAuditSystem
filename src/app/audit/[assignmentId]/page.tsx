@@ -27,7 +27,7 @@ export default async function AuditAssignmentPage({
   const [{ data: claim }, { data: questions }, { data: photoTypes }, { data: answers }, { data: photos }, { data: note }] =
     await Promise.all([
       supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
-      supabase.from("audit_questions").select("*").order("sort_order"),
+      supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
       supabase.from("audit_photo_types").select("*").order("sort_order"),
       supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
@@ -42,7 +42,7 @@ export default async function AuditAssignmentPage({
   for (const photo of photos ?? []) {
     const { data: signed } = await supabase.storage
       .from("audit-photos")
-      .createSignedUrl(photo.storage_path, 300);
+      .createSignedUrl(photo.storage_path, 3600);
     if (signed?.signedUrl) photoUrls.set(photo.photo_type_id, signed.signedUrl);
   }
 
@@ -71,8 +71,8 @@ export default async function AuditAssignmentPage({
           <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">Model</dt>
-          <dd className="text-neutral-900">{claim?.vehicle_model ?? "—"}</dd>
+          <dt className="text-xs text-neutral-500">Work order #</dt>
+          <dd className="text-neutral-900">{claim?.work_order_no ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Mileage</dt>

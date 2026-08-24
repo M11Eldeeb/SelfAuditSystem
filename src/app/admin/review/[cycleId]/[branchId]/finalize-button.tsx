@@ -25,7 +25,9 @@ export function FinalizeButton({
         {pending ? "Finalizing..." : "Finalize results"}
       </button>
       {disabled && (
-        <p className="text-xs text-neutral-500">All claims must be reviewed first.</p>
+        <p className="text-xs text-neutral-500">
+          All claims and the branch operations questionnaire must be reviewed first.
+        </p>
       )}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}

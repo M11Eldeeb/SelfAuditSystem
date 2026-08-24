@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ScorePicker } from "@/components/score-picker";
 import type { Database } from "@/lib/supabase/types";
 
 type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
@@ -8,7 +9,6 @@ type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
 export function ReviewField({
   question,
   adminAnswer,
-  adminConditional,
   aiSuggestedValue,
   aiReasoning,
   aiConfidence,
@@ -16,7 +16,6 @@ export function ReviewField({
 }: {
   question: Question;
   adminAnswer: string | null;
-  adminConditional: string | null;
   aiSuggestedValue: string | null;
   aiReasoning: string | null;
   aiConfidence: string | null;
@@ -31,36 +30,22 @@ export function ReviewField({
 
       <p className="text-xs text-neutral-600">
         Branch admin answered:{" "}
-        <span className="font-medium text-neutral-900">{adminAnswer ?? "(no answer)"}</span>
-        {adminConditional && <span className="text-neutral-500"> ({adminConditional})</span>}
+        <span className="font-medium text-neutral-900">
+          {adminAnswer !== null ? `${adminAnswer}%` : "(no answer)"}
+        </span>
       </p>
 
       {aiSuggestedValue && (
         <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
           <p>
-            AI suggests: <span className="font-medium">{aiSuggestedValue}</span>{" "}
+            AI suggests: <span className="font-medium">{aiSuggestedValue}%</span>{" "}
             <span className="text-blue-600">({aiConfidence} confidence)</span>
           </p>
           {aiReasoning && <p className="mt-0.5 text-blue-800">{aiReasoning}</p>}
         </div>
       )}
 
-      <div className="flex flex-wrap gap-4">
-        {question.options.map((opt) => (
-          <label key={opt} className="flex items-center gap-1.5 text-sm text-neutral-700">
-            <input
-              type="radio"
-              name={`officer_${question.id}`}
-              value={opt}
-              checked={value === opt}
-              onChange={() => setValue(opt)}
-              required
-              className="accent-brand"
-            />
-            {opt}
-          </label>
-        ))}
-      </div>
+      <ScorePicker name={`officer_${question.id}`} value={value} onChange={setValue} required />
     </fieldset>
   );
 }

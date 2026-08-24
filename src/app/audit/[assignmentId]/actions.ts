@@ -32,7 +32,7 @@ export async function saveAudit(
 
   const [{ data: questions }, { data: photoTypes }, { data: existingAnswers }, { data: existingPhotos }] =
     await Promise.all([
-      supabase.from("audit_questions").select("*").order("sort_order"),
+      supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
       supabase.from("audit_photo_types").select("*").order("sort_order"),
       supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
       supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),

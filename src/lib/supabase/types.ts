@@ -11,6 +11,8 @@ export type AssignmentStatus =
   | "ai_checked"
   | "reviewed";
 export type OfficerDecision = "confirmed" | "overridden";
+export type QuestionScope = "claim" | "branch";
+export type BranchOpsStatus = "not_started" | "submitted" | "reviewed";
 
 export interface ConditionalField {
   shows_when_option: string;
@@ -111,6 +113,7 @@ export interface Database {
         Row: {
           id: string;
           sort_order: number;
+          scope: QuestionScope;
           text: string;
           help_text: string | null;
           type: string;
@@ -280,6 +283,48 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_results"]["Insert"]>;
         Relationships: [];
       };
+      branch_operation_progress: {
+        Row: {
+          cycle_id: string;
+          branch_id: string;
+          status: BranchOpsStatus;
+          submitted_at: string | null;
+          submitted_by: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+        };
+        Insert: {
+          cycle_id: string;
+          branch_id: string;
+          status?: BranchOpsStatus;
+          submitted_at?: string | null;
+          submitted_by?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_operation_progress"]["Insert"]>;
+        Relationships: [];
+      };
+      branch_operation_answers: {
+        Row: {
+          cycle_id: string;
+          branch_id: string;
+          question_id: string;
+          answer_value: string | null;
+          officer_value: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          cycle_id: string;
+          branch_id: string;
+          question_id: string;
+          answer_value?: string | null;
+          officer_value?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_operation_answers"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -288,6 +333,7 @@ export interface Database {
       cycle_status: CycleStatus;
       assignment_status: AssignmentStatus;
       officer_decision: OfficerDecision;
+      branch_ops_status: BranchOpsStatus;
     };
     CompositeTypes: Record<string, never>;
   };

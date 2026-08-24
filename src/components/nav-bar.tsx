@@ -30,6 +30,12 @@ export function NavBar({
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-neutral-400">{user.email}</span>
+          <Link
+            href="/account/password"
+            className="text-sm font-medium text-neutral-300 transition hover:text-white"
+          >
+            Change password
+          </Link>
           <form action={logout}>
             <button
               type="submit"

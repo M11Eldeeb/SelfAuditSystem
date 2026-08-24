@@ -41,7 +41,6 @@ export function ReviewForm({
               <ReviewField
                 question={q}
                 adminAnswer={answer?.answer_value ?? null}
-                adminConditional={answer?.conditional_value ?? null}
                 aiSuggestedValue={review?.ai_suggested_value ?? null}
                 aiReasoning={review?.ai_reasoning ?? null}
                 aiConfidence={review?.ai_confidence ?? null}

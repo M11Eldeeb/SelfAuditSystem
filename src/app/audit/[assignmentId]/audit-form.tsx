@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { saveAudit } from "./actions";
-import { QuestionField } from "./question-field";
+import { QuestionField } from "@/components/question-field";
 import type { Database } from "@/lib/supabase/types";
 
 type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
@@ -37,7 +37,6 @@ export function AuditForm({
             key={q.id}
             question={q}
             initialValue={answers.get(q.id)?.answer_value ?? null}
-            initialConditional={answers.get(q.id)?.conditional_value ?? null}
             locked={locked}
           />
         ))}

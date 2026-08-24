@@ -3,12 +3,23 @@
 import { useState, useTransition } from "react";
 import { deleteCycle } from "./actions";
 
-export function DeleteCycleButton({ cycleId, cycleMonth }: { cycleId: string; cycleMonth: string }) {
+export function DeleteCycleButton({
+  cycleId,
+  cycleMonth,
+  hasStartedWork,
+}: {
+  cycleId: string;
+  cycleMonth: string;
+  hasStartedWork: boolean;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleClick = () => {
-    if (!window.confirm(`Delete the ${cycleMonth} audit cycle? This can't be undone.`)) return;
+    const message = hasStartedWork
+      ? `Delete the ${cycleMonth} audit cycle? Branches have already submitted or started answers - all of that work will be permanently lost. This can't be undone.`
+      : `Delete the ${cycleMonth} audit cycle? This can't be undone.`;
+    if (!window.confirm(message)) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteCycle(cycleId);
