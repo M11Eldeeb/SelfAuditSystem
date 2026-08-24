@@ -94,8 +94,32 @@ export async function processClaimsUpload(officerId: string, formData: FormData)
     }
   }
 
+  // The new sheet is the sole source of truth going forward: remove claims
+  // left over from older uploads that no longer appear in it. Claims already
+  // tied to an audit_assignment are left alone regardless (an FK reference
+  // would block the delete anyway, and deleting them would break a
+  // generated cycle or in-progress submission).
+  const { data: referencedRows } = await supabase.from("audit_assignments").select("claim_id");
+  const referencedIds = new Set((referencedRows ?? []).map((a) => a.claim_id));
+
+  const { data: staleRows } = await supabase.from("claims").select("id").neq("upload_batch_id", batch.id);
+  const staleIds = (staleRows ?? []).map((c) => c.id).filter((id) => !referencedIds.has(id));
+
+  let deletedCount = 0;
+  for (let i = 0; i < staleIds.length; i += CHUNK_SIZE) {
+    const chunk = staleIds.slice(i, i + CHUNK_SIZE);
+    const { error: deleteError, count } = await supabase
+      .from("claims")
+      .delete({ count: "exact" })
+      .in("id", chunk);
+    if (deleteError) break; // don't fail the whole upload over cleanup
+    deletedCount += count ?? chunk.length;
+  }
+
   return {
-    success: `Processed ${claims.length} claim(s) from "${file.name}" (new claims added, existing ones updated).`,
+    success: `Processed ${claims.length} claim(s) from "${file.name}" (new claims added, existing ones updated)${
+      deletedCount > 0 ? `. Removed ${deletedCount} claim(s) no longer in this file.` : "."
+    }`,
     inserted: claims.length,
     skipped,
   };

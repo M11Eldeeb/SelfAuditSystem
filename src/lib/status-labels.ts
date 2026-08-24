@@ -4,4 +4,5 @@ export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
   submitted: "Submitted",
   ai_checked: "AI checked",
   reviewed: "Reviewed",
+  expired: "Expired (0% - deadline passed)",
 };

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AuditForm } from "./audit-form";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { expireOverdueAssignments } from "@/lib/expire-assignments";
 
 export default async function AuditAssignmentPage({
   params,
@@ -13,6 +14,7 @@ export default async function AuditAssignmentPage({
 }) {
   const { assignmentId } = await params;
   const user = await requireRole("branch_admin");
+  await expireOverdueAssignments();
   const supabase = await createClient();
 
   const { data: assignment } = await supabase
@@ -59,6 +61,16 @@ export default async function AuditAssignmentPage({
         </h1>
         <p className="text-sm text-neutral-500">{ASSIGNMENT_STATUS_LABELS[assignment.status]}</p>
       </div>
+
+      {assignment.status === "expired" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-medium">30 day countdown ended</p>
+          <p className="mt-1">
+            This claim wasn&apos;t submitted before the audit cycle&apos;s 30-day deadline, so it&apos;s
+            automatically scored 0% and can no longer be answered.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm sm:grid-cols-4">
         <div>

@@ -27,7 +27,9 @@ export async function finalizeBranchAudit(
   if (!assignments || assignments.length === 0) {
     return { error: "No assignments found for this branch/cycle." };
   }
-  if (assignments.some((a) => a.status !== "reviewed")) {
+  // 'expired' claims were never submitted by the deadline, so there's
+  // nothing for the officer to review - they're scored 0% automatically.
+  if (assignments.some((a) => a.status !== "reviewed" && a.status !== "expired")) {
     return { error: "All claims must be reviewed before finalizing." };
   }
 
@@ -63,6 +65,18 @@ export async function finalizeBranchAudit(
     list.push(score);
     perQuestionScores.set(r.question_id, list);
   });
+
+  const claimQuestionIds = (questions ?? []).filter((q) => q.scope === "claim").map((q) => q.id);
+  assignments
+    .filter((a) => a.status === "expired")
+    .forEach(() => {
+      claimQuestionIds.forEach((questionId) => {
+        allScores.push(0);
+        const list = perQuestionScores.get(questionId) ?? [];
+        list.push(0);
+        perQuestionScores.set(questionId, list);
+      });
+    });
 
   (opsAnswers ?? []).forEach((a) => {
     const question = questionById.get(a.question_id);

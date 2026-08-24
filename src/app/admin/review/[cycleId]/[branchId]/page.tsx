@@ -40,7 +40,9 @@ export default async function BranchReviewPage({
       : { data: [] };
   const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
 
-  const allReviewed = (assignments ?? []).length > 0 && (assignments ?? []).every((a) => a.status === "reviewed");
+  const allReviewed =
+    (assignments ?? []).length > 0 &&
+    (assignments ?? []).every((a) => a.status === "reviewed" || a.status === "expired");
   const opsStatus = opsProgress?.status ?? "not_started";
 
   return (
@@ -84,6 +86,8 @@ export default async function BranchReviewPage({
                 <td className="px-4 py-2 text-right">
                   {a.status === "not_started" || a.status === "in_progress" ? (
                     <span className="text-xs text-neutral-400">Not submitted yet</span>
+                  ) : a.status === "expired" ? (
+                    <span className="text-xs text-red-500">Auto-scored, nothing to review</span>
                   ) : (
                     <Link
                       href={`/admin/review/${cycleId}/${branchId}/${a.id}`}

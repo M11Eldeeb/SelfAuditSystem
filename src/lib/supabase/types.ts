@@ -9,7 +9,8 @@ export type AssignmentStatus =
   | "in_progress"
   | "submitted"
   | "ai_checked"
-  | "reviewed";
+  | "reviewed"
+  | "expired";
 export type OfficerDecision = "confirmed" | "overridden";
 export type QuestionScope = "claim" | "branch";
 export type BranchOpsStatus = "not_started" | "submitted" | "reviewed";
@@ -148,6 +149,7 @@ export interface Database {
           cycle_month: string;
           claims_month: string;
           status: CycleStatus;
+          deadline_at: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -156,6 +158,7 @@ export interface Database {
           cycle_month: string;
           claims_month: string;
           status?: CycleStatus;
+          deadline_at?: string | null;
           created_by?: string | null;
           created_at?: string;
         };

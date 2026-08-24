@@ -41,6 +41,21 @@ export async function generateCycle(
     return { error: "Add at least one active branch first." };
   }
 
+  // Only the most recently uploaded claims sheet is used for generation -
+  // older claims are cleaned up on upload, but this filter is a defensive
+  // second layer in case any linger.
+  const { data: latestBatch } = await supabase
+    .from("upload_batches")
+    .select("id")
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latestBatch) {
+    return { error: "Upload a claims file first." };
+  }
+
+  const deadlineAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data: cycle, error: cycleError } = await supabase
     .from("audit_cycles")
     .insert({
@@ -48,6 +63,7 @@ export async function generateCycle(
       claims_month: claimsMonth,
       status: "open",
       created_by: officer.id,
+      deadline_at: deadlineAt,
     })
     .select("id")
     .single();
@@ -67,6 +83,7 @@ export async function generateCycle(
       .from("claims")
       .select("id")
       .eq("branch_id", branch.id)
+      .eq("upload_batch_id", latestBatch.id)
       .eq("has_parts", true)
       .gte("creation_date", claimsMonth)
       .lt("creation_date", cycleMonth);

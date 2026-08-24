@@ -2,9 +2,16 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
+import { expireOverdueAssignments } from "@/lib/expire-assignments";
+
+function daysRemaining(deadlineAt: string | null): number | null {
+  if (!deadlineAt) return null;
+  return Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000);
+}
 
 export default async function AuditDashboardPage() {
   const user = await requireRole("branch_admin");
+  await expireOverdueAssignments();
   const supabase = await createClient();
 
   const { data: cycles } = await supabase
@@ -124,6 +131,7 @@ export default async function AuditDashboardPage() {
         const submittedCount = cycleAssignments.filter((a) => a.status !== "not_started" && a.status !== "in_progress").length;
         const allClaimsDone = cycleAssignments.every((a) => a.status !== "not_started" && a.status !== "in_progress");
         const opsStatus = opsProgressByCycle.get(cycle.id)?.status ?? "not_started";
+        const remaining = daysRemaining(cycle.deadline_at);
 
         return (
           <section key={cycle.id} className="space-y-3">
@@ -133,6 +141,13 @@ export default async function AuditDashboardPage() {
               </h2>
               <span className="text-xs text-neutral-500">
                 {submittedCount} / {cycleAssignments.length} submitted
+                {remaining !== null && (
+                  <span className={`ml-2 font-medium ${remaining <= 5 ? "text-red-600" : "text-neutral-500"}`}>
+                    {remaining > 0
+                      ? `· ${remaining} day${remaining === 1 ? "" : "s"} left to submit`
+                      : "· Submission deadline passed"}
+                  </span>
+                )}
               </span>
             </div>
             <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
