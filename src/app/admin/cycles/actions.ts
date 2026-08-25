@@ -13,6 +13,8 @@ export type GenerateCycleState =
       error?: string;
       success?: string;
       perBranch?: { branchName: string; available: number; assigned: number }[];
+      cycleMonthLabel?: string;
+      notifyEmails?: string[];
     }
   | undefined;
 
@@ -77,6 +79,7 @@ export async function generateCycle(
   }
 
   const perBranch: { branchName: string; available: number; assigned: number }[] = [];
+  const notifiedBranchIds = new Set<string>();
 
   for (const branch of branches) {
     const { data: claims } = await supabase
@@ -103,6 +106,8 @@ export async function generateCycle(
       if (assignError) {
         return { error: `Failed assigning claims for ${branch.name}: ${assignError.message}` };
       }
+
+      notifiedBranchIds.add(branch.id);
     }
 
     perBranch.push({ branchName: branch.name, available: available.length, assigned: selected.length });
@@ -110,9 +115,23 @@ export async function generateCycle(
 
   revalidatePath("/admin/cycles");
 
+  const { data: branchAdmins } = await supabase
+    .from("users")
+    .select("email, branch_id")
+    .eq("role", "branch_admin");
+  const notifyEmails = [
+    ...new Set(
+      (branchAdmins ?? [])
+        .filter((admin) => admin.branch_id && notifiedBranchIds.has(admin.branch_id))
+        .map((admin) => admin.email)
+    ),
+  ];
+
   return {
     success: `Audit cycle for ${cycleMonthInput} created (auditing claims from ${claimsMonth.slice(0, 7)}).`,
     perBranch,
+    cycleMonthLabel: cycleMonthInput,
+    notifyEmails,
   };
 }
 

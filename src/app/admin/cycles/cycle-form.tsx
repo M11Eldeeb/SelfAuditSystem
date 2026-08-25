@@ -40,6 +40,34 @@ export function CycleForm() {
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
 
+      {state?.success && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            {state.notifyEmails && state.notifyEmails.length > 0
+              ? "Branch admins haven't been told yet - send them the notification email."
+              : "No branch admin accounts found for the branches assigned claims this cycle - nothing to notify."}
+          </p>
+          {state.notifyEmails && state.notifyEmails.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const monthLabel = state.cycleMonthLabel ?? "";
+                const appUrl = window.location.origin;
+                const subject = `${monthLabel} self audit is ready`;
+                const body = `Hello,\n\nThe self audit for ${monthLabel} has been set up. Please sign in to check your branch's assigned claims and complete the self audit within 30 days.\n\nSign in: ${appUrl}/audit\n\nWarranty Department`;
+                const mailto = `mailto:?bcc=${encodeURIComponent(
+                  state.notifyEmails!.join(",")
+                )}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                window.location.href = mailto;
+              }}
+              className="shrink-0 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+            >
+              Send mail
+            </button>
+          )}
+        </div>
+      )}
+
       {state?.perBranch && (
         <div className="overflow-hidden rounded-lg border border-neutral-200">
           <table className="w-full text-sm">
