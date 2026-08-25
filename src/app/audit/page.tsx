@@ -3,15 +3,28 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
+import { Podium } from "@/components/podium";
+import { StandingsList } from "@/components/standings-list";
+import {
+  computeStandings,
+  parseStandingsPeriod,
+  STANDINGS_PERIODS,
+  STANDINGS_PERIOD_LABELS,
+} from "@/lib/standings";
 
 function daysRemaining(deadlineAt: string | null): number | null {
   if (!deadlineAt) return null;
   return Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000);
 }
 
-export default async function AuditDashboardPage() {
+export default async function AuditDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
   const user = await requireRole("branch_admin");
   await expireOverdueAssignments();
+  const period = parseStandingsPeriod((await searchParams).period);
   const supabase = await createClient();
 
   const { data: cycles } = await supabase
@@ -34,19 +47,24 @@ export default async function AuditDashboardPage() {
   const cycleIds = cycles.map((c) => c.id);
   const cycleMonthById = new Map(cycles.map((c) => [c.id, c.cycle_month]));
 
-  const [{ data: assignments }, { data: results }, { data: opsProgress }] = await Promise.all([
-    supabase.from("audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
-    supabase
-      .from("audit_results")
-      .select("*")
-      .eq("branch_id", user.branch_id!)
-      .order("finalized_at", { ascending: true }),
-    supabase
-      .from("branch_operation_progress")
-      .select("*")
-      .eq("branch_id", user.branch_id!)
-      .in("cycle_id", cycleIds),
-  ]);
+  const [{ data: assignments }, { data: results }, { data: opsProgress }, { data: allBranches }, { data: allResults }] =
+    await Promise.all([
+      supabase.from("audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
+      supabase
+        .from("audit_results")
+        .select("*")
+        .eq("branch_id", user.branch_id!)
+        .order("finalized_at", { ascending: true }),
+      supabase
+        .from("branch_operation_progress")
+        .select("*")
+        .eq("branch_id", user.branch_id!)
+        .in("cycle_id", cycleIds),
+      supabase.from("branches").select("id, name").eq("active", true).order("name"),
+      supabase.from("audit_results").select("*"),
+    ]);
+
+  const standings = computeStandings(allResults ?? [], allBranches ?? [], cycleMonthById, period);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
@@ -66,13 +84,48 @@ export default async function AuditDashboardPage() {
 
   const cyclesWithWork = cycles.filter((c) => (assignmentsByCycle.get(c.id) ?? []).length > 0);
 
+  const standingsSection = standings.length > 0 && (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold text-neutral-900">Branch Standings</h2>
+        <form method="get" className="flex items-center gap-2">
+          <select
+            name="period"
+            defaultValue={period}
+            className="rounded-md border border-neutral-300 px-2 py-1 text-xs"
+          >
+            {STANDINGS_PERIODS.map((p) => (
+              <option key={p} value={p}>
+                {STANDINGS_PERIOD_LABELS[p]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-dark"
+          >
+            Apply
+          </button>
+        </form>
+      </div>
+      <p className="text-xs text-neutral-500">
+        How every branch compares, {STANDINGS_PERIOD_LABELS[period].toLowerCase()}.
+      </p>
+      <Podium entries={standings} />
+      <StandingsList entries={standings} />
+    </section>
+  );
+
   if (cyclesWithWork.length === 0) {
     return (
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
-        <p className="text-sm text-neutral-600">
-          No claims have been assigned to your branch yet for the current cycle.
-        </p>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
+          <p className="text-sm text-neutral-600">
+            No claims have been assigned to your branch yet for the current cycle.
+          </p>
+        </div>
+        {standingsSection}
       </div>
     );
   }
@@ -85,6 +138,8 @@ export default async function AuditDashboardPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
+
+      {standingsSection}
 
       {trend.length > 0 && (
         <section className="space-y-3">

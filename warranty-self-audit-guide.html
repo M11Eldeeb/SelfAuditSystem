@@ -1,0 +1,667 @@
+<!doctype html>
+<title>Self Audit Launch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff;
+    --paper-warm: #f7f7f8;
+    --paper-raised: #ffffff;
+    --ink: #0b0b0c;
+    --ink-soft: #4b4b50;
+    --ink-faint: #86868c;
+    --line: #e5e5e8;
+    --line-strong: #d4d4d8;
+    --brand: #e4002b;
+    --brand-dark: #b4001f;
+    --brand-tint: #fdeaee;
+    --good: #0a7a4a;
+    --good-tint: #e8f6ef;
+    --warn: #92620a;
+    --warn-tint: #fdf3e0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #131315;
+      --paper-warm: #1a1a1d;
+      --paper-raised: #1d1d20;
+      --ink: #f2f2f3;
+      --ink-soft: #b7b7bd;
+      --ink-faint: #85858c;
+      --line: #2b2b2f;
+      --line-strong: #38383d;
+      --brand: #ff3355;
+      --brand-dark: #ff5577;
+      --brand-tint: #2a1216;
+      --good: #3ecf8e;
+      --good-tint: #123023;
+      --warn: #e0a83e;
+      --warn-tint: #2e2410;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #131315;
+    --paper-warm: #1a1a1d;
+    --paper-raised: #1d1d20;
+    --ink: #f2f2f3;
+    --ink-soft: #b7b7bd;
+    --ink-faint: #85858c;
+    --line: #2b2b2f;
+    --line-strong: #38383d;
+    --brand: #ff3355;
+    --brand-dark: #ff5577;
+    --brand-tint: #2a1216;
+    --good: #3ecf8e;
+    --good-tint: #123023;
+    --warn: #e0a83e;
+    --warn-tint: #2e2410;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: "Barlow Condensed", "Inter", sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  a { color: var(--brand); }
+  p { margin: 0; }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+  .wrap-wide { max-width: 920px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- Masthead ---------- */
+  /* Deliberately fixed dark colors, not theme tokens: this is a brand-black
+     bulletin band in both light and dark viewer themes, same as the app's own
+     nav bar — it must not flip when --ink/--paper swap in dark mode. */
+  .masthead {
+    background: #0b0b0c;
+    color: #ffffff;
+    padding: 56px 0 0;
+  }
+  .masthead .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brand);
+  }
+  .masthead h1 {
+    color: #ffffff;
+    font-size: clamp(34px, 6.2vw, 58px);
+    line-height: 0.98;
+    margin-top: 14px;
+  }
+  .masthead .sub {
+    margin-top: 16px;
+    max-width: 46ch;
+    font-size: 16px;
+    color: #cfcfd2;
+  }
+  .masthead .meta {
+    margin-top: 28px;
+    padding-bottom: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: #9a9a9e;
+  }
+  .masthead .meta b { color: #e4e4e6; font-weight: 600; }
+
+  .stripe {
+    height: 6px;
+    background: repeating-linear-gradient(
+      -35deg,
+      var(--brand), var(--brand) 14px,
+      var(--ink) 14px, var(--ink) 28px
+    );
+  }
+
+  /* ---------- Sections ---------- */
+  section { padding: 52px 0; }
+  section.tight { padding: 36px 0; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .section-head .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand);
+  }
+  .section-head h2 { font-size: 28px; }
+  .lede { font-size: 16px; color: var(--ink-soft); max-width: 62ch; }
+
+  /* ---------- Comparison table ---------- */
+  .table-scroll { overflow-x: auto; margin-top: 22px; border: 1px solid var(--line); border-radius: 10px; }
+  table.compare { width: 100%; border-collapse: collapse; min-width: 620px; font-size: 14.5px; }
+  table.compare th {
+    text-align: left;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--paper-warm);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.compare th:first-child { width: 22%; }
+  table.compare td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+  table.compare tr:last-child td { border-bottom: none; }
+  table.compare td.item { color: var(--ink); font-weight: 600; }
+  table.compare td.old { color: var(--ink-faint); }
+  table.compare td.old::before { content: "—  "; }
+  table.compare td.new::before { content: "→  "; color: var(--brand); font-weight: 700; }
+
+  /* ---------- Rules callout ---------- */
+  .rules {
+    border-left: 3px solid var(--brand);
+    background: var(--paper-warm);
+    border-radius: 0 10px 10px 0;
+    padding: 22px 24px;
+  }
+  .rules h3 { font-size: 19px; margin-bottom: 12px; }
+  .rules ul { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 14.5px; }
+  .rules li { margin-bottom: 8px; }
+  .rules li:last-child { margin-bottom: 0; }
+  .rules b { color: var(--ink); }
+
+  /* ---------- Walkthrough steps ---------- */
+  .step { display: grid; grid-template-columns: 56px 1fr; gap: 18px; padding: 30px 0; border-top: 1px solid var(--line); }
+  .step:first-child { border-top: none; padding-top: 6px; }
+  .step .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--brand);
+    padding-top: 4px;
+  }
+  .step h3 { font-size: 21px; margin-bottom: 6px; }
+  .step p.desc { color: var(--ink-soft); font-size: 15px; max-width: 58ch; }
+  .step p.desc + p.desc { margin-top: 8px; }
+  .step .panel-slot { margin-top: 18px; }
+
+  /* ---------- App recreation "device" panel ---------- */
+  .mock {
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .mock-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: #f1f1f2;
+    border-bottom: 1px solid #e2e2e4;
+  }
+  .mock-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #d4d4d7; }
+  .mock-bar .url {
+    margin-left: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: #85858c;
+  }
+  .mock-body { background: #fafafa; }
+
+  /* app internals — deliberately literal light-mode colors: this recreates a
+     light-only production UI, not the guide's own themed chrome */
+  .mk-nav { background: #0b0b0c; border-bottom: 4px solid #e4002b; padding: 11px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .mk-nav .brand { color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-family: Inter, sans-serif; }
+  .mk-nav .brand span { color: #e4002b; }
+  .mk-nav .links { display: flex; gap: 14px; font-size: 12px; color: #c7c7cb; font-family: Inter, sans-serif; }
+  .mk-nav .user { font-size: 11px; color: #8a8a90; font-family: Inter, sans-serif; }
+  .mk-content { padding: 18px 16px 22px; }
+  .mk-h1 { font-family: Inter, sans-serif; font-weight: 700; font-size: 19px; color: #17171a; letter-spacing: -0.01em; }
+  .mk-back { font-size: 12px; color: #8a8a90; font-family: Inter, sans-serif; margin-bottom: 6px; display: block; }
+  .mk-sub { font-family: Inter, sans-serif; font-size: 12px; color: #8a8a90; margin-top: 3px; }
+  .mk-card { border: 1px solid #e5e5e8; background: #fff; border-radius: 8px; padding: 14px; }
+  .mk-card + .mk-card { margin-top: 12px; }
+  .mk-label { font-family: Inter, sans-serif; font-size: 10.5px; color: #9a9a9f; text-transform: uppercase; letter-spacing: 0.04em; }
+  .mk-val { font-family: Inter, sans-serif; font-size: 13px; color: #17171a; margin-top: 2px; }
+  .mk-grid4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 20px; }
+  @media (min-width: 480px) { .mk-grid4 { grid-template-columns: repeat(4, 1fr); } }
+  .mk-h2 { font-family: Inter, sans-serif; font-weight: 600; font-size: 13px; color: #17171a; margin-bottom: 10px; }
+  .mk-bars { display: flex; align-items: flex-end; gap: 10px; margin-top: 4px; }
+  .mk-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .mk-bar-track { width: 100%; height: 72px; background: #f0f0f1; border-radius: 3px; display: flex; align-items: flex-end; }
+  .mk-bar-fill { width: 100%; border-radius: 3px; }
+  .mk-pct { font-family: Inter, sans-serif; font-size: 11px; font-weight: 600; color: #3a3a3e; }
+  .mk-month { font-family: Inter, sans-serif; font-size: 10.5px; color: #9a9a9f; }
+  .mk-delta { font-family: Inter, sans-serif; font-size: 12.5px; color: #4a4a4e; margin-bottom: 10px; }
+  .mk-delta b { color: #0a7a4a; font-weight: 600; }
+  .mk-table { width: 100%; border-collapse: collapse; font-family: Inter, sans-serif; font-size: 12.5px; }
+  .mk-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #9a9a9f; background: #fafafa; padding: 8px 12px; border-bottom: 1px solid #e5e5e8; }
+  .mk-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f1; color: #3a3a3e; }
+  .mk-table tr:last-child td { border-bottom: none; }
+  .mk-mono-sm { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: #17171a; }
+  .mk-link { color: #e4002b; font-family: Inter, sans-serif; font-size: 12.5px; text-decoration: none; }
+  .mk-tag { display: inline-block; font-family: Inter, sans-serif; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .mk-tag.warn { background: #fdf3e0; color: #92620a; }
+  .mk-tag.amber { background: #fef3e0; color: #92620a; }
+  .mk-tag.dim { background: #f2f2f3; color: #8a8a90; }
+  .mk-deadline { font-family: Inter, sans-serif; font-size: 11.5px; color: #b91c1c; font-weight: 600; }
+
+  .mk-question { border-bottom: 1px solid #f0f0f1; padding-bottom: 14px; margin-bottom: 14px; }
+  .mk-question:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .mk-qtext { font-family: Inter, sans-serif; font-size: 13px; font-weight: 500; color: #17171a; }
+  .mk-qhelp { font-family: Inter, sans-serif; font-size: 11px; color: #9a9a9f; margin-top: 2px; }
+  .mk-picker { display: inline-flex; border: 1px solid #d4d4d7; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .mk-picker span { font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; padding: 6px 11px; border-left: 1px solid #d4d4d7; color: #6b6b70; background: #fff; }
+  .mk-picker span:first-child { border-left: none; }
+  .mk-picker span.on-0 { background: #dc2626; color: #fff; }
+  .mk-picker span.on-100 { background: #059669; color: #fff; }
+
+  .mk-photo-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .mk-photo { font-family: Inter, sans-serif; font-size: 11px; padding: 6px 10px; border-radius: 6px; border: 1px solid; }
+  .mk-photo.have { background: #eef4ff; border-color: #bfd6ff; color: #2453b8; }
+  .mk-photo.missing { background: #fafafa; border-color: #e5e5e8; color: #a8a8ad; }
+  .mk-filebtn { font-family: Inter, sans-serif; font-size: 11.5px; color: #4a4a4e; border: 1px solid #d4d4d7; background: #fff; border-radius: 6px; padding: 6px 10px; display: inline-block; margin-top: 4px; }
+
+  .mk-btn { font-family: Inter, sans-serif; font-size: 12.5px; font-weight: 600; color: #fff; background: #e4002b; border-radius: 6px; padding: 8px 16px; display: inline-block; margin-top: 4px; }
+  .mk-btn.ghost { background: transparent; color: #e4002b; border: 1px solid #e4002b; }
+
+  .mk-login-wrap { background: #0b0b0c; padding: 40px 16px; display: flex; justify-content: center; }
+  .mk-login-card { width: 100%; max-width: 300px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+  .mk-login-bar { height: 5px; background: #e4002b; }
+  .mk-login-body { padding: 22px 20px; }
+  .mk-login-eyebrow { font-family: Inter, sans-serif; font-size: 10.5px; font-weight: 700; color: #e4002b; letter-spacing: 0.1em; }
+  .mk-login-h1 { font-family: Inter, sans-serif; font-weight: 700; font-size: 19px; color: #17171a; margin-top: 4px; }
+  .mk-login-p { font-family: Inter, sans-serif; font-size: 11.5px; color: #8a8a90; margin-top: 5px; }
+  .mk-field-label { font-family: Inter, sans-serif; font-size: 11.5px; font-weight: 500; color: #4a4a4e; margin-top: 14px; display: block; }
+  .mk-input { margin-top: 4px; border: 1px solid #d4d4d7; border-radius: 5px; height: 30px; background: #fff; }
+  .mk-signin { margin-top: 16px; background: #e4002b; color: #fff; text-align: center; font-family: Inter, sans-serif; font-size: 12.5px; font-weight: 600; border-radius: 5px; padding: 8px 0; }
+
+  .caption { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); margin-top: 9px; }
+
+  footer { border-top: 1px solid var(--line); padding: 34px 0 46px; }
+  footer p { font-size: 13.5px; color: var(--ink-faint); }
+  footer p + p { margin-top: 6px; }
+
+  @media (max-width: 560px) {
+    section { padding: 40px 0; }
+    .step { grid-template-columns: 1fr; gap: 6px; }
+    .step .num { padding-top: 0; }
+  }
+</style>
+
+<div class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Warranty Department — Service Bulletin</p>
+    <h1>Self&nbsp;Audit is moving<br>off Google Forms.</h1>
+    <p class="sub">Starting with next month's cycle, the monthly branch self-audit runs through a
+      dedicated system built for it — not a shared form link.</p>
+    <div class="meta">
+      <span><b>From</b> Warranty Office</span>
+      <span><b>To</b> All branch warranty admins</span>
+      <span><b>Applies to</b> Every branch, every monthly cycle</span>
+    </div>
+  </div>
+</div>
+<div class="stripe"></div>
+
+<section class="tight">
+  <div class="wrap">
+    <p class="lede">Same job — audit 10 of last month's claims and show your paperwork is in order —
+      but the form is gone. Claims are picked for you, photos attach to the exact claim they belong
+      to, and you can see where your branch stands the moment your officer finalizes a cycle. Here's
+      what's different and how to use it.</p>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap-wide">
+    <div class="section-head"><span class="n">01</span><h2>What's changing</h2></div>
+    <div class="table-scroll">
+      <table class="compare">
+        <thead>
+          <tr><th>Area</th><th>Old — Google Form</th><th>New — Self Audit</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="item">Sign-in</td><td class="old">One shared form link for every branch.</td><td class="new">Your own account, set up by your warranty officer.</td></tr>
+          <tr><td class="item">Choosing claims</td><td class="old">Claim numbers looked up and typed in by hand.</td><td class="new">10 real claims per branch, auto-picked at random from last month's parts claims.</td></tr>
+          <tr><td class="item">Your results</td><td class="old">Emailed out later, hard to compare month to month.</td><td class="new">Your dashboard shows your last 6 cycles and whether you're trending up or down.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap-wide">
+    <div class="section-head"><span class="n">02</span><h2>Walking through a cycle</h2></div>
+    <p class="lede">What you'll actually do each month, in order.</p>
+
+    <div style="margin-top:8px">
+
+      <div class="step">
+        <div class="num">01</div>
+        <div>
+          <h3>Sign in</h3>
+          <p class="desc">Use the email and password your warranty officer created for you — there's
+            no self-signup. You can change your password any time from the top menu.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/login</span></div>
+              <div class="mock-body">
+                <div class="mk-login-wrap">
+                  <div class="mk-login-card">
+                    <div class="mk-login-bar"></div>
+                    <div class="mk-login-body">
+                      <div class="mk-login-eyebrow">MG</div>
+                      <div class="mk-login-h1">Self Audit</div>
+                      <div class="mk-login-p">Sign in with the account your warranty officer set up for you.</div>
+                      <label class="mk-field-label">Email</label>
+                      <div class="mk-input"></div>
+                      <label class="mk-field-label">Password</label>
+                      <div class="mk-input"></div>
+                      <div class="mk-signin">Sign in</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">Login screen</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">02</div>
+        <div>
+          <h3>Check your dashboard</h3>
+          <p class="desc">"My Audits" shows the open cycle: your 10 assigned claims, how many are
+            done, and the days left before the 30-day deadline. If you've had cycles finalized before,
+            your last 6 scores show as a trend at the top.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/audit</span></div>
+              <div class="mock-body">
+                <div class="mk-nav">
+                  <div class="brand">MG <span>Self Audit</span></div>
+                  <div class="links"><span>My Audits</span></div>
+                  <div class="user">demo.branchadmin@example.com</div>
+                </div>
+                <div class="mk-content">
+                  <div class="mk-h1">My Audits</div>
+                  <div class="mk-card" style="margin-top:14px">
+                    <div class="mk-h2">Overview</div>
+                    <div class="mk-delta">Up <b>17 points</b> vs. the previous audit cycle.</div>
+                    <div class="mk-bars">
+                      <div class="mk-bar-col">
+                        <span class="mk-pct">71.5%</span>
+                        <div class="mk-bar-track"><div class="mk-bar-fill" style="height:72%;background:#f59e0b"></div></div>
+                        <span class="mk-month">2026-05</span>
+                      </div>
+                      <div class="mk-bar-col">
+                        <span class="mk-pct">88.5%</span>
+                        <div class="mk-bar-track"><div class="mk-bar-fill" style="height:89%;background:#10b981"></div></div>
+                        <span class="mk-month">2026-06</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top:16px;display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px">
+                    <div class="mk-h2" style="margin-bottom:0">2026-07 audit cycle</div>
+                    <div class="mono" style="font-size:11px;color:#8a8a90">1 / 3 submitted <span class="mk-deadline">· 12 days left to submit</span></div>
+                  </div>
+                  <div class="mk-card" style="margin-top:8px;padding:0;overflow:hidden">
+                    <table class="mk-table">
+                      <thead><tr><th>Claim #</th><th>Work order #</th><th>Status</th><th></th></tr></thead>
+                      <tbody>
+                        <tr><td class="mk-mono-sm">WDM0000123</td><td class="mk-mono-sm">DEMO-10045</td><td>Submitted</td><td><a class="mk-link">View</a></td></tr>
+                        <tr><td class="mk-mono-sm">WDM0000124</td><td class="mk-mono-sm">DEMO-10046</td><td>In progress</td><td><a class="mk-link">Continue</a></td></tr>
+                        <tr><td class="mk-mono-sm">WDM0000125</td><td class="mk-mono-sm">DEMO-10047</td><td>Not started</td><td><a class="mk-link">Continue</a></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">My Audits dashboard — shown with sample data</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">03</div>
+        <div>
+          <h3>Open a claim</h3>
+          <p class="desc">Each claim page shows what's already known from the claims sheet — VIN,
+            work order number, mileage, creation date — so you're only ever answering what the
+            system can't already tell.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/audit/…</span></div>
+              <div class="mock-body">
+                <div class="mk-nav">
+                  <div class="brand">MG <span>Self Audit</span></div>
+                  <div class="links"><span>My Audits</span></div>
+                  <div class="user">demo.branchadmin@example.com</div>
+                </div>
+                <div class="mk-content">
+                  <span class="mk-back">&larr; Back to my audits</span>
+                  <div class="mk-h1">Claim WDM0000124 <span style="font-weight:500;color:#8a8a90">· WO DEMO-10046</span></div>
+                  <div class="mk-sub">In progress</div>
+                  <div class="mk-card mk-grid4" style="margin-top:14px">
+                    <div><div class="mk-label">VIN</div><div class="mk-val mk-mono-sm">LDEMO1234567890B</div></div>
+                    <div><div class="mk-label">Work order #</div><div class="mk-val mk-mono-sm">DEMO-10046</div></div>
+                    <div><div class="mk-label">Mileage</div><div class="mk-val">18,900</div></div>
+                    <div><div class="mk-label">Creation date</div><div class="mk-val">2026-07-16</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">Claim detail — top of page</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">04</div>
+        <div>
+          <h3>Answer the Documents questions</h3>
+          <p class="desc">Every question uses the same 0 / 25 / 50 / 75 / 100 scale — score what's
+            actually true of the paperwork, not what you'd like it to say. Help text sits under each
+            question when the wording needs a note.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/audit/…</span></div>
+              <div class="mock-body">
+                <div class="mk-content">
+                  <div class="mk-card">
+                    <div class="mk-h2">Questions</div>
+                    <div class="mk-question">
+                      <div class="mk-qtext">Mileage on the job card matches the system</div>
+                      <div class="mk-picker">
+                        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span class="on-100">100%</span>
+                      </div>
+                    </div>
+                    <div class="mk-question">
+                      <div class="mk-qtext">Customer signature present on the job card</div>
+                      <div class="mk-qhelp">Both the intake and collection signature, if the job card has both.</div>
+                      <div class="mk-picker">
+                        <span>0%</span><span>25%</span><span>50%</span><span class="on-100" style="background:#059669">75%</span><span>100%</span>
+                      </div>
+                    </div>
+                    <div class="mk-question" style="border-bottom:none;margin-bottom:0;padding-bottom:0">
+                      <div class="mk-qtext">Repair agreement signed and attached</div>
+                      <div class="mk-picker">
+                        <span class="on-0">0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">Three of the fourteen Documents questions</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">05</div>
+        <div>
+          <h3>Attach the required photos</h3>
+          <p class="desc">Job card front &amp; back, repair agreement, parts requisition, and the QC
+            report are required; supporting documents (AC table, sublet invoice, battery test,
+            dismantling form, wheel alignment, etc.) are attached only when the claim needs them.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/audit/…</span></div>
+              <div class="mock-body">
+                <div class="mk-content">
+                  <div class="mk-card">
+                    <div class="mk-h2">Required photos</div>
+                    <div class="mk-photo-row">
+                      <span class="mk-photo have">Job card (front)</span>
+                      <span class="mk-photo have">Job card (back)</span>
+                      <span class="mk-photo missing">Repair agreement (not uploaded)</span>
+                      <span class="mk-photo have">Parts requisition</span>
+                      <span class="mk-photo have">QC report</span>
+                      <span class="mk-photo missing">Supporting documents (not uploaded)</span>
+                    </div>
+                    <span class="mk-filebtn">Choose file</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">Photo section — attached photos stay viewable to you until your officer reviews the claim, then they're removed from storage (the record isn't).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">06</div>
+        <div>
+          <h3>Submit — repeat for all 10</h3>
+          <p class="desc">All required questions and required photos must be filled in before a
+            claim will submit. Work through the other 9 the same way; your dashboard tracks how many
+            are left.</p>
+          <div class="panel-slot">
+            <span class="mk-btn" style="display:inline-block">Submit claim</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">07</div>
+        <div>
+          <h3>Complete Branch Operations</h3>
+          <p class="desc">Once all 10 claims are done, a one-time card unlocks on your dashboard:
+            three questions about branch-wide processes (scrapping, warranty room, archive), each
+            with its own required photo. This isn't tied to any single claim — one submission per
+            cycle.</p>
+          <div class="panel-slot">
+            <div class="mock">
+              <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">selfaudit.jiadmotors.com/audit/branch-ops/…</span></div>
+              <div class="mock-body">
+                <div class="mk-content">
+                  <span class="mk-back">&larr; Back to my audits</span>
+                  <div class="mk-h1">Branch Operations - 2026-07</div>
+                  <div class="mk-sub">Answered once for the branch, not tied to a specific claim.</div>
+                  <div class="mk-card" style="margin-top:14px">
+                    <div class="mk-h2">Questions</div>
+                    <div class="mk-question" style="border-bottom:none;margin-bottom:0;padding-bottom:0">
+                      <div class="mk-qtext">Scrapped parts stored and tagged correctly</div>
+                      <div class="mk-picker"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span class="on-100">100%</span></div>
+                    </div>
+                  </div>
+                  <div class="mk-card" style="margin-top:12px">
+                    <div class="mk-h2">Required photos</div>
+                    <div class="mk-photo-row">
+                      <span class="mk-photo have">Scrapping photo</span>
+                      <span class="mk-photo have">Warranty room photo</span>
+                      <span class="mk-photo missing">Warranty archive photo (not uploaded)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="caption">Branch Operations — appears once all 10 claims are submitted</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">08</div>
+        <div>
+          <h3>Officer review</h3>
+          <p class="desc">Nothing for you to do here. AI checks each submitted answer first as a
+            time-saver, but a warranty officer confirms or overrides every question by hand before
+            anything is final — the AI never decides your score by itself.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">09</div>
+        <div>
+          <h3>See your result</h3>
+          <p class="desc">Once your officer finalizes the branch, the cycle's score appears on your
+            dashboard's Overview trend — same place you saw it in step 2, now including this month.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="stripe"></div>
+
+<section class="tight">
+  <div class="wrap">
+    <div class="section-head"><span class="n">03</span><h2>Rules worth knowing</h2></div>
+    <div class="rules">
+      <h3>Four things that decide your score</h3>
+      <ul>
+        <li><b>10 claims, parts-only.</b> Always drawn from the month before the audit cycle — a
+          July audit checks June's parts claims.</li>
+        <li><b>30-day deadline.</b> Each cycle gives you 30 days. Whatever's still unsubmitted when
+          it ends is automatically scored 0% — claims you already submitted keep their real answers
+          and don't need any of this.</li>
+        <li><b>Photos stay visible until reviewed.</b> You can reopen and view what you uploaded any
+          time before your officer reviews the claim. After review, photos are deleted from storage
+          to keep the system free to run — the claim record and your answers stay.</li>
+        <li><b>Branch Operations is once per cycle.</b> It only unlocks after all 10 claims are
+          submitted, and it's answered once for the whole branch, not per claim.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Questions about a specific claim, a locked form, or anything that looks wrong — go to your
+      warranty officer directly, the same way you would have for the old form.</p>
+    <p>— Warranty Department</p>
+  </div>
+</footer>

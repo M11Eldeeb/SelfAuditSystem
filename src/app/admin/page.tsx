@@ -1,13 +1,27 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { scoreBarClasses } from "@/lib/score-color";
+import { Podium } from "@/components/podium";
+import { StandingsList } from "@/components/standings-list";
+import {
+  computeStandings,
+  parseStandingsPeriod,
+  STANDINGS_PERIODS,
+  STANDINGS_PERIOD_LABELS,
+} from "@/lib/standings";
 
 export default async function AdminOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; sort?: string }>;
+  searchParams: Promise<{
+    branch?: string | string[];
+    from?: string;
+    to?: string;
+    sort?: string;
+    period?: string;
+  }>;
 }) {
   const params = await searchParams;
+  const period = parseStandingsPeriod(params.period);
   const supabase = await createClient();
 
   const [{ data: results }, { data: branches }, { data: cycles }] = await Promise.all([
@@ -62,15 +76,11 @@ export default async function AdminOverviewPage({
 
   const resultByBranchCycle = new Map(filteredResults.map((r) => [`${r.branch_id}:${r.cycle_id}`, r]));
 
-  const avgByBranch = new Map<string, { name: string; avg: number; count: number }>();
-  for (const branch of filteredBranches) {
-    const branchResults = filteredResults.filter((r) => r.branch_id === branch.id);
-    if (branchResults.length === 0) continue;
-    const avg = branchResults.reduce((sum, r) => sum + r.score_pct, 0) / branchResults.length;
-    avgByBranch.set(branch.id, { name: branch.name, avg: Math.round(avg * 10) / 10, count: branchResults.length });
-  }
-  const ranked = [...avgByBranch.entries()].sort((a, b) => b[1].avg - a[1].avg);
-  const topScore = ranked[0]?.[1].avg ?? 0;
+  // Standings/podium use the branch selection but always rank by each branch's
+  // most recent N cycles, independent of the from/to date range used by the
+  // trend-by-cycle table below.
+  const branchScopedResults = results.filter((r) => filteredBranchIds.has(r.branch_id));
+  const standings = computeStandings(branchScopedResults, filteredBranches, cycleMonthById, period);
 
   return (
     <div className="space-y-8">
@@ -81,6 +91,23 @@ export default async function AdminOverviewPage({
 
       <form method="get" className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
         <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1">
+            <label htmlFor="period" className="text-xs font-medium text-neutral-700">
+              Standings period
+            </label>
+            <select
+              id="period"
+              name="period"
+              defaultValue={period}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            >
+              {STANDINGS_PERIODS.map((p) => (
+                <option key={p} value={p}>
+                  {STANDINGS_PERIOD_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-1">
             <label htmlFor="from" className="text-xs font-medium text-neutral-700">
               From
@@ -148,42 +175,19 @@ export default async function AdminOverviewPage({
         </div>
       </form>
 
-      {ranked.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900">Branch comparison</h2>
-          <p className="text-sm text-neutral-600">
-            Average score across the filtered cycles. Difference shown is vs. the top performer.
-          </p>
-          <div className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">
-            {ranked.map(([branchId, b], i) => {
-              const diff = Math.round((b.avg - topScore) * 10) / 10;
-              return (
-                <div key={branchId} className="flex items-center gap-3">
-                  <span className="w-6 text-right text-xs text-neutral-400">{i + 1}</span>
-                  <span className="w-40 shrink-0 truncate text-sm text-neutral-900">{b.name}</span>
-                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-neutral-100">
-                    <div
-                      className={`h-full rounded-full ${scoreBarClasses(b.avg)}`}
-                      style={{ width: `${Math.min(b.avg, 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-16 text-right text-sm font-medium text-neutral-900">{b.avg}%</span>
-                  <span className="w-24 text-right text-xs text-neutral-500">
-                    {i === 0 ? "Best" : `${diff} pts`}
-                  </span>
-                  {i === 0 && ranked.length > 1 && (
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                      Highest
-                    </span>
-                  )}
-                  {i === ranked.length - 1 && ranked.length > 1 && (
-                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                      Lowest
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+      {standings.length > 0 ? (
+        <section className="space-y-6">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-neutral-900">Top performers</h2>
+            <p className="text-sm text-neutral-600">{STANDINGS_PERIOD_LABELS[period]}.</p>
+            <Podium entries={standings} />
+          </div>
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-neutral-900">Standings</h2>
+            <p className="text-sm text-neutral-600">
+              Every branch, best to worst. Difference shown is vs. the top performer.
+            </p>
+            <StandingsList entries={standings} />
           </div>
         </section>
       ) : (
