@@ -1,4 +1,8 @@
-import "server-only";
+// No "server-only" here on purpose: this runs in the browser, parsing the
+// spreadsheet client-side so the raw file (which can be 50MB+) never has to
+// be uploaded as a request body - Vercel's serverless functions cap request
+// bodies at 4.5MB, non-configurably. Only the parsed claim rows go over the
+// network afterward, in small chunks.
 import ExcelJS from "exceljs";
 
 export interface SpreadsheetData {
@@ -8,7 +12,7 @@ export interface SpreadsheetData {
 
 export async function readSpreadsheet(buffer: ArrayBuffer, filename: string): Promise<SpreadsheetData> {
   if (filename.toLowerCase().endsWith(".csv")) {
-    return parseCsv(Buffer.from(buffer).toString("utf-8"));
+    return parseCsv(new TextDecoder("utf-8").decode(buffer));
   }
   return parseXlsx(buffer);
 }

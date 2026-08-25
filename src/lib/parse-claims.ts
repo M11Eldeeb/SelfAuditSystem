@@ -11,7 +11,6 @@ export interface ParsedClaimRow {
   repair_end_date: string | null;
   dealer_submit_date: string | null;
   creation_date: string;
-  raw_row: Record<string, unknown>;
 }
 
 export interface SkippedRow {
@@ -213,11 +212,6 @@ export function parseClaimRows(
     const mileageRaw = get(row, "mileage");
     const mileageNum = mileageRaw != null && mileageRaw !== "" ? Number(mileageRaw) : NaN;
 
-    const raw_row: Record<string, unknown> = {};
-    headers.forEach((h, idx) => {
-      raw_row[h] = row[idx] ?? null;
-    });
-
     const mainPartRaw = get(row, "main_part");
 
     claims.push({
@@ -233,7 +227,6 @@ export function parseClaimRows(
       repair_end_date: parseDateValue(get(row, "repair_end_date")),
       dealer_submit_date: parseDateValue(get(row, "dealer_submit_date")),
       creation_date: creationDate,
-      raw_row,
     });
   });
 

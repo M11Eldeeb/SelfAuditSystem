@@ -4,18 +4,17 @@ import { UploadForm } from "./upload-form";
 export default async function ClaimsPage() {
   const supabase = await createClient();
 
-  const { data: batches } = await supabase
-    .from("upload_batches")
-    .select("*")
-    .order("uploaded_at", { ascending: false })
-    .limit(20);
+  const [{ data: batches }, { data: branches }] = await Promise.all([
+    supabase.from("upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
+    supabase.from("branches").select("id, name, code").order("name"),
+  ]);
 
   return (
     <div className="space-y-10">
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Upload claims</h1>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
-          <UploadForm />
+          <UploadForm branches={branches ?? []} />
         </div>
       </section>
 
