@@ -14,10 +14,10 @@ export default async function BranchOpsReviewPage({
   const supabase = await createClient();
 
   const [{ data: branch }, { data: cycle }, { data: progress }] = await Promise.all([
-    supabase.from("branches").select("*").eq("id", branchId).single(),
-    supabase.from("audit_cycles").select("*").eq("id", cycleId).single(),
+    supabase.from("self_audit_branches").select("*").eq("id", branchId).single(),
+    supabase.from("self_audit_audit_cycles").select("*").eq("id", cycleId).single(),
     supabase
-      .from("branch_operation_progress")
+      .from("self_audit_branch_operation_progress")
       .select("*")
       .eq("cycle_id", cycleId)
       .eq("branch_id", branchId)
@@ -28,10 +28,10 @@ export default async function BranchOpsReviewPage({
   if (!progress || progress.status === "not_started") notFound();
 
   const [{ data: questions }, { data: answers }, { data: photoTypes }, { data: photos }] = await Promise.all([
-    supabase.from("audit_questions").select("*").eq("scope", "branch").order("sort_order"),
-    supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
-    supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
-    supabase.from("branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+    supabase.from("self_audit_audit_questions").select("*").eq("scope", "branch").order("sort_order"),
+    supabase.from("self_audit_branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+    supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+    supabase.from("self_audit_branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
   ]);
 
   const answersMap = new Map(

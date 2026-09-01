@@ -11,6 +11,11 @@ export interface ParsedClaimRow {
   repair_end_date: string | null;
   dealer_submit_date: string | null;
   creation_date: string;
+  claim_amount: number | null;
+  prior_approval: string | null;
+  return_times: number | null;
+  return_times_dealer: number | null;
+  labor_code: string | null;
 }
 
 export interface SkippedRow {
@@ -74,6 +79,14 @@ const FIELD_ALIASES = {
     "created date",
     "reception date",
   ],
+  // Fields below feed internal-audit's risk-based ("flagged") sampling mode -
+  // aliases are best guesses against the real export's headers, not yet
+  // confirmed, same as every other field here needed a round of tuning.
+  claim_amount: ["claim amount", "amount", "total amount", "claim value", "warranty amount", "approved amount"],
+  prior_approval: ["prior approval", "special approval", "approval required", "advance approval"],
+  return_times: ["return times", "return times saic", "returns"],
+  return_times_dealer: ["return times dealer", "return times (dealer)", "return times(dealer)"],
+  labor_code: ["labor code", "labour code", "primary labor code", "labor op code"],
 } as const;
 
 type Field = keyof typeof FIELD_ALIASES;
@@ -214,6 +227,12 @@ export function parseClaimRows(
 
     const mainPartRaw = get(row, "main_part");
 
+    const numOrNull = (v: unknown) => {
+      if (v == null || v === "") return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+
     claims.push({
       branch_id: branchId,
       claim_number: claimNumber,
@@ -227,6 +246,11 @@ export function parseClaimRows(
       repair_end_date: parseDateValue(get(row, "repair_end_date")),
       dealer_submit_date: parseDateValue(get(row, "dealer_submit_date")),
       creation_date: creationDate,
+      claim_amount: numOrNull(get(row, "claim_amount")),
+      prior_approval: str(get(row, "prior_approval")),
+      return_times: numOrNull(get(row, "return_times")),
+      return_times_dealer: numOrNull(get(row, "return_times_dealer")),
+      labor_code: str(get(row, "labor_code")),
     });
   });
 

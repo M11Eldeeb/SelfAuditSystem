@@ -18,7 +18,7 @@ export async function saveAudit(
   const supabase = await createClient();
 
   const { data: assignment } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("*")
     .eq("id", assignmentId)
     .single();
@@ -32,10 +32,10 @@ export async function saveAudit(
 
   const [{ data: questions }, { data: photoTypes }, { data: existingAnswers }, { data: existingPhotos }] =
     await Promise.all([
-      supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
-      supabase.from("audit_photo_types").select("*").order("sort_order"),
-      supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
-      supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
+      supabase.from("self_audit_audit_questions").select("*").eq("scope", "claim").order("sort_order"),
+      supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "claim").order("sort_order"),
+      supabase.from("self_audit_audit_answers").select("*").eq("assignment_id", assignmentId),
+      supabase.from("self_audit_audit_photos").select("*").eq("assignment_id", assignmentId),
     ]);
 
   const intent = String(formData.get("intent") ?? "draft");
@@ -55,7 +55,7 @@ export async function saveAudit(
 
   if (answerRows.length > 0) {
     const { error } = await supabase
-      .from("audit_answers")
+      .from("self_audit_audit_answers")
       .upsert(answerRows, { onConflict: "assignment_id,question_id" });
     if (error) return { error: error.message };
   }
@@ -63,7 +63,7 @@ export async function saveAudit(
   const noteText = formData.get("note");
   if (noteText !== null) {
     await supabase
-      .from("audit_notes")
+      .from("self_audit_audit_notes")
       .upsert(
         { assignment_id: assignmentId, note_text: String(noteText).trim() || null },
         { onConflict: "assignment_id" }
@@ -83,7 +83,7 @@ export async function saveAudit(
         return { error: `Photo upload failed (${pt.label}): ${uploadError.message}` };
       }
       const { error: photoRowError } = await supabase
-        .from("audit_photos")
+        .from("self_audit_audit_photos")
         .upsert(
           { assignment_id: assignmentId, photo_type_id: pt.id, storage_path: path },
           { onConflict: "assignment_id,photo_type_id" }
@@ -115,7 +115,7 @@ export async function saveAudit(
   }
 
   await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .update({
       status: newStatus,
       ...(newStatus === "submitted"

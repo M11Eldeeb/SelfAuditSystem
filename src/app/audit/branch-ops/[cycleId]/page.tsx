@@ -22,7 +22,7 @@ export default async function BranchOpsPage({
   const branchId = user.branch_id!;
 
   const { data: assignments } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("status")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId);
@@ -33,17 +33,17 @@ export default async function BranchOpsPage({
 
   const [{ data: questions }, { data: photoTypes }, { data: progress }, { data: existingAnswers }, { data: existingPhotos }, { data: cycle }] =
     await Promise.all([
-      supabase.from("audit_questions").select("*").eq("scope", "branch").order("sort_order"),
-      supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+      supabase.from("self_audit_audit_questions").select("*").eq("scope", "branch").order("sort_order"),
+      supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
       supabase
-        .from("branch_operation_progress")
+        .from("self_audit_branch_operation_progress")
         .select("*")
         .eq("cycle_id", cycleId)
         .eq("branch_id", branchId)
         .maybeSingle(),
-      supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
-      supabase.from("branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
-      supabase.from("audit_cycles").select("cycle_month").eq("id", cycleId).single(),
+      supabase.from("self_audit_branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase.from("self_audit_branch_operation_photos").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase.from("self_audit_audit_cycles").select("cycle_month").eq("id", cycleId).single(),
     ]);
 
   const answersMap = new Map((existingAnswers ?? []).map((a) => [a.question_id, a.answer_value]));

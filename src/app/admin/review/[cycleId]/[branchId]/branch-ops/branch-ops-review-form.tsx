@@ -5,7 +5,7 @@ import { saveBranchOpsReview } from "./actions";
 import { ScorePicker } from "@/components/score-picker";
 import type { Database } from "@/lib/supabase/types";
 
-type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
+type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 
 export function BranchOpsReviewForm({
   cycleId,
@@ -42,6 +42,7 @@ export function BranchOpsReviewForm({
       {!locked && (
         <button
           type="submit"
+          formNoValidate
           disabled={pending}
           className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >

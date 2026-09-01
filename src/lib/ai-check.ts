@@ -15,17 +15,17 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
   const supabase = createAdminClient();
 
   const { data: assignment } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("*")
     .eq("id", assignmentId)
     .single();
   if (!assignment || assignment.status !== "submitted") return;
 
   const [{ data: claim }, { data: questions }, { data: answers }, { data: photos }] = await Promise.all([
-    supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
-    supabase.from("audit_questions").select("*").eq("scope", "claim").eq("ai_checkable", true).order("sort_order"),
-    supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
-    supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
+    supabase.from("self_audit_claims").select("*").eq("id", assignment.claim_id).single(),
+    supabase.from("self_audit_audit_questions").select("*").eq("scope", "claim").eq("ai_checkable", true).order("sort_order"),
+    supabase.from("self_audit_audit_answers").select("*").eq("assignment_id", assignmentId),
+    supabase.from("self_audit_audit_photos").select("*").eq("assignment_id", assignmentId),
   ]);
 
   if (!claim || !questions) return;
@@ -39,7 +39,7 @@ export async function runAiChecks(assignmentId: string): Promise<void> {
   // The officer just judges every question manually in the review screen.
 
   await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .update({ status: "ai_checked" })
     .eq("id", assignmentId)
     .eq("status", "submitted");
@@ -177,7 +177,7 @@ For each question, give a suggested_value from that scale, a short reasoning cit
     }));
 
   if (rows.length > 0) {
-    await supabase.from("ai_reviews").upsert(rows, { onConflict: "assignment_id,question_id" });
+    await supabase.from("self_audit_ai_reviews").upsert(rows, { onConflict: "assignment_id,question_id" });
   }
 }
 

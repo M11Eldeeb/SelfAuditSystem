@@ -11,7 +11,7 @@ export async function cleanupAssignmentPhotos(assignmentId: string): Promise<voi
   const supabase = createAdminClient();
 
   const { data: photos } = await supabase
-    .from("audit_photos")
+    .from("self_audit_audit_photos")
     .select("id, storage_path")
     .eq("assignment_id", assignmentId)
     .is("deleted_at", null);
@@ -20,7 +20,7 @@ export async function cleanupAssignmentPhotos(assignmentId: string): Promise<voi
 
   await supabase.storage.from("audit-photos").remove(photos.map((p) => p.storage_path));
   await supabase
-    .from("audit_photos")
+    .from("self_audit_audit_photos")
     .update({ deleted_at: new Date().toISOString() })
     .in(
       "id",
@@ -33,7 +33,7 @@ export async function cleanupBranchOpsPhotos(cycleId: string, branchId: string):
   const supabase = createAdminClient();
 
   const { data: photos } = await supabase
-    .from("branch_operation_photos")
+    .from("self_audit_branch_operation_photos")
     .select("storage_path")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId)
@@ -43,7 +43,7 @@ export async function cleanupBranchOpsPhotos(cycleId: string, branchId: string):
 
   await supabase.storage.from("audit-photos").remove(photos.map((p) => p.storage_path));
   await supabase
-    .from("branch_operation_photos")
+    .from("self_audit_branch_operation_photos")
     .update({ deleted_at: new Date().toISOString() })
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId)

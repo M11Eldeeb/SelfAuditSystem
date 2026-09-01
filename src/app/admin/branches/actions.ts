@@ -19,7 +19,7 @@ export async function createBranch(_prev: ActionState, formData: FormData): Prom
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("branches").insert({ name, code });
+  const { error } = await supabase.from("self_audit_branches").insert({ name, code });
 
   if (error) {
     return { error: error.message.includes("duplicate") ? "That branch code is already in use." : error.message };
@@ -42,7 +42,7 @@ export async function updateBranch(_prev: ActionState, formData: FormData): Prom
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("branches").update({ name, code }).eq("id", branchId);
+  const { error } = await supabase.from("self_audit_branches").update({ name, code }).eq("id", branchId);
 
   if (error) {
     return { error: error.message.includes("duplicate") ? "That branch code is already in use." : error.message };
@@ -56,7 +56,7 @@ export async function setBranchActive(branchId: string, active: boolean): Promis
   await requireRole("officer");
 
   const supabase = await createClient();
-  const { error } = await supabase.from("branches").update({ active }).eq("id", branchId);
+  const { error } = await supabase.from("self_audit_branches").update({ active }).eq("id", branchId);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/branches");
@@ -92,7 +92,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   }
 
   const supabase = await createClient();
-  const { error: profileError } = await supabase.from("users").insert({
+  const { error: profileError } = await supabase.from("self_audit_users").insert({
     id: created.user.id,
     email,
     full_name: fullName || null,
@@ -139,7 +139,7 @@ export async function deleteBranch(_prev: ActionState, formData: FormData): Prom
   if (!branchId) return { error: "Missing branch." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("branches").delete().eq("id", branchId);
+  const { error } = await supabase.from("self_audit_branches").delete().eq("id", branchId);
 
   if (error) {
     // 23503 = the branch row itself is still referenced elsewhere (claims, cycles...).

@@ -11,11 +11,11 @@ export default async function CycleResultsPage({
   const { cycleId } = await params;
   const supabase = await createClient();
 
-  const { data: cycle } = await supabase.from("audit_cycles").select("*").eq("id", cycleId).single();
+  const { data: cycle } = await supabase.from("self_audit_audit_cycles").select("*").eq("id", cycleId).single();
   if (!cycle) notFound();
 
   const { data: results } = await supabase
-    .from("audit_results")
+    .from("self_audit_audit_results")
     .select("*")
     .eq("cycle_id", cycleId)
     .order("score_pct", { ascending: false });
@@ -23,7 +23,7 @@ export default async function CycleResultsPage({
   const branchIds = (results ?? []).map((r) => r.branch_id);
   const { data: branches } =
     branchIds.length > 0
-      ? await supabase.from("branches").select("id, name").in("id", branchIds)
+      ? await supabase.from("self_audit_branches").select("id, name").in("id", branchIds)
       : { data: [] };
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
 

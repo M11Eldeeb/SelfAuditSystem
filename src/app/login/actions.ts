@@ -21,7 +21,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   }
 
   const { data: profile } = await supabase
-    .from("users")
+    .from("self_audit_users")
     .select("role")
     .eq("id", data.user.id)
     .single();

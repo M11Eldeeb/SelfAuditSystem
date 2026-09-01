@@ -5,7 +5,7 @@ import { updateBranch, setBranchActive } from "./actions";
 import { DeleteBranchButton } from "./delete-branch-button";
 import type { Database } from "@/lib/supabase/types";
 
-type Branch = Database["public"]["Tables"]["branches"]["Row"];
+type Branch = Database["public"]["Tables"]["self_audit_branches"]["Row"];
 
 export function BranchRow({ branch }: { branch: Branch }) {
   const [editing, setEditing] = useState(false);

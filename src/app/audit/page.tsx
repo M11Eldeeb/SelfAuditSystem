@@ -28,7 +28,7 @@ export default async function AuditDashboardPage({
   const supabase = await createClient();
 
   const { data: cycles } = await supabase
-    .from("audit_cycles")
+    .from("self_audit_audit_cycles")
     .select("*")
     .order("cycle_month", { ascending: false });
 
@@ -49,19 +49,19 @@ export default async function AuditDashboardPage({
 
   const [{ data: assignments }, { data: results }, { data: opsProgress }, { data: allBranches }, { data: allResults }] =
     await Promise.all([
-      supabase.from("audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
+      supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
       supabase
-        .from("audit_results")
+        .from("self_audit_audit_results")
         .select("*")
         .eq("branch_id", user.branch_id!)
         .order("finalized_at", { ascending: true }),
       supabase
-        .from("branch_operation_progress")
+        .from("self_audit_branch_operation_progress")
         .select("*")
         .eq("branch_id", user.branch_id!)
         .in("cycle_id", cycleIds),
-      supabase.from("branches").select("id, name").eq("active", true).order("name"),
-      supabase.from("audit_results").select("*"),
+      supabase.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
+      supabase.from("self_audit_audit_results").select("*"),
     ]);
 
   const standings = computeStandings(allResults ?? [], allBranches ?? [], cycleMonthById, period);
@@ -69,7 +69,7 @@ export default async function AuditDashboardPage({
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
     claimIds.length > 0
-      ? await supabase.from("claims").select("id, claim_number, work_order_no").in("id", claimIds)
+      ? await supabase.from("self_audit_claims").select("id, claim_number, work_order_no").in("id", claimIds)
       : { data: [] };
   const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
 

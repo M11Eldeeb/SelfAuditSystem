@@ -19,7 +19,7 @@ export async function finalizeBranchAudit(
   const supabase = await createClient();
 
   const { data: assignments } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("*")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId);
@@ -34,7 +34,7 @@ export async function finalizeBranchAudit(
   }
 
   const { data: opsProgress } = await supabase
-    .from("branch_operation_progress")
+    .from("self_audit_branch_operation_progress")
     .select("status")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId)
@@ -45,9 +45,9 @@ export async function finalizeBranchAudit(
 
   const assignmentIds = assignments.map((a) => a.id);
   const [{ data: questions }, { data: reviews }, { data: opsAnswers }] = await Promise.all([
-    supabase.from("audit_questions").select("*"),
-    supabase.from("ai_reviews").select("*").in("assignment_id", assignmentIds),
-    supabase.from("branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+    supabase.from("self_audit_audit_questions").select("*"),
+    supabase.from("self_audit_ai_reviews").select("*").in("assignment_id", assignmentIds),
+    supabase.from("self_audit_branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
   ]);
 
   const questionById = new Map((questions ?? []).map((q) => [q.id, q]));
@@ -94,7 +94,7 @@ export async function finalizeBranchAudit(
     breakdown[questionId] = scorePct(scores);
   });
 
-  const { error } = await supabase.from("audit_results").upsert(
+  const { error } = await supabase.from("self_audit_audit_results").upsert(
     {
       cycle_id: cycleId,
       branch_id: branchId,

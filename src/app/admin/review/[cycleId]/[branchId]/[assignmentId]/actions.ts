@@ -18,9 +18,9 @@ export async function saveReview(
   const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const { data: questions } = await supabase.from("audit_questions").select("id").eq("scope", "claim");
+  const { data: questions } = await supabase.from("self_audit_audit_questions").select("id").eq("scope", "claim");
   const { data: existingReviews } = await supabase
-    .from("ai_reviews")
+    .from("self_audit_ai_reviews")
     .select("question_id, ai_suggested_value")
     .eq("assignment_id", assignmentId);
 
@@ -51,11 +51,11 @@ export async function saveReview(
     return { error: `Judge all ${questions?.length ?? 0} questions before saving (${missing} missing).` };
   }
 
-  const { error } = await supabase.from("ai_reviews").upsert(rows, { onConflict: "assignment_id,question_id" });
+  const { error } = await supabase.from("self_audit_ai_reviews").upsert(rows, { onConflict: "assignment_id,question_id" });
   if (error) return { error: error.message };
 
   await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .update({ status: "reviewed", reviewed_by: officer.id, reviewed_at: new Date().toISOString() })
     .eq("id", assignmentId);
 

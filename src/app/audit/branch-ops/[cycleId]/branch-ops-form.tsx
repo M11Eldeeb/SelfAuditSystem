@@ -6,8 +6,8 @@ import { QuestionField } from "@/components/question-field";
 import type { Database } from "@/lib/supabase/types";
 import type { PhotoStatus } from "@/lib/photo-status";
 
-type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
-type PhotoType = Database["public"]["Tables"]["audit_photo_types"]["Row"];
+type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
+type PhotoType = Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"];
 
 export function BranchOpsForm({
   cycleId,
@@ -83,6 +83,7 @@ export function BranchOpsForm({
       {!locked && (
         <button
           type="submit"
+          formNoValidate
           disabled={pending}
           className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >

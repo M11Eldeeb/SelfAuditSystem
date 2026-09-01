@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/supabase/types";
 
-type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
+type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 
 /**
  * score_5 questions store the answer as one of "0"/"25"/"50"/"75"/"100" and

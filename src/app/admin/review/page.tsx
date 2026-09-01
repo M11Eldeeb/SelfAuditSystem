@@ -7,9 +7,9 @@ export default async function ReviewIndexPage() {
   const supabase = await createClient();
 
   const [{ data: cycles }, { data: assignments }, { data: results }] = await Promise.all([
-    supabase.from("audit_cycles").select("*").order("cycle_month", { ascending: false }),
-    supabase.from("audit_assignments").select("cycle_id, branch_id, status"),
-    supabase.from("audit_results").select("cycle_id, branch_id"),
+    supabase.from("self_audit_audit_cycles").select("*").order("cycle_month", { ascending: false }),
+    supabase.from("self_audit_audit_assignments").select("cycle_id, branch_id, status"),
+    supabase.from("self_audit_audit_results").select("cycle_id, branch_id"),
   ]);
 
   const finalizedKeys = new Set((results ?? []).map((r) => `${r.cycle_id}:${r.branch_id}`));

@@ -10,14 +10,14 @@ export default async function CycleReviewPage({
   const { cycleId } = await params;
   const supabase = await createClient();
 
-  const { data: cycle } = await supabase.from("audit_cycles").select("*").eq("id", cycleId).single();
+  const { data: cycle } = await supabase.from("self_audit_audit_cycles").select("*").eq("id", cycleId).single();
   if (!cycle) notFound();
 
   const [{ data: branches }, { data: assignments }, { data: results }, { data: opsProgress }] = await Promise.all([
-    supabase.from("branches").select("id, name").order("name"),
-    supabase.from("audit_assignments").select("branch_id, status").eq("cycle_id", cycleId),
-    supabase.from("audit_results").select("branch_id").eq("cycle_id", cycleId),
-    supabase.from("branch_operation_progress").select("branch_id, status").eq("cycle_id", cycleId),
+    supabase.from("self_audit_branches").select("id, name").order("name"),
+    supabase.from("self_audit_audit_assignments").select("branch_id, status").eq("cycle_id", cycleId),
+    supabase.from("self_audit_audit_results").select("branch_id").eq("cycle_id", cycleId),
+    supabase.from("self_audit_branch_operation_progress").select("branch_id, status").eq("cycle_id", cycleId),
   ]);
 
   const finalizedBranchIds = new Set((results ?? []).map((r) => r.branch_id));

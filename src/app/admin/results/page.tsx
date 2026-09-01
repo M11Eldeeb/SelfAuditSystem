@@ -5,8 +5,8 @@ export default async function ResultsPage() {
   const supabase = await createClient();
 
   const [{ data: cycles }, { data: results }] = await Promise.all([
-    supabase.from("audit_cycles").select("*").order("cycle_month", { ascending: false }),
-    supabase.from("audit_results").select("cycle_id, score_pct"),
+    supabase.from("self_audit_audit_cycles").select("*").order("cycle_month", { ascending: false }),
+    supabase.from("self_audit_audit_results").select("cycle_id, score_pct"),
   ]);
 
   const resultsByCycle = new Map<string, number[]>();

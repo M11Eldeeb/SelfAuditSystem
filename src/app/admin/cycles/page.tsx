@@ -6,8 +6,8 @@ export default async function CyclesPage() {
   const supabase = await createClient();
 
   const [{ data: cycles }, { data: assignments }] = await Promise.all([
-    supabase.from("audit_cycles").select("*").order("cycle_month", { ascending: false }),
-    supabase.from("audit_assignments").select("cycle_id, status"),
+    supabase.from("self_audit_audit_cycles").select("*").order("cycle_month", { ascending: false }),
+    supabase.from("self_audit_audit_assignments").select("cycle_id, status"),
   ]);
 
   const statsByCycle = new Map<string, { total: number; submitted: number; reviewed: number }>();

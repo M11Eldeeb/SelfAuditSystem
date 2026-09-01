@@ -10,8 +10,8 @@ export default async function BranchesPage() {
   const [currentUser, supabase] = await Promise.all([getCurrentUser(), createClient()]);
 
   const [{ data: branches }, { data: users }] = await Promise.all([
-    supabase.from("branches").select("*").order("name"),
-    supabase.from("users").select("*").order("email"),
+    supabase.from("self_audit_branches").select("*").order("name"),
+    supabase.from("self_audit_users").select("*").order("email"),
   ]);
 
   const branchList = branches ?? [];

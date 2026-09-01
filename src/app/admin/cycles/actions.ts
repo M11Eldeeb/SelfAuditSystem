@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { shiftMonth } from "@/lib/month";
 import { shuffle } from "@/lib/shuffle";
+import { getAuditedClaimIds } from "@/lib/audited-claims";
 
 const CLAIMS_PER_BRANCH = 10;
 
@@ -35,7 +36,7 @@ export async function generateCycle(
   const supabase = await createClient();
 
   const { data: branches } = await supabase
-    .from("branches")
+    .from("self_audit_branches")
     .select("id, name")
     .eq("active", true)
     .order("name");
@@ -47,7 +48,7 @@ export async function generateCycle(
   // older claims are cleaned up on upload, but this filter is a defensive
   // second layer in case any linger.
   const { data: latestBatch } = await supabase
-    .from("upload_batches")
+    .from("self_audit_upload_batches")
     .select("id")
     .order("uploaded_at", { ascending: false })
     .limit(1)
@@ -59,7 +60,7 @@ export async function generateCycle(
   const deadlineAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: cycle, error: cycleError } = await supabase
-    .from("audit_cycles")
+    .from("self_audit_audit_cycles")
     .insert({
       cycle_month: cycleMonth,
       claims_month: claimsMonth,
@@ -78,12 +79,17 @@ export async function generateCycle(
     };
   }
 
+  // A claim already assigned to self-audit OR sampled into an internal audit
+  // is never resampled by either workflow again - fetched once, filtered
+  // per-branch in JS below.
+  const auditedClaimIds = await getAuditedClaimIds(supabase);
+
   const perBranch: { branchName: string; available: number; assigned: number }[] = [];
   const notifiedBranchIds = new Set<string>();
 
   for (const branch of branches) {
     const { data: claims } = await supabase
-      .from("claims")
+      .from("self_audit_claims")
       .select("id")
       .eq("branch_id", branch.id)
       .eq("upload_batch_id", latestBatch.id)
@@ -91,11 +97,11 @@ export async function generateCycle(
       .gte("creation_date", claimsMonth)
       .lt("creation_date", cycleMonth);
 
-    const available = claims ?? [];
+    const available = (claims ?? []).filter((c) => !auditedClaimIds.has(c.id));
     const selected = shuffle(available).slice(0, CLAIMS_PER_BRANCH);
 
     if (selected.length > 0) {
-      const { error: assignError } = await supabase.from("audit_assignments").insert(
+      const { error: assignError } = await supabase.from("self_audit_audit_assignments").insert(
         selected.map((c) => ({
           cycle_id: cycle.id,
           branch_id: branch.id,
@@ -116,7 +122,7 @@ export async function generateCycle(
   revalidatePath("/admin/cycles");
 
   const { data: branchAdmins } = await supabase
-    .from("users")
+    .from("self_audit_users")
     .select("email, branch_id")
     .eq("role", "branch_admin");
   const notifyEmails = [
@@ -143,7 +149,7 @@ export async function deleteCycle(cycleId: string): Promise<{ error?: string }> 
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from("audit_cycles").delete().eq("id", cycleId);
+  const { error } = await supabase.from("self_audit_audit_cycles").delete().eq("id", cycleId);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/cycles");

@@ -17,7 +17,7 @@ export async function saveBranchOps(
   const branchId = user.branch_id!;
 
   const { data: assignments } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("status")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId);
@@ -30,7 +30,7 @@ export async function saveBranchOps(
   }
 
   const { data: progress } = await supabase
-    .from("branch_operation_progress")
+    .from("self_audit_branch_operation_progress")
     .select("status")
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId)
@@ -41,10 +41,10 @@ export async function saveBranchOps(
   }
 
   const [{ data: questions }, { data: photoTypes }, { data: existingPhotos }] = await Promise.all([
-    supabase.from("audit_questions").select("id").eq("scope", "branch").order("sort_order"),
-    supabase.from("audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
+    supabase.from("self_audit_audit_questions").select("id").eq("scope", "branch").order("sort_order"),
+    supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
     supabase
-      .from("branch_operation_photos")
+      .from("self_audit_branch_operation_photos")
       .select("photo_type_id")
       .eq("cycle_id", cycleId)
       .eq("branch_id", branchId)
@@ -77,7 +77,7 @@ export async function saveBranchOps(
       if (uploadError) {
         return { error: `Photo upload failed (${pt.label}): ${uploadError.message}` };
       }
-      const { error: photoRowError } = await supabase.from("branch_operation_photos").upsert(
+      const { error: photoRowError } = await supabase.from("self_audit_branch_operation_photos").upsert(
         { cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path },
         { onConflict: "cycle_id,branch_id,photo_type_id" }
       );
@@ -92,11 +92,11 @@ export async function saveBranchOps(
   }
 
   const { error: answersError } = await supabase
-    .from("branch_operation_answers")
+    .from("self_audit_branch_operation_answers")
     .upsert(answerRows, { onConflict: "cycle_id,branch_id,question_id" });
   if (answersError) return { error: answersError.message };
 
-  const { error: progressError } = await supabase.from("branch_operation_progress").upsert(
+  const { error: progressError } = await supabase.from("self_audit_branch_operation_progress").upsert(
     {
       cycle_id: cycleId,
       branch_id: branchId,

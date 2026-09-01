@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ScorePicker } from "@/components/score-picker";
 import type { Database } from "@/lib/supabase/types";
 
-type Question = Database["public"]["Tables"]["audit_questions"]["Row"];
+type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 
 export function ReviewField({
   question,

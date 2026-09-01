@@ -25,9 +25,9 @@ export default async function AdminOverviewPage({
   const supabase = await createClient();
 
   const [{ data: results }, { data: branches }, { data: cycles }] = await Promise.all([
-    supabase.from("audit_results").select("*"),
-    supabase.from("branches").select("id, name").order("name"),
-    supabase.from("audit_cycles").select("id, cycle_month"),
+    supabase.from("self_audit_audit_results").select("*"),
+    supabase.from("self_audit_branches").select("id, name").order("name"),
+    supabase.from("self_audit_audit_cycles").select("id, cycle_month"),
   ]);
 
   if (!results || results.length === 0) {

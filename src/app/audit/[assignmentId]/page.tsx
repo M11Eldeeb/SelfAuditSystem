@@ -18,7 +18,7 @@ export default async function AuditAssignmentPage({
   const supabase = await createClient();
 
   const { data: assignment } = await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .select("*")
     .eq("id", assignmentId)
     .single();
@@ -29,12 +29,12 @@ export default async function AuditAssignmentPage({
 
   const [{ data: claim }, { data: questions }, { data: photoTypes }, { data: answers }, { data: photos }, { data: note }] =
     await Promise.all([
-      supabase.from("claims").select("*").eq("id", assignment.claim_id).single(),
-      supabase.from("audit_questions").select("*").eq("scope", "claim").order("sort_order"),
-      supabase.from("audit_photo_types").select("*").eq("scope", "claim").order("sort_order"),
-      supabase.from("audit_answers").select("*").eq("assignment_id", assignmentId),
-      supabase.from("audit_photos").select("*").eq("assignment_id", assignmentId),
-      supabase.from("audit_notes").select("*").eq("assignment_id", assignmentId).maybeSingle(),
+      supabase.from("self_audit_claims").select("*").eq("id", assignment.claim_id).single(),
+      supabase.from("self_audit_audit_questions").select("*").eq("scope", "claim").order("sort_order"),
+      supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "claim").order("sort_order"),
+      supabase.from("self_audit_audit_answers").select("*").eq("assignment_id", assignmentId),
+      supabase.from("self_audit_audit_photos").select("*").eq("assignment_id", assignmentId),
+      supabase.from("self_audit_audit_notes").select("*").eq("assignment_id", assignmentId).maybeSingle(),
     ]);
 
   const answersMap = new Map(

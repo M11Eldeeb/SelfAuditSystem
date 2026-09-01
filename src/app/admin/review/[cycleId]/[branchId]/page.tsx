@@ -14,17 +14,17 @@ export default async function BranchReviewPage({
 
   const [{ data: cycle }, { data: branch }, { data: assignments }, { data: result }, { data: opsProgress }] =
     await Promise.all([
-      supabase.from("audit_cycles").select("*").eq("id", cycleId).single(),
-      supabase.from("branches").select("*").eq("id", branchId).single(),
-      supabase.from("audit_assignments").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+      supabase.from("self_audit_audit_cycles").select("*").eq("id", cycleId).single(),
+      supabase.from("self_audit_branches").select("*").eq("id", branchId).single(),
+      supabase.from("self_audit_audit_assignments").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
       supabase
-        .from("audit_results")
+        .from("self_audit_audit_results")
         .select("*")
         .eq("cycle_id", cycleId)
         .eq("branch_id", branchId)
         .maybeSingle(),
       supabase
-        .from("branch_operation_progress")
+        .from("self_audit_branch_operation_progress")
         .select("*")
         .eq("cycle_id", cycleId)
         .eq("branch_id", branchId)
@@ -36,7 +36,7 @@ export default async function BranchReviewPage({
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
     claimIds.length > 0
-      ? await supabase.from("claims").select("id, claim_number, work_order_no").in("id", claimIds)
+      ? await supabase.from("self_audit_claims").select("id, claim_number, work_order_no").in("id", claimIds)
       : { data: [] };
   const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
 

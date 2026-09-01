@@ -18,7 +18,7 @@ export async function saveBranchOpsReview(
   const supabase = await createClient();
 
   const { data: questions } = await supabase
-    .from("audit_questions")
+    .from("self_audit_audit_questions")
     .select("id")
     .eq("scope", "branch");
 
@@ -35,12 +35,12 @@ export async function saveBranchOpsReview(
   }
 
   const { error } = await supabase
-    .from("branch_operation_answers")
+    .from("self_audit_branch_operation_answers")
     .upsert(rows, { onConflict: "cycle_id,branch_id,question_id" });
   if (error) return { error: error.message };
 
   const { error: progressError } = await supabase
-    .from("branch_operation_progress")
+    .from("self_audit_branch_operation_progress")
     .update({ status: "reviewed", reviewed_by: officer.id, reviewed_at: new Date().toISOString() })
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId);

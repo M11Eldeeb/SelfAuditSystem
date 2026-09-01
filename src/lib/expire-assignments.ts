@@ -14,7 +14,7 @@ export async function expireOverdueAssignments(): Promise<void> {
   const supabase = createAdminClient();
 
   const { data: overdueCycles } = await supabase
-    .from("audit_cycles")
+    .from("self_audit_audit_cycles")
     .select("id")
     .not("deadline_at", "is", null)
     .lt("deadline_at", new Date().toISOString());
@@ -22,7 +22,7 @@ export async function expireOverdueAssignments(): Promise<void> {
   if (!overdueCycles || overdueCycles.length === 0) return;
 
   await supabase
-    .from("audit_assignments")
+    .from("self_audit_audit_assignments")
     .update({ status: "expired" })
     .in(
       "cycle_id",

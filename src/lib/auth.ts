@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 
-export type CurrentUser = Database["public"]["Tables"]["users"]["Row"];
+export type CurrentUser = Database["public"]["Tables"]["self_audit_users"]["Row"];
 
 /** Returns the signed-in user's app profile (role, branch), or null if not signed in. */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
@@ -15,7 +15,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!authUser) return null;
 
   const { data: profile } = await supabase
-    .from("users")
+    .from("self_audit_users")
     .select("*")
     .eq("id", authUser.id)
     .single();

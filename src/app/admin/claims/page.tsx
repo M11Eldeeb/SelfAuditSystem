@@ -5,8 +5,8 @@ export default async function ClaimsPage() {
   const supabase = await createClient();
 
   const [{ data: batches }, { data: branches }] = await Promise.all([
-    supabase.from("upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
-    supabase.from("branches").select("id, name, code").order("name"),
+    supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
+    supabase.from("self_audit_branches").select("id, name, code").order("name"),
   ]);
 
   return (

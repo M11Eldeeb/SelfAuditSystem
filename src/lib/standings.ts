@@ -1,6 +1,6 @@
 import type { Database } from "./supabase/types";
 
-type Result = Database["public"]["Tables"]["audit_results"]["Row"];
+type Result = Database["public"]["Tables"]["self_audit_audit_results"]["Row"];
 
 export const STANDINGS_PERIODS = ["1", "3", "6"] as const;
 export type StandingsPeriod = (typeof STANDINGS_PERIODS)[number];

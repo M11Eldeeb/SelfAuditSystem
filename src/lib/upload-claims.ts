@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
+import { selectAllRows } from "@/lib/supabase/paginate";
 
 const DB_CHUNK_SIZE = 500;
 
@@ -16,7 +17,7 @@ export async function startUploadBatch(
   const supabase = await createClient();
 
   const { data: batch, error } = await supabase
-    .from("upload_batches")
+    .from("self_audit_upload_batches")
     .insert({
       uploaded_by: officerId,
       source_filename: filename,
@@ -38,27 +39,11 @@ export async function upsertClaimsChunk(
 
   for (let i = 0; i < claims.length; i += DB_CHUNK_SIZE) {
     const chunk = claims.slice(i, i + DB_CHUNK_SIZE).map((c) => ({ ...c, upload_batch_id: batchId }));
-    const { error } = await supabase.from("claims").upsert(chunk, { onConflict: "branch_id,claim_number" });
+    const { error } = await supabase.from("self_audit_claims").upsert(chunk, { onConflict: "branch_id,claim_number" });
     if (error) return { error: error.message };
   }
 
   return {};
-}
-
-/** Fetches every row for a query, paginating past PostgREST's 1000-row default page size. */
-async function selectAllRows<T>(
-  runQuery: (from: number, to: number) => Promise<{ data: T[] | null }>
-): Promise<T[]> {
-  const all: T[] = [];
-  let from = 0;
-  const PAGE = 1000;
-  for (;;) {
-    const { data } = await runQuery(from, from + PAGE - 1);
-    all.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-    from += PAGE;
-  }
-  return all;
 }
 
 /**
@@ -80,7 +65,7 @@ export async function finishUpload(
   const supabase = await createClient();
 
   const batchClaimRows = await selectAllRows<{ branch_id: string }>(async (from, to) =>
-    supabase.from("claims").select("branch_id").eq("upload_batch_id", batchId).range(from, to)
+    supabase.from("self_audit_claims").select("branch_id").eq("upload_batch_id", batchId).range(from, to)
   );
   const batchBranchIds = [...new Set(batchClaimRows.map((r) => r.branch_id))];
 
@@ -89,13 +74,13 @@ export async function finishUpload(
   }
 
   const referencedRows = await selectAllRows<{ claim_id: string }>(async (from, to) =>
-    supabase.from("audit_assignments").select("claim_id").range(from, to)
+    supabase.from("self_audit_audit_assignments").select("claim_id").range(from, to)
   );
   const referencedIds = new Set(referencedRows.map((r) => r.claim_id));
 
   const staleRows = await selectAllRows<{ id: string }>(async (from, to) =>
     supabase
-      .from("claims")
+      .from("self_audit_claims")
       .select("id")
       .neq("upload_batch_id", batchId)
       .in("branch_id", batchBranchIds)
@@ -106,7 +91,7 @@ export async function finishUpload(
   let deletedCount = 0;
   for (let i = 0; i < staleIds.length; i += DB_CHUNK_SIZE) {
     const chunk = staleIds.slice(i, i + DB_CHUNK_SIZE);
-    const { error, count } = await supabase.from("claims").delete({ count: "exact" }).in("id", chunk);
+    const { error, count } = await supabase.from("self_audit_claims").delete({ count: "exact" }).in("id", chunk);
     if (error) break; // don't fail the whole upload over cleanup
     deletedCount += count ?? chunk.length;
   }

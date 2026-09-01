@@ -12,8 +12,11 @@ export type AssignmentStatus =
   | "reviewed"
   | "expired";
 export type OfficerDecision = "confirmed" | "overridden";
-export type QuestionScope = "claim" | "branch";
+export type QuestionScope = "claim" | "branch" | "parts";
 export type BranchOpsStatus = "not_started" | "submitted" | "reviewed";
+export type DepartmentId = "reception" | "workshop" | "parts" | "warrantyops" | "branchops";
+export type SampleMode = "flagged" | "random";
+export type InternalAuditStatus = "in_progress" | "finalized";
 
 export interface ConditionalField {
   shows_when_option: string;
@@ -24,13 +27,13 @@ export interface ConditionalField {
 export interface Database {
   public: {
     Tables: {
-      branches: {
+      self_audit_branches: {
         Row: { id: string; name: string; code: string; active: boolean; created_at: string };
         Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string };
-        Update: Partial<Database["public"]["Tables"]["branches"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_branches"]["Insert"]>;
         Relationships: [];
       };
-      users: {
+      self_audit_users: {
         Row: {
           id: string;
           email: string;
@@ -47,10 +50,10 @@ export interface Database {
           branch_id?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["users"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];
       };
-      upload_batches: {
+      self_audit_upload_batches: {
         Row: {
           id: string;
           uploaded_by: string | null;
@@ -67,10 +70,10 @@ export interface Database {
           claim_month: string;
           row_count?: number;
         };
-        Update: Partial<Database["public"]["Tables"]["upload_batches"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_upload_batches"]["Insert"]>;
         Relationships: [];
       };
-      claims: {
+      self_audit_claims: {
         Row: {
           id: string;
           branch_id: string;
@@ -87,6 +90,11 @@ export interface Database {
           dealer_submit_date: string | null;
           creation_date: string;
           raw_row: Record<string, unknown>;
+          claim_amount: number | null;
+          prior_approval: string | null;
+          return_times: number | null;
+          return_times_dealer: number | null;
+          labor_code: string | null;
           created_at: string;
         };
         Insert: {
@@ -105,16 +113,22 @@ export interface Database {
           dealer_submit_date?: string | null;
           creation_date: string;
           raw_row?: Record<string, unknown>;
+          claim_amount?: number | null;
+          prior_approval?: string | null;
+          return_times?: number | null;
+          return_times_dealer?: number | null;
+          labor_code?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["claims"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_claims"]["Insert"]>;
         Relationships: [];
       };
-      audit_questions: {
+      self_audit_audit_questions: {
         Row: {
           id: string;
           sort_order: number;
           scope: QuestionScope;
+          department: DepartmentId | null;
           text: string;
           help_text: string | null;
           type: string;
@@ -123,14 +137,15 @@ export interface Database {
           required: boolean;
           ai_checkable: boolean;
           ai_check_note: string | null;
+          remediation_suggestion: string | null;
           compliant_options: string[];
           partial_credit_options: string[];
         };
-        Insert: Database["public"]["Tables"]["audit_questions"]["Row"];
-        Update: Partial<Database["public"]["Tables"]["audit_questions"]["Row"]>;
+        Insert: Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_questions"]["Row"]>;
         Relationships: [];
       };
-      audit_photo_types: {
+      self_audit_audit_photo_types: {
         Row: {
           id: string;
           sort_order: number;
@@ -139,11 +154,11 @@ export interface Database {
           help_text: string | null;
           required: boolean;
         };
-        Insert: Database["public"]["Tables"]["audit_photo_types"]["Row"];
-        Update: Partial<Database["public"]["Tables"]["audit_photo_types"]["Row"]>;
+        Insert: Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"];
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"]>;
         Relationships: [];
       };
-      audit_cycles: {
+      self_audit_audit_cycles: {
         Row: {
           id: string;
           cycle_month: string;
@@ -162,10 +177,10 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["audit_cycles"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_cycles"]["Insert"]>;
         Relationships: [];
       };
-      audit_assignments: {
+      self_audit_audit_assignments: {
         Row: {
           id: string;
           cycle_id: string;
@@ -190,10 +205,10 @@ export interface Database {
           reviewed_by?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["audit_assignments"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_assignments"]["Insert"]>;
         Relationships: [];
       };
-      audit_answers: {
+      self_audit_audit_answers: {
         Row: {
           assignment_id: string;
           question_id: string;
@@ -208,10 +223,10 @@ export interface Database {
           conditional_value?: string | null;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["audit_answers"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_answers"]["Insert"]>;
         Relationships: [];
       };
-      audit_photos: {
+      self_audit_audit_photos: {
         Row: {
           id: string;
           assignment_id: string;
@@ -228,16 +243,16 @@ export interface Database {
           uploaded_at?: string;
           deleted_at?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["audit_photos"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_photos"]["Insert"]>;
         Relationships: [];
       };
-      audit_notes: {
+      self_audit_audit_notes: {
         Row: { assignment_id: string; note_text: string | null; updated_at: string };
         Insert: { assignment_id: string; note_text?: string | null; updated_at?: string };
-        Update: Partial<Database["public"]["Tables"]["audit_notes"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_notes"]["Insert"]>;
         Relationships: [];
       };
-      ai_reviews: {
+      self_audit_ai_reviews: {
         Row: {
           id: string;
           assignment_id: string;
@@ -264,10 +279,10 @@ export interface Database {
           reviewed_at?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["ai_reviews"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_ai_reviews"]["Insert"]>;
         Relationships: [];
       };
-      audit_results: {
+      self_audit_audit_results: {
         Row: {
           id: string;
           cycle_id: string;
@@ -286,10 +301,10 @@ export interface Database {
           finalized_by?: string | null;
           finalized_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["audit_results"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_audit_results"]["Insert"]>;
         Relationships: [];
       };
-      branch_operation_progress: {
+      self_audit_branch_operation_progress: {
         Row: {
           cycle_id: string;
           branch_id: string;
@@ -308,10 +323,10 @@ export interface Database {
           reviewed_at?: string | null;
           reviewed_by?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["branch_operation_progress"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_branch_operation_progress"]["Insert"]>;
         Relationships: [];
       };
-      branch_operation_answers: {
+      self_audit_branch_operation_answers: {
         Row: {
           cycle_id: string;
           branch_id: string;
@@ -328,10 +343,10 @@ export interface Database {
           officer_value?: string | null;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["branch_operation_answers"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_branch_operation_answers"]["Insert"]>;
         Relationships: [];
       };
-      branch_operation_photos: {
+      self_audit_branch_operation_photos: {
         Row: {
           cycle_id: string;
           branch_id: string;
@@ -348,7 +363,121 @@ export interface Database {
           uploaded_at?: string;
           deleted_at?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["branch_operation_photos"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["self_audit_branch_operation_photos"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audits: {
+        Row: {
+          id: string;
+          branch_id: string | null;
+          date_from: string | null;
+          date_to: string | null;
+          sample_size: number;
+          sample_mode: SampleMode;
+          max_per_part: number | null;
+          auditor_id: string | null;
+          manager_name: string | null;
+          status: InternalAuditStatus;
+          closing_statement: string | null;
+          score_pct: number | null;
+          per_question_breakdown: Record<string, unknown>;
+          created_at: string;
+          finalized_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          branch_id?: string | null;
+          date_from?: string | null;
+          date_to?: string | null;
+          sample_size: number;
+          sample_mode?: SampleMode;
+          max_per_part?: number | null;
+          auditor_id?: string | null;
+          manager_name?: string | null;
+          status?: InternalAuditStatus;
+          closing_statement?: string | null;
+          score_pct?: number | null;
+          per_question_breakdown?: Record<string, unknown>;
+          created_at?: string;
+          finalized_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audits"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audit_claims: {
+        Row: {
+          id: string;
+          internal_audit_id: string;
+          claim_id: string;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          internal_audit_id: string;
+          claim_id: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_claims"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audit_answers: {
+        Row: {
+          internal_audit_claim_id: string;
+          question_id: string;
+          answer_value: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          internal_audit_claim_id: string;
+          question_id: string;
+          answer_value?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_answers"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audit_notes: {
+        Row: {
+          internal_audit_claim_id: string;
+          note_text: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          internal_audit_claim_id: string;
+          note_text?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_notes"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audit_branch_answers: {
+        Row: {
+          internal_audit_id: string;
+          question_id: string;
+          answer_value: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          internal_audit_id: string;
+          question_id: string;
+          answer_value?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_branch_answers"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_internal_audit_department_remarks: {
+        Row: {
+          internal_audit_id: string;
+          department_id: DepartmentId;
+          remark_text: string | null;
+        };
+        Insert: {
+          internal_audit_id: string;
+          department_id: DepartmentId;
+          remark_text?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_department_remarks"]["Insert"]>;
         Relationships: [];
       };
     };
