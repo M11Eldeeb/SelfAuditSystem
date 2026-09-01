@@ -4,17 +4,14 @@ import { useActionState } from "react";
 import { saveAudit } from "./actions";
 import { QuestionField } from "@/components/question-field";
 import { PhotoUploadField } from "@/components/photo-upload-field";
-import { getClaimReference } from "@/lib/claim-reference";
 import type { Database } from "@/lib/supabase/types";
 import type { PhotoStatus } from "@/lib/photo-status";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 type PhotoType = Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"];
-type Claim = Database["public"]["Tables"]["self_audit_claims"]["Row"];
 
 export function AuditForm({
   assignmentId,
-  claim,
   questions,
   photoTypes,
   answers,
@@ -23,7 +20,6 @@ export function AuditForm({
   locked,
 }: {
   assignmentId: string;
-  claim: Claim | null;
   questions: Question[];
   photoTypes: PhotoType[];
   answers: Map<string, { answer_value: string | null; conditional_value: string | null }>;
@@ -44,7 +40,6 @@ export function AuditForm({
             question={q}
             initialValue={answers.get(q.id)?.answer_value ?? null}
             locked={locked}
-            reference={getClaimReference(q.id, claim)}
           />
         ))}
       </div>

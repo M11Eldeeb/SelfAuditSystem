@@ -93,7 +93,6 @@ export default async function AuditAssignmentPage({
 
       <AuditForm
         assignmentId={assignmentId}
-        claim={claim ?? null}
         questions={questions ?? []}
         photoTypes={photoTypes ?? []}
         answers={answersMap}
