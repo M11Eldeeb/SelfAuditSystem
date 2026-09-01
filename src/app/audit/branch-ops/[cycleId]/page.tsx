@@ -73,6 +73,7 @@ export default async function BranchOpsPage({
 
       <BranchOpsForm
         cycleId={cycleId}
+        branchId={branchId}
         questions={questions ?? []}
         answers={answersMap}
         photoTypes={photoTypes ?? []}

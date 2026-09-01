@@ -70,18 +70,14 @@ export async function saveAudit(
       );
   }
 
+  // The file itself is already uploaded client-side (PhotoUploadField) straight to
+  // Supabase Storage - Vercel hard-caps a serverless function's request body at
+  // 4.5MB regardless of Next's bodySizeLimit config, which a scanned PDF or a
+  // few phone photos can easily exceed. Only the resulting path arrives here.
   const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
   for (const pt of photoTypes ?? []) {
-    const file = formData.get(`photo_${pt.id}`);
-    if (file instanceof File && file.size > 0) {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${assignmentId}/${pt.id}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("audit-photos")
-        .upload(path, file, { upsert: true, contentType: file.type || undefined });
-      if (uploadError) {
-        return { error: `Photo upload failed (${pt.label}): ${uploadError.message}` };
-      }
+    const path = formData.get(`photo_path_${pt.id}`);
+    if (typeof path === "string" && path.startsWith(`${assignmentId}/`)) {
       const { error: photoRowError } = await supabase
         .from("self_audit_audit_photos")
         .upsert(

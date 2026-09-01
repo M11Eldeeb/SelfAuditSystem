@@ -17,7 +17,7 @@ export type InternalAuditPdfData = {
 
 const NA = "N/A";
 
-function drawTable(
+export function drawTable(
   doc: jsPDF,
   {
     startY,

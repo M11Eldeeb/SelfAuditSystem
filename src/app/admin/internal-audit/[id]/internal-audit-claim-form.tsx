@@ -3,14 +3,17 @@
 import { useActionState } from "react";
 import { saveClaimAnswers } from "../actions";
 import { QuestionField } from "@/components/question-field";
+import { getClaimReference } from "@/lib/claim-reference";
 import type { Database } from "@/lib/supabase/types";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
+type Claim = Database["public"]["Tables"]["self_audit_claims"]["Row"];
 type QuestionGroup = { departmentId: string; label: string; questions: Question[] };
 
 export function InternalAuditClaimForm({
   auditId,
   internalAuditClaimId,
+  claim,
   currentIndex,
   totalClaims,
   questionGroups,
@@ -20,6 +23,7 @@ export function InternalAuditClaimForm({
 }: {
   auditId: string;
   internalAuditClaimId: string;
+  claim: Claim | null;
   currentIndex: number;
   totalClaims: number;
   questionGroups: QuestionGroup[];
@@ -36,7 +40,13 @@ export function InternalAuditClaimForm({
         <div key={group.departmentId} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-neutral-900">{group.label}</h2>
           {group.questions.map((q) => (
-            <QuestionField key={q.id} question={q} initialValue={answers.get(q.id) ?? null} locked={locked} />
+            <QuestionField
+              key={q.id}
+              question={q}
+              initialValue={answers.get(q.id) ?? null}
+              locked={locked}
+              reference={getClaimReference(q.id, claim)}
+            />
           ))}
         </div>
       ))}

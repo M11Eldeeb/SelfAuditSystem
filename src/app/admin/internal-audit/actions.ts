@@ -12,17 +12,16 @@ import { computeInternalAuditScores } from "@/lib/internal-audit-scoring";
 import { DEPARTMENT_ORDER } from "@/lib/departments";
 import type { DepartmentId } from "@/lib/supabase/types";
 
-export type StartInternalAuditState =
-  | { error?: string; success?: string; sampledCount?: number; requestedCount?: number }
-  | undefined;
+type SampleCriteria = {
+  branchId: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  sampleSize: number;
+  sampleMode: "flagged" | "random";
+  maxPerPart: number | null;
+};
 
-export async function startInternalAudit(
-  _prev: StartInternalAuditState,
-  formData: FormData
-): Promise<StartInternalAuditState> {
-  const officer = await requireRole("officer");
-  const supabase = await createClient();
-
+function readCriteria(formData: FormData): SampleCriteria {
   const branchId = String(formData.get("branch_id") ?? "").trim() || null;
   const dateFrom = String(formData.get("date_from") ?? "").trim() || null;
   const dateTo = String(formData.get("date_to") ?? "").trim() || null;
@@ -30,11 +29,13 @@ export async function startInternalAudit(
   const sampleMode = String(formData.get("sample_mode") ?? "random") === "flagged" ? "flagged" : "random";
   const maxPerPartRaw = Number(formData.get("max_per_part"));
   const maxPerPart = maxPerPartRaw > 0 ? maxPerPartRaw : null;
+  return { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart };
+}
 
-  if (!sampleSize || sampleSize < 1) {
-    return { error: "Enter a sample size of at least 1." };
-  }
-
+async function sampleEligibleClaims(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart }: SampleCriteria
+) {
   let query = supabase.from("self_audit_claims").select("*").eq("has_parts", true);
   if (branchId) query = query.eq("branch_id", branchId);
   if (dateFrom) query = query.gte("dealer_submit_date", dateFrom);
@@ -44,35 +45,129 @@ export async function startInternalAudit(
   const auditedClaimIds = await getAuditedClaimIds(supabase);
   const eligible = (candidateClaims ?? []).filter((c) => !auditedClaimIds.has(c.id));
 
-  if (eligible.length === 0) {
-    return { error: "No eligible claims match these filters (or every matching claim has already been audited)." };
-  }
-
-  let ordered;
+  let ordered: ((typeof eligible)[number] & { _flag?: number })[];
   if (sampleMode === "flagged") {
     const workOrderCounts = buildWorkOrderCounts(eligible);
     ordered = shuffle(eligible) // randomize tie-breaks between equal-flag claims first
       .map((c) => ({ ...c, _flag: computeAuditFlag(c, workOrderCounts) }))
-      .sort((a, b) => b._flag - a._flag);
+      .sort((a, b) => (b._flag ?? 0) - (a._flag ?? 0));
   } else {
     ordered = shuffle(eligible);
   }
 
-  const sample = selectWithPartCap(ordered, sampleSize, maxPerPart);
+  return selectWithPartCap(ordered, sampleSize, maxPerPart);
+}
 
+export type InternalAuditPreviewClaim = {
+  id: string;
+  claim_number: string;
+  work_order_no: string | null;
+  vin: string | null;
+  branch_name: string;
+  dealer_submit_date: string | null;
+  labor_code: string | null;
+  flag_score: number | null;
+};
+
+export type PreviewInternalAuditSampleState =
+  | {
+      error?: string;
+      claims?: InternalAuditPreviewClaim[];
+      branchId?: string | null;
+      branchLabel?: string;
+      dateFrom?: string | null;
+      dateTo?: string | null;
+      sampleSize?: number;
+      sampleMode?: "flagged" | "random";
+      maxPerPart?: number | null;
+    }
+  | undefined;
+
+/**
+ * Samples claims against the given criteria WITHOUT writing anything to the
+ * database, so the officer can review (and download as a PDF) exactly which
+ * claims would be picked before committing to an audit.
+ */
+export async function previewInternalAuditSample(
+  _prev: PreviewInternalAuditSampleState,
+  formData: FormData
+): Promise<PreviewInternalAuditSampleState> {
+  await requireRole("officer");
+  const supabase = await createClient();
+  const criteria = readCriteria(formData);
+
+  if (!criteria.sampleSize || criteria.sampleSize < 1) {
+    return { error: "Enter a sample size of at least 1." };
+  }
+
+  const sample = await sampleEligibleClaims(supabase, criteria);
   if (sample.length === 0) {
-    return { error: "No claims could be sampled with these filters." };
+    return { error: "No eligible claims match these filters (or every matching claim has already been audited)." };
+  }
+
+  const { data: branches } = await supabase.from("self_audit_branches").select("id, name");
+  const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+
+  const claims: InternalAuditPreviewClaim[] = sample.map((c) => ({
+    id: c.id,
+    claim_number: c.claim_number,
+    work_order_no: c.work_order_no,
+    vin: c.vin,
+    branch_name: branchNameById.get(c.branch_id) ?? "Unknown branch",
+    dealer_submit_date: c.dealer_submit_date,
+    labor_code: c.labor_code,
+    flag_score: "_flag" in c ? ((c as { _flag: number })._flag ?? null) : null,
+  }));
+
+  return {
+    claims,
+    branchId: criteria.branchId,
+    branchLabel: criteria.branchId ? (branchNameById.get(criteria.branchId) ?? "Unknown branch") : "All branches",
+    dateFrom: criteria.dateFrom,
+    dateTo: criteria.dateTo,
+    sampleSize: criteria.sampleSize,
+    sampleMode: criteria.sampleMode,
+    maxPerPart: criteria.maxPerPart,
+  };
+}
+
+export type StartInternalAuditState = { error?: string } | undefined;
+
+/**
+ * Commits the exact claim set the officer already previewed (passed as
+ * repeated `claim_id` fields) rather than re-sampling - re-sampling here
+ * would pick a different random set than what was just reviewed/downloaded.
+ * Claims are re-checked against getAuditedClaimIds() in case one was claimed
+ * by another audit in the time since the preview was generated.
+ */
+export async function startInternalAudit(
+  _prev: StartInternalAuditState,
+  formData: FormData
+): Promise<StartInternalAuditState> {
+  const officer = await requireRole("officer");
+  const supabase = await createClient();
+  const criteria = readCriteria(formData);
+
+  const claimIds = formData.getAll("claim_id").map(String).filter(Boolean);
+  if (claimIds.length === 0) {
+    return { error: "Generate a sample first." };
+  }
+
+  const auditedClaimIds = await getAuditedClaimIds(supabase);
+  const stillEligible = claimIds.filter((id) => !auditedClaimIds.has(id));
+  if (stillEligible.length === 0) {
+    return { error: "Every previewed claim has since been claimed by another audit - generate a new sample." };
   }
 
   const { data: audit, error: auditError } = await supabase
     .from("self_audit_internal_audits")
     .insert({
-      branch_id: branchId,
-      date_from: dateFrom,
-      date_to: dateTo,
-      sample_size: sampleSize,
-      sample_mode: sampleMode,
-      max_per_part: maxPerPart,
+      branch_id: criteria.branchId,
+      date_from: criteria.dateFrom,
+      date_to: criteria.dateTo,
+      sample_size: criteria.sampleSize,
+      sample_mode: criteria.sampleMode,
+      max_per_part: criteria.maxPerPart,
       auditor_id: officer.id,
       status: "in_progress",
     })
@@ -84,9 +179,9 @@ export async function startInternalAudit(
   }
 
   const { error: claimsError } = await supabase.from("self_audit_internal_audit_claims").insert(
-    sample.map((c, i) => ({
+    stillEligible.map((claimId, i) => ({
       internal_audit_id: audit.id,
-      claim_id: c.id,
+      claim_id: claimId,
       sort_order: i,
     }))
   );

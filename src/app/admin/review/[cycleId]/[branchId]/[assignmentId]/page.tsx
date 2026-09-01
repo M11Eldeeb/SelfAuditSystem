@@ -104,6 +104,7 @@ export default async function ClaimReviewPage({
         assignmentId={assignmentId}
         cycleId={cycleId}
         branchId={branchId}
+        claim={claim ?? null}
         questions={questions ?? []}
         answers={answersMap}
         reviews={reviewsMap}

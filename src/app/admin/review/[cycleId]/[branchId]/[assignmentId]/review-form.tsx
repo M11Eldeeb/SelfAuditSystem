@@ -3,14 +3,17 @@
 import { useActionState } from "react";
 import { saveReview } from "./actions";
 import { ReviewField } from "./review-field";
+import { getClaimReference } from "@/lib/claim-reference";
 import type { Database } from "@/lib/supabase/types";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
+type Claim = Database["public"]["Tables"]["self_audit_claims"]["Row"];
 
 export function ReviewForm({
   assignmentId,
   cycleId,
   branchId,
+  claim,
   questions,
   answers,
   reviews,
@@ -19,6 +22,7 @@ export function ReviewForm({
   assignmentId: string;
   cycleId: string;
   branchId: string;
+  claim: Claim | null;
   questions: Question[];
   answers: Map<string, { answer_value: string | null; conditional_value: string | null }>;
   reviews: Map<
@@ -45,6 +49,7 @@ export function ReviewForm({
                 aiReasoning={review?.ai_reasoning ?? null}
                 aiConfidence={review?.ai_confidence ?? null}
                 officerValue={review?.officer_value ?? null}
+                reference={getClaimReference(q.id, claim)}
               />
             </fieldset>
           );

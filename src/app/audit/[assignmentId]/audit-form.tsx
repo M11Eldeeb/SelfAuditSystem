@@ -3,14 +3,18 @@
 import { useActionState } from "react";
 import { saveAudit } from "./actions";
 import { QuestionField } from "@/components/question-field";
+import { PhotoUploadField } from "@/components/photo-upload-field";
+import { getClaimReference } from "@/lib/claim-reference";
 import type { Database } from "@/lib/supabase/types";
 import type { PhotoStatus } from "@/lib/photo-status";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 type PhotoType = Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"];
+type Claim = Database["public"]["Tables"]["self_audit_claims"]["Row"];
 
 export function AuditForm({
   assignmentId,
+  claim,
   questions,
   photoTypes,
   answers,
@@ -19,6 +23,7 @@ export function AuditForm({
   locked,
 }: {
   assignmentId: string;
+  claim: Claim | null;
   questions: Question[];
   photoTypes: PhotoType[];
   answers: Map<string, { answer_value: string | null; conditional_value: string | null }>;
@@ -39,6 +44,7 @@ export function AuditForm({
             question={q}
             initialValue={answers.get(q.id)?.answer_value ?? null}
             locked={locked}
+            reference={getClaimReference(q.id, claim)}
           />
         ))}
       </div>
@@ -46,44 +52,16 @@ export function AuditForm({
       <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Required photos</h2>
         {photoTypes.map((pt) => (
-          <div key={pt.id} className="space-y-1">
-            <label className="text-sm font-medium text-neutral-700">
-              {pt.label}
-              {pt.required && <span className="text-red-500"> *</span>}
-            </label>
-            {pt.help_text && <p className="text-xs text-neutral-500">{pt.help_text}</p>}
-            {(() => {
-              const status = photoStatus.get(pt.id);
-              if (status && "url" in status) {
-                return (
-                  <a
-                    href={status.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-xs text-brand underline"
-                  >
-                    View current photo
-                  </a>
-                );
-              }
-              if (status && "removed" in status) {
-                return (
-                  <p className="text-xs text-neutral-400">
-                    Photo removed after review to save storage.
-                  </p>
-                );
-              }
-              return null;
-            })()}
-            {!locked && (
-              <input
-                type="file"
-                name={`photo_${pt.id}`}
-                accept="image/*,application/pdf"
-                className="block w-full text-sm text-neutral-700 file:mr-3 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-neutral-700 file:shadow-sm hover:file:bg-neutral-50"
-              />
-            )}
-          </div>
+          <PhotoUploadField
+            key={pt.id}
+            label={pt.label}
+            helpText={pt.help_text}
+            required={pt.required}
+            locked={locked}
+            status={photoStatus.get(pt.id)}
+            fieldName={`photo_path_${pt.id}`}
+            buildPath={(ext) => `${assignmentId}/${pt.id}.${ext}`}
+          />
         ))}
       </div>
 

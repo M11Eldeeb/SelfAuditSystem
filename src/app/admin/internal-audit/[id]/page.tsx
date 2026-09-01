@@ -89,6 +89,7 @@ export default async function InternalAuditClaimPage({
       <InternalAuditClaimForm
         auditId={auditId}
         internalAuditClaimId={current.id}
+        claim={claim ?? null}
         currentIndex={currentIndex}
         totalClaims={internalClaims.length}
         questionGroups={questionGroups}
