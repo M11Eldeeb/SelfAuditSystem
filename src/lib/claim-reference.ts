@@ -2,18 +2,20 @@ import type { Database } from "@/lib/supabase/types";
 
 type Claim = Database["public"]["Tables"]["self_audit_claims"]["Row"];
 
-// Best-guess header aliases for a free-text "customer concern" column - like every
-// other field guessed against the real export (see parse-claims.ts), this is
-// unconfirmed until checked against a real upload. Looked up directly in raw_row
-// since customer concern isn't parsed into its own claims column.
+// Header aliases for the free-text "customer concern" column, looked up directly
+// in raw_row since it isn't parsed into its own claims column. "Customer
+// Complaint Des" is the confirmed real column name in JIAD's export - note
+// "fault description" is a DIFFERENT, unrelated column in that export and is
+// deliberately not listed here. The rest are fallback guesses for other
+// possible export variants.
 const CUSTOMER_CONCERN_ALIASES = [
+  "customer complaint des",
   "customer concern",
   "concern",
   "complaint",
   "customer complaint",
   "customer's concern",
   "concern description",
-  "fault description",
   "reported concern",
   "reported complaint",
   "customer voice",
@@ -40,7 +42,9 @@ export function getClaimReference(questionId: string, claim: Claim | null | unde
     case "mileage":
       return claim.mileage != null ? `${claim.mileage.toLocaleString()} km` : "not in claims data";
     case "duein":
-      return claim.creation_date ? `Claim creation date: ${claim.creation_date}` : "not in claims data";
+      // creation_date is parsed from the sheet's "Reception Date" column (see
+      // parse-claims.ts) - that's the due-in date this question checks against.
+      return claim.creation_date ? `Reception date: ${claim.creation_date}` : "not in claims data";
     case "repairEndDate":
       return claim.repair_end_date ?? "not in claims data";
     case "concernOnRO":

@@ -72,12 +72,13 @@ const FIELD_ALIASES = {
     "last submit date(dealer)",
     "last submit date (dealer)",
   ],
+  // "Reception Date" is the confirmed real column name in JIAD's export.
   creation_date: [
+    "reception date",
     "creation date",
     "claim creation date",
     "job card open date",
     "created date",
-    "reception date",
   ],
   // Fields below feed internal-audit's risk-based ("flagged") sampling mode -
   // aliases are best guesses against the real export's headers, not yet
