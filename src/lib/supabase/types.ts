@@ -95,6 +95,7 @@ export interface Database {
           return_times: number | null;
           return_times_dealer: number | null;
           labor_code: string | null;
+          main_part_name: string | null;
           created_at: string;
         };
         Insert: {
@@ -118,6 +119,7 @@ export interface Database {
           return_times?: number | null;
           return_times_dealer?: number | null;
           labor_code?: string | null;
+          main_part_name?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_claims"]["Insert"]>;

@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
-export type PhotoStatus = { url: string } | { removed: true };
+export type PhotoStatus = { url: string; path: string } | { removed: true };
 
 /**
  * Signs a URL for each still-present photo and marks cleaned-up ones as
@@ -22,7 +22,7 @@ export async function buildPhotoStatusMap(
     const { data: signed } = await supabase.storage
       .from("audit-photos")
       .createSignedUrl(photo.storage_path, ttlSeconds);
-    if (signed?.signedUrl) map.set(photo.photo_type_id, { url: signed.signedUrl });
+    if (signed?.signedUrl) map.set(photo.photo_type_id, { url: signed.signedUrl, path: photo.storage_path });
   }
   return map;
 }

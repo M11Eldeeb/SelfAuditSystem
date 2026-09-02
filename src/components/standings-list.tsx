@@ -7,7 +7,13 @@ const RANK_BADGE = [
   "bg-orange-300 text-orange-950",
 ];
 
-export function StandingsList({ entries }: { entries: StandingsEntry[] }) {
+export function StandingsList({
+  entries,
+  hideScores = false,
+}: {
+  entries: StandingsEntry[];
+  hideScores?: boolean;
+}) {
   if (entries.length === 0) return null;
   const topScore = entries[0].avg;
 
@@ -31,8 +37,14 @@ export function StandingsList({ entries }: { entries: StandingsEntry[] }) {
                 style={{ width: `${Math.min(e.avg, 100)}%` }}
               />
             </div>
-            <span className="w-16 text-right text-sm font-medium text-neutral-900">{e.avg}%</span>
-            <span className="w-24 text-right text-xs text-neutral-500">{i === 0 ? "Best" : `${diff} pts`}</span>
+            {!hideScores && (
+              <>
+                <span className="w-16 text-right text-sm font-medium text-neutral-900">{e.avg}%</span>
+                <span className="w-24 text-right text-xs text-neutral-500">
+                  {i === 0 ? "Best" : `${diff} pts`}
+                </span>
+              </>
+            )}
           </div>
         );
       })}

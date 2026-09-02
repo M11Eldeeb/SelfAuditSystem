@@ -73,6 +73,10 @@ export default async function InternalAuditClaimPage({
           <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
         </div>
         <div>
+          <dt className="text-xs text-neutral-500">Main part</dt>
+          <dd className="text-neutral-900">{claim?.main_part_name ?? "—"}</dd>
+        </div>
+        <div>
           <dt className="text-xs text-neutral-500">Mileage</dt>
           <dd className="text-neutral-900">{claim?.mileage ?? "—"}</dd>
         </div>

@@ -6,7 +6,7 @@ const RANK_STYLE = [
   { badge: "bg-orange-300 text-orange-950", bar: "bg-orange-300", height: "h-14" },
 ];
 
-export function Podium({ entries }: { entries: StandingsEntry[] }) {
+export function Podium({ entries, hideScores = false }: { entries: StandingsEntry[]; hideScores?: boolean }) {
   const top3 = entries.slice(0, 3);
   if (top3.length === 0) return null;
 
@@ -28,7 +28,7 @@ export function Podium({ entries }: { entries: StandingsEntry[] }) {
             <span className="w-full truncate text-center text-sm font-medium text-neutral-900">
               {entry.name}
             </span>
-            <span className="text-xs text-neutral-500">{entry.avg}%</span>
+            {!hideScores && <span className="text-xs text-neutral-500">{entry.avg}%</span>}
             <div className={`w-full rounded-t-md ${style.bar} ${style.height}`} />
           </div>
         );

@@ -16,6 +16,8 @@ export interface ParsedClaimRow {
   return_times: number | null;
   return_times_dealer: number | null;
   labor_code: string | null;
+  main_part_name: string | null;
+  raw_row: Record<string, unknown>;
 }
 
 export interface SkippedRow {
@@ -234,6 +236,15 @@ export function parseClaimRows(
       return isNaN(n) ? null : n;
     };
 
+    // Keeps every original column (keyed by its own header text) so fields with
+    // no dedicated claims column - like the free-text customer concern shown as
+    // a reference next to the relevant audit question - can still be looked up.
+    const rawRow: Record<string, unknown> = {};
+    headers.forEach((h, idx) => {
+      const v = row[idx];
+      if (v != null && String(v).trim() !== "") rawRow[h] = v;
+    });
+
     claims.push({
       branch_id: branchId,
       claim_number: claimNumber,
@@ -252,6 +263,8 @@ export function parseClaimRows(
       return_times: numOrNull(get(row, "return_times")),
       return_times_dealer: numOrNull(get(row, "return_times_dealer")),
       labor_code: str(get(row, "labor_code")),
+      main_part_name: str(mainPartRaw),
+      raw_row: rawRow,
     });
   });
 

@@ -77,6 +77,10 @@ export default async function ClaimReviewPage({
           <dd className="text-neutral-900">{claim?.work_order_no ?? "—"}</dd>
         </div>
         <div>
+          <dt className="text-xs text-neutral-500">Main part</dt>
+          <dd className="text-neutral-900">{claim?.main_part_name ?? "—"}</dd>
+        </div>
+        <div>
           <dt className="text-xs text-neutral-500">Mileage (claims data)</dt>
           <dd className="text-neutral-900">{claim?.mileage ?? "—"}</dd>
         </div>

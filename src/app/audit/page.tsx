@@ -111,8 +111,8 @@ export default async function AuditDashboardPage({
       <p className="text-xs text-neutral-500">
         How every branch compares, {STANDINGS_PERIOD_LABELS[period].toLowerCase()}.
       </p>
-      <Podium entries={standings} />
-      <StandingsList entries={standings} />
+      <Podium entries={standings} hideScores />
+      <StandingsList entries={standings} hideScores />
     </section>
   );
 
