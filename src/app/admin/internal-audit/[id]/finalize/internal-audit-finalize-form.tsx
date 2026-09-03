@@ -6,9 +6,11 @@ import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 
 export function InternalAuditFinalizeForm({
   auditId,
+  defaultAuditorName,
   defaultClosingStatement,
 }: {
   auditId: string;
+  defaultAuditorName: string;
   defaultClosingStatement: string;
 }) {
   const boundFinalize = finalizeInternalAudit.bind(null, auditId);
@@ -16,16 +18,32 @@ export function InternalAuditFinalizeForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <div className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4">
-        <label htmlFor="manager_name" className="text-sm font-medium text-neutral-700">
-          Service manager name
-        </label>
-        <input
-          id="manager_name"
-          name="manager_name"
-          type="text"
-          className="w-full max-w-sm rounded-md border border-neutral-300 px-3 py-2 text-sm"
-        />
+      <div className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label htmlFor="auditor_name" className="text-sm font-medium text-neutral-700">
+            Auditor name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="auditor_name"
+            name="auditor_name"
+            type="text"
+            required
+            defaultValue={defaultAuditorName}
+            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="manager_name" className="text-sm font-medium text-neutral-700">
+            Service manager name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="manager_name"
+            name="manager_name"
+            type="text"
+            required
+            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">

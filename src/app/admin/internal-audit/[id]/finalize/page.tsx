@@ -10,7 +10,7 @@ export default async function InternalAuditFinalizePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const { id: auditId } = await params;
   const supabase = await createClient();
 
@@ -55,7 +55,11 @@ export default async function InternalAuditFinalizePage({
         <p className="text-sm text-neutral-500">Current score: {overallScore}%. Finalizing locks all answers.</p>
       </div>
 
-      <InternalAuditFinalizeForm auditId={auditId} defaultClosingStatement={defaultClosingStatement(overallScore)} />
+      <InternalAuditFinalizeForm
+        auditId={auditId}
+        defaultAuditorName={officer.full_name ?? ""}
+        defaultClosingStatement={defaultClosingStatement(overallScore)}
+      />
     </div>
   );
 }

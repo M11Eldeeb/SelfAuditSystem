@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { previewInternalAuditSample, startInternalAudit } from "./actions";
-import { generateSamplePreviewPdf } from "@/lib/internal-audit-sample-pdf";
+import { generateSamplePreviewExcel } from "@/lib/internal-audit-sample-excel";
 
 type Branch = { id: string; name: string };
 
@@ -122,19 +122,10 @@ export function InternalAuditForm({ branches }: { branches: Branch[] }) {
             </h3>
             <button
               type="button"
-              onClick={() =>
-                generateSamplePreviewPdf({
-                  branchLabel: previewState?.branchLabel ?? "All branches",
-                  dateFrom: previewState?.dateFrom ?? null,
-                  dateTo: previewState?.dateTo ?? null,
-                  sampleMode: previewState?.sampleMode ?? "random",
-                  maxPerPart: previewState?.maxPerPart ?? null,
-                  rows: claims,
-                })
-              }
+              onClick={() => generateSamplePreviewExcel(claims)}
               className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
             >
-              Download as PDF
+              Download as Excel
             </button>
           </div>
 

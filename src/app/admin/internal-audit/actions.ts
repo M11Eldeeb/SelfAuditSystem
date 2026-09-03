@@ -10,7 +10,7 @@ import { buildWorkOrderCounts, computeAuditFlag } from "@/lib/audit-flag";
 import { selectWithPartCap } from "@/lib/internal-audit-sampling";
 import { computeInternalAuditScores } from "@/lib/internal-audit-scoring";
 import { DEPARTMENT_ORDER } from "@/lib/departments";
-import type { DepartmentId } from "@/lib/supabase/types";
+import type { DepartmentId, Database } from "@/lib/supabase/types";
 
 type SampleCriteria = {
   branchId: string | null;
@@ -58,14 +58,8 @@ async function sampleEligibleClaims(
   return selectWithPartCap(ordered, sampleSize, maxPerPart);
 }
 
-export type InternalAuditPreviewClaim = {
-  id: string;
-  claim_number: string;
-  work_order_no: string | null;
-  vin: string | null;
+export type InternalAuditPreviewClaim = Database["public"]["Tables"]["self_audit_claims"]["Row"] & {
   branch_name: string;
-  dealer_submit_date: string | null;
-  labor_code: string | null;
   flag_score: number | null;
 };
 
@@ -85,8 +79,9 @@ export type PreviewInternalAuditSampleState =
 
 /**
  * Samples claims against the given criteria WITHOUT writing anything to the
- * database, so the officer can review (and download as a PDF) exactly which
- * claims would be picked before committing to an audit.
+ * database, so the officer can review (and download as an Excel sheet with
+ * every claim field) exactly which claims would be picked before committing
+ * to an audit.
  */
 export async function previewInternalAuditSample(
   _prev: PreviewInternalAuditSampleState,
@@ -108,16 +103,14 @@ export async function previewInternalAuditSample(
   const { data: branches } = await supabase.from("self_audit_branches").select("id, name");
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
 
-  const claims: InternalAuditPreviewClaim[] = sample.map((c) => ({
-    id: c.id,
-    claim_number: c.claim_number,
-    work_order_no: c.work_order_no,
-    vin: c.vin,
-    branch_name: branchNameById.get(c.branch_id) ?? "Unknown branch",
-    dealer_submit_date: c.dealer_submit_date,
-    labor_code: c.labor_code,
-    flag_score: "_flag" in c ? ((c as { _flag: number })._flag ?? null) : null,
-  }));
+  const claims: InternalAuditPreviewClaim[] = sample.map((c) => {
+    const { _flag, ...claim } = c;
+    return {
+      ...claim,
+      branch_name: branchNameById.get(claim.branch_id) ?? "Unknown branch",
+      flag_score: _flag ?? null,
+    };
+  });
 
   return {
     claims,
@@ -344,7 +337,11 @@ export async function finalizeInternalAudit(
     branchAnswersByQuestion
   );
 
-  const managerName = String(formData.get("manager_name") ?? "").trim() || null;
+  const auditorName = String(formData.get("auditor_name") ?? "").trim();
+  const managerName = String(formData.get("manager_name") ?? "").trim();
+  if (!auditorName || !managerName) {
+    return { error: "Enter both the auditor name and the service manager name." };
+  }
   const closingStatement = String(formData.get("closing_statement") ?? "").trim() || null;
 
   const remarkRows = DEPARTMENT_ORDER.map((dept) => {
@@ -363,6 +360,7 @@ export async function finalizeInternalAudit(
     .from("self_audit_internal_audits")
     .update({
       status: "finalized",
+      auditor_name: auditorName,
       manager_name: managerName,
       closing_statement: closingStatement,
       score_pct: overallScore,

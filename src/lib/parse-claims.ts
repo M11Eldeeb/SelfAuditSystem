@@ -82,14 +82,15 @@ const FIELD_ALIASES = {
     "job card open date",
     "created date",
   ],
-  // Fields below feed internal-audit's risk-based ("flagged") sampling mode -
-  // aliases are best guesses against the real export's headers, not yet
-  // confirmed, same as every other field here needed a round of tuning.
-  claim_amount: ["claim amount", "amount", "total amount", "claim value", "warranty amount", "approved amount"],
+  // Fields below feed internal-audit's risk-based ("flagged") sampling mode.
+  // "Claim TOL." and "Main Labor" are the confirmed real column names in
+  // JIAD's export - the rest were already matching correctly and are kept as
+  // fallback guesses for other possible export variants.
+  claim_amount: ["claim tol.", "settle tol.(vat)", "adjusted claim tol.", "claim amount", "amount", "total amount", "claim value", "warranty amount", "approved amount"],
   prior_approval: ["prior approval", "special approval", "approval required", "advance approval"],
   return_times: ["return times", "return times saic", "returns"],
   return_times_dealer: ["return times dealer", "return times (dealer)", "return times(dealer)"],
-  labor_code: ["labor code", "labour code", "primary labor code", "labor op code"],
+  labor_code: ["main labor", "main labor code", "labor code", "labour code", "primary labor code", "labor op code"],
 } as const;
 
 type Field = keyof typeof FIELD_ALIASES;

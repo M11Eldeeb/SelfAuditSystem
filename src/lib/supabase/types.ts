@@ -378,6 +378,7 @@ export interface Database {
           sample_mode: SampleMode;
           max_per_part: number | null;
           auditor_id: string | null;
+          auditor_name: string | null;
           manager_name: string | null;
           status: InternalAuditStatus;
           closing_statement: string | null;
@@ -395,6 +396,7 @@ export interface Database {
           sample_mode?: SampleMode;
           max_per_part?: number | null;
           auditor_id?: string | null;
+          auditor_name?: string | null;
           manager_name?: string | null;
           status?: InternalAuditStatus;
           closing_statement?: string | null;

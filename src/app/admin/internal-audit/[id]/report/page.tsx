@@ -20,10 +20,9 @@ export default async function InternalAuditReportPage({
   const { data: audit } = await supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single();
   if (!audit || audit.status !== "finalized") notFound();
 
-  const [{ data: branch }, { data: auditor }, { data: questions }, { data: internalClaims }, { data: branchAnswers }, { data: remarks }] =
+  const [{ data: branch }, { data: questions }, { data: internalClaims }, { data: branchAnswers }, { data: remarks }] =
     await Promise.all([
       audit.branch_id ? supabase.from("self_audit_branches").select("name").eq("id", audit.branch_id).single() : Promise.resolve({ data: null }),
-      audit.auditor_id ? supabase.from("self_audit_users").select("full_name, email").eq("id", audit.auditor_id).single() : Promise.resolve({ data: null }),
       supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),
       supabase.from("self_audit_internal_audit_claims").select("id, claim_id").eq("internal_audit_id", auditId),
       supabase.from("self_audit_internal_audit_branch_answers").select("question_id, answer_value").eq("internal_audit_id", auditId),
@@ -87,7 +86,7 @@ export default async function InternalAuditReportPage({
     .map((r) => ({ label: DEPARTMENT_LABELS[r.department_id] ?? r.department_id, text: r.remark_text ?? "" }));
 
   const branchName = branch?.name ?? "All branches";
-  const auditorName = auditor?.full_name || auditor?.email || "";
+  const auditorName = audit.auditor_name ?? "";
   const auditDateLabel = (audit.finalized_at ?? audit.created_at).slice(0, 10);
 
   return (
