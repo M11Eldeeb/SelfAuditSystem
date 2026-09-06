@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { scoreBadgeClasses } from "@/lib/score-color";
+import { DeleteResultButton } from "./delete-result-button";
 
 export default async function CycleResultsPage({
   params,
@@ -30,7 +31,7 @@ export default async function CycleResultsPage({
   return (
     <div className="space-y-3">
       <div>
-        <Link href="/admin/results" className="text-sm text-neutral-500 hover:text-neutral-800">
+        <Link href="/admin/results/self-audit" className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to results
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
@@ -60,12 +61,15 @@ export default async function CycleResultsPage({
                   {new Date(r.finalized_at).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <Link
-                    href={`/admin/review/${cycleId}/${r.branch_id}`}
-                    className="text-sm text-brand hover:underline"
-                  >
-                    View detail
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    <Link
+                      href={`/admin/review/${cycleId}/${r.branch_id}`}
+                      className="text-sm text-brand hover:underline"
+                    >
+                      View detail
+                    </Link>
+                    <DeleteResultButton cycleId={cycleId} branchId={r.branch_id} />
+                  </div>
                 </td>
               </tr>
             ))}

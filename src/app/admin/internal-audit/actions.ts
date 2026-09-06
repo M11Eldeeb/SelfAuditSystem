@@ -236,7 +236,7 @@ export async function saveClaimAnswers(
 
   const { data: questions } = await supabase
     .from("self_audit_audit_questions")
-    .select("id")
+    .select("id, department")
     .in("scope", ["claim", "parts"])
     .order("sort_order");
 
@@ -271,6 +271,25 @@ export async function saveClaimAnswers(
   revalidatePath(`/admin/internal-audit/${auditId}`);
 
   const nav = String(formData.get("nav") ?? "stay");
+
+  if (nav === "next") {
+    const modeQuestionIds = (questions ?? [])
+      .filter((q) => (mode === "parts" ? q.department === "parts" : q.department != null && q.department !== "parts"))
+      .map((q) => q.id);
+
+    const { data: currentAnswers } = await supabase
+      .from("self_audit_internal_audit_answers")
+      .select("question_id, answer_value")
+      .eq("internal_audit_claim_id", internalAuditClaimId);
+    const answeredIds = new Set(
+      (currentAnswers ?? []).filter((a) => a.answer_value != null).map((a) => a.question_id)
+    );
+
+    if (modeQuestionIds.some((id) => !answeredIds.has(id))) {
+      return { error: `Answer every ${mode === "parts" ? "Parts" : "Documents"} question before moving to the next claim.` };
+    }
+  }
+
   if (nav === "next" && currentIndex < totalClaims - 1) {
     redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex + 1}&mode=${mode}`);
   }
@@ -314,6 +333,14 @@ export async function saveBranchAnswers(
     .from("self_audit_internal_audit_branch_answers")
     .upsert(answerRows, { onConflict: "internal_audit_id,question_id" });
   if (error) return { error: error.message };
+
+  const noteText = formData.get("note");
+  if (noteText !== null) {
+    await supabase
+      .from("self_audit_internal_audits")
+      .update({ branch_ops_note: String(noteText).trim() || null })
+      .eq("id", auditId);
+  }
 
   revalidatePath(`/admin/internal-audit/${auditId}`);
   redirect(`/admin/internal-audit/${auditId}/finalize`);
@@ -383,6 +410,24 @@ export async function finalizeInternalAudit(
     if (remarksError) return { error: remarksError.message };
   }
 
+  // The officer reviewed/edited/removed these on the finalize screen - only
+  // what's left (non-removed, non-empty) is kept, and it's frozen here rather
+  // than recomputed on every report view.
+  const recIds = String(formData.get("recommendation_question_ids") ?? "").split(",").filter(Boolean);
+  const recommendations = recIds
+    .map((qid) => {
+      if (formData.get(`rec_remove_${qid}`) === "1") return null;
+      const text = String(formData.get(`rec_text_${qid}`) ?? "").trim();
+      if (!text) return null;
+      return {
+        dept: String(formData.get(`rec_dept_${qid}`) ?? ""),
+        checkpoint: String(formData.get(`rec_checkpoint_${qid}`) ?? ""),
+        pct: Number(formData.get(`rec_pct_${qid}`) ?? 0),
+        text,
+      };
+    })
+    .filter((r): r is { dept: string; checkpoint: string; pct: number; text: string } => r !== null);
+
   const { error: updateError } = await supabase
     .from("self_audit_internal_audits")
     .update({
@@ -390,6 +435,7 @@ export async function finalizeInternalAudit(
       auditor_name: auditorName,
       manager_name: managerName,
       closing_statement: closingStatement,
+      recommendations,
       score_pct: overallScore,
       per_question_breakdown: perQuestionBreakdown,
       finalized_at: new Date().toISOString(),
@@ -398,6 +444,7 @@ export async function finalizeInternalAudit(
   if (updateError) return { error: updateError.message };
 
   revalidatePath("/admin/internal-audit");
+  revalidatePath("/admin/results/internal-audit");
   redirect(`/admin/internal-audit/${auditId}/report`);
 }
 
@@ -411,5 +458,6 @@ export async function deleteInternalAudit(auditId: string): Promise<{ error?: st
   if (error) return { error: error.message };
 
   revalidatePath("/admin/internal-audit");
+  revalidatePath("/admin/results/internal-audit");
   return {};
 }

@@ -4,16 +4,20 @@ import { useActionState } from "react";
 import { finalizeInternalAudit } from "../../actions";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 
+type CandidateRecommendation = { questionId: string; dept: string; checkpoint: string; pct: number; text: string };
+
 export function InternalAuditFinalizeForm({
   auditId,
   defaultAuditorName,
   defaultManagerName,
   defaultClosingStatement,
+  candidateRecommendations,
 }: {
   auditId: string;
   defaultAuditorName: string;
   defaultManagerName: string;
   defaultClosingStatement: string;
+  candidateRecommendations: CandidateRecommendation[];
 }) {
   const boundFinalize = finalizeInternalAudit.bind(null, auditId);
   const [state, formAction, pending] = useActionState(boundFinalize, undefined);
@@ -66,6 +70,46 @@ export function InternalAuditFinalizeForm({
           </div>
         ))}
       </div>
+
+      {candidateRecommendations.length > 0 && (
+        <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-900">Recommendations</h2>
+            <p className="text-xs text-neutral-500">
+              Auto-suggested for every checkpoint that scored below 80%. Edit the wording or check
+              &quot;Remove&quot; to drop one before finalizing - only what&apos;s left here appears on the report.
+            </p>
+          </div>
+          <input
+            type="hidden"
+            name="recommendation_question_ids"
+            value={candidateRecommendations.map((r) => r.questionId).join(",")}
+          />
+          {candidateRecommendations.map((r) => (
+            <div key={r.questionId} className="space-y-1 border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
+              <input type="hidden" name={`rec_dept_${r.questionId}`} value={r.dept} />
+              <input type="hidden" name={`rec_checkpoint_${r.questionId}`} value={r.checkpoint} />
+              <input type="hidden" name={`rec_pct_${r.questionId}`} value={r.pct} />
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor={`rec_text_${r.questionId}`} className="text-sm font-medium text-neutral-900">
+                  {r.dept} &middot; {r.checkpoint} ({r.pct}%)
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-neutral-600">
+                  <input type="checkbox" name={`rec_remove_${r.questionId}`} value="1" className="accent-brand" />
+                  Remove
+                </label>
+              </div>
+              <textarea
+                id={`rec_text_${r.questionId}`}
+                name={`rec_text_${r.questionId}`}
+                rows={2}
+                defaultValue={r.text}
+                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4">
         <label htmlFor="closing_statement" className="text-sm font-medium text-neutral-700">

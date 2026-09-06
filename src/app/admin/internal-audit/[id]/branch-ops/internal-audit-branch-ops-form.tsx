@@ -11,11 +11,13 @@ export function InternalAuditBranchOpsForm({
   auditId,
   questions,
   answers,
+  noteText,
   locked,
 }: {
   auditId: string;
   questions: Question[];
   answers: Map<string, string | null>;
+  noteText: string;
   locked: boolean;
 }) {
   const boundSave = saveBranchAnswers.bind(null, auditId);
@@ -28,6 +30,20 @@ export function InternalAuditBranchOpsForm({
         {questions.map((q) => (
           <QuestionField key={q.id} question={q} initialValue={answers.get(q.id) ?? null} locked={locked} />
         ))}
+      </div>
+
+      <div className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4">
+        <label htmlFor="note" className="text-sm font-medium text-neutral-700">
+          Note
+        </label>
+        <textarea
+          id="note"
+          name="note"
+          rows={3}
+          defaultValue={noteText}
+          disabled={locked}
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
       </div>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

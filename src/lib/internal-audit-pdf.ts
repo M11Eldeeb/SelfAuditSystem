@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import { MG_LOGO_SRC } from "@/lib/mg-logo";
 
 export type InternalAuditPdfData = {
+  auditName: string;
   branchName: string;
   auditDateLabel: string;
   auditorName: string;
@@ -12,6 +13,7 @@ export type InternalAuditPdfData = {
   departmentRemarks: { label: string; text: string }[];
   recommendations: { dept: string; checkpoint: string; pct: number; text: string }[];
   claimNotes: { vin: string; claimNumber: string; note: string }[];
+  branchOpsNote: string;
   closingStatement: string;
 };
 
@@ -94,7 +96,7 @@ export function generateInternalAuditPdf(data: InternalAuditPdfData): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(20, 20, 20);
-  doc.text("MG Warranty Claims Audit Report", 84, y + 22);
+  doc.text(data.auditName || "MG Warranty Claims Audit Report", 84, y + 22);
   y += 46;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
@@ -226,6 +228,24 @@ export function generateInternalAuditPdf(data: InternalAuditPdfData): void {
       fontSize: 8.5,
     });
     y += 20;
+  }
+
+  if (data.branchOpsNote) {
+    if (y > 700) {
+      doc.addPage();
+      y = 50;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(20, 20, 20);
+    doc.text("Branch Operation note", 40, y);
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(70, 70, 70);
+    const opsLines = doc.splitTextToSize(data.branchOpsNote, pageW - 80);
+    doc.text(opsLines, 40, y);
+    y += opsLines.length * 12 + 20;
   }
 
   if (y > 700) {

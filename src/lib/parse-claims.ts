@@ -52,7 +52,11 @@ const FIELD_ALIASES = {
   work_order_no: ["work order no", "work order number", "job card no", "job card number", "repair order no"],
   // Presence of a part here (vs. blank, meaning a labor-only claim) is used
   // to derive has_parts - cycle generation only samples claims with parts.
+  // This is the part NUMBER column, not its name - "Main Part" in JIAD's
+  // export is a number (e.g. "11663681"); the human-readable name is a
+  // separate "Main Part Name" column, aliased below.
   main_part: ["main part", "part number", "part no", "part code"],
+  main_part_name: ["main part name", "part name", "part description"],
   claim_number: ["claim number", "claim no", "claim #", "claim id", "warranty claim"],
   vin: ["vin", "chassis number", "chassis no"],
   vehicle_model: ["model", "vehicle model", "model version"],
@@ -264,7 +268,7 @@ export function parseClaimRows(
       return_times: numOrNull(get(row, "return_times")),
       return_times_dealer: numOrNull(get(row, "return_times_dealer")),
       labor_code: str(get(row, "labor_code")),
-      main_part_name: str(mainPartRaw),
+      main_part_name: str(get(row, "main_part_name")),
       raw_row: rawRow,
     });
   });

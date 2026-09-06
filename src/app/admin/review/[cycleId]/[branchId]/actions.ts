@@ -109,6 +109,7 @@ export async function finalizeBranchAudit(
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/review/${cycleId}/${branchId}`);
-  revalidatePath("/admin/results");
+  revalidatePath("/admin/results/self-audit");
+  revalidatePath(`/admin/results/self-audit/${cycleId}`);
   return { success: "Results finalized." };
 }

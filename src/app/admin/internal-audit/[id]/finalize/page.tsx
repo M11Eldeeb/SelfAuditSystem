@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { InternalAuditFinalizeForm } from "./internal-audit-finalize-form";
 import { computeInternalAuditScores, defaultClosingStatement } from "@/lib/internal-audit-scoring";
+import { DEPARTMENT_LABELS } from "@/lib/departments";
+import type { DepartmentId } from "@/lib/supabase/types";
 
 export default async function InternalAuditFinalizePage({
   params,
@@ -47,7 +49,23 @@ export default async function InternalAuditFinalizePage({
     (branchAnswers ?? []).map((a) => [a.question_id, a.answer_value])
   );
 
-  const { overallScore } = computeInternalAuditScores(questions ?? [], claimAnswersByQuestion, branchAnswersByQuestion);
+  const { overallScore, checkpointScores } = computeInternalAuditScores(
+    questions ?? [],
+    claimAnswersByQuestion,
+    branchAnswersByQuestion
+  );
+
+  const questionById = new Map((questions ?? []).map((q) => [q.id, q]));
+  const candidateRecommendations = checkpointScores
+    .filter((c) => c.pct != null && c.pct < 80)
+    .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
+    .map((c) => ({
+      questionId: c.questionId,
+      dept: DEPARTMENT_LABELS[(c.departmentId as DepartmentId) ?? "reception"] ?? c.departmentId,
+      checkpoint: c.label,
+      pct: c.pct ?? 0,
+      text: questionById.get(c.questionId)?.remediation_suggestion ?? "No specific recommendation on file.",
+    }));
 
   return (
     <div className="space-y-6">
@@ -64,6 +82,7 @@ export default async function InternalAuditFinalizePage({
         defaultAuditorName={audit.auditor_name || officer.full_name || ""}
         defaultManagerName={audit.manager_name ?? ""}
         defaultClosingStatement={defaultClosingStatement(overallScore)}
+        candidateRecommendations={candidateRecommendations}
       />
     </div>
   );

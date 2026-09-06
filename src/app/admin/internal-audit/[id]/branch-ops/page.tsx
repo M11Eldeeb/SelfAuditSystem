@@ -13,7 +13,11 @@ export default async function InternalAuditBranchOpsPage({
   const { id: auditId } = await params;
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status").eq("id", auditId).single();
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, branch_ops_note")
+    .eq("id", auditId)
+    .single();
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
 
@@ -34,7 +38,13 @@ export default async function InternalAuditBranchOpsPage({
         <p className="text-sm text-neutral-500">Asked once for this internal audit, not tied to a specific claim.</p>
       </div>
 
-      <InternalAuditBranchOpsForm auditId={auditId} questions={questions ?? []} answers={answersMap} locked={false} />
+      <InternalAuditBranchOpsForm
+        auditId={auditId}
+        questions={questions ?? []}
+        answers={answersMap}
+        noteText={audit.branch_ops_note ?? ""}
+        locked={false}
+      />
     </div>
   );
 }

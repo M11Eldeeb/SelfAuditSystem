@@ -384,6 +384,8 @@ export interface Database {
           manager_name: string | null;
           status: InternalAuditStatus;
           closing_statement: string | null;
+          branch_ops_note: string | null;
+          recommendations: { dept: string; checkpoint: string; pct: number; text: string }[] | null;
           score_pct: number | null;
           per_question_breakdown: Record<string, unknown>;
           created_at: string;
@@ -404,6 +406,8 @@ export interface Database {
           manager_name?: string | null;
           status?: InternalAuditStatus;
           closing_statement?: string | null;
+          branch_ops_note?: string | null;
+          recommendations?: { dept: string; checkpoint: string; pct: number; text: string }[] | null;
           score_pct?: number | null;
           per_question_breakdown?: Record<string, unknown>;
           created_at?: string;

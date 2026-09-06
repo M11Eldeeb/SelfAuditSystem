@@ -78,9 +78,10 @@ export default async function InternalAuditClaimPage({
     const partsDone = partsQuestionIds.length > 0 && partsQuestionIds.every((id) => answered.has(id));
     return { documentsDone, partsDone, fullyDone: documentsDone && partsDone };
   });
-  const doneCount = completeness.filter((c) => c.fullyDone).length;
-  const allDone = doneCount === internalClaims.length;
-  const firstUnfinishedIndex = completeness.findIndex((c) => !c.fullyDone);
+  const documentsDoneCount = completeness.filter((c) => c.documentsDone).length;
+  const partsDoneCount = completeness.filter((c) => c.partsDone).length;
+  const allDone = completeness.every((c) => c.fullyDone);
+  const firstUnfinishedInMode = completeness.findIndex((c) => !(mode === "parts" ? c.partsDone : c.documentsDone));
 
   const claimById = new Map((allClaimsBasic ?? []).map((c) => [c.id, c]));
   const searchItems = internalClaims.map((ic, i) => {
@@ -106,17 +107,38 @@ export default async function InternalAuditClaimPage({
       </div>
 
       <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-neutral-900">
-            {doneCount} of {internalClaims.length} claims fully audited
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-6">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-neutral-900">
+                Documents: {documentsDoneCount} of {internalClaims.length}
+              </p>
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-100">
+                <div
+                  className="h-full rounded-full bg-brand"
+                  style={{ width: `${internalClaims.length > 0 ? (documentsDoneCount / internalClaims.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-neutral-900">
+                Parts: {partsDoneCount} of {internalClaims.length}
+              </p>
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-100">
+                <div
+                  className="h-full rounded-full bg-brand"
+                  style={{ width: `${internalClaims.length > 0 ? (partsDoneCount / internalClaims.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
-            {!allDone && firstUnfinishedIndex !== -1 && firstUnfinishedIndex !== currentIndex && (
+            {firstUnfinishedInMode !== -1 && firstUnfinishedInMode !== currentIndex && (
               <Link
-                href={`/admin/internal-audit/${auditId}?claim=${firstUnfinishedIndex}&mode=${mode}`}
+                href={`/admin/internal-audit/${auditId}?claim=${firstUnfinishedInMode}&mode=${mode}`}
                 className="text-sm text-brand hover:underline"
               >
-                Go to next unfinished claim &rarr;
+                Go to next unfinished claim ({mode}) &rarr;
               </Link>
             )}
             {allDone ? (
@@ -135,12 +157,6 @@ export default async function InternalAuditClaimPage({
               </span>
             )}
           </div>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-          <div
-            className="h-full rounded-full bg-brand"
-            style={{ width: `${internalClaims.length > 0 ? (doneCount / internalClaims.length) * 100 : 0}%` }}
-          />
         </div>
       </div>
 
