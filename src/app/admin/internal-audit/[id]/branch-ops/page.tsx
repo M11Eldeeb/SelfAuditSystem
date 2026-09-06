@@ -9,17 +9,18 @@ export default async function InternalAuditBranchOpsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const { id: auditId } = await params;
   const supabase = await createClient();
 
   const { data: audit } = await supabase
     .from("self_audit_internal_audits")
-    .select("status, branch_ops_note")
+    .select("status, branch_ops_note, auditor_id")
     .eq("id", auditId)
     .single();
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
+  if (audit.auditor_id !== officer.id) notFound();
 
   const [{ data: questions }, { data: answers }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("*").eq("scope", "branch").order("sort_order"),

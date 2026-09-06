@@ -9,12 +9,14 @@ export default async function InternalAuditPage() {
   const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const [{ data: branches }, { data: audits }] = await Promise.all([
+  const [{ data: branches }, { data: audits }, { data: officers }] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_internal_audits").select("*").order("created_at", { ascending: false }),
+    supabase.from("self_audit_users").select("id, full_name, email").eq("role", "officer"),
   ]);
 
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const officerNameById = new Map((officers ?? []).map((o) => [o.id, o.full_name || o.email]));
 
   return (
     <div className="space-y-8">
@@ -72,17 +74,22 @@ export default async function InternalAuditPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <Link
-                        href={
-                          a.status === "finalized"
-                            ? `/admin/internal-audit/${a.id}/report`
-                            : `/admin/internal-audit/${a.id}?claim=0`
-                        }
-                        className="text-sm text-brand hover:underline"
-                      >
-                        {a.status === "finalized" ? "View report" : "Continue"}
-                      </Link>
-                      {a.status !== "finalized" && <DeleteInternalAuditButton auditId={a.id} />}
+                      {a.status === "finalized" ? (
+                        <Link href={`/admin/internal-audit/${a.id}/report`} className="text-sm text-brand hover:underline">
+                          View report
+                        </Link>
+                      ) : a.auditor_id === officer.id ? (
+                        <Link href={`/admin/internal-audit/${a.id}?claim=0`} className="text-sm text-brand hover:underline">
+                          Continue
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-neutral-400" title="Only the officer who started this audit can edit it">
+                          In progress ({officerNameById.get(a.auditor_id ?? "") ?? "another officer"})
+                        </span>
+                      )}
+                      {a.status !== "finalized" && a.auditor_id === officer.id && (
+                        <DeleteInternalAuditButton auditId={a.id} />
+                      )}
                     </div>
                   </td>
                 </tr>

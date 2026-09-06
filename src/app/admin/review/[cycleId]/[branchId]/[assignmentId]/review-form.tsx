@@ -41,7 +41,11 @@ export function ReviewForm({
           const answer = answers.get(q.id);
           const review = reviews.get(q.id);
           return (
-            <fieldset key={q.id} disabled={locked}>
+            // Keyed on assignmentId too, same reason as audit-form.tsx's
+            // QuestionField: without it, navigating between claims reuses
+            // this component instance and its internal ScorePicker state
+            // wouldn't reset to the new claim's answer.
+            <fieldset key={`${assignmentId}-${q.id}`} disabled={locked}>
               <ReviewField
                 question={q}
                 adminAnswer={answer?.answer_value ?? null}

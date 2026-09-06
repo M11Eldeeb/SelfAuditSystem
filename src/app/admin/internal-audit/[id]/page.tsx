@@ -13,13 +13,17 @@ export default async function InternalAuditClaimPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ claim?: string; mode?: string }>;
 }) {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const { id: auditId } = await params;
   const supabase = await createClient();
 
   const { data: audit } = await supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single();
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
+  // Only the officer who started this audit can resume/edit it while it's
+  // still in progress - once finalized, the report above is view-only for
+  // everyone anyway.
+  if (audit.auditor_id !== officer.id) notFound();
 
   const { data: internalClaims } = await supabase
     .from("self_audit_internal_audit_claims")
@@ -175,7 +179,7 @@ export default async function InternalAuditClaimPage({
             Parts
           </Link>
         </div>
-        <WorkOrderSearch auditId={auditId} mode={mode} items={searchItems} />
+        <WorkOrderSearch currentIndex={currentIndex} items={searchItems} />
       </div>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm sm:grid-cols-4">

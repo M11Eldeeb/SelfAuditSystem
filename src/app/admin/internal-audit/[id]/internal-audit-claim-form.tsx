@@ -37,13 +37,33 @@ export function InternalAuditClaimForm({
   const [state, formAction, pending] = useActionState(boundSave, undefined);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form id="internal-audit-claim-form" action={formAction} className="space-y-6" noValidate>
+      {/* noValidate: every submit button below already opts out of native
+          HTML5 required-field validation via formNoValidate (the mandatory-
+          answer check is enforced server-side, only for Save & Next). The
+          work-order search submits this form programmatically via
+          requestSubmit() with no submitter button, so without noValidate on
+          the form itself the browser would silently block that submission
+          on any unanswered required question - defeating "jump away from an
+          unfinished claim". */}
+      {/* Set and submitted programmatically by WorkOrderSearch to save
+          whatever's filled in here (even if incomplete) before jumping to a
+          different claim, without running the "answer everything" check
+          that only applies to Save & Next. */}
+      <input type="hidden" id="jump_to_index_input" name="jump_to_index" defaultValue="" />
       {questionGroups.map((group) => (
         <div key={group.departmentId} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-neutral-900">{group.label}</h2>
           {group.questions.map((q) => (
             <QuestionField
-              key={q.id}
+              // Keyed on internalAuditClaimId too: jumping between claims
+              // (via Save & Next/Previous, or the work-order search) is a
+              // client-side transition that reuses this component instance
+              // at the same tree position - without a claim-specific key its
+              // internal useState(initialValue) wouldn't reset, so the
+              // PREVIOUS claim's selected answer would still show as
+              // selected here until manually changed.
+              key={`${internalAuditClaimId}-${q.id}`}
               question={q}
               initialValue={answers.get(q.id) ?? null}
               locked={locked}

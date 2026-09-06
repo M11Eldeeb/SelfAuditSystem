@@ -36,7 +36,13 @@ export function AuditForm({
         <h2 className="text-sm font-semibold text-neutral-900">Audit questions</h2>
         {questions.map((q) => (
           <QuestionField
-            key={q.id}
+            // Keyed on assignmentId too: without it, navigating from one
+            // claim's audit page to another (a client-side transition, not a
+            // full reload) reuses this same component instance since it sits
+            // at the same tree position - its internal useState(initialValue)
+            // wouldn't reset, so the PREVIOUS claim's selected answer would
+            // still show as selected on the new claim until manually changed.
+            key={`${assignmentId}-${q.id}`}
             question={q}
             initialValue={answers.get(q.id)?.answer_value ?? null}
             locked={locked}

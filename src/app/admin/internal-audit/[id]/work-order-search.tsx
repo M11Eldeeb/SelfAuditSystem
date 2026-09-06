@@ -1,20 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 type SearchItem = { index: number; workOrderNo: string | null; claimNumber: string };
 
 export function WorkOrderSearch({
-  auditId,
-  mode,
+  currentIndex,
   items,
 }: {
-  auditId: string;
-  mode: string;
+  currentIndex: number;
   items: SearchItem[];
 }) {
-  const router = useRouter();
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -37,22 +33,32 @@ export function WorkOrderSearch({
       return;
     }
     setError(null);
-    router.push(`/admin/internal-audit/${auditId}?claim=${partial.index}&mode=${mode}`);
+    if (partial.index === currentIndex) return;
+
+    // Submits the actual claim-answer form (not a bare navigation) so
+    // whatever's filled in on the current claim gets saved - even if
+    // incomplete - before jumping away, instead of silently discarding it.
+    const form = document.getElementById("internal-audit-claim-form") as HTMLFormElement | null;
+    const input = document.getElementById("jump_to_index_input") as HTMLInputElement | null;
+    if (!form || !input) return;
+    input.value = String(partial.index);
+    form.requestSubmit();
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
       <input
-        list={`wo-search-list-${auditId}`}
+        list="wo-search-list"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search work order or claim #..."
         className="w-64 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
       />
-      <datalist id={`wo-search-list-${auditId}`}>
-        {items.map(
-          (it) => it.workOrderNo && <option key={it.index} value={it.workOrderNo} />
-        )}
+      <datalist id="wo-search-list">
+        {items.map((it) => it.workOrderNo && <option key={`wo-${it.index}`} value={it.workOrderNo} />)}
+        {items.map((it) => (
+          <option key={`cn-${it.index}`} value={it.claimNumber} />
+        ))}
       </datalist>
       <button
         type="submit"

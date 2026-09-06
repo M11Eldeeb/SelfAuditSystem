@@ -227,12 +227,17 @@ export async function saveClaimAnswers(
   _prev: SaveClaimAnswersState,
   formData: FormData
 ): Promise<SaveClaimAnswersState> {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status").eq("id", auditId).single();
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, auditor_id")
+    .eq("id", auditId)
+    .single();
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
+  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
 
   const { data: questions } = await supabase
     .from("self_audit_audit_questions")
@@ -269,6 +274,19 @@ export async function saveClaimAnswers(
   }
 
   revalidatePath(`/admin/internal-audit/${auditId}`);
+
+  // The work-order search submits this directly (bypassing the nav buttons)
+  // to save whatever's filled in here before jumping elsewhere - jumping away
+  // mid-claim is allowed, so this deliberately skips the "answer everything"
+  // check below; the claim just stays correctly flagged as unfinished in the
+  // progress tracking on the destination page.
+  const jumpToIndexRaw = formData.get("jump_to_index");
+  if (jumpToIndexRaw) {
+    const jumpToIndex = Number(jumpToIndexRaw);
+    if (!isNaN(jumpToIndex) && jumpToIndex >= 0 && jumpToIndex < totalClaims) {
+      redirect(`/admin/internal-audit/${auditId}?claim=${jumpToIndex}&mode=${mode}`);
+    }
+  }
 
   const nav = String(formData.get("nav") ?? "stay");
 
@@ -307,12 +325,17 @@ export async function saveBranchAnswers(
   _prev: SaveBranchAnswersState,
   formData: FormData
 ): Promise<SaveBranchAnswersState> {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status").eq("id", auditId).single();
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, auditor_id")
+    .eq("id", auditId)
+    .single();
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
+  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
 
   const { data: questions } = await supabase
     .from("self_audit_audit_questions")
@@ -353,12 +376,17 @@ export async function finalizeInternalAudit(
   _prev: FinalizeInternalAuditState,
   formData: FormData
 ): Promise<FinalizeInternalAuditState> {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status").eq("id", auditId).single();
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, auditor_id")
+    .eq("id", auditId)
+    .single();
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
+  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can finalize it." };
 
   const [{ data: questions }, { data: internalClaims }, { data: branchAnswers }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),
@@ -449,10 +477,23 @@ export async function finalizeInternalAudit(
 }
 
 // Deletes an internal audit regardless of progress, same safety posture as
-// deleteCycle (self-audit): the confirm dialog on the client is the safety check.
+// deleteCycle (self-audit): the confirm dialog on the client is the safety
+// check. While still in progress, only the officer who started it can delete
+// it (same restriction as editing/resuming); once finalized it's a shared
+// result any officer can manage from the Results tab.
 export async function deleteInternalAudit(auditId: string): Promise<{ error?: string }> {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const supabase = await createClient();
+
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, auditor_id")
+    .eq("id", auditId)
+    .single();
+  if (!audit) return { error: "Internal audit not found." };
+  if (audit.status !== "finalized" && audit.auditor_id !== officer.id) {
+    return { error: "Only the officer who started this audit can delete it." };
+  }
 
   const { error } = await supabase.from("self_audit_internal_audits").delete().eq("id", auditId);
   if (error) return { error: error.message };
