@@ -68,7 +68,9 @@ export type PreviewInternalAuditSampleState =
       error?: string;
       claims?: InternalAuditPreviewClaim[];
       branchId?: string | null;
+      branchCode?: string | null;
       branchLabel?: string;
+      branchAdminEmail?: string | null;
       dateFrom?: string | null;
       dateTo?: string | null;
       sampleSize?: number;
@@ -100,8 +102,9 @@ export async function previewInternalAuditSample(
     return { error: "No eligible claims match these filters (or every matching claim has already been audited)." };
   }
 
-  const { data: branches } = await supabase.from("self_audit_branches").select("id, name");
+  const { data: branches } = await supabase.from("self_audit_branches").select("id, name, code");
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const branchCodeById = new Map((branches ?? []).map((b) => [b.id, b.code]));
 
   const claims: InternalAuditPreviewClaim[] = sample.map((c) => {
     const { _flag, ...claim } = c;
@@ -112,10 +115,24 @@ export async function previewInternalAuditSample(
     };
   });
 
+  let branchAdminEmail: string | null = null;
+  if (criteria.branchId) {
+    const { data: admin } = await supabase
+      .from("self_audit_users")
+      .select("email")
+      .eq("branch_id", criteria.branchId)
+      .eq("role", "branch_admin")
+      .limit(1)
+      .maybeSingle();
+    branchAdminEmail = admin?.email ?? null;
+  }
+
   return {
     claims,
     branchId: criteria.branchId,
+    branchCode: criteria.branchId ? (branchCodeById.get(criteria.branchId) ?? null) : null,
     branchLabel: criteria.branchId ? (branchNameById.get(criteria.branchId) ?? "Unknown branch") : "All branches",
+    branchAdminEmail,
     dateFrom: criteria.dateFrom,
     dateTo: criteria.dateTo,
     sampleSize: criteria.sampleSize,
@@ -146,6 +163,14 @@ export async function startInternalAudit(
     return { error: "Generate a sample first." };
   }
 
+  const name = String(formData.get("name") ?? "").trim();
+  const auditorName = String(formData.get("auditor_name") ?? "").trim();
+  const managerName = String(formData.get("manager_name") ?? "").trim();
+  const auditDate = String(formData.get("audit_date") ?? "").trim() || null;
+  if (!name || !auditorName || !managerName) {
+    return { error: "Enter the audit name, auditor name, and service manager name before starting." };
+  }
+
   const auditedClaimIds = await getAuditedClaimIds(supabase);
   const stillEligible = claimIds.filter((id) => !auditedClaimIds.has(id));
   if (stillEligible.length === 0) {
@@ -155,13 +180,17 @@ export async function startInternalAudit(
   const { data: audit, error: auditError } = await supabase
     .from("self_audit_internal_audits")
     .insert({
+      name,
       branch_id: criteria.branchId,
       date_from: criteria.dateFrom,
       date_to: criteria.dateTo,
+      audit_date: auditDate,
       sample_size: criteria.sampleSize,
       sample_mode: criteria.sampleMode,
       max_per_part: criteria.maxPerPart,
       auditor_id: officer.id,
+      auditor_name: auditorName,
+      manager_name: managerName,
       status: "in_progress",
     })
     .select("id")
@@ -194,6 +223,7 @@ export async function saveClaimAnswers(
   internalAuditClaimId: string,
   currentIndex: number,
   totalClaims: number,
+  mode: "documents" | "parts",
   _prev: SaveClaimAnswersState,
   formData: FormData
 ): Promise<SaveClaimAnswersState> {
@@ -242,16 +272,13 @@ export async function saveClaimAnswers(
 
   const nav = String(formData.get("nav") ?? "stay");
   if (nav === "next" && currentIndex < totalClaims - 1) {
-    redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex + 1}`);
+    redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex + 1}&mode=${mode}`);
   }
   if (nav === "prev" && currentIndex > 0) {
-    redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex - 1}`);
-  }
-  if (nav === "branch-ops") {
-    redirect(`/admin/internal-audit/${auditId}/branch-ops`);
+    redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex - 1}&mode=${mode}`);
   }
 
-  redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex}`);
+  redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex}&mode=${mode}`);
 }
 
 export type SaveBranchAnswersState = { error?: string } | undefined;

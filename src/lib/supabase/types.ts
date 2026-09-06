@@ -371,9 +371,11 @@ export interface Database {
       self_audit_internal_audits: {
         Row: {
           id: string;
+          name: string | null;
           branch_id: string | null;
           date_from: string | null;
           date_to: string | null;
+          audit_date: string | null;
           sample_size: number;
           sample_mode: SampleMode;
           max_per_part: number | null;
@@ -389,9 +391,11 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          name?: string | null;
           branch_id?: string | null;
           date_from?: string | null;
           date_to?: string | null;
+          audit_date?: string | null;
           sample_size: number;
           sample_mode?: SampleMode;
           max_per_part?: number | null;

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { InternalAuditClaimForm } from "./internal-audit-claim-form";
+import { WorkOrderSearch } from "./work-order-search";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 
 export default async function InternalAuditClaimPage({
@@ -10,7 +11,7 @@ export default async function InternalAuditClaimPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ claim?: string }>;
+  searchParams: Promise<{ claim?: string; mode?: string }>;
 }) {
   await requireRole("officer");
   const { id: auditId } = await params;
@@ -28,27 +29,64 @@ export default async function InternalAuditClaimPage({
 
   if (!internalClaims || internalClaims.length === 0) notFound();
 
-  const { claim: claimParam } = await searchParams;
+  const { claim: claimParam, mode: modeParam } = await searchParams;
+  const mode: "documents" | "parts" = modeParam === "parts" ? "parts" : "documents";
   const requestedIndex = Number(claimParam ?? 0);
   const currentIndex = Math.min(Math.max(isNaN(requestedIndex) ? 0 : requestedIndex, 0), internalClaims.length - 1);
   const current = internalClaims[currentIndex];
 
-  const [{ data: claim }, { data: questions }, { data: existingAnswers }, { data: note }] = await Promise.all([
-    supabase.from("self_audit_claims").select("*").eq("id", current.claim_id).single(),
-    supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts"]).order("sort_order"),
-    supabase.from("self_audit_internal_audit_answers").select("question_id, answer_value").eq("internal_audit_claim_id", current.id),
-    supabase.from("self_audit_internal_audit_notes").select("note_text").eq("internal_audit_claim_id", current.id).maybeSingle(),
-  ]);
+  const internalClaimIds = internalClaims.map((c) => c.id);
+  const claimIds = internalClaims.map((c) => c.claim_id);
+
+  const [{ data: claim }, { data: questions }, { data: existingAnswers }, { data: note }, { data: allClaimsBasic }, { data: allAnswers }] =
+    await Promise.all([
+      supabase.from("self_audit_claims").select("*").eq("id", current.claim_id).single(),
+      supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts"]).order("sort_order"),
+      supabase.from("self_audit_internal_audit_answers").select("question_id, answer_value").eq("internal_audit_claim_id", current.id),
+      supabase.from("self_audit_internal_audit_notes").select("note_text").eq("internal_audit_claim_id", current.id).maybeSingle(),
+      supabase.from("self_audit_claims").select("id, claim_number, work_order_no").in("id", claimIds),
+      supabase.from("self_audit_internal_audit_answers").select("internal_audit_claim_id, question_id, answer_value").in("internal_audit_claim_id", internalClaimIds),
+    ]);
 
   const answersMap = new Map((existingAnswers ?? []).map((a) => [a.question_id, a.answer_value]));
 
   const questionGroups = DEPARTMENT_ORDER.filter((dept) => dept !== "branchops")
+    .filter((dept) => (mode === "parts" ? dept === "parts" : dept !== "parts"))
     .map((dept) => ({
       departmentId: dept,
       label: DEPARTMENT_LABELS[dept],
       questions: (questions ?? []).filter((q) => q.department === dept),
     }))
     .filter((g) => g.questions.length > 0);
+
+  // Completeness across the whole audit, for the progress bar, the "jump to
+  // next unfinished claim" shortcut, and gating the Branch Operation link.
+  const documentQuestionIds = (questions ?? []).filter((q) => q.department && q.department !== "parts").map((q) => q.id);
+  const partsQuestionIds = (questions ?? []).filter((q) => q.department === "parts").map((q) => q.id);
+
+  const answeredByClaim = new Map<string, Set<string>>();
+  (allAnswers ?? []).forEach((a) => {
+    if (a.answer_value == null) return;
+    const set = answeredByClaim.get(a.internal_audit_claim_id) ?? new Set<string>();
+    set.add(a.question_id);
+    answeredByClaim.set(a.internal_audit_claim_id, set);
+  });
+
+  const completeness = internalClaims.map((ic) => {
+    const answered = answeredByClaim.get(ic.id) ?? new Set<string>();
+    const documentsDone = documentQuestionIds.length > 0 && documentQuestionIds.every((id) => answered.has(id));
+    const partsDone = partsQuestionIds.length > 0 && partsQuestionIds.every((id) => answered.has(id));
+    return { documentsDone, partsDone, fullyDone: documentsDone && partsDone };
+  });
+  const doneCount = completeness.filter((c) => c.fullyDone).length;
+  const allDone = doneCount === internalClaims.length;
+  const firstUnfinishedIndex = completeness.findIndex((c) => !c.fullyDone);
+
+  const claimById = new Map((allClaimsBasic ?? []).map((c) => [c.id, c]));
+  const searchItems = internalClaims.map((ic, i) => {
+    const c = claimById.get(ic.claim_id);
+    return { index: i, workOrderNo: c?.work_order_no ?? null, claimNumber: c?.claim_number ?? "" };
+  });
 
   return (
     <div className="space-y-6">
@@ -67,13 +105,70 @@ export default async function InternalAuditClaimPage({
         </p>
       </div>
 
+      <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-neutral-900">
+            {doneCount} of {internalClaims.length} claims fully audited
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {!allDone && firstUnfinishedIndex !== -1 && firstUnfinishedIndex !== currentIndex && (
+              <Link
+                href={`/admin/internal-audit/${auditId}?claim=${firstUnfinishedIndex}&mode=${mode}`}
+                className="text-sm text-brand hover:underline"
+              >
+                Go to next unfinished claim &rarr;
+              </Link>
+            )}
+            {allDone ? (
+              <Link
+                href={`/admin/internal-audit/${auditId}/branch-ops`}
+                className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+              >
+                Continue to Branch Operation &rarr;
+              </Link>
+            ) : (
+              <span
+                className="cursor-not-allowed rounded-md bg-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-500"
+                title="Finish Documents and Parts for every claim first"
+              >
+                Continue to Branch Operation &rarr;
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+          <div
+            className="h-full rounded-full bg-brand"
+            style={{ width: `${internalClaims.length > 0 ? (doneCount / internalClaims.length) * 100 : 0}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-md border border-neutral-300 bg-white p-0.5 text-sm">
+          <Link
+            href={`/admin/internal-audit/${auditId}?claim=${currentIndex}&mode=documents`}
+            className={`rounded px-3 py-1 font-medium ${mode === "documents" ? "bg-brand text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+          >
+            Documents
+          </Link>
+          <Link
+            href={`/admin/internal-audit/${auditId}?claim=${currentIndex}&mode=parts`}
+            className={`rounded px-3 py-1 font-medium ${mode === "parts" ? "bg-brand text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+          >
+            Parts
+          </Link>
+        </div>
+        <WorkOrderSearch auditId={auditId} mode={mode} items={searchItems} />
+      </div>
+
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">VIN</dt>
           <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">Main part</dt>
+          <dt className="text-xs text-neutral-500">Main part name</dt>
           <dd className="text-neutral-900">{claim?.main_part_name ?? "—"}</dd>
         </div>
         <div>
@@ -81,7 +176,7 @@ export default async function InternalAuditClaimPage({
           <dd className="text-neutral-900">{claim?.mileage ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">Creation date</dt>
+          <dt className="text-xs text-neutral-500">Reception date</dt>
           <dd className="text-neutral-900">{claim?.creation_date ?? "—"}</dd>
         </div>
         <div>
@@ -96,6 +191,7 @@ export default async function InternalAuditClaimPage({
         claim={claim ?? null}
         currentIndex={currentIndex}
         totalClaims={internalClaims.length}
+        mode={mode}
         questionGroups={questionGroups}
         answers={answersMap}
         noteText={note?.note_text ?? ""}

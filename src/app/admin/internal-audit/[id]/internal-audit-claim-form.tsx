@@ -16,6 +16,7 @@ export function InternalAuditClaimForm({
   claim,
   currentIndex,
   totalClaims,
+  mode,
   questionGroups,
   answers,
   noteText,
@@ -26,12 +27,13 @@ export function InternalAuditClaimForm({
   claim: Claim | null;
   currentIndex: number;
   totalClaims: number;
+  mode: "documents" | "parts";
   questionGroups: QuestionGroup[];
   answers: Map<string, string | null>;
   noteText: string;
   locked: boolean;
 }) {
-  const boundSave = saveClaimAnswers.bind(null, auditId, internalAuditClaimId, currentIndex, totalClaims);
+  const boundSave = saveClaimAnswers.bind(null, auditId, internalAuditClaimId, currentIndex, totalClaims, mode);
   const [state, formAction, pending] = useActionState(boundSave, undefined);
 
   return (
@@ -91,7 +93,7 @@ export function InternalAuditClaimForm({
           >
             Save
           </button>
-          {currentIndex < totalClaims - 1 ? (
+          {currentIndex < totalClaims - 1 && (
             <button
               type="submit"
               name="nav"
@@ -101,17 +103,6 @@ export function InternalAuditClaimForm({
               className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
             >
               Save &amp; Next →
-            </button>
-          ) : (
-            <button
-              type="submit"
-              name="nav"
-              value="branch-ops"
-              formNoValidate
-              disabled={pending}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
-            >
-              {pending ? "Saving..." : "Save & Continue to Branch Operations →"}
             </button>
           )}
         </div>

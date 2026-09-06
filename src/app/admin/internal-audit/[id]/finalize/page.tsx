@@ -14,7 +14,11 @@ export default async function InternalAuditFinalizePage({
   const { id: auditId } = await params;
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status").eq("id", auditId).single();
+  const { data: audit } = await supabase
+    .from("self_audit_internal_audits")
+    .select("status, auditor_name, manager_name")
+    .eq("id", auditId)
+    .single();
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
 
@@ -57,7 +61,8 @@ export default async function InternalAuditFinalizePage({
 
       <InternalAuditFinalizeForm
         auditId={auditId}
-        defaultAuditorName={officer.full_name ?? ""}
+        defaultAuditorName={audit.auditor_name || officer.full_name || ""}
+        defaultManagerName={audit.manager_name ?? ""}
         defaultClosingStatement={defaultClosingStatement(overallScore)}
       />
     </div>

@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { InternalAuditForm } from "./internal-audit-form";
 import { DeleteInternalAuditButton } from "./delete-internal-audit-button";
 import { scoreBadgeClasses } from "@/lib/score-color";
 
 export default async function InternalAuditPage() {
+  const officer = await requireRole("officer");
   const supabase = await createClient();
 
   const [{ data: branches }, { data: audits }] = await Promise.all([
-    supabase.from("self_audit_branches").select("id, name").order("name"),
+    supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_internal_audits").select("*").order("created_at", { ascending: false }),
   ]);
 
@@ -24,7 +26,7 @@ export default async function InternalAuditPage() {
           resampled by the other.
         </p>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
-          <InternalAuditForm branches={branches ?? []} />
+          <InternalAuditForm branches={branches ?? []} officerName={officer.full_name ?? ""} />
         </div>
       </section>
 
@@ -34,6 +36,7 @@ export default async function InternalAuditPage() {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
               <tr>
+                <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Branch</th>
                 <th className="px-4 py-2">Date range</th>
                 <th className="px-4 py-2">Sample</th>
@@ -46,6 +49,7 @@ export default async function InternalAuditPage() {
             <tbody className="divide-y divide-neutral-100">
               {(audits ?? []).map((a) => (
                 <tr key={a.id}>
+                  <td className="px-4 py-2 text-neutral-900">{a.name ?? "—"}</td>
                   <td className="px-4 py-2 text-neutral-900">
                     {a.branch_id ? (branchNameById.get(a.branch_id) ?? "Unknown branch") : "All branches"}
                   </td>
@@ -85,7 +89,7 @@ export default async function InternalAuditPage() {
               ))}
               {(audits ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-neutral-400">
                     No internal audits yet.
                   </td>
                 </tr>

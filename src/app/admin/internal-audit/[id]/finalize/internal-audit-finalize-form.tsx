@@ -7,10 +7,12 @@ import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 export function InternalAuditFinalizeForm({
   auditId,
   defaultAuditorName,
+  defaultManagerName,
   defaultClosingStatement,
 }: {
   auditId: string;
   defaultAuditorName: string;
+  defaultManagerName: string;
   defaultClosingStatement: string;
 }) {
   const boundFinalize = finalizeInternalAudit.bind(null, auditId);
@@ -41,6 +43,7 @@ export function InternalAuditFinalizeForm({
             name="manager_name"
             type="text"
             required
+            defaultValue={defaultManagerName}
             className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
         </div>

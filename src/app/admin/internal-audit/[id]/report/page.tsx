@@ -97,7 +97,7 @@ export default async function InternalAuditReportPage({
             &larr; Back to internal audits
           </Link>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-            Internal Audit Report - {branchName}
+            {audit.name || `Internal Audit Report - ${branchName}`}
           </h1>
           <p className="text-sm text-neutral-500">
             {auditDateLabel} &middot; Auditor: {auditorName || "—"} &middot; Service manager:{" "}
