@@ -46,17 +46,31 @@ export default async function InternalAuditClaimPage({
   const internalClaimIds = internalClaims.map((c) => c.id);
   const claimIds = internalClaims.map((c) => c.claim_id);
 
-  const [{ data: claim }, { data: questions }, { data: existingAnswers }, { data: note }, { data: allClaimsBasic }, { data: allAnswers }] =
-    await Promise.all([
-      supabase.from("self_audit_claims").select("*").eq("id", current.claim_id).single(),
-      supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts"]).order("sort_order"),
-      supabase.from("self_audit_internal_audit_answers").select("question_id, answer_value").eq("internal_audit_claim_id", current.id),
-      supabase.from("self_audit_internal_audit_notes").select("note_text").eq("internal_audit_claim_id", current.id).maybeSingle(),
-      supabase.from("self_audit_claims").select("id, claim_number, work_order_no").in("id", claimIds),
-      supabase.from("self_audit_internal_audit_answers").select("internal_audit_claim_id, question_id, answer_value").in("internal_audit_claim_id", internalClaimIds),
-    ]);
+  // Fetches every claim/answer/note for the WHOLE audit up front (not just
+  // the current claim) - the completeness bars and search box already need
+  // all of it, so deriving the current claim's own slice from these in JS
+  // below saves two more round trips instead of fetching it separately.
+  const [{ data: allClaims }, { data: questions }, { data: allAnswers }, { data: allNotes }] = await Promise.all([
+    supabase.from("self_audit_claims").select("*").in("id", claimIds),
+    supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts"]).order("sort_order"),
+    supabase
+      .from("self_audit_internal_audit_answers")
+      .select("internal_audit_claim_id, question_id, answer_value")
+      .in("internal_audit_claim_id", internalClaimIds),
+    supabase
+      .from("self_audit_internal_audit_notes")
+      .select("internal_audit_claim_id, note_text")
+      .in("internal_audit_claim_id", internalClaimIds),
+  ]);
 
-  const answersMap = new Map((existingAnswers ?? []).map((a) => [a.question_id, a.answer_value]));
+  const claimById = new Map((allClaims ?? []).map((c) => [c.id, c]));
+  const claim = claimById.get(current.claim_id) ?? null;
+  const noteText = (allNotes ?? []).find((n) => n.internal_audit_claim_id === current.id)?.note_text ?? "";
+  const answersMap = new Map(
+    (allAnswers ?? [])
+      .filter((a) => a.internal_audit_claim_id === current.id)
+      .map((a) => [a.question_id, a.answer_value])
+  );
 
   const questionGroups = DEPARTMENT_ORDER.filter((dept) => dept !== "branchops")
     .filter((dept) => (mode === "parts" ? dept === "parts" : dept !== "parts"))
@@ -91,7 +105,6 @@ export default async function InternalAuditClaimPage({
   const allDone = completeness.every((c) => c.fullyDone);
   const firstUnfinishedInMode = completeness.findIndex((c) => !(mode === "parts" ? c.partsDone : c.documentsDone));
 
-  const claimById = new Map((allClaimsBasic ?? []).map((c) => [c.id, c]));
   const searchItems = internalClaims.map((ic, i) => {
     const c = claimById.get(ic.claim_id);
     return { index: i, workOrderNo: c?.work_order_no ?? null, claimNumber: c?.claim_number ?? "" };
@@ -218,7 +231,7 @@ export default async function InternalAuditClaimPage({
         mode={mode}
         questionGroups={questionGroups}
         answers={answersMap}
-        noteText={note?.note_text ?? ""}
+        noteText={noteText}
         locked={false}
       />
     </div>

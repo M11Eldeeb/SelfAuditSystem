@@ -228,13 +228,6 @@ export async function saveClaimAnswers(
   formData: FormData
 ): Promise<SaveClaimAnswersState> {
   const supabase = await createClient();
-  const [officer, { data: audit }] = await Promise.all([
-    requireRole("officer"),
-    supabase.from("self_audit_internal_audits").select("status, auditor_id").eq("id", auditId).single(),
-  ]);
-  if (!audit) return { error: "Internal audit not found." };
-  if (audit.status === "finalized") return { error: "This audit has already been finalized." };
-  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
 
   // The full set of question ids for this mode comes from a hidden field the
   // page already rendered (from questionGroups) rather than a fresh
@@ -247,34 +240,33 @@ export async function saveClaimAnswers(
     .filter(Boolean);
 
   const answerRows = modeQuestionIds
-    .map((questionId) => {
-      const value = formData.get(`answer_${questionId}`);
-      return {
-        internal_audit_claim_id: internalAuditClaimId,
-        question_id: questionId,
-        answer_value: value ? String(value) : null,
-      };
-    })
-    .filter((r) => r.answer_value !== null);
+    .map((questionId) => ({
+      question_id: questionId,
+      answer_value: formData.get(`answer_${questionId}`) ? String(formData.get(`answer_${questionId}`)) : null,
+    }))
+    .filter((r): r is { question_id: string; answer_value: string } => r.answer_value !== null);
 
-  const noteText = formData.get("note");
+  const noteRaw = formData.get("note");
+  const touchNote = noteRaw !== null;
+  const noteValue = touchNote ? String(noteRaw).trim() || null : null;
 
-  const [answersResult] = await Promise.all([
-    answerRows.length > 0
-      ? supabase
-          .from("self_audit_internal_audit_answers")
-          .upsert(answerRows, { onConflict: "internal_audit_claim_id,question_id" })
-      : Promise.resolve({ error: null }),
-    noteText !== null
-      ? supabase
-          .from("self_audit_internal_audit_notes")
-          .upsert(
-            { internal_audit_claim_id: internalAuditClaimId, note_text: String(noteText).trim() || null },
-            { onConflict: "internal_audit_claim_id" }
-          )
-      : Promise.resolve({ error: null }),
+  // requireRole (the auth check, for the redirect if signed out or the
+  // wrong role) and the RPC call run concurrently rather than one after the
+  // other - the RPC does its own ownership/finalized check atomically
+  // before writing anything (migration 0017), so it doesn't need to wait on
+  // requireRole first; requireRole's own result only matters afterward, to
+  // know it's safe to keep going instead of having already redirected.
+  const [, rpcResult] = await Promise.all([
+    requireRole("officer"),
+    supabase.rpc("save_internal_audit_claim_answers", {
+      p_audit_id: auditId,
+      p_claim_id: internalAuditClaimId,
+      p_answers: Object.fromEntries(answerRows.map((r) => [r.question_id, r.answer_value])),
+      p_touch_note: touchNote,
+      p_note: noteValue,
+    }),
   ]);
-  if (answersResult.error) return { error: answersResult.error.message };
+  if (rpcResult.error) return { error: rpcResult.error.message };
 
   revalidatePath(`/admin/internal-audit/${auditId}`);
 

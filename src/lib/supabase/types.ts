@@ -494,7 +494,18 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      save_internal_audit_claim_answers: {
+        Args: {
+          p_audit_id: string;
+          p_claim_id: string;
+          p_answers: Record<string, string>;
+          p_touch_note: boolean;
+          p_note: string | null;
+        };
+        Returns: void;
+      };
+    };
     Enums: {
       user_role: UserRole;
       cycle_status: CycleStatus;
