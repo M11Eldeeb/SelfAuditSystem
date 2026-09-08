@@ -21,6 +21,11 @@ const CUSTOMER_CONCERN_ALIASES = [
   "customer voice",
 ];
 
+// "Offline Date" is the confirmed real column name in JIAD's export for the
+// vehicle's production offline date, which the part's serial number should
+// trace back to.
+const OFFLINE_DATE_ALIASES = ["offline date"];
+
 function findRawRowValue(rawRow: Record<string, unknown>, aliases: string[]): string | null {
   const entries = Object.entries(rawRow);
   for (const alias of aliases) {
@@ -50,6 +55,8 @@ export function getClaimReference(questionId: string, claim: Claim | null | unde
     case "concernOnRO":
     case "concernDesc":
       return findRawRowValue(claim.raw_row, CUSTOMER_CONCERN_ALIASES) ?? "not in claims data";
+    case "serial":
+      return findRawRowValue(claim.raw_row, OFFLINE_DATE_ALIASES) ?? "not in claims data";
     default:
       return null;
   }

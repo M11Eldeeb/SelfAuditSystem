@@ -25,6 +25,10 @@ export function InternalAuditBranchOpsForm({
 
   return (
     <form action={formAction} className="space-y-6">
+      {/* Lets the save action build answer rows without re-querying
+          self_audit_audit_questions - see the matching comment in
+          InternalAuditClaimForm. */}
+      <input type="hidden" name="branch_question_ids" value={questions.map((q) => q.id).join(",")} readOnly />
       <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Branch Operation</h2>
         {questions.map((q) => (

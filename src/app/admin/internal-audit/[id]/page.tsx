@@ -13,23 +13,27 @@ export default async function InternalAuditClaimPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ claim?: string; mode?: string }>;
 }) {
-  const officer = await requireRole("officer");
   const { id: auditId } = await params;
   const supabase = await createClient();
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single();
+  // requireRole and these two audit-scoped queries only share the auditId
+  // (already resolved above), not each other's results, so they run
+  // concurrently instead of as three sequential round trips.
+  const [officer, { data: audit }, { data: internalClaims }] = await Promise.all([
+    requireRole("officer"),
+    supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single(),
+    supabase
+      .from("self_audit_internal_audit_claims")
+      .select("id, claim_id, sort_order")
+      .eq("internal_audit_id", auditId)
+      .order("sort_order"),
+  ]);
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
   // Only the officer who started this audit can resume/edit it while it's
   // still in progress - once finalized, the report above is view-only for
   // everyone anyway.
   if (audit.auditor_id !== officer.id) notFound();
-
-  const { data: internalClaims } = await supabase
-    .from("self_audit_internal_audit_claims")
-    .select("id, claim_id, sort_order")
-    .eq("internal_audit_id", auditId)
-    .order("sort_order");
 
   if (!internalClaims || internalClaims.length === 0) notFound();
 

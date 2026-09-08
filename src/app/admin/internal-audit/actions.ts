@@ -227,51 +227,54 @@ export async function saveClaimAnswers(
   _prev: SaveClaimAnswersState,
   formData: FormData
 ): Promise<SaveClaimAnswersState> {
-  const officer = await requireRole("officer");
   const supabase = await createClient();
-
-  const { data: audit } = await supabase
-    .from("self_audit_internal_audits")
-    .select("status, auditor_id")
-    .eq("id", auditId)
-    .single();
+  const [officer, { data: audit }] = await Promise.all([
+    requireRole("officer"),
+    supabase.from("self_audit_internal_audits").select("status, auditor_id").eq("id", auditId).single(),
+  ]);
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
   if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
 
-  const { data: questions } = await supabase
-    .from("self_audit_audit_questions")
-    .select("id, department")
-    .in("scope", ["claim", "parts"])
-    .order("sort_order");
+  // The full set of question ids for this mode comes from a hidden field the
+  // page already rendered (from questionGroups) rather than a fresh
+  // self_audit_audit_questions query here - an unanswered radio group submits
+  // no form field at all, so we still need this list to tell "unanswered"
+  // apart from "not part of this mode", but the page already knows it for
+  // free from rendering the form.
+  const modeQuestionIds = String(formData.get("mode_question_ids") ?? "")
+    .split(",")
+    .filter(Boolean);
 
-  const answerRows = (questions ?? [])
-    .map((q) => {
-      const value = formData.get(`answer_${q.id}`);
+  const answerRows = modeQuestionIds
+    .map((questionId) => {
+      const value = formData.get(`answer_${questionId}`);
       return {
         internal_audit_claim_id: internalAuditClaimId,
-        question_id: q.id,
+        question_id: questionId,
         answer_value: value ? String(value) : null,
       };
     })
     .filter((r) => r.answer_value !== null);
 
-  if (answerRows.length > 0) {
-    const { error } = await supabase
-      .from("self_audit_internal_audit_answers")
-      .upsert(answerRows, { onConflict: "internal_audit_claim_id,question_id" });
-    if (error) return { error: error.message };
-  }
-
   const noteText = formData.get("note");
-  if (noteText !== null) {
-    await supabase
-      .from("self_audit_internal_audit_notes")
-      .upsert(
-        { internal_audit_claim_id: internalAuditClaimId, note_text: String(noteText).trim() || null },
-        { onConflict: "internal_audit_claim_id" }
-      );
-  }
+
+  const [answersResult] = await Promise.all([
+    answerRows.length > 0
+      ? supabase
+          .from("self_audit_internal_audit_answers")
+          .upsert(answerRows, { onConflict: "internal_audit_claim_id,question_id" })
+      : Promise.resolve({ error: null }),
+    noteText !== null
+      ? supabase
+          .from("self_audit_internal_audit_notes")
+          .upsert(
+            { internal_audit_claim_id: internalAuditClaimId, note_text: String(noteText).trim() || null },
+            { onConflict: "internal_audit_claim_id" }
+          )
+      : Promise.resolve({ error: null }),
+  ]);
+  if (answersResult.error) return { error: answersResult.error.message };
 
   revalidatePath(`/admin/internal-audit/${auditId}`);
 
@@ -291,18 +294,11 @@ export async function saveClaimAnswers(
   const nav = String(formData.get("nav") ?? "stay");
 
   if (nav === "next") {
-    const modeQuestionIds = (questions ?? [])
-      .filter((q) => (mode === "parts" ? q.department === "parts" : q.department != null && q.department !== "parts"))
-      .map((q) => q.id);
-
-    const { data: currentAnswers } = await supabase
-      .from("self_audit_internal_audit_answers")
-      .select("question_id, answer_value")
-      .eq("internal_audit_claim_id", internalAuditClaimId);
-    const answeredIds = new Set(
-      (currentAnswers ?? []).filter((a) => a.answer_value != null).map((a) => a.question_id)
-    );
-
+    // Every currently-answered question (previous saves + this one) already
+    // has a checked radio in the submitted form, so the "answered" set is
+    // exactly the answer_* fields FormData actually has - no need to re-fetch
+    // this claim's answers from the database just to check completeness.
+    const answeredIds = new Set(answerRows.map((r) => r.question_id));
     if (modeQuestionIds.some((id) => !answeredIds.has(id))) {
       return { error: `Answer every ${mode === "parts" ? "Parts" : "Documents"} question before moving to the next claim.` };
     }
@@ -325,45 +321,42 @@ export async function saveBranchAnswers(
   _prev: SaveBranchAnswersState,
   formData: FormData
 ): Promise<SaveBranchAnswersState> {
-  const officer = await requireRole("officer");
   const supabase = await createClient();
-
-  const { data: audit } = await supabase
-    .from("self_audit_internal_audits")
-    .select("status, auditor_id")
-    .eq("id", auditId)
-    .single();
+  const [officer, { data: audit }] = await Promise.all([
+    requireRole("officer"),
+    supabase.from("self_audit_internal_audits").select("status, auditor_id").eq("id", auditId).single(),
+  ]);
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
   if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
 
-  const { data: questions } = await supabase
-    .from("self_audit_audit_questions")
-    .select("id")
-    .eq("scope", "branch")
-    .order("sort_order");
+  const questionIds = String(formData.get("branch_question_ids") ?? "")
+    .split(",")
+    .filter(Boolean);
 
-  const answerRows = (questions ?? []).map((q) => {
-    const value = formData.get(`answer_${q.id}`);
+  const answerRows = questionIds.map((questionId) => {
+    const value = formData.get(`answer_${questionId}`);
     return {
       internal_audit_id: auditId,
-      question_id: q.id,
+      question_id: questionId,
       answer_value: value ? String(value) : null,
     };
   });
 
-  const { error } = await supabase
-    .from("self_audit_internal_audit_branch_answers")
-    .upsert(answerRows, { onConflict: "internal_audit_id,question_id" });
-  if (error) return { error: error.message };
-
   const noteText = formData.get("note");
-  if (noteText !== null) {
-    await supabase
-      .from("self_audit_internal_audits")
-      .update({ branch_ops_note: String(noteText).trim() || null })
-      .eq("id", auditId);
-  }
+
+  const [answersResult] = await Promise.all([
+    supabase
+      .from("self_audit_internal_audit_branch_answers")
+      .upsert(answerRows, { onConflict: "internal_audit_id,question_id" }),
+    noteText !== null
+      ? supabase
+          .from("self_audit_internal_audits")
+          .update({ branch_ops_note: String(noteText).trim() || null })
+          .eq("id", auditId)
+      : Promise.resolve({ error: null }),
+  ]);
+  if (answersResult.error) return { error: answersResult.error.message };
 
   revalidatePath(`/admin/internal-audit/${auditId}`);
   redirect(`/admin/internal-audit/${auditId}/finalize`);

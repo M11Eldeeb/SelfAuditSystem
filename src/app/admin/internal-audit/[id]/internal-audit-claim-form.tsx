@@ -51,6 +51,18 @@ export function InternalAuditClaimForm({
           different claim, without running the "answer everything" check
           that only applies to Save & Next. */}
       <input type="hidden" id="jump_to_index_input" name="jump_to_index" defaultValue="" />
+      {/* Lets the save action know the full set of question ids for this
+          mode without re-querying self_audit_audit_questions - the page
+          already knows this from rendering questionGroups below, and an
+          unanswered radio group submits no form field at all, so the action
+          can't otherwise tell "unanswered" apart from "not part of this
+          mode" without this list. */}
+      <input
+        type="hidden"
+        name="mode_question_ids"
+        value={questionGroups.flatMap((g) => g.questions.map((q) => q.id)).join(",")}
+        readOnly
+      />
       {questionGroups.map((group) => (
         <div key={group.departmentId} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-neutral-900">{group.label}</h2>
