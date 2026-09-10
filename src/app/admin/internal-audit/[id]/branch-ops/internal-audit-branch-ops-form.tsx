@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { saveBranchAnswers } from "../../actions";
-import { QuestionField } from "@/components/question-field";
+import { ScoreSliderField } from "@/components/score-slider-field";
 import type { Database } from "@/lib/supabase/types";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
@@ -32,7 +32,7 @@ export function InternalAuditBranchOpsForm({
       <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Branch Operation</h2>
         {questions.map((q) => (
-          <QuestionField key={q.id} question={q} initialValue={answers.get(q.id) ?? null} locked={locked} />
+          <ScoreSliderField key={q.id} question={q} initialValue={answers.get(q.id) ?? null} locked={locked} />
         ))}
       </div>
 
