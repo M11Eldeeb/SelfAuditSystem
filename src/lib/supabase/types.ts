@@ -492,6 +492,198 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_department_remarks"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_claim_parts: {
+        Row: {
+          id: string;
+          claim_id: string;
+          branch_id: string;
+          part_no: string;
+          part_name: string | null;
+          quantity: number | null;
+          upload_batch_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          claim_id: string;
+          branch_id: string;
+          part_no: string;
+          part_name?: string | null;
+          quantity?: number | null;
+          upload_batch_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_claim_parts"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_scrapped_parts: {
+        Row: {
+          id: string;
+          claim_id: string | null;
+          external_request_no: string | null;
+          work_order_no: string | null;
+          vin: string | null;
+          part_no: string | null;
+          part_name: string | null;
+          quantity: number | null;
+          main_labor_code: string | null;
+          main_labor_name: string | null;
+          settlement_date: string | null;
+          holding_period_days: number | null;
+          upload_batch_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          claim_id?: string | null;
+          external_request_no?: string | null;
+          work_order_no?: string | null;
+          vin?: string | null;
+          part_no?: string | null;
+          part_name?: string | null;
+          quantity?: number | null;
+          main_labor_code?: string | null;
+          main_labor_name?: string | null;
+          settlement_date?: string | null;
+          holding_period_days?: number | null;
+          upload_batch_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrapped_parts"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_scrap_requests: {
+        Row: {
+          id: string;
+          claim_id: string;
+          branch_id: string;
+          work_order_no: string | null;
+          main_labor_code: string | null;
+          main_labor_name: string | null;
+          settlement_date: string | null;
+          holding_period_days: number | null;
+          status: string;
+          video_path: string | null;
+          submitted_at: string | null;
+          upload_batch_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          claim_id: string;
+          branch_id: string;
+          work_order_no?: string | null;
+          main_labor_code?: string | null;
+          main_labor_name?: string | null;
+          settlement_date?: string | null;
+          holding_period_days?: number | null;
+          status?: string;
+          video_path?: string | null;
+          submitted_at?: string | null;
+          upload_batch_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrap_requests"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_scrap_request_parts: {
+        Row: {
+          id: string;
+          scrap_request_id: string;
+          part_no: string;
+          part_name: string | null;
+          quantity: number | null;
+        };
+        Insert: {
+          id?: string;
+          scrap_request_id: string;
+          part_no: string;
+          part_name?: string | null;
+          quantity?: number | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrap_request_parts"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_scrap_request_events: {
+        Row: {
+          id: string;
+          scrap_request_id: string;
+          event_type: string;
+          actor_id: string | null;
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scrap_request_id: string;
+          event_type: string;
+          actor_id?: string | null;
+          comment?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrap_request_events"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_supplier_collections: {
+        Row: {
+          id: string;
+          branch_id: string;
+          upload_batch_id: string | null;
+          collection_date: string | null;
+          status: string;
+          signed_pdf_path: string | null;
+          video_path: string | null;
+          branch_rep_name: string | null;
+          supplier_rep_name: string | null;
+          handed_over_at: string | null;
+          handed_over_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          branch_id: string;
+          upload_batch_id?: string | null;
+          collection_date?: string | null;
+          status?: string;
+          signed_pdf_path?: string | null;
+          video_path?: string | null;
+          branch_rep_name?: string | null;
+          supplier_rep_name?: string | null;
+          handed_over_at?: string | null;
+          handed_over_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_supplier_collections"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_supplier_collection_parts: {
+        Row: {
+          id: string;
+          collection_id: string;
+          claim_id: string | null;
+          work_order_no: string | null;
+          vin: string | null;
+          main_labor_name: string | null;
+          part_no: string | null;
+          part_name: string | null;
+          planned_pickup_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          collection_id: string;
+          claim_id?: string | null;
+          work_order_no?: string | null;
+          vin?: string | null;
+          main_labor_name?: string | null;
+          part_no?: string | null;
+          part_name?: string | null;
+          planned_pickup_date?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_supplier_collection_parts"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
