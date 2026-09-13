@@ -712,6 +712,16 @@ export interface Database {
         };
         Returns: void;
       };
+      hand_over_supplier_collection: {
+        Args: {
+          p_collection_id: string;
+          p_branch_rep_name: string;
+          p_supplier_rep_name: string;
+          p_signed_pdf_path: string;
+          p_video_path: string;
+        };
+        Returns: void;
+      };
     };
     Enums: {
       user_role: UserRole;

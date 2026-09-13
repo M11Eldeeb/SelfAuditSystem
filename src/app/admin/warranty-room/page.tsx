@@ -101,14 +101,16 @@ export default async function WarrantyRoomPage() {
       <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-900">4. Supplier parts</h2>
         <SupplierPartsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">{supplierCollectionsCount ?? 0} supplier collection(s) on file.</p>
+        <p className="text-xs text-neutral-500">
+          <Link href="/admin/warranty-room/supplier-parts" className="text-brand hover:underline">
+            {supplierCollectionsCount ?? 0} supplier collection(s) on file →
+          </Link>
+        </p>
       </section>
 
       <section className="space-y-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
         <h2 className="text-sm font-semibold text-neutral-700">Coming next</h2>
-        <p className="text-xs text-neutral-500">
-          The supplier parts sign/hand-over workflow, and the do-not-scrap report.
-        </p>
+        <p className="text-xs text-neutral-500">The do-not-scrap report.</p>
       </section>
     </div>
   );
