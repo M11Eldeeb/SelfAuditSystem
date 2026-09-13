@@ -108,9 +108,13 @@ export default async function WarrantyRoomPage() {
         </p>
       </section>
 
-      <section className="space-y-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
-        <h2 className="text-sm font-semibold text-neutral-700">Coming next</h2>
-        <p className="text-xs text-neutral-500">The do-not-scrap report.</p>
+      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+        <Link href="/admin/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
+          Do not scrap report →
+        </Link>
+        <p className="mt-1 text-xs text-neutral-500">
+          Claims with parts on hand, per branch, that were never flagged to scrap and aren&apos;t already scrapped.
+        </p>
       </section>
     </div>
   );

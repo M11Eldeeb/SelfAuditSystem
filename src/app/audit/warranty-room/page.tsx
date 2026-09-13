@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ScrapRequestCard } from "./scrap-request-card";
@@ -134,6 +135,13 @@ export default async function BranchWarrantyRoomPage() {
             parts={collectionPartsByCollectionId.get(c.id) ?? []}
           />
         ))}
+      </section>
+
+      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+        <Link href="/audit/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
+          Do not scrap list →
+        </Link>
+        <p className="mt-1 text-xs text-neutral-500">Claims to keep on hand - not flagged to scrap, not already scrapped.</p>
       </section>
     </div>
   );
