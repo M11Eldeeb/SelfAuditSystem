@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { shiftMonth } from "@/lib/month";
 import { shuffle } from "@/lib/shuffle";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
+import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
 
 const CLAIMS_PER_BRANCH = 10;
 
@@ -81,8 +82,13 @@ export async function generateCycle(
 
   // A claim already assigned to self-audit OR sampled into an internal audit
   // is never resampled by either workflow again - fetched once, filtered
-  // per-branch in JS below.
-  const auditedClaimIds = await getAuditedClaimIds(supabase);
+  // per-branch in JS below. A claim the warranty room has already queued to
+  // scrap, scrapped, or handed over to the supplier has no part left to
+  // physically check, so it's excluded the same way.
+  const [auditedClaimIds, warrantyRoomExcludedIds] = await Promise.all([
+    getAuditedClaimIds(supabase),
+    getWarrantyRoomExcludedClaimIds(supabase),
+  ]);
 
   const perBranch: { branchName: string; available: number; assigned: number }[] = [];
   const notifiedBranchIds = new Set<string>();
@@ -97,7 +103,9 @@ export async function generateCycle(
       .gte("creation_date", claimsMonth)
       .lt("creation_date", cycleMonth);
 
-    const available = (claims ?? []).filter((c) => !auditedClaimIds.has(c.id));
+    const available = (claims ?? []).filter(
+      (c) => !auditedClaimIds.has(c.id) && !warrantyRoomExcludedIds.has(c.id)
+    );
     const selected = shuffle(available).slice(0, CLAIMS_PER_BRANCH);
 
     if (selected.length > 0) {

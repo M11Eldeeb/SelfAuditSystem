@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
+import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
 import { shuffle } from "@/lib/shuffle";
 import { buildWorkOrderCounts, computeAuditFlag } from "@/lib/audit-flag";
 import { selectWithPartCap } from "@/lib/internal-audit-sampling";
@@ -42,8 +43,13 @@ async function sampleEligibleClaims(
   if (dateTo) query = query.lte("dealer_submit_date", dateTo);
 
   const { data: candidateClaims } = await query;
-  const auditedClaimIds = await getAuditedClaimIds(supabase);
-  const eligible = (candidateClaims ?? []).filter((c) => !auditedClaimIds.has(c.id));
+  const [auditedClaimIds, warrantyRoomExcludedIds] = await Promise.all([
+    getAuditedClaimIds(supabase),
+    getWarrantyRoomExcludedClaimIds(supabase),
+  ]);
+  const eligible = (candidateClaims ?? []).filter(
+    (c) => !auditedClaimIds.has(c.id) && !warrantyRoomExcludedIds.has(c.id)
+  );
 
   let ordered: ((typeof eligible)[number] & { _flag?: number })[];
   if (sampleMode === "flagged") {
@@ -147,8 +153,9 @@ export type StartInternalAuditState = { error?: string } | undefined;
  * Commits the exact claim set the officer already previewed (passed as
  * repeated `claim_id` fields) rather than re-sampling - re-sampling here
  * would pick a different random set than what was just reviewed/downloaded.
- * Claims are re-checked against getAuditedClaimIds() in case one was claimed
- * by another audit in the time since the preview was generated.
+ * Claims are re-checked against getAuditedClaimIds() and
+ * getWarrantyRoomExcludedClaimIds() in case one was claimed by another audit
+ * or the warranty room in the time since the preview was generated.
  */
 export async function startInternalAudit(
   _prev: StartInternalAuditState,
@@ -171,8 +178,13 @@ export async function startInternalAudit(
     return { error: "Enter the audit name, auditor name, and service manager name before starting." };
   }
 
-  const auditedClaimIds = await getAuditedClaimIds(supabase);
-  const stillEligible = claimIds.filter((id) => !auditedClaimIds.has(id));
+  const [auditedClaimIds, warrantyRoomExcludedIds] = await Promise.all([
+    getAuditedClaimIds(supabase),
+    getWarrantyRoomExcludedClaimIds(supabase),
+  ]);
+  const stillEligible = claimIds.filter(
+    (id) => !auditedClaimIds.has(id) && !warrantyRoomExcludedIds.has(id)
+  );
   if (stillEligible.length === 0) {
     return { error: "Every previewed claim has since been claimed by another audit - generate a new sample." };
   }
