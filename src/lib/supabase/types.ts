@@ -697,6 +697,21 @@ export interface Database {
         };
         Returns: void;
       };
+      submit_scrap_request: {
+        Args: {
+          p_scrap_request_id: string;
+          p_video_path: string;
+        };
+        Returns: void;
+      };
+      decide_scrap_request: {
+        Args: {
+          p_scrap_request_id: string;
+          p_new_status: string;
+          p_comment: string | null;
+        };
+        Returns: void;
+      };
     };
     Enums: {
       user_role: UserRole;

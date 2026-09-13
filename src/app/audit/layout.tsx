@@ -5,6 +5,7 @@ import { NavBar } from "@/components/nav-bar";
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit", label: "My Audits" },
   { href: "/audit/internal-audit", label: "Internal Audit Results" },
+  { href: "/audit/warranty-room", label: "Warranty Room" },
 ];
 
 export default async function AuditLayout({ children }: { children: ReactNode }) {

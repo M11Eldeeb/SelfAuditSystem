@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ClaimsUploadForm } from "./claims-upload-form";
@@ -16,6 +17,7 @@ export default async function WarrantyRoomPage() {
     { count: scrapRequestsCount },
     { count: supplierCollectionsCount },
     { data: batches },
+    { count: scrapPendingCount },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_claim_parts").select("id", { count: "exact", head: true }),
@@ -23,6 +25,10 @@ export default async function WarrantyRoomPage() {
     supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_supplier_collections").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
+    supabase
+      .from("self_audit_scrap_requests")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending_review", "pending_manufacturer"]),
   ]);
 
   return (
@@ -84,7 +90,12 @@ export default async function WarrantyRoomPage() {
       <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-900">3. Parts should be scraped</h2>
         <ScrapRequestsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">{scrapRequestsCount ?? 0} scrap request(s) on file.</p>
+        <p className="text-xs text-neutral-500">
+          {scrapRequestsCount ?? 0} scrap request(s) on file &middot;{" "}
+          <Link href="/admin/warranty-room/scrap" className="text-brand hover:underline">
+            {scrapPendingCount ?? 0} awaiting review or manufacturer decision →
+          </Link>
+        </p>
       </section>
 
       <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
@@ -96,8 +107,7 @@ export default async function WarrantyRoomPage() {
       <section className="space-y-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
         <h2 className="text-sm font-semibold text-neutral-700">Coming next</h2>
         <p className="text-xs text-neutral-500">
-          The scrap review/approval workflow (branch submit → officer review → manufacturer
-          decision), the supplier parts sign/hand-over workflow, and the do-not-scrap report.
+          The supplier parts sign/hand-over workflow, and the do-not-scrap report.
         </p>
       </section>
     </div>
