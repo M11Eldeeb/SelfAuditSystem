@@ -39,8 +39,8 @@ export default async function CycleReviewPage({
   return (
     <div className="space-y-3">
       <div>
-        <Link href="/admin/review" className="text-sm text-neutral-500 hover:text-neutral-800">
-          &larr; Back to review
+        <Link href="/admin/cycles" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to audit cycles
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           {cycle.cycle_month.slice(0, 7)} audit cycle

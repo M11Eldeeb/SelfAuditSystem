@@ -48,7 +48,7 @@ export default async function BranchReviewPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/review" className="text-sm text-neutral-500 hover:text-neutral-800">
+        <Link href={`/admin/review/${cycleId}`} className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to review
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!batchId) return NextResponse.json({ error: "Malformed finish request." }, { status: 400 });
 
     const result = await finishUpload(batchId, Number(totalClaims) || 0, String(filename ?? ""));
-    if (result.success) revalidatePath("/admin/claims");
+    if (result.success) revalidatePath("/admin/warranty-room");
     return NextResponse.json(result);
   } catch (err) {
     console.error("Claims upload (finish) failed:", err);
