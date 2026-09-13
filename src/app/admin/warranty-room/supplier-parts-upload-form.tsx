@@ -1,0 +1,194 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
+import { parseSupplierParts, type SkippedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
+
+type Branch = { id: string; name: string; code: string };
+
+type UploadState =
+  | { error?: string; success?: string; skipped?: SkippedSupplierPartRow[]; unmatchedClaims?: number }
+  | undefined;
+
+const NETWORK_CHUNK_SIZE = 1000;
+const SHEET_NAME = "Sheet1";
+
+async function postJson(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    return { error: "check your connection and try again." };
+  }
+  try {
+    return await res.json();
+  } catch {
+    if (res.status === 413) return { error: "that chunk was too large for the server to accept." };
+    return { error: `server returned an unexpected response (status ${res.status}).` };
+  }
+}
+
+/**
+ * Uploads the Supplier Parts list and groups it into one collection per
+ * branch (a physical hand-over/signature happens at one branch at a time).
+ * The officer sets one collection date for the whole upload here; the
+ * sheet's own per-row planned pickup date is kept as read-only reference
+ * info alongside it.
+ */
+export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
+  const [state, setState] = useState<UploadState>(undefined);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setState(undefined);
+    setPending(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const file = formData.get("file");
+      const collectionDate = String(formData.get("collection_date") ?? "") || null;
+      if (!(file instanceof File) || file.size === 0) {
+        setState({ error: "Choose a file to upload." });
+        return;
+      }
+      if (!/\.(xlsx|csv)$/i.test(file.name)) {
+        setState({ error: "Only .xlsx files are supported for this upload." });
+        return;
+      }
+
+      setProgress("Reading file...");
+      const buffer = await file.arrayBuffer();
+      let sheets: Awaited<ReturnType<typeof readWorkbookSheets>>;
+      try {
+        sheets = await readWorkbookSheets(buffer, [SHEET_NAME]);
+      } catch {
+        setState({ error: "Could not read that file. Make sure it's a valid .xlsx export." });
+        return;
+      }
+      const sheet = sheets[SHEET_NAME];
+      if (!sheet) {
+        setState({ error: `Could not find a "${SHEET_NAME}" sheet in that file.` });
+        return;
+      }
+
+      const branchLookup = new Map<string, string>();
+      branches.forEach((b) => {
+        branchLookup.set(b.code.toLowerCase(), b.id);
+        branchLookup.set(b.name.toLowerCase(), b.id);
+      });
+
+      let parts, skipped;
+      try {
+        ({ parts, skipped } = parseSupplierParts(sheet.headers, sheet.rows, branchLookup));
+      } catch (err) {
+        setState({ error: err instanceof Error ? err.message : "Could not parse that sheet." });
+        return;
+      }
+      if (parts.length === 0) {
+        setState({ error: "No valid rows found in that sheet.", skipped });
+        return;
+      }
+
+      setProgress("Creating upload batch...");
+      const startResult = await postJson("/api/warranty-room/upload/start", {
+        kind: "supplier_parts",
+        filename: file.name,
+        row_count: parts.length,
+      });
+      if (startResult.error || !startResult.batchId) {
+        setState({ error: `Could not start the upload: ${startResult.error ?? "unknown error."}`, skipped });
+        return;
+      }
+      const batchId = startResult.batchId as string;
+
+      let unmatchedClaims = 0;
+      for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
+        const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
+        setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
+        const chunkResult = await postJson("/api/warranty-room/upload/chunk", {
+          batchId,
+          table: "supplier_parts",
+          collectionDate,
+          rows: chunk,
+        });
+        if (chunkResult.error) {
+          setState({ error: `Processed ${i} of ${parts.length} rows before failing: ${chunkResult.error}`, skipped });
+          return;
+        }
+        unmatchedClaims += (chunkResult.unmatchedClaims as number) ?? 0;
+      }
+
+      setProgress("Finishing up...");
+      const finishResult = await postJson("/api/warranty-room/upload/finish", {
+        batchId,
+        totalRows: parts.length,
+        filename: file.name,
+      });
+      if (finishResult.error) {
+        setState({ error: finishResult.error as string, skipped });
+        return;
+      }
+
+      setState({ success: `Uploaded ${parts.length} row(s) from "${file.name}".`, skipped, unmatchedClaims });
+      formRef.current?.reset();
+      router.refresh();
+    } finally {
+      setProgress(null);
+      setPending(false);
+    }
+  }
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <label htmlFor="wr-supplier-file" className="text-xs font-medium text-neutral-700">
+            Supplier parts (.xlsx)
+          </label>
+          <input
+            id="wr-supplier-file"
+            name="file"
+            type="file"
+            accept=".xlsx"
+            required
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900 file:mr-3 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-3 file:py-1 file:text-xs file:font-medium file:text-neutral-700 file:shadow-sm hover:file:bg-neutral-50"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="wr-collection-date" className="text-xs font-medium text-neutral-700">
+            Collection date
+          </label>
+          <input
+            id="wr-collection-date"
+            name="collection_date"
+            type="date"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+        >
+          {pending ? "Uploading..." : "Upload"}
+        </button>
+      </div>
+      <p className="text-xs text-neutral-500">
+        Groups rows into one collection per branch. The branch downloads its list, gets it signed and
+        video-recorded, and hands it over once the supplier collects it.
+      </p>
+
+      {progress && <p className="text-sm text-neutral-600">{progress}</p>}
+      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
+      {!!state?.unmatchedClaims && (
+        <p className="text-xs text-amber-700">{state.unmatchedClaims} row(s) couldn&apos;t be matched to a known claim (kept anyway).</p>
+      )}
+    </form>
+  );
+}

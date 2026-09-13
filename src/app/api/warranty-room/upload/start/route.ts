@@ -15,7 +15,8 @@ export async function POST(request: Request) {
       filename?: string;
       row_count?: number;
     };
-    if (kind !== "claims_data" && kind !== "scrapped_parts") {
+    const validKinds: WarrantyRoomUploadKind[] = ["claims_data", "scrapped_parts", "scrap_requests", "supplier_parts"];
+    if (!kind || !validKinds.includes(kind)) {
       return NextResponse.json({ error: "Malformed start request." }, { status: 400 });
     }
     const result = await startWarrantyRoomBatch(user.id, kind, String(filename ?? ""), Number(row_count) || 0);

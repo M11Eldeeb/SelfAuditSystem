@@ -2,18 +2,28 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ClaimsUploadForm } from "./claims-upload-form";
 import { ScrappedPartsUploadForm } from "./scrapped-parts-upload-form";
+import { ScrapRequestsUploadForm } from "./scrap-requests-upload-form";
+import { SupplierPartsUploadForm } from "./supplier-parts-upload-form";
 
 export default async function WarrantyRoomPage() {
   await requireRole("officer");
   const supabase = await createClient();
 
-  const [{ data: branches }, { count: claimPartsCount }, { count: scrappedPartsCount }, { data: batches }] =
-    await Promise.all([
-      supabase.from("self_audit_branches").select("id, name, code").order("name"),
-      supabase.from("self_audit_claim_parts").select("id", { count: "exact", head: true }),
-      supabase.from("self_audit_scrapped_parts").select("id", { count: "exact", head: true }),
-      supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
-    ]);
+  const [
+    { data: branches },
+    { count: claimPartsCount },
+    { count: scrappedPartsCount },
+    { count: scrapRequestsCount },
+    { count: supplierCollectionsCount },
+    { data: batches },
+  ] = await Promise.all([
+    supabase.from("self_audit_branches").select("id, name, code").order("name"),
+    supabase.from("self_audit_claim_parts").select("id", { count: "exact", head: true }),
+    supabase.from("self_audit_scrapped_parts").select("id", { count: "exact", head: true }),
+    supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }),
+    supabase.from("self_audit_supplier_collections").select("id", { count: "exact", head: true }),
+    supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -71,11 +81,23 @@ export default async function WarrantyRoomPage() {
         <p className="text-xs text-neutral-500">{scrappedPartsCount ?? 0} already-scrapped part row(s) on file.</p>
       </section>
 
+      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-neutral-900">3. Parts should be scraped</h2>
+        <ScrapRequestsUploadForm branches={branches ?? []} />
+        <p className="text-xs text-neutral-500">{scrapRequestsCount ?? 0} scrap request(s) on file.</p>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-neutral-900">4. Supplier parts</h2>
+        <SupplierPartsUploadForm branches={branches ?? []} />
+        <p className="text-xs text-neutral-500">{supplierCollectionsCount ?? 0} supplier collection(s) on file.</p>
+      </section>
+
       <section className="space-y-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
         <h2 className="text-sm font-semibold text-neutral-700">Coming next</h2>
         <p className="text-xs text-neutral-500">
-          Parts should be scraped (with the scrap review/approval workflow), supplier parts (with the
-          sign-and-hand-over workflow), and the do-not-scrap report.
+          The scrap review/approval workflow (branch submit → officer review → manufacturer
+          decision), the supplier parts sign/hand-over workflow, and the do-not-scrap report.
         </p>
       </section>
     </div>

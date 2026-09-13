@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { upsertClaimsChunk, upsertClaimPartsChunk, insertScrappedPartsChunk } from "@/lib/warranty-room/upload";
+import {
+  upsertClaimsChunk,
+  upsertClaimPartsChunk,
+  insertScrappedPartsChunk,
+  upsertScrapRequestsChunk,
+  upsertSupplierPartsChunk,
+} from "@/lib/warranty-room/upload";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
 import type { ParsedClaimPartRow } from "@/lib/warranty-room/parse-claim-parts";
 import type { ParsedScrappedPartRow } from "@/lib/warranty-room/parse-scrapped-parts";
+import type { ParsedScrapRequestRow } from "@/lib/warranty-room/parse-scrap-requests";
+import type { ParsedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
 
-type ChunkTable = "claims" | "claim_parts" | "scrapped_parts";
+type ChunkTable = "claims" | "claim_parts" | "scrapped_parts" | "scrap_requests" | "supplier_parts";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -15,10 +23,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { batchId, table, rows } = (await request.json()) as {
+    const { batchId, table, rows, collectionDate } = (await request.json()) as {
       batchId?: string;
       table?: ChunkTable;
       rows?: unknown[];
+      collectionDate?: string | null;
     };
     if (!batchId || !Array.isArray(rows)) {
       return NextResponse.json({ error: "Malformed chunk request." }, { status: 400 });
@@ -34,6 +43,14 @@ export async function POST(request: Request) {
     }
     if (table === "scrapped_parts") {
       const result = await insertScrappedPartsChunk(batchId, rows as ParsedScrappedPartRow[]);
+      return NextResponse.json(result);
+    }
+    if (table === "scrap_requests") {
+      const result = await upsertScrapRequestsChunk(batchId, rows as ParsedScrapRequestRow[]);
+      return NextResponse.json(result);
+    }
+    if (table === "supplier_parts") {
+      const result = await upsertSupplierPartsChunk(batchId, collectionDate ?? null, rows as ParsedSupplierPartRow[]);
       return NextResponse.json(result);
     }
     return NextResponse.json({ error: "Unknown chunk table." }, { status: 400 });
