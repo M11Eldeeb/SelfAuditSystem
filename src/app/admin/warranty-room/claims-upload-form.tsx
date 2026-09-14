@@ -12,7 +12,14 @@ import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room
 type Branch = { id: string; name: string; code: string };
 
 type UploadState =
-  | { error?: string; success?: string; skipped?: SkippedRow[]; partsUploaded?: number; unmatchedParts?: number }
+  | {
+      error?: string;
+      success?: string;
+      skipped?: SkippedRow[];
+      partsUploaded?: number;
+      unmatchedParts?: number;
+      partDetailsError?: string;
+    }
   | undefined;
 
 // Rows are parsed in the browser and sent up in chunks instead of uploading
@@ -160,10 +167,16 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       // Optional bonus: if this same workbook also has a Part Details sheet
       // (already read alongside the claims sheet above, xlsx only), upload
       // it too - every part on a claim, not just the one
-      // self_audit_claims.main_part_name captures. Failure here never
-      // overrides the claims upload's own success message above.
+      // self_audit_claims.main_part_name captures. A failure here never
+      // turns the overall upload into an error (the claims upload above
+      // already succeeded) - but it IS surfaced as its own warning with
+      // however many rows made it in, rather than silently claiming success
+      // on a partial result (this used to happen: the loop's error return
+      // was discarded, so a chunk failing partway through a 78,000-row sheet
+      // looked identical to a full success with no way to tell).
       let partsUploaded: number | undefined;
       let unmatchedParts = 0;
+      let partDetailsError: string | undefined;
       if (partDetailsSheet) {
         try {
           const { parts } = parseClaimParts(partDetailsSheet.headers, partDetailsSheet.rows, branchLookup);
@@ -178,7 +191,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
               const partChunks: typeof parts[] = [];
               for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
 
-              await runChunksWithConcurrency(
+              const { error } = await runChunksWithConcurrency(
                 partChunks,
                 async (chunk) => {
                   const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
@@ -195,14 +208,17 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
                 CONCURRENCY,
                 (done, total) => setProgress(`Uploading part details (${done}/${total} chunks)...`)
               );
+              if (error) {
+                partDetailsError = `Part details stopped partway (${partsUploaded ?? 0} of ${parts.length} rows uploaded): ${error}. Uploading the same file again is safe and will pick up the rest.`;
+              }
             }
           }
-        } catch {
-          // Non-fatal - the claims upload above already succeeded.
+        } catch (err) {
+          partDetailsError = `Part details failed: ${err instanceof Error ? err.message : "unknown error"}. Uploading the same file again is safe and will pick up the rest.`;
         }
       }
 
-      setState({ success: finishResult.success as string, skipped, partsUploaded, unmatchedParts });
+      setState({ success: finishResult.success as string, skipped, partsUploaded, unmatchedParts, partDetailsError });
       formRef.current?.reset();
       router.refresh();
       onUploaded?.();
@@ -270,6 +286,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
           {state.unmatchedParts} part row(s) couldn&apos;t be matched to a claim and were skipped.
         </p>
       )}
+      {state?.partDetailsError && <p className="text-sm text-amber-700">{state.partDetailsError}</p>}
 
       {state?.skipped && state.skipped.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
