@@ -17,7 +17,12 @@ type UploadState =
 // Rows are parsed in the browser and sent up in chunks instead of uploading
 // the raw file - Vercel's serverless functions cap request bodies at 4.5MB
 // (not configurable), and a real monthly export here has been 50MB+.
-const NETWORK_CHUNK_SIZE = 1000;
+// Matches the server's own DB_CHUNK_SIZE (upload-claims.ts / warranty-room/upload.ts)
+// so each request does exactly one round of DB work - large real exports here
+// run 60,000+ rows, and a bigger chunk risks the serverless function's own
+// execution timeout (a "Gateway Timeout" with 0 rows processed, seen in
+// practice at 1000).
+const NETWORK_CHUNK_SIZE = 500;
 const PART_DETAILS_SHEET = "Part Details";
 
 async function postJson(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {

@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { upsertClaimsChunk } from "@/lib/upload-claims";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });

@@ -666,7 +666,9 @@ export interface Database {
           main_labor_name: string | null;
           part_no: string | null;
           part_name: string | null;
+          quantity: number | null;
           planned_pickup_date: string | null;
+          raw_row: Record<string, unknown> | null;
           created_at: string;
         };
         Insert: {
@@ -678,7 +680,9 @@ export interface Database {
           main_labor_name?: string | null;
           part_no?: string | null;
           part_name?: string | null;
+          quantity?: number | null;
           planned_pickup_date?: string | null;
+          raw_row?: Record<string, unknown> | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_supplier_collection_parts"]["Insert"]>;
@@ -721,6 +725,22 @@ export interface Database {
           p_video_path: string;
         };
         Returns: void;
+      };
+      get_do_not_scrap_claims: {
+        Args: {
+          p_branch_id: string;
+        };
+        Returns: {
+          claim_number: string;
+          work_order_no: string | null;
+          vin: string | null;
+          main_part_name: string | null;
+          creation_date: string;
+        }[];
+      };
+      get_warranty_room_excluded_claim_ids: {
+        Args: Record<string, never>;
+        Returns: string[];
       };
     };
     Enums: {

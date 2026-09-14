@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { startWarrantyRoomBatch, type WarrantyRoomUploadKind } from "@/lib/warranty-room/upload";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });

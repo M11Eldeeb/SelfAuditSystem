@@ -289,6 +289,15 @@ export async function upsertScrapRequestsChunk(
  * one branch at a time even when the uploaded sheet spans several. Re-running
  * a chunk for the same batch/branch reuses the collection already created for
  * it rather than creating a duplicate.
+ *
+ * The sheet itself only carries one "Main Part" per claim row, but a claim
+ * can have several parts on file (self_audit_claim_parts, from the Part
+ * Details sheet in All Claims Data). Each claim is expanded into one
+ * collection-part row per actual part it has on file, so every part the
+ * supplier wants is correctly reserved (and excluded from scrap requests) -
+ * not just the one the sheet happened to name. A claim with no part-detail
+ * rows on file yet falls back to the sheet's own Main Part/Main Part Name so
+ * nothing is silently dropped.
  */
 export async function upsertSupplierPartsChunk(
   batchId: string,
@@ -333,21 +342,68 @@ export async function upsertSupplierPartsChunk(
       .in("claim_number", claimNumbers);
     if (claimErr) return { error: claimErr.message };
     const claimIdByNumber = new Map((claimMatches ?? []).map((m) => [m.claim_number, m.id]));
+    const claimIds = [...new Set(claimIdByNumber.values())];
 
-    const rows = branchParts.map((p) => {
+    const { data: claimParts, error: claimPartsErr } = claimIds.length
+      ? await supabase.from("self_audit_claim_parts").select("claim_id, part_no, part_name, quantity").in("claim_id", claimIds)
+      : { data: [], error: null };
+    if (claimPartsErr) return { error: claimPartsErr.message };
+    const partsByClaimId = new Map<string, { part_no: string; part_name: string | null; quantity: number | null }[]>();
+    (claimParts ?? []).forEach((p) => {
+      const list = partsByClaimId.get(p.claim_id) ?? [];
+      list.push(p);
+      partsByClaimId.set(p.claim_id, list);
+    });
+
+    const rows: {
+      collection_id: string;
+      claim_id: string | null;
+      work_order_no: string | null;
+      vin: string | null;
+      main_labor_name: string | null;
+      part_no: string | null;
+      part_name: string | null;
+      quantity: number | null;
+      planned_pickup_date: string | null;
+      raw_row: Record<string, unknown>;
+    }[] = [];
+
+    branchParts.forEach((p) => {
       const claimId = claimIdByNumber.get(p.claim_number) ?? null;
       if (!claimId) unmatchedClaims += 1;
-      return {
-        collection_id: collectionId,
-        claim_id: claimId,
-        work_order_no: p.work_order_no,
-        vin: p.vin,
-        main_labor_name: p.main_labor_name,
-        part_no: p.part_no,
-        part_name: p.part_name,
-        planned_pickup_date: p.planned_pickup_date,
-      };
+      const actualParts = claimId ? partsByClaimId.get(claimId) : undefined;
+
+      if (actualParts && actualParts.length > 0) {
+        actualParts.forEach((ap) => {
+          rows.push({
+            collection_id: collectionId!,
+            claim_id: claimId,
+            work_order_no: p.work_order_no,
+            vin: p.vin,
+            main_labor_name: p.main_labor_name,
+            part_no: ap.part_no,
+            part_name: ap.part_name,
+            quantity: ap.quantity,
+            planned_pickup_date: p.planned_pickup_date,
+            raw_row: p.raw_row,
+          });
+        });
+      } else {
+        rows.push({
+          collection_id: collectionId!,
+          claim_id: claimId,
+          work_order_no: p.work_order_no,
+          vin: p.vin,
+          main_labor_name: p.main_labor_name,
+          part_no: p.part_no,
+          part_name: p.part_name,
+          quantity: null,
+          planned_pickup_date: p.planned_pickup_date,
+          raw_row: p.raw_row,
+        });
+      }
     });
+
     const { error: insertErr } = await supabase.from("self_audit_supplier_collection_parts").insert(rows);
     if (insertErr) return { error: insertErr.message };
   }

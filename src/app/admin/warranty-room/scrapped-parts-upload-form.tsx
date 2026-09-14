@@ -9,7 +9,11 @@ type Branch = { id: string; name: string; code: string };
 
 type UploadState = { error?: string; success?: string; skipped?: SkippedScrappedRow[]; unmatched?: number } | undefined;
 
-const NETWORK_CHUNK_SIZE = 1000;
+// Matches the server's own DB_CHUNK_SIZE (see warranty-room/upload.ts) so
+// each request does exactly one round of DB work - avoids the serverless
+// function's own execution timeout on large exports (this sheet alone can
+// run 60,000+ rows).
+const NETWORK_CHUNK_SIZE = 500;
 const DETAILS_SHEET = "RepPartToDestroyDetailsView";
 
 async function postJson(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {

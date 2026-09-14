@@ -9,6 +9,8 @@ export interface ParsedSupplierPartRow {
   part_no: string | null;
   part_name: string | null;
   planned_pickup_date: string | null;
+  /** Every original column from the uploaded sheet, keyed by its own header text - so the branch's downloaded Excel can show the sheet exactly as uploaded. */
+  raw_row: Record<string, unknown>;
 }
 
 export interface SkippedSupplierPartRow {
@@ -100,6 +102,12 @@ export function parseSupplierParts(
       return;
     }
 
+    const rawRow: Record<string, unknown> = {};
+    headers.forEach((h, idx) => {
+      const v = row[idx];
+      if (v != null && String(v).trim() !== "") rawRow[h] = v;
+    });
+
     parts.push({
       branch_id: branchId,
       claim_number: claimNumber,
@@ -109,6 +117,7 @@ export function parseSupplierParts(
       part_no: str(cols.part_no, row),
       part_name: str(cols.part_name, row),
       planned_pickup_date: parseDateValue(cols.planned_pickup_date != null ? row[cols.planned_pickup_date] : null),
+      raw_row: rawRow,
     });
   });
 

@@ -8,6 +8,7 @@ export type SupplierCollectionPdfPart = {
   vin: string | null;
   partNo: string | null;
   partName: string | null;
+  quantity: number | null;
   mainLaborName: string | null;
 };
 
@@ -54,12 +55,13 @@ export function generateSupplierCollectionPdf(data: SupplierCollectionPdfData): 
     p.vin ?? "",
     p.partNo ?? "",
     p.partName ?? "",
+    p.quantity != null ? String(p.quantity) : "",
     p.mainLaborName ?? "",
   ]);
   y = drawTable(doc, {
     startY: y,
-    colWidths: [80, 70, 90, 65, tableW - 405, 100],
-    headers: ["Claim", "WO", "VIN", "Part No", "Part Name", "Main Labor"],
+    colWidths: [75, 65, 85, 60, tableW - 440, 35, 90],
+    headers: ["Claim", "WO", "VIN", "Part No", "Part Name", "Qty", "Main Labor"],
     rows,
     fontSize: 8.5,
   });

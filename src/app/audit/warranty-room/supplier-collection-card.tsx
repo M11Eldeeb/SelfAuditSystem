@@ -12,8 +12,10 @@ type Part = {
   vin: string | null;
   part_no: string | null;
   part_name: string | null;
+  quantity: number | null;
   main_labor_name: string | null;
   planned_pickup_date: string | null;
+  raw_row: Record<string, unknown> | null;
 };
 
 export function SupplierCollectionCard({
@@ -46,8 +48,10 @@ export function SupplierCollectionCard({
                   vin: p.vin,
                   part_no: p.part_no,
                   part_name: p.part_name,
+                  quantity: p.quantity,
                   main_labor_name: p.main_labor_name,
                   planned_pickup_date: p.planned_pickup_date,
+                  raw_row: p.raw_row,
                 }))
               )
             }
@@ -67,6 +71,7 @@ export function SupplierCollectionCard({
                   vin: p.vin,
                   partNo: p.part_no,
                   partName: p.part_name,
+                  quantity: p.quantity,
                   mainLaborName: p.main_labor_name,
                 })),
               })
@@ -81,7 +86,7 @@ export function SupplierCollectionCard({
       <ul className="list-disc space-y-0.5 pl-4 text-sm text-neutral-700">
         {parts.map((p, i) => (
           <li key={`${p.claim_number}-${p.part_no}-${i}`}>
-            {p.part_name ?? p.part_no} ({p.part_no}) &middot; Claim {p.claim_number}
+            {p.part_name ?? p.part_no} ({p.part_no}){p.quantity != null && ` × ${p.quantity}`} &middot; Claim {p.claim_number}
             {p.work_order_no && ` · WO ${p.work_order_no}`}
           </li>
         ))}

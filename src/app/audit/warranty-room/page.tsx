@@ -47,7 +47,7 @@ export default async function BranchWarrantyRoomPage() {
     collectionIds.length
       ? supabase
           .from("self_audit_supplier_collection_parts")
-          .select("collection_id, work_order_no, vin, part_no, part_name, main_labor_name, planned_pickup_date, claim_id")
+          .select("collection_id, work_order_no, vin, part_no, part_name, quantity, main_labor_name, planned_pickup_date, claim_id, raw_row")
           .in("collection_id", collectionIds)
       : Promise.resolve({ data: [] }),
   ]);
@@ -76,7 +76,17 @@ export default async function BranchWarrantyRoomPage() {
 
   const collectionPartsByCollectionId = new Map<
     string,
-    { claim_number: string; work_order_no: string | null; vin: string | null; part_no: string | null; part_name: string | null; main_labor_name: string | null; planned_pickup_date: string | null }[]
+    {
+      claim_number: string;
+      work_order_no: string | null;
+      vin: string | null;
+      part_no: string | null;
+      part_name: string | null;
+      quantity: number | null;
+      main_labor_name: string | null;
+      planned_pickup_date: string | null;
+      raw_row: Record<string, unknown> | null;
+    }[]
   >();
   (collectionParts ?? []).forEach((p) => {
     const list = collectionPartsByCollectionId.get(p.collection_id) ?? [];
@@ -86,8 +96,10 @@ export default async function BranchWarrantyRoomPage() {
       vin: p.vin,
       part_no: p.part_no,
       part_name: p.part_name,
+      quantity: p.quantity,
       main_labor_name: p.main_labor_name,
       planned_pickup_date: p.planned_pickup_date,
+      raw_row: p.raw_row,
     });
     collectionPartsByCollectionId.set(p.collection_id, list);
   });
