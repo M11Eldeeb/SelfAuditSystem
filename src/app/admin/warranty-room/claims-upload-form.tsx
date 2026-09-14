@@ -7,6 +7,7 @@ import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
 import { currentYearMonth } from "@/lib/month";
+import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -16,29 +17,21 @@ type UploadState =
 
 // Rows are parsed in the browser and sent up in chunks instead of uploading
 // the raw file - Vercel's serverless functions cap request bodies at 4.5MB
-// (not configurable), and a real monthly export here has been 50MB+.
-// Matches the server's own DB_CHUNK_SIZE (upload-claims.ts / warranty-room/upload.ts)
-// so each request does exactly one round of DB work - large real exports here
-// run 60,000+ rows, and a bigger chunk risks the serverless function's own
-// execution timeout (a "Gateway Timeout" with 0 rows processed, seen in
-// practice at 1000).
-const NETWORK_CHUNK_SIZE = 500;
+// (not configurable), and a real monthly export here has been 50MB+. A
+// smaller chunk than the server's own DB_CHUNK_SIZE (500) gives extra
+// margin against the serverless function's own execution timeout - large
+// real exports here run 60,000+ rows, and even at 500/chunk a "Gateway
+// Timeout" partway through has been seen in practice. Chunks run one at a
+// time, not concurrently - tried running several in parallel to speed this
+// up, but live testing showed it makes things *worse*: this project's
+// Supabase tier clearly can't absorb several of these upserts at once,
+// individual requests degraded from ~3s to 60s+ under concurrency, which is
+// worse than the timeout this is trying to avoid. Every chunk still retries
+// on failure (postJsonWithRetry) - upserts are idempotent, so re-sending one
+// after a timeout is always safe.
+const NETWORK_CHUNK_SIZE = 300;
+const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
-
-async function postJson(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {
-  let res: Response;
-  try {
-    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  } catch {
-    return { error: "check your connection and try again." };
-  }
-  try {
-    return await res.json();
-  } catch {
-    if (res.status === 413) return { error: "that chunk was too large for the server to accept." };
-    return { error: `server returned an unexpected response (status ${res.status}).` };
-  }
-}
 
 /**
  * Uploads claims exactly as this form always has (same self_audit_claims
@@ -115,7 +108,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
 
       setProgress("Creating upload batch...");
-      const startResult = await postJson("/api/claims/upload/start", {
+      const startResult = await postJsonWithRetry("/api/claims/upload/start", {
         claim_month: claimMonth,
         filename: file.name,
         row_count: claims.length,
@@ -126,18 +119,22 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
       const batchId = startResult.batchId as string;
 
-      for (let i = 0; i < claims.length; i += NETWORK_CHUNK_SIZE) {
-        const chunk = claims.slice(i, i + NETWORK_CHUNK_SIZE);
-        setProgress(`Uploading claims ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length}...`);
-        const chunkResult = await postJson("/api/claims/upload/chunk", { batchId, claims: chunk });
-        if (chunkResult.error) {
-          setState({ error: `Processed ${i} of ${claims.length} rows before failing: ${chunkResult.error}`, skipped });
-          return;
-        }
+      const claimChunks: typeof claims[] = [];
+      for (let i = 0; i < claims.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(claims.slice(i, i + NETWORK_CHUNK_SIZE));
+
+      const { error: chunkError } = await runChunksWithConcurrency(
+        claimChunks,
+        (chunk) => postJsonWithRetry("/api/claims/upload/chunk", { batchId, claims: chunk }),
+        CONCURRENCY,
+        (done, total) => setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length} (${done}/${total} chunks)...`)
+      );
+      if (chunkError) {
+        setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
+        return;
       }
 
       setProgress("Finishing up...");
-      const finishResult = await postJson("/api/claims/upload/finish", {
+      const finishResult = await postJsonWithRetry("/api/claims/upload/finish", {
         batchId,
         totalClaims: claims.length,
         filename: file.name,
@@ -160,25 +157,33 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
           if (partDetails) {
             const { parts } = parseClaimParts(partDetails.headers, partDetails.rows, branchLookup);
             if (parts.length > 0) {
-              setProgress(`Uploading part details ${parts.length} row(s)...`);
-              const wrStart = await postJson("/api/warranty-room/upload/start", {
+              const wrStart = await postJsonWithRetry("/api/warranty-room/upload/start", {
                 kind: "claims_data",
                 filename: file.name,
                 row_count: parts.length,
               });
               if (wrStart.batchId) {
                 partsUploaded = 0;
-                for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
-                  const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
-                  const chunkResult = await postJson("/api/warranty-room/upload/chunk", {
-                    batchId: wrStart.batchId,
-                    table: "claim_parts",
-                    rows: chunk,
-                  });
-                  if (chunkResult.error) break;
-                  partsUploaded += chunk.length - ((chunkResult.unmatched as number) ?? 0);
-                  unmatchedParts += (chunkResult.unmatched as number) ?? 0;
-                }
+                const partChunks: typeof parts[] = [];
+                for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
+
+                await runChunksWithConcurrency(
+                  partChunks,
+                  async (chunk) => {
+                    const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
+                      batchId: wrStart.batchId,
+                      table: "claim_parts",
+                      rows: chunk,
+                    });
+                    if (!chunkResult.error) {
+                      partsUploaded = (partsUploaded ?? 0) + chunk.length - ((chunkResult.unmatched as number) ?? 0);
+                      unmatchedParts += (chunkResult.unmatched as number) ?? 0;
+                    }
+                    return chunkResult;
+                  },
+                  CONCURRENCY,
+                  (done, total) => setProgress(`Uploading part details (${done}/${total} chunks)...`)
+                );
               }
             }
           }

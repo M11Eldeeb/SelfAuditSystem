@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseSupplierParts, type SkippedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
+import { postJsonWithRetry } from "@/lib/warranty-room/client-upload";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -20,25 +21,14 @@ type UploadState =
   | undefined;
 
 // Matches the server's own DB_CHUNK_SIZE (see warranty-room/upload.ts) so
-// each request does exactly one round of DB work - avoids the serverless
-// function's own execution timeout on large exports.
+// each request does exactly one round of DB work. Chunks are sent one at a
+// time (not concurrently, unlike the other upload forms) - a chunk can
+// create a new pending collection for a branch if one doesn't exist yet, and
+// running two chunks for the same new branch at once could race and create
+// two. Every chunk still retries on failure (postJsonWithRetry) - the
+// upsert this hits is idempotent, so re-sending one after a timeout is safe.
 const NETWORK_CHUNK_SIZE = 500;
 const SHEET_NAME = "Sheet1";
-
-async function postJson(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {
-  let res: Response;
-  try {
-    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  } catch {
-    return { error: "check your connection and try again." };
-  }
-  try {
-    return await res.json();
-  } catch {
-    if (res.status === 413) return { error: "that chunk was too large for the server to accept." };
-    return { error: `server returned an unexpected response (status ${res.status}).` };
-  }
-}
 
 /**
  * Uploads the Supplier Parts list and groups it into one collection per
@@ -106,7 +96,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       }
 
       setProgress("Creating upload batch...");
-      const startResult = await postJson("/api/warranty-room/upload/start", {
+      const startResult = await postJsonWithRetry("/api/warranty-room/upload/start", {
         kind: "supplier_parts",
         filename: file.name,
         row_count: parts.length,
@@ -124,14 +114,17 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
         const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
         setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
-        const chunkResult = await postJson("/api/warranty-room/upload/chunk", {
+        const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
           batchId,
           table: "supplier_parts",
           collectionDate,
           rows: chunk,
         });
         if (chunkResult.error) {
-          setState({ error: `Processed ${i} of ${parts.length} rows before failing: ${chunkResult.error}`, skipped });
+          setState({
+            error: `Upload failed partway through (${i} of ${parts.length} rows processed): ${chunkResult.error}. Uploading again is safe - already-uploaded rows just get merged.`,
+            skipped,
+          });
           return;
         }
         unmatchedClaims += (chunkResult.unmatchedClaims as number) ?? 0;
@@ -141,7 +134,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       }
 
       setProgress("Finishing up...");
-      const finishResult = await postJson("/api/warranty-room/upload/finish", {
+      const finishResult = await postJsonWithRetry("/api/warranty-room/upload/finish", {
         batchId,
         totalRows: parts.length,
         filename: file.name,
