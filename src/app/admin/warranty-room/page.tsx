@@ -9,6 +9,7 @@ export default async function WarrantyRoomPage() {
 
   const [
     { data: branches },
+    { count: claimsCount },
     { count: claimPartsCount },
     { count: scrappedPartsCount },
     { count: scrapRequestsCount },
@@ -17,6 +18,7 @@ export default async function WarrantyRoomPage() {
     { count: scrapPendingCount },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
+    supabase.from("self_audit_claims").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_claim_parts").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_scrapped_parts").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }),
@@ -42,6 +44,7 @@ export default async function WarrantyRoomPage() {
       <UploadWizard
         branches={branches ?? []}
         stats={{
+          claimsCount: claimsCount ?? 0,
           claimPartsCount: claimPartsCount ?? 0,
           scrappedPartsCount: scrappedPartsCount ?? 0,
           scrapRequestsCount: scrapRequestsCount ?? 0,

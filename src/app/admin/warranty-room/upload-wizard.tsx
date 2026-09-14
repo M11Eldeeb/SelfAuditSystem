@@ -10,6 +10,7 @@ import { SupplierPartsUploadForm } from "./supplier-parts-upload-form";
 type Branch = { id: string; name: string; code: string };
 
 type Stats = {
+  claimsCount: number;
   claimPartsCount: number;
   scrappedPartsCount: number;
   scrapRequestsCount: number;
@@ -25,11 +26,30 @@ const STEP_LABELS = ["All claims data", "Parts already scraped", "Parts should b
  * file inputs visible at once, it's easy to click the wrong one. Completing
  * a step (or explicitly skipping it) advances to the next; a completed step
  * can be reopened to redo it, but its form isn't rendered until then.
+ *
+ * The checkmarks start seeded from real data (stats), not just this
+ * session's in-memory progress - a step whose table already has rows shows
+ * done from the moment the page loads. Without this, a checkmark only ever
+ * appeared if you watched the upload finish in the same page load: navigate
+ * away and back (or the upload finishes just as you happen to reload) and a
+ * perfectly successful upload looked exactly like nothing happened at all.
  */
+function initialCompleted(stats: Stats): Set<number> {
+  const done = new Set<number>();
+  if (stats.claimsCount > 0) done.add(1);
+  if (stats.scrappedPartsCount > 0) done.add(2);
+  if (stats.scrapRequestsCount > 0) done.add(3);
+  if (stats.supplierCollectionsCount > 0) done.add(4);
+  return done;
+}
+
 export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: Stats }) {
   const [step, setStep] = useState(1);
-  const [maxReached, setMaxReached] = useState(1);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [completed, setCompleted] = useState<Set<number>>(() => initialCompleted(stats));
+  const [maxReached, setMaxReached] = useState(() => {
+    const done = initialCompleted(stats);
+    return done.size > 0 ? Math.max(...done) : 1;
+  });
 
   function advance(n: number) {
     const next = Math.min(n + 1, 4);

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readSpreadsheet } from "@/lib/read-spreadsheet";
-import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
+import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbook";
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
 import { currentYearMonth } from "@/lib/month";
@@ -80,9 +80,22 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       setProgress("Reading file...");
       let headers: string[];
       let rows: unknown[][];
+      let partDetailsSheet: { headers: string[]; rows: unknown[][] } | undefined;
       const buffer = await file.arrayBuffer();
       try {
-        ({ headers, rows } = await readSpreadsheet(buffer, file.name));
+        if (/\.xlsx$/i.test(file.name)) {
+          // Read the claims sheet and the Part Details sheet in one pass -
+          // a real export here can carry 4 sheets over 100MB total, and
+          // loading the whole workbook a second time later just to pull
+          // Part Details (as two separate calls used to) risks the browser
+          // tab running out of memory or hanging with no error shown.
+          const { first, named } = await readWorkbookFirstAndNamedSheets(buffer, [PART_DETAILS_SHEET]);
+          headers = first.headers;
+          rows = first.rows;
+          partDetailsSheet = named[PART_DETAILS_SHEET];
+        } else {
+          ({ headers, rows } = await readSpreadsheet(buffer, file.name));
+        }
       } catch {
         setState({ error: "Could not read that file. Make sure it's a valid .xlsx or .csv export." });
         return;
@@ -145,46 +158,43 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
 
       // Optional bonus: if this same workbook also has a Part Details sheet
-      // (xlsx only), upload it too - every part on a claim, not just the one
+      // (already read alongside the claims sheet above, xlsx only), upload
+      // it too - every part on a claim, not just the one
       // self_audit_claims.main_part_name captures. Failure here never
       // overrides the claims upload's own success message above.
       let partsUploaded: number | undefined;
       let unmatchedParts = 0;
-      if (/\.xlsx$/i.test(file.name)) {
+      if (partDetailsSheet) {
         try {
-          const sheets = await readWorkbookSheets(buffer, [PART_DETAILS_SHEET]);
-          const partDetails = sheets[PART_DETAILS_SHEET];
-          if (partDetails) {
-            const { parts } = parseClaimParts(partDetails.headers, partDetails.rows, branchLookup);
-            if (parts.length > 0) {
-              const wrStart = await postJsonWithRetry("/api/warranty-room/upload/start", {
-                kind: "claims_data",
-                filename: file.name,
-                row_count: parts.length,
-              });
-              if (wrStart.batchId) {
-                partsUploaded = 0;
-                const partChunks: typeof parts[] = [];
-                for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
+          const { parts } = parseClaimParts(partDetailsSheet.headers, partDetailsSheet.rows, branchLookup);
+          if (parts.length > 0) {
+            const wrStart = await postJsonWithRetry("/api/warranty-room/upload/start", {
+              kind: "claims_data",
+              filename: file.name,
+              row_count: parts.length,
+            });
+            if (wrStart.batchId) {
+              partsUploaded = 0;
+              const partChunks: typeof parts[] = [];
+              for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
 
-                await runChunksWithConcurrency(
-                  partChunks,
-                  async (chunk) => {
-                    const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
-                      batchId: wrStart.batchId,
-                      table: "claim_parts",
-                      rows: chunk,
-                    });
-                    if (!chunkResult.error) {
-                      partsUploaded = (partsUploaded ?? 0) + chunk.length - ((chunkResult.unmatched as number) ?? 0);
-                      unmatchedParts += (chunkResult.unmatched as number) ?? 0;
-                    }
-                    return chunkResult;
-                  },
-                  CONCURRENCY,
-                  (done, total) => setProgress(`Uploading part details (${done}/${total} chunks)...`)
-                );
-              }
+              await runChunksWithConcurrency(
+                partChunks,
+                async (chunk) => {
+                  const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
+                    batchId: wrStart.batchId,
+                    table: "claim_parts",
+                    rows: chunk,
+                  });
+                  if (!chunkResult.error) {
+                    partsUploaded = (partsUploaded ?? 0) + chunk.length - ((chunkResult.unmatched as number) ?? 0);
+                    unmatchedParts += (chunkResult.unmatched as number) ?? 0;
+                  }
+                  return chunkResult;
+                },
+                CONCURRENCY,
+                (done, total) => setProgress(`Uploading part details (${done}/${total} chunks)...`)
+              );
             }
           }
         } catch {
