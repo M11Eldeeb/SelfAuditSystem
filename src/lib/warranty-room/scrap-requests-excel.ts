@@ -1,25 +1,28 @@
 // No "server-only" here on purpose - runs in the browser, same as
-// src/lib/internal-audit-sample-excel.ts.
+// src/lib/warranty-room/do-not-scrap-excel.ts.
 import ExcelJS from "exceljs";
-import type { DoNotScrapRow } from "@/lib/warranty-room/do-not-scrap";
 
-const COLUMNS: { header: string; key: keyof DoNotScrapRow }[] = [
+export type ScrapRequestsExcelRow = {
+  claim_number: string;
+  work_order_no: string | null;
+  status_label: string;
+  part_no: string | null;
+  part_name: string | null;
+  quantity: number | null;
+};
+
+const COLUMNS: { header: string; key: keyof ScrapRequestsExcelRow }[] = [
   { header: "Warranty Claim", key: "claim_number" },
   { header: "Work Order", key: "work_order_no" },
-  { header: "VIN", key: "vin" },
-  { header: "Vehicle Series", key: "vehicle_series" },
+  { header: "Status", key: "status_label" },
   { header: "Part No", key: "part_no" },
   { header: "Part Name", key: "part_name" },
   { header: "Quantity", key: "quantity" },
-  { header: "Reception Date", key: "creation_date" },
-  { header: "First Submit Date", key: "first_submit_date" },
-  { header: "End of Repair Date", key: "repair_end_date" },
-  { header: "Holding Period (days)", key: "holding_period_days" },
 ];
 
-export async function generateDoNotScrapExcel(branchName: string, rows: DoNotScrapRow[]): Promise<void> {
+export async function generateScrapRequestsExcel(branchName: string, rows: ScrapRequestsExcelRow[]): Promise<void> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Do Not Scrap");
+  const sheet = workbook.addWorksheet("Parts to Scrap");
 
   sheet.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 20 }));
   sheet.getRow(1).font = { bold: true };
@@ -37,7 +40,7 @@ export async function generateDoNotScrapExcel(branchName: string, rows: DoNotScr
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Do_Not_Scrap_${branchName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `Parts_To_Scrap_${branchName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(a);
   a.click();
   a.remove();

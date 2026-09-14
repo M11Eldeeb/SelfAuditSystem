@@ -6,8 +6,14 @@ export type DoNotScrapRow = {
   claim_number: string;
   work_order_no: string | null;
   vin: string | null;
-  main_part_name: string | null;
+  vehicle_series: string | null;
+  part_no: string | null;
+  part_name: string | null;
+  quantity: number | null;
   creation_date: string;
+  repair_end_date: string | null;
+  first_submit_date: string | null;
+  holding_period_days: number | null;
 };
 
 /**
