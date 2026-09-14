@@ -47,7 +47,7 @@ async function postJson(url: string, body: unknown): Promise<{ error?: string; [
  * sheet's own per-row planned pickup date is kept as read-only reference
  * info alongside it.
  */
-export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
+export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -164,6 +164,7 @@ export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
       });
       formRef.current?.reset();
       router.refresh();
+      onUploaded?.();
     } finally {
       setProgress(null);
       setPending(false);

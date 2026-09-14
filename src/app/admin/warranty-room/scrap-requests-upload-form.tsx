@@ -38,7 +38,7 @@ async function postJson(url: string, body: unknown): Promise<{ error?: string; [
  * Data upload above) minus anything already reserved for the supplier, so
  * this file only needs to say which CLAIMS should be scrapped.
  */
-export function ScrapRequestsUploadForm({ branches }: { branches: Branch[] }) {
+export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -135,6 +135,7 @@ export function ScrapRequestsUploadForm({ branches }: { branches: Branch[] }) {
       setState({ success: `Processed ${requests.length} claim(s) from "${file.name}".`, skipped, skippedNoParts, unmatchedClaims });
       formRef.current?.reset();
       router.refresh();
+      onUploaded?.();
     } finally {
       setProgress(null);
       setPending(false);

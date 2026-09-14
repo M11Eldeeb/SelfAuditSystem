@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ClaimsUploadForm } from "./claims-upload-form";
-import { ScrappedPartsUploadForm } from "./scrapped-parts-upload-form";
-import { ScrapRequestsUploadForm } from "./scrap-requests-upload-form";
-import { SupplierPartsUploadForm } from "./supplier-parts-upload-form";
+import { UploadWizard } from "./upload-wizard";
 
 export default async function WarrantyRoomPage() {
   await requireRole("officer");
@@ -42,11 +39,16 @@ export default async function WarrantyRoomPage() {
         </p>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">1. All claims data</h2>
-        <ClaimsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">{claimPartsCount ?? 0} part detail row(s) on file across all claims.</p>
-      </section>
+      <UploadWizard
+        branches={branches ?? []}
+        stats={{
+          claimPartsCount: claimPartsCount ?? 0,
+          scrappedPartsCount: scrappedPartsCount ?? 0,
+          scrapRequestsCount: scrapRequestsCount ?? 0,
+          scrapPendingCount: scrapPendingCount ?? 0,
+          supplierCollectionsCount: supplierCollectionsCount ?? 0,
+        }}
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>
@@ -79,33 +81,6 @@ export default async function WarrantyRoomPage() {
             </tbody>
           </table>
         </div>
-      </section>
-
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">2. Parts already scraped</h2>
-        <ScrappedPartsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">{scrappedPartsCount ?? 0} already-scrapped part row(s) on file.</p>
-      </section>
-
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">3. Parts should be scraped</h2>
-        <ScrapRequestsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">
-          {scrapRequestsCount ?? 0} scrap request(s) on file &middot;{" "}
-          <Link href="/admin/warranty-room/scrap" className="text-brand hover:underline">
-            {scrapPendingCount ?? 0} awaiting review or manufacturer decision →
-          </Link>
-        </p>
-      </section>
-
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">4. Supplier parts</h2>
-        <SupplierPartsUploadForm branches={branches ?? []} />
-        <p className="text-xs text-neutral-500">
-          <Link href="/admin/warranty-room/supplier-parts" className="text-brand hover:underline">
-            {supplierCollectionsCount ?? 0} supplier collection(s) on file →
-          </Link>
-        </p>
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4">

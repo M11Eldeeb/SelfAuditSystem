@@ -50,7 +50,7 @@ async function postJson(url: string, body: unknown): Promise<{ error?: string; [
  * a missing or unparsable Part Details sheet doesn't affect the claims
  * upload at all, it's just skipped.
  */
-export function ClaimsUploadForm({ branches }: { branches: Branch[] }) {
+export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -190,6 +190,7 @@ export function ClaimsUploadForm({ branches }: { branches: Branch[] }) {
       setState({ success: finishResult.success as string, skipped, partsUploaded, unmatchedParts });
       formRef.current?.reset();
       router.refresh();
+      onUploaded?.();
     } finally {
       setProgress(null);
       setPending(false);

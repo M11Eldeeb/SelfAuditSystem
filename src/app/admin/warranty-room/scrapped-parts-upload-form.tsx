@@ -34,7 +34,7 @@ async function postJson(url: string, body: unknown): Promise<{ error?: string; [
 }
 
 /** Uploads "Parts Already Scraped" - reference data only, feeds the do-not-scrap report and (later) sampling exclusion. */
-export function ScrappedPartsUploadForm({ branches }: { branches: Branch[] }) {
+export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -142,6 +142,7 @@ export function ScrappedPartsUploadForm({ branches }: { branches: Branch[] }) {
       });
       formRef.current?.reset();
       router.refresh();
+      onUploaded?.();
     } finally {
       setProgress(null);
       setPending(false);
