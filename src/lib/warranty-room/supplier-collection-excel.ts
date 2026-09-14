@@ -12,6 +12,9 @@ export type SupplierCollectionExcelRow = {
   main_labor_name: string | null;
   planned_pickup_date: string | null;
   raw_row: Record<string, unknown> | null;
+  first_submit_date?: string | null;
+  repair_end_date?: string | null;
+  holding_period_days?: number | null;
 };
 
 /**
@@ -43,6 +46,9 @@ export async function generateSupplierCollectionExcel(branchName: string, rows: 
     { header: "Part No (to collect)", key: "__part_no" },
     { header: "Part Name (to collect)", key: "__part_name" },
     { header: "Quantity", key: "__quantity" },
+    { header: "First Submit Date", key: "__first_submit_date" },
+    { header: "End of Repair Date", key: "__repair_end_date" },
+    { header: "Holding Period (days)", key: "__holding_period_days" },
   ];
 
   sheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: 20 }));
@@ -56,6 +62,9 @@ export async function generateSupplierCollectionExcel(branchName: string, rows: 
     row.__part_no = r.part_no ?? "";
     row.__part_name = r.part_name ?? "";
     row.__quantity = r.quantity ?? "";
+    row.__first_submit_date = r.first_submit_date ?? "";
+    row.__repair_end_date = r.repair_end_date ?? "";
+    row.__holding_period_days = r.holding_period_days ?? "";
     sheet.addRow(row);
   });
 

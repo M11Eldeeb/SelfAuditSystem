@@ -10,6 +10,9 @@ type Request = {
   status: string;
   parts: Part[];
   lastComment: string | null;
+  firstSubmitDate: string | null;
+  repairEndDate: string | null;
+  holdingPeriodDays: number | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +50,9 @@ export function ScrapRequestsTable({ branchName, requests }: { branchName: strin
                 part_no: r.part_no || null,
                 part_name: r.part_name,
                 quantity: r.quantity,
+                first_submit_date: r.firstSubmitDate,
+                repair_end_date: r.repairEndDate,
+                holding_period_days: r.holdingPeriodDays,
               }))
             )
           }
@@ -57,7 +63,7 @@ export function ScrapRequestsTable({ branchName, requests }: { branchName: strin
       </div>
 
       <div className="max-h-[32rem] overflow-auto rounded-lg border border-neutral-200 bg-white">
-        <table className="w-full min-w-[48rem] text-sm">
+        <table className="w-full min-w-[64rem] text-sm">
           <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
             <tr>
               <th className="px-4 py-2">Claim</th>
@@ -65,6 +71,9 @@ export function ScrapRequestsTable({ branchName, requests }: { branchName: strin
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Part</th>
               <th className="px-4 py-2">Qty</th>
+              <th className="px-4 py-2">First submit date</th>
+              <th className="px-4 py-2">End of repair date</th>
+              <th className="px-4 py-2">Holding period</th>
               <th className="px-4 py-2">Comment</th>
             </tr>
           </thead>
@@ -78,12 +87,17 @@ export function ScrapRequestsTable({ branchName, requests }: { branchName: strin
                   {r.part_name ?? r.part_no ?? "—"} {r.part_no && r.part_name && `(${r.part_no})`}
                 </td>
                 <td className="px-4 py-2 text-neutral-600">{r.quantity ?? "—"}</td>
+                <td className="px-4 py-2 text-neutral-600">{r.firstSubmitDate ?? "—"}</td>
+                <td className="px-4 py-2 text-neutral-600">{r.repairEndDate ?? "—"}</td>
+                <td className="px-4 py-2 text-neutral-600">
+                  {r.holdingPeriodDays != null ? `${r.holdingPeriodDays} day(s)` : "—"}
+                </td>
                 <td className="px-4 py-2 text-neutral-600">{r.lastComment ?? "—"}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
+                <td colSpan={9} className="px-4 py-6 text-center text-neutral-400">
                   Nothing pending right now.
                 </td>
               </tr>

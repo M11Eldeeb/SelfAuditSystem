@@ -16,6 +16,9 @@ type Part = {
   main_labor_name: string | null;
   planned_pickup_date: string | null;
   raw_row: Record<string, unknown> | null;
+  first_submit_date: string | null;
+  repair_end_date: string | null;
+  holding_period_days: number | null;
 };
 
 export function SupplierCollectionCard({
@@ -52,6 +55,9 @@ export function SupplierCollectionCard({
                   main_labor_name: p.main_labor_name,
                   planned_pickup_date: p.planned_pickup_date,
                   raw_row: p.raw_row,
+                  first_submit_date: p.first_submit_date,
+                  repair_end_date: p.repair_end_date,
+                  holding_period_days: p.holding_period_days,
                 }))
               )
             }
@@ -83,8 +89,8 @@ export function SupplierCollectionCard({
         </div>
       </div>
 
-      <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-neutral-100">
-        <table className="w-full text-sm">
+      <div className="max-h-80 overflow-auto rounded-md border border-neutral-100">
+        <table className="w-full min-w-[56rem] text-sm">
           <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
             <tr>
               <th className="px-3 py-1.5">Claim</th>
@@ -92,6 +98,9 @@ export function SupplierCollectionCard({
               <th className="px-3 py-1.5">VIN</th>
               <th className="px-3 py-1.5">Part</th>
               <th className="px-3 py-1.5">Qty</th>
+              <th className="px-3 py-1.5">First submit date</th>
+              <th className="px-3 py-1.5">End of repair date</th>
+              <th className="px-3 py-1.5">Holding period</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
@@ -104,11 +113,16 @@ export function SupplierCollectionCard({
                   {p.part_name ?? p.part_no} {p.part_no && `(${p.part_no})`}
                 </td>
                 <td className="px-3 py-1.5 text-neutral-600">{p.quantity ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{p.first_submit_date ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{p.repair_end_date ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">
+                  {p.holding_period_days != null ? `${p.holding_period_days} day(s)` : "—"}
+                </td>
               </tr>
             ))}
             {parts.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-neutral-400">
+                <td colSpan={8} className="px-3 py-4 text-center text-neutral-400">
                   No parts on file.
                 </td>
               </tr>

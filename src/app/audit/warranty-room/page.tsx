@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { ScrapRequestsTable } from "./scrap-requests-table";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { BulkScrapVideoUpload } from "./bulk-scrap-video-upload";
@@ -33,7 +34,7 @@ export default async function BranchWarrantyRoomPage() {
 
   const [{ data: claims }, { data: parts }, { data: events }, { data: collectionParts }] = await Promise.all([
     claimIds.length
-      ? supabase.from("self_audit_claims").select("id, claim_number").in("id", claimIds)
+      ? supabase.from("self_audit_claims").select("id, claim_number, raw_row, repair_end_date").in("id", claimIds)
       : Promise.resolve({ data: [] }),
     requestIds.length
       ? supabase.from("self_audit_scrap_request_parts").select("scrap_request_id, part_no, part_name, quantity").in("scrap_request_id", requestIds)
@@ -53,6 +54,7 @@ export default async function BranchWarrantyRoomPage() {
       : Promise.resolve({ data: [] }),
   ]);
 
+  const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
   const claimNumberById = new Map((claims ?? []).map((c) => [c.id, c.claim_number]));
   const partsByRequestId = new Map<string, { part_no: string; part_name: string | null; quantity: number | null }[]>();
   (parts ?? []).forEach((p) => {
@@ -71,9 +73,9 @@ export default async function BranchWarrantyRoomPage() {
   // own claim fetch above, so resolve separately).
   const collectionClaimIds = [...new Set((collectionParts ?? []).map((p) => p.claim_id).filter((id): id is string => !!id))];
   const { data: collectionClaims } = collectionClaimIds.length
-    ? await supabase.from("self_audit_claims").select("id, claim_number").in("id", collectionClaimIds)
+    ? await supabase.from("self_audit_claims").select("id, claim_number, raw_row, repair_end_date").in("id", collectionClaimIds)
     : { data: [] };
-  const collectionClaimNumberById = new Map((collectionClaims ?? []).map((c) => [c.id, c.claim_number]));
+  const collectionClaimById = new Map((collectionClaims ?? []).map((c) => [c.id, c]));
 
   const collectionPartsByCollectionId = new Map<
     string,
@@ -87,12 +89,17 @@ export default async function BranchWarrantyRoomPage() {
       main_labor_name: string | null;
       planned_pickup_date: string | null;
       raw_row: Record<string, unknown> | null;
+      first_submit_date: string | null;
+      repair_end_date: string | null;
+      holding_period_days: number | null;
     }[]
   >();
   (collectionParts ?? []).forEach((p) => {
+    const claim = p.claim_id ? collectionClaimById.get(p.claim_id) : undefined;
+    const claimRawRow = claim?.raw_row as Record<string, unknown> | null | undefined;
     const list = collectionPartsByCollectionId.get(p.collection_id) ?? [];
     list.push({
-      claim_number: p.claim_id ? (collectionClaimNumberById.get(p.claim_id) ?? "—") : "—",
+      claim_number: claim?.claim_number ?? "—",
       work_order_no: p.work_order_no,
       vin: p.vin,
       part_no: p.part_no,
@@ -101,6 +108,9 @@ export default async function BranchWarrantyRoomPage() {
       main_labor_name: p.main_labor_name,
       planned_pickup_date: p.planned_pickup_date,
       raw_row: p.raw_row,
+      first_submit_date: getFirstSubmitDate(claimRawRow),
+      repair_end_date: claim?.repair_end_date ?? null,
+      holding_period_days: computeHoldingPeriodDays(claimRawRow),
     });
     collectionPartsByCollectionId.set(p.collection_id, list);
   });
@@ -123,14 +133,21 @@ export default async function BranchWarrantyRoomPage() {
         />
         <ScrapRequestsTable
           branchName={branch?.name ?? ""}
-          requests={(requests ?? []).map((r) => ({
-            id: r.id,
-            claimNumber: claimNumberById.get(r.claim_id) ?? r.claim_id,
-            workOrderNo: r.work_order_no,
-            status: r.status,
-            parts: partsByRequestId.get(r.id) ?? [],
-            lastComment: lastCommentByRequestId.get(r.id) ?? null,
-          }))}
+          requests={(requests ?? []).map((r) => {
+            const claim = claimById.get(r.claim_id);
+            const claimRawRow = claim?.raw_row as Record<string, unknown> | null | undefined;
+            return {
+              id: r.id,
+              claimNumber: claimNumberById.get(r.claim_id) ?? r.claim_id,
+              workOrderNo: r.work_order_no,
+              status: r.status,
+              parts: partsByRequestId.get(r.id) ?? [],
+              lastComment: lastCommentByRequestId.get(r.id) ?? null,
+              firstSubmitDate: getFirstSubmitDate(claimRawRow),
+              repairEndDate: claim?.repair_end_date ?? null,
+              holdingPeriodDays: computeHoldingPeriodDays(claimRawRow),
+            };
+          })}
         />
       </section>
 

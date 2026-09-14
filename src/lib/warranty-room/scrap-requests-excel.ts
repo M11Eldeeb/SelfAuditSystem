@@ -9,6 +9,9 @@ export type ScrapRequestsExcelRow = {
   part_no: string | null;
   part_name: string | null;
   quantity: number | null;
+  first_submit_date: string | null;
+  repair_end_date: string | null;
+  holding_period_days: number | null;
 };
 
 const COLUMNS: { header: string; key: keyof ScrapRequestsExcelRow }[] = [
@@ -18,6 +21,9 @@ const COLUMNS: { header: string; key: keyof ScrapRequestsExcelRow }[] = [
   { header: "Part No", key: "part_no" },
   { header: "Part Name", key: "part_name" },
   { header: "Quantity", key: "quantity" },
+  { header: "First Submit Date", key: "first_submit_date" },
+  { header: "End of Repair Date", key: "repair_end_date" },
+  { header: "Holding Period (days)", key: "holding_period_days" },
 ];
 
 export async function generateScrapRequestsExcel(branchName: string, rows: ScrapRequestsExcelRow[]): Promise<void> {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isSupplierPartOverdue } from "@/lib/warranty-room/supplier-overdue";
+import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { DownloadExcelButton } from "./download-button";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,13 +34,14 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
 
   const claimIds = [...new Set((parts ?? []).map((p) => p.claim_id).filter((id): id is string => !!id))];
   const { data: claims } = claimIds.length
-    ? await supabase.from("self_audit_claims").select("id, claim_number, raw_row").in("id", claimIds)
+    ? await supabase.from("self_audit_claims").select("id, claim_number, raw_row, repair_end_date").in("id", claimIds)
     : { data: [] };
   const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
 
   const branchName = branch?.name ?? "Unknown branch";
   const rows = (parts ?? []).map((p) => {
     const claim = p.claim_id ? claimById.get(p.claim_id) : undefined;
+    const claimRawRow = claim?.raw_row as Record<string, unknown> | null | undefined;
     return {
       claim_number: claim?.claim_number ?? "—",
       work_order_no: p.work_order_no,
@@ -50,7 +52,10 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
       main_labor_name: p.main_labor_name,
       planned_pickup_date: p.planned_pickup_date,
       raw_row: p.raw_row as Record<string, unknown> | null,
-      overdue: isSupplierPartOverdue(claim?.raw_row as Record<string, unknown> | null | undefined),
+      repair_end_date: claim?.repair_end_date ?? null,
+      first_submit_date: getFirstSubmitDate(claimRawRow),
+      holding_period_days: computeHoldingPeriodDays(claimRawRow),
+      overdue: isSupplierPartOverdue(claimRawRow),
     };
   });
   const overdueCount = rows.filter((r) => r.overdue).length;
@@ -82,8 +87,8 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
         <DownloadExcelButton branchName={branchName} rows={rows} />
       </div>
 
-      <div className="max-h-[36rem] overflow-y-auto rounded-md border border-neutral-200">
-        <table className="w-full text-sm">
+      <div className="max-h-[36rem] overflow-auto rounded-md border border-neutral-200">
+        <table className="w-full min-w-[56rem] text-sm">
           <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
             <tr>
               <th className="px-3 py-1.5">Claim</th>
@@ -91,6 +96,9 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
               <th className="px-3 py-1.5">Part</th>
               <th className="px-3 py-1.5">Qty</th>
               <th className="px-3 py-1.5">Planned pickup</th>
+              <th className="px-3 py-1.5">First submit date</th>
+              <th className="px-3 py-1.5">End of repair date</th>
+              <th className="px-3 py-1.5">Holding period</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
@@ -106,11 +114,16 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
                 </td>
                 <td className="px-3 py-1.5 text-neutral-600">{r.quantity ?? "—"}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{r.planned_pickup_date ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{r.first_submit_date ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{r.repair_end_date ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">
+                  {r.holding_period_days != null ? `${r.holding_period_days} day(s)` : "—"}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-neutral-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-neutral-400">
                   No parts on file.
                 </td>
               </tr>
