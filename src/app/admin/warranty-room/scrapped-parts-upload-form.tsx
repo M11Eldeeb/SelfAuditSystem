@@ -7,7 +7,9 @@ import { parseScrappedParts, type SkippedScrappedRow } from "@/lib/warranty-room
 
 type Branch = { id: string; name: string; code: string };
 
-type UploadState = { error?: string; success?: string; skipped?: SkippedScrappedRow[]; unmatched?: number } | undefined;
+type UploadState =
+  | { error?: string; success?: string; skipped?: SkippedScrappedRow[]; unmatched?: number; merged?: number; added?: number }
+  | undefined;
 
 // Matches the server's own DB_CHUNK_SIZE (see warranty-room/upload.ts) so
 // each request does exactly one round of DB work - avoids the serverless
@@ -102,6 +104,8 @@ export function ScrappedPartsUploadForm({ branches }: { branches: Branch[] }) {
       const batchId = startResult.batchId as string;
 
       let unmatched = 0;
+      let merged = 0;
+      let added = 0;
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
         const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
         setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
@@ -111,6 +115,8 @@ export function ScrappedPartsUploadForm({ branches }: { branches: Branch[] }) {
           return;
         }
         unmatched += (chunkResult.unmatched as number) ?? 0;
+        merged += (chunkResult.merged as number) ?? 0;
+        added += (chunkResult.added as number) ?? 0;
       }
 
       setProgress("Finishing up...");
@@ -124,7 +130,16 @@ export function ScrappedPartsUploadForm({ branches }: { branches: Branch[] }) {
         return;
       }
 
-      setState({ success: `Uploaded ${parts.length} row(s) from "${file.name}".`, skipped, unmatched });
+      setState({
+        success:
+          `Processed ${parts.length} row(s) from "${file.name}"` +
+          (merged > 0 ? ` - ${merged} already on file (updated), ${added} new` : "") +
+          ".",
+        skipped,
+        unmatched,
+        merged,
+        added,
+      });
       formRef.current?.reset();
       router.refresh();
     } finally {

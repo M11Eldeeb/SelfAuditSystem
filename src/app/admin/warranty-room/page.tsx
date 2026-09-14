@@ -24,7 +24,7 @@ export default async function WarrantyRoomPage() {
     supabase.from("self_audit_scrapped_parts").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_supplier_collections").select("id", { count: "exact", head: true }),
-    supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(20),
+    supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(5),
     supabase
       .from("self_audit_scrap_requests")
       .select("id", { count: "exact", head: true })
@@ -49,7 +49,7 @@ export default async function WarrantyRoomPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-neutral-700">Upload history</h2>
+        <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>
         <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">

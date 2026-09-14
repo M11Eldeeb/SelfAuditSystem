@@ -8,7 +8,15 @@ import { parseSupplierParts, type SkippedSupplierPartRow } from "@/lib/warranty-
 type Branch = { id: string; name: string; code: string };
 
 type UploadState =
-  | { error?: string; success?: string; skipped?: SkippedSupplierPartRow[]; unmatchedClaims?: number }
+  | {
+      error?: string;
+      success?: string;
+      skipped?: SkippedSupplierPartRow[];
+      unmatchedClaims?: number;
+      alreadyHandedOver?: number;
+      merged?: number;
+      added?: number;
+    }
   | undefined;
 
 // Matches the server's own DB_CHUNK_SIZE (see warranty-room/upload.ts) so
@@ -110,6 +118,9 @@ export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
       const batchId = startResult.batchId as string;
 
       let unmatchedClaims = 0;
+      let alreadyHandedOver = 0;
+      let merged = 0;
+      let added = 0;
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
         const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
         setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
@@ -124,6 +135,9 @@ export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
           return;
         }
         unmatchedClaims += (chunkResult.unmatchedClaims as number) ?? 0;
+        alreadyHandedOver += (chunkResult.alreadyHandedOver as number) ?? 0;
+        merged += (chunkResult.merged as number) ?? 0;
+        added += (chunkResult.added as number) ?? 0;
       }
 
       setProgress("Finishing up...");
@@ -137,7 +151,17 @@ export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
         return;
       }
 
-      setState({ success: `Uploaded ${parts.length} row(s) from "${file.name}".`, skipped, unmatchedClaims });
+      setState({
+        success:
+          `Processed ${parts.length} row(s) from "${file.name}"` +
+          (merged > 0 ? ` - ${merged} already reserved (merged into the existing collection), ${added} new` : "") +
+          ".",
+        skipped,
+        unmatchedClaims,
+        alreadyHandedOver,
+        merged,
+        added,
+      });
       formRef.current?.reset();
       router.refresh();
     } finally {
@@ -191,6 +215,11 @@ export function SupplierPartsUploadForm({ branches }: { branches: Branch[] }) {
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {!!state?.unmatchedClaims && (
         <p className="text-xs text-amber-700">{state.unmatchedClaims} row(s) couldn&apos;t be matched to a known claim (kept anyway).</p>
+      )}
+      {!!state?.alreadyHandedOver && (
+        <p className="text-xs text-amber-700">
+          {state.alreadyHandedOver} claim(s) were skipped - already in a collection that&apos;s been handed over.
+        </p>
       )}
     </form>
   );
