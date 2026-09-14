@@ -27,9 +27,9 @@ export function DoNotScrapTable({ branchName, rows }: { branchName: string; rows
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="max-h-[36rem] overflow-y-auto rounded-lg border border-neutral-200 bg-white print:max-h-none print:overflow-visible">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500 print:static">
             <tr>
               <th className="px-4 py-2">Claim</th>
               <th className="px-4 py-2">Work order</th>

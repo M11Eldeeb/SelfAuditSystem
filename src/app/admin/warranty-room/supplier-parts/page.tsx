@@ -69,31 +69,33 @@ export default async function SupplierPartsMonitorPage() {
         <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">No supplier collections uploaded yet.</p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(collections ?? []).map((c) => {
-          const overdueCount = overdueCountByCollectionId.get(c.id) ?? 0;
-          return (
-            <Link
-              key={c.id}
-              href={`/admin/warranty-room/supplier-parts/${c.id}`}
-              className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-4 transition hover:border-brand hover:shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-neutral-900">{branchNameById.get(c.branch_id) ?? "Unknown branch"}</p>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status] ?? "bg-neutral-100 text-neutral-700"}`}>
-                  {STATUS_LABELS[c.status] ?? c.status}
-                </span>
-              </div>
-              <p className="text-xs text-neutral-500">Collection date: {c.collection_date ?? "—"}</p>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-neutral-600">{partCountByCollectionId.get(c.id) ?? 0} part(s)</span>
-                {overdueCount > 0 && (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">{overdueCount} overdue</span>
-                )}
-              </div>
-            </Link>
-          );
-        })}
+      <div className="max-h-[40rem] overflow-y-auto pr-1">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(collections ?? []).map((c) => {
+            const overdueCount = overdueCountByCollectionId.get(c.id) ?? 0;
+            return (
+              <Link
+                key={c.id}
+                href={`/admin/warranty-room/supplier-parts/${c.id}`}
+                className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-4 transition hover:border-brand hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-neutral-900">{branchNameById.get(c.branch_id) ?? "Unknown branch"}</p>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status] ?? "bg-neutral-100 text-neutral-700"}`}>
+                    {STATUS_LABELS[c.status] ?? c.status}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500">Collection date: {c.collection_date ?? "—"}</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-neutral-600">{partCountByCollectionId.get(c.id) ?? 0} part(s)</span>
+                  {overdueCount > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">{overdueCount} overdue</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

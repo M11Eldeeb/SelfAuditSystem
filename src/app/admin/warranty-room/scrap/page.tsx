@@ -67,7 +67,7 @@ export default async function ScrapReviewPage() {
         {reviewQueue.length === 0 && (
           <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">Nothing pending review.</p>
         )}
-        {reviewQueue.map((r) => renderCard(r, "review"))}
+        <div className="max-h-[40rem] space-y-3 overflow-y-auto pr-1">{reviewQueue.map((r) => renderCard(r, "review"))}</div>
       </section>
 
       <section className="space-y-3">
@@ -75,7 +75,7 @@ export default async function ScrapReviewPage() {
         {manufacturerQueue.length === 0 && (
           <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">Nothing pending.</p>
         )}
-        {manufacturerQueue.map((r) => renderCard(r, "manufacturer"))}
+        <div className="max-h-[40rem] space-y-3 overflow-y-auto pr-1">{manufacturerQueue.map((r) => renderCard(r, "manufacturer"))}</div>
       </section>
     </div>
   );

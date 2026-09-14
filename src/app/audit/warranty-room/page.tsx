@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ScrapRequestCard } from "./scrap-request-card";
 import { SupplierCollectionCard } from "./supplier-collection-card";
+import { BulkScrapVideoUpload } from "./bulk-scrap-video-upload";
 
 const PENDING_BRANCH_STATUSES = ["pending_branch", "returned_to_branch", "manufacturer_returned"];
 
@@ -118,17 +119,27 @@ export default async function BranchWarrantyRoomPage() {
             Nothing pending right now.
           </p>
         )}
-        {(requests ?? []).map((r) => (
-          <ScrapRequestCard
-            key={r.id}
-            requestId={r.id}
-            claimNumber={claimNumberById.get(r.claim_id) ?? r.claim_id}
-            workOrderNo={r.work_order_no}
-            status={r.status}
-            parts={partsByRequestId.get(r.id) ?? []}
-            lastComment={lastCommentByRequestId.get(r.id) ?? null}
+        {(requests ?? []).length > 0 && (
+          <BulkScrapVideoUpload
+            requests={(requests ?? []).map((r) => ({
+              id: r.id,
+              claimNumber: claimNumberById.get(r.claim_id) ?? r.claim_id,
+              workOrderNo: r.work_order_no,
+            }))}
           />
-        ))}
+        )}
+        <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+          {(requests ?? []).map((r) => (
+            <ScrapRequestCard
+              key={r.id}
+              claimNumber={claimNumberById.get(r.claim_id) ?? r.claim_id}
+              workOrderNo={r.work_order_no}
+              status={r.status}
+              parts={partsByRequestId.get(r.id) ?? []}
+              lastComment={lastCommentByRequestId.get(r.id) ?? null}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="space-y-3">
@@ -138,15 +149,17 @@ export default async function BranchWarrantyRoomPage() {
             Nothing pending right now.
           </p>
         )}
-        {(collections ?? []).map((c) => (
-          <SupplierCollectionCard
-            key={c.id}
-            collectionId={c.id}
-            branchName={branch?.name ?? ""}
-            collectionDateLabel={c.collection_date ?? "—"}
-            parts={collectionPartsByCollectionId.get(c.id) ?? []}
-          />
-        ))}
+        <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+          {(collections ?? []).map((c) => (
+            <SupplierCollectionCard
+              key={c.id}
+              collectionId={c.id}
+              branchName={branch?.name ?? ""}
+              collectionDateLabel={c.collection_date ?? "—"}
+              parts={collectionPartsByCollectionId.get(c.id) ?? []}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4">

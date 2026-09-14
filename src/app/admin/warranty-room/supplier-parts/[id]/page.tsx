@@ -82,9 +82,9 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
         <DownloadExcelButton branchName={branchName} rows={rows} />
       </div>
 
-      <div className="overflow-hidden rounded-md border border-neutral-200">
+      <div className="max-h-[36rem] overflow-y-auto rounded-md border border-neutral-200">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
             <tr>
               <th className="px-3 py-1.5">Claim</th>
               <th className="px-3 py-1.5">Work order</th>

@@ -83,14 +83,39 @@ export function SupplierCollectionCard({
         </div>
       </div>
 
-      <ul className="list-disc space-y-0.5 pl-4 text-sm text-neutral-700">
-        {parts.map((p, i) => (
-          <li key={`${p.claim_number}-${p.part_no}-${i}`}>
-            {p.part_name ?? p.part_no} ({p.part_no}){p.quantity != null && ` × ${p.quantity}`} &middot; Claim {p.claim_number}
-            {p.work_order_no && ` · WO ${p.work_order_no}`}
-          </li>
-        ))}
-      </ul>
+      <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-neutral-100">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+            <tr>
+              <th className="px-3 py-1.5">Claim</th>
+              <th className="px-3 py-1.5">Work order</th>
+              <th className="px-3 py-1.5">VIN</th>
+              <th className="px-3 py-1.5">Part</th>
+              <th className="px-3 py-1.5">Qty</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100">
+            {parts.map((p, i) => (
+              <tr key={`${p.claim_number}-${p.part_no}-${i}`}>
+                <td className="px-3 py-1.5 text-neutral-900">{p.claim_number}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{p.work_order_no ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">{p.vin ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-600">
+                  {p.part_name ?? p.part_no} {p.part_no && `(${p.part_no})`}
+                </td>
+                <td className="px-3 py-1.5 text-neutral-600">{p.quantity ?? "—"}</td>
+              </tr>
+            ))}
+            {parts.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-4 text-center text-neutral-400">
+                  No parts on file.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <p className="text-xs text-neutral-500">
         Print the PDF for both representatives to sign, then upload the signed scan and a video of the hand-over.
