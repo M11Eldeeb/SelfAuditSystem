@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MG Self Audit",
+  title: "MG Warranty Management",
   description: "Monthly branch self-audit for warranty claims",
 };
 

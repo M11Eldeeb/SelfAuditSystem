@@ -34,7 +34,7 @@ export default function LoginPage() {
           <div className="space-y-3">
             <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-12 w-auto" />
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Self Audit</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">MG Warranty Management</h1>
               <p className="mt-1 text-sm text-neutral-500">
                 Sign in with the account your warranty officer set up for you.
               </p>

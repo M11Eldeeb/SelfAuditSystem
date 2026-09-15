@@ -31,8 +31,8 @@ export function NavBar({
         <div className="flex min-w-0 items-center gap-5">
           <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
             <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-8 w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
-            <span className="hidden text-sm font-semibold tracking-wide text-white uppercase lg:inline">
-              Self Audit
+            <span className="hidden text-sm font-semibold tracking-wide text-white uppercase xl:inline">
+              MG Warranty Management
             </span>
           </span>
           <nav className="flex min-w-0 items-center gap-0.5">
