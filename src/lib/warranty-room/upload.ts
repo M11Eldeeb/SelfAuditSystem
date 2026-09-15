@@ -396,12 +396,26 @@ export async function upsertSupplierPartsChunk(
   batchId: string,
   collectionDate: string | null,
   parts: ParsedSupplierPartRow[]
-): Promise<{ error?: string; unmatchedClaims?: number; alreadyHandedOver?: number; merged?: number; added?: number }> {
+): Promise<{
+  error?: string;
+  unmatchedClaims?: number;
+  alreadyHandedOver?: number;
+  merged?: number;
+  added?: number;
+  mainPartOnly?: number;
+}> {
   const supabase = await createClient();
   let unmatchedClaims = 0;
   let alreadyHandedOver = 0;
   let merged = 0;
   let added = 0;
+  // A claim resolved fine but has no self_audit_claim_parts rows yet (its
+  // Part Details haven't been uploaded/matched), so only the sheet's own
+  // single Main Part got reserved for it - any other real parts on that
+  // claim are NOT excluded from scrapping yet. Surfaced to the officer so
+  // they know to re-upload this file once Part Details for that claim is on
+  // file, rather than assuming the whole claim is safely reserved.
+  let mainPartOnly = 0;
 
   const byBranch = new Map<string, ParsedSupplierPartRow[]>();
   parts.forEach((p) => {
@@ -465,6 +479,7 @@ export async function upsertSupplierPartsChunk(
         return;
       }
       const actualParts = claimId ? partsByClaimId.get(claimId) : undefined;
+      if (claimId && (!actualParts || actualParts.length === 0)) mainPartOnly += 1;
 
       if (actualParts && actualParts.length > 0) {
         actualParts.forEach((ap) => {
@@ -572,7 +587,7 @@ export async function upsertSupplierPartsChunk(
     }
   }
 
-  return { unmatchedClaims, alreadyHandedOver, merged, added };
+  return { unmatchedClaims, alreadyHandedOver, merged, added, mainPartOnly };
 }
 
 export async function finishWarrantyRoomBatch(

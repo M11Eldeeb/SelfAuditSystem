@@ -17,6 +17,7 @@ type UploadState =
       alreadyHandedOver?: number;
       merged?: number;
       added?: number;
+      mainPartOnly?: number;
     }
   | undefined;
 
@@ -111,6 +112,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       let alreadyHandedOver = 0;
       let merged = 0;
       let added = 0;
+      let mainPartOnly = 0;
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
         const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
         setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
@@ -131,6 +133,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
         alreadyHandedOver += (chunkResult.alreadyHandedOver as number) ?? 0;
         merged += (chunkResult.merged as number) ?? 0;
         added += (chunkResult.added as number) ?? 0;
+        mainPartOnly += (chunkResult.mainPartOnly as number) ?? 0;
       }
 
       setProgress("Finishing up...");
@@ -154,6 +157,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
         alreadyHandedOver,
         merged,
         added,
+        mainPartOnly,
       });
       formRef.current?.reset();
       router.refresh();
@@ -213,6 +217,13 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       {!!state?.alreadyHandedOver && (
         <p className="text-xs text-amber-700">
           {state.alreadyHandedOver} claim(s) were skipped - already in a collection that&apos;s been handed over.
+        </p>
+      )}
+      {!!state?.mainPartOnly && (
+        <p className="text-xs text-amber-700">
+          {state.mainPartOnly} claim(s) only had their main part reserved - full part details for those claims
+          aren&apos;t on file yet, so any other parts on them are NOT excluded from scrapping. Re-upload this file
+          after their part details are loaded (via All Claims Data) to reserve the rest.
         </p>
       )}
     </form>
