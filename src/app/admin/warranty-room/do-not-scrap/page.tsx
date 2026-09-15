@@ -36,7 +36,7 @@ export default async function DoNotScrapPage({
             id="branch"
             name="branch"
             defaultValue={selectedBranch}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
           >
             {(branches ?? []).map((b) => (
               <option key={b.id} value={b.id}>
@@ -47,7 +47,7 @@ export default async function DoNotScrapPage({
         </div>
         <button
           type="submit"
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
         >
           Apply
         </button>

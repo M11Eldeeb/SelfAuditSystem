@@ -66,7 +66,7 @@ export default async function SupplierPartsMonitorPage() {
       </div>
 
       {(collections ?? []).length === 0 && (
-        <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">No supplier collections uploaded yet.</p>
+        <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">No supplier collections uploaded yet.</p>
       )}
 
       <div className="max-h-[40rem] overflow-y-auto pr-1">
@@ -77,7 +77,7 @@ export default async function SupplierPartsMonitorPage() {
               <Link
                 key={c.id}
                 href={`/admin/warranty-room/supplier-parts/${c.id}`}
-                className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-4 transition hover:border-brand hover:shadow-sm"
+                className="flex flex-col gap-2 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 transition hover:border-brand hover:shadow-md hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-neutral-900">{branchNameById.get(c.branch_id) ?? "Unknown branch"}</p>

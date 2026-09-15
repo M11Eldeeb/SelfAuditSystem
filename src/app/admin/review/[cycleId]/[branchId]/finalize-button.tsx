@@ -20,7 +20,7 @@ export function FinalizeButton({
       <button
         type="submit"
         disabled={disabled || pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+        className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
         {pending ? "Finalizing..." : "Finalize results"}
       </button>

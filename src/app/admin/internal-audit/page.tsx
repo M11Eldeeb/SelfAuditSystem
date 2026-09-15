@@ -27,16 +27,16 @@ export default async function InternalAuditPage() {
           separate from the monthly branch self-audit. A claim audited by either workflow is never
           resampled by the other.
         </p>
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <InternalAuditForm branches={branches ?? []} officerName={officer.full_name ?? ""} />
         </div>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Past internal audits</h2>
-        <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+            <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Branch</th>

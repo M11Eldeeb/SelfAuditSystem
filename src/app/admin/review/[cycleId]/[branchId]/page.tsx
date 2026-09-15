@@ -63,9 +63,9 @@ export default async function BranchReviewPage({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-4 py-2">Claim #</th>
               <th className="px-4 py-2">Work order #</th>
@@ -103,7 +103,7 @@ export default async function BranchReviewPage({
         </table>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
+      <div className="flex items-center justify-between rounded-xl border border-neutral-200/70 bg-white shadow-sm px-4 py-3">
         <div>
           <p className="text-sm font-medium text-neutral-900">Branch Operations</p>
           <p className="text-xs text-neutral-500">

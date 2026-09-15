@@ -52,7 +52,7 @@ export function WorkOrderSearch({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search work order or claim #..."
-        className="w-64 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+        className="w-64 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
       />
       <datalist id="wo-search-list">
         {items.map((it) => it.workOrderNo && <option key={`wo-${it.index}`} value={it.workOrderNo} />)}
@@ -62,7 +62,7 @@ export function WorkOrderSearch({
       </datalist>
       <button
         type="submit"
-        className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+        className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
       >
         Go to claim
       </button>

@@ -16,11 +16,11 @@ export function ScorePicker({
   disabled?: boolean;
 }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
+    <div className="inline-flex overflow-hidden rounded-lg border border-neutral-300 bg-white shadow-sm">
       {SCORE_LEVELS.map((level, i) => (
         <label
           key={level}
-          className={`cursor-pointer border-neutral-300 px-3 py-1.5 text-sm font-semibold transition ${
+          className={`relative cursor-pointer border-neutral-300 px-3 py-1.5 text-sm font-semibold transition has-[:focus-visible]:z-10 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-1 ${
             i > 0 ? "border-l" : ""
           } ${scoreLevelClasses(level, value === level)} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
         >

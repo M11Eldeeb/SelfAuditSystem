@@ -89,7 +89,7 @@ export default async function AdminOverviewPage({
         <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
       </div>
 
-      <form method="get" className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <form method="get" className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1">
             <label htmlFor="period" className="text-xs font-medium text-neutral-700">
@@ -99,7 +99,7 @@ export default async function AdminOverviewPage({
               id="period"
               name="period"
               defaultValue={period}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             >
               {STANDINGS_PERIODS.map((p) => (
                 <option key={p} value={p}>
@@ -117,7 +117,7 @@ export default async function AdminOverviewPage({
               name="from"
               type="month"
               defaultValue={params.from}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -129,7 +129,7 @@ export default async function AdminOverviewPage({
               name="to"
               type="month"
               defaultValue={params.to}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -140,7 +140,7 @@ export default async function AdminOverviewPage({
               id="sort"
               name="sort"
               defaultValue={params.sort ?? "newest"}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             >
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
@@ -148,7 +148,7 @@ export default async function AdminOverviewPage({
           </div>
           <button
             type="submit"
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+            className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
           >
             Apply filters
           </button>
@@ -197,9 +197,9 @@ export default async function AdminOverviewPage({
       {cyclesInRange.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-neutral-900">Trend by cycle</h2>
-          <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+              <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
                 <tr>
                   <th className="sticky left-0 bg-neutral-50 px-4 py-2">Branch</th>
                   {cyclesInRange.map(([id, month]) => (

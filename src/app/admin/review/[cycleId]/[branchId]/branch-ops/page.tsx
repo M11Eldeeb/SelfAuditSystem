@@ -50,7 +50,7 @@ export default async function BranchOpsReviewPage({
         </h1>
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Photos</h2>
         <PhotoLinks photoTypes={photoTypes ?? []} statusByType={photoStatus} />
       </div>

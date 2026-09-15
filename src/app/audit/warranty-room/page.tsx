@@ -154,7 +154,7 @@ export default async function BranchWarrantyRoomPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Supplier parts</h2>
         {(collections ?? []).length === 0 && (
-          <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">
+          <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">
             Nothing pending right now.
           </p>
         )}
@@ -171,7 +171,7 @@ export default async function BranchWarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <Link href="/audit/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
           Do not scrap list →
         </Link>

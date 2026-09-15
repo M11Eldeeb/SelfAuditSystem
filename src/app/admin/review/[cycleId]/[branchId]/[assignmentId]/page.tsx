@@ -67,7 +67,7 @@ export default async function ClaimReviewPage({
         </h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">VIN</dt>
           <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
@@ -94,7 +94,7 @@ export default async function ClaimReviewPage({
         </div>
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Photos</h2>
         <PhotoLinks photoTypes={photoTypes ?? []} statusByType={photoStatus} />
         {note?.note_text && (

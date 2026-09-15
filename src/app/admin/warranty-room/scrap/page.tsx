@@ -65,7 +65,7 @@ export default async function ScrapReviewPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Awaiting your review</h2>
         {reviewQueue.length === 0 && (
-          <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">Nothing pending review.</p>
+          <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">Nothing pending review.</p>
         )}
         <div className="max-h-[40rem] space-y-3 overflow-y-auto pr-1">{reviewQueue.map((r) => renderCard(r, "review"))}</div>
       </section>
@@ -73,7 +73,7 @@ export default async function ScrapReviewPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Awaiting manufacturer decision</h2>
         {manufacturerQueue.length === 0 && (
-          <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-400">Nothing pending.</p>
+          <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">Nothing pending.</p>
         )}
         <div className="max-h-[40rem] space-y-3 overflow-y-auto pr-1">{manufacturerQueue.map((r) => renderCard(r, "manufacturer"))}</div>
       </section>

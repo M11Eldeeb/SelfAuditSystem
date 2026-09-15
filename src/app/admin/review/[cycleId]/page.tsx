@@ -46,9 +46,9 @@ export default async function CycleReviewPage({
           {cycle.cycle_month.slice(0, 7)} audit cycle
         </h1>
       </div>
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-4 py-2">Branch</th>
               <th className="px-4 py-2">Submitted</th>

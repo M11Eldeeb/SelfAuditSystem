@@ -58,7 +58,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               id="branch_id"
               name="branch_id"
               defaultValue=""
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             >
               <option value="">All branches</option>
               {branches.map((b) => (
@@ -76,7 +76,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               id="date_from"
               name="date_from"
               type="date"
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             />
           </div>
           <div className="space-y-1">
@@ -87,7 +87,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               id="date_to"
               name="date_to"
               type="date"
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             />
           </div>
           <div className="space-y-1">
@@ -101,7 +101,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               min={1}
               required
               defaultValue={15}
-              className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="w-24 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             />
           </div>
           <div className="space-y-1">
@@ -112,7 +112,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               id="sample_mode"
               name="sample_mode"
               defaultValue="flagged"
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             >
               <option value="flagged">Highest audit flag first (risk-based)</option>
               <option value="random">Random</option>
@@ -128,13 +128,13 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
               type="number"
               min={1}
               placeholder="No limit"
-              className="w-28 rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900"
+              className="w-28 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             />
           </div>
           <button
             type="submit"
             disabled={previewPending}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
           >
             {previewPending ? "Sampling..." : "Generate sample"}
           </button>
@@ -210,7 +210,7 @@ function SamplePreviewPanel({
         <button
           type="button"
           onClick={() => generateSamplePreviewExcel(claims)}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
         >
           Download as Excel
         </button>
@@ -254,7 +254,7 @@ function SamplePreviewPanel({
             id="audit_name_input"
             value={auditName}
             onChange={(e) => setAuditName(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1.5 text-sm"
           />
         </div>
         <div className="space-y-1">
@@ -265,7 +265,7 @@ function SamplePreviewPanel({
             id="auditor_name_input"
             value={auditorName}
             onChange={(e) => setAuditorName(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1.5 text-sm"
           />
         </div>
         <div className="space-y-1">
@@ -276,7 +276,7 @@ function SamplePreviewPanel({
             id="manager_name_input"
             value={managerName}
             onChange={(e) => setManagerName(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1.5 text-sm"
           />
         </div>
         <div className="space-y-1">
@@ -288,7 +288,7 @@ function SamplePreviewPanel({
             type="date"
             value={auditDate}
             onChange={(e) => setAuditDate(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1.5 text-sm"
           />
         </div>
       </div>
@@ -310,7 +310,7 @@ function SamplePreviewPanel({
               auditorName,
             });
           }}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Send Audit Email to branch admin
         </button>
@@ -338,7 +338,7 @@ function SamplePreviewPanel({
         <button
           type="submit"
           disabled={startPending || !auditName.trim() || !auditorName.trim() || !managerName.trim()}
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
           {startPending ? "Starting..." : "Start internal audit with this sample"}
         </button>

@@ -80,7 +80,7 @@ export function BranchRow({ branch }: { branch: Branch }) {
               name="name"
               defaultValue={branch.name}
               required
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -89,13 +89,13 @@ export function BranchRow({ branch }: { branch: Branch }) {
               name="code"
               defaultValue={branch.code}
               required
-              className="w-32 rounded-md border border-neutral-300 px-3 py-1.5 text-sm uppercase"
+              className="w-32 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm uppercase"
             />
           </div>
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+            className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
           >
             {isPending ? "Saving..." : "Save"}
           </button>

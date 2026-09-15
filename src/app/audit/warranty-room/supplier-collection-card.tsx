@@ -36,7 +36,7 @@ export function SupplierCollectionCard({
   const [state, formAction, pending] = useActionState(boundHandOver, undefined);
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-neutral-900">Collection date: {collectionDateLabel}</p>
         <div className="flex gap-2">
@@ -61,7 +61,7 @@ export function SupplierCollectionCard({
                 }))
               )
             }
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Download Excel
           </button>
@@ -82,7 +82,7 @@ export function SupplierCollectionCard({
                 })),
               })
             }
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Download PDF
           </button>
@@ -91,7 +91,7 @@ export function SupplierCollectionCard({
 
       <div className="max-h-80 overflow-auto rounded-md border border-neutral-100">
         <table className="w-full min-w-[56rem] text-sm">
-          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-3 py-1.5">Claim</th>
               <th className="px-3 py-1.5">Work order</th>
@@ -146,7 +146,7 @@ export function SupplierCollectionCard({
               name="branch_rep_name"
               type="text"
               required
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -158,7 +158,7 @@ export function SupplierCollectionCard({
               name="supplier_rep_name"
               type="text"
               required
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
             />
           </div>
         </div>
@@ -182,7 +182,7 @@ export function SupplierCollectionCard({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Handing over..." : "Hand Over"}
         </button>

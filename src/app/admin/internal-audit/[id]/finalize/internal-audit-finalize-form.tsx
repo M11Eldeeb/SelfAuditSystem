@@ -24,7 +24,7 @@ export function InternalAuditFinalizeForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <div className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 sm:grid-cols-2">
+      <div className="grid gap-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 sm:grid-cols-2">
         <div className="space-y-1">
           <label htmlFor="auditor_name" className="text-sm font-medium text-neutral-700">
             Auditor name <span className="text-red-500">*</span>
@@ -35,7 +35,7 @@ export function InternalAuditFinalizeForm({
             type="text"
             required
             defaultValue={defaultAuditorName}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
           />
         </div>
         <div className="space-y-1">
@@ -48,12 +48,12 @@ export function InternalAuditFinalizeForm({
             type="text"
             required
             defaultValue={defaultManagerName}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
           />
         </div>
       </div>
 
-      <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Department remarks</h2>
         {DEPARTMENT_ORDER.map((dept) => (
           <div key={dept} className="space-y-1">
@@ -65,14 +65,14 @@ export function InternalAuditFinalizeForm({
               name={`remark_${dept}`}
               rows={2}
               placeholder={`Observations for ${DEPARTMENT_LABELS[dept]}...`}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
             />
           </div>
         ))}
       </div>
 
       {candidateRecommendations.length > 0 && (
-        <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <div>
             <h2 className="text-sm font-semibold text-neutral-900">Recommendations</h2>
             <p className="text-xs text-neutral-500">
@@ -104,14 +104,14 @@ export function InternalAuditFinalizeForm({
                 name={`rec_text_${r.questionId}`}
                 rows={2}
                 defaultValue={r.text}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
               />
             </div>
           ))}
         </div>
       )}
 
-      <div className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <label htmlFor="closing_statement" className="text-sm font-medium text-neutral-700">
           Closing statement
         </label>
@@ -120,7 +120,7 @@ export function InternalAuditFinalizeForm({
           name="closing_statement"
           rows={4}
           defaultValue={defaultClosingStatement}
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
         />
       </div>
 
@@ -129,7 +129,7 @@ export function InternalAuditFinalizeForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+        className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
         {pending ? "Finalizing..." : "Finalize internal audit"}
       </button>

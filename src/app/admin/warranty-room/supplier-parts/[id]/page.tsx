@@ -89,7 +89,7 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
 
       <div className="max-h-[36rem] overflow-auto rounded-md border border-neutral-200">
         <table className="w-full min-w-[56rem] text-sm">
-          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-3 py-1.5">Claim</th>
               <th className="px-3 py-1.5">Work order</th>

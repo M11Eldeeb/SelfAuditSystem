@@ -7,7 +7,9 @@
   /* MG brand palette */
   --brand: #e4002b;
   --brand-dark: #b4001f;
+  --brand-light: #ff3355;
   --brand-ink: #0b0b0c;
+  --brand-ink-soft: #17171a;
 }
 
 @theme inline {
@@ -15,7 +17,9 @@
   --color-foreground: var(--foreground);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
   --color-brand-ink: var(--brand-ink);
+  --color-brand-ink-soft: var(--brand-ink-soft);
   --font-sans: var(--font-inter);
 }
 
@@ -31,4 +35,47 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Shared page-shell wash: a faint brand-tinted gradient instead of flat gray,
+   used by the admin/audit layout shells and the login screen background. */
+.app-shell-bg {
+  background-color: #fafafa;
+  background-image:
+    radial-gradient(60rem 24rem at 12% -10%, color-mix(in srgb, var(--brand) 6%, transparent), transparent 60%),
+    radial-gradient(40rem 20rem at 100% 0%, color-mix(in srgb, var(--brand) 4%, transparent), transparent 55%);
+}
+
+/* Browser surfaces - theme what we didn't draw ourselves. */
+::selection {
+  background: var(--brand);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #d4d4d4;
+  border-radius: 999px;
+  border: 3px solid #fafafa;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--brand);
+}
+* {
+  scrollbar-color: #d4d4d4 transparent;
+  scrollbar-width: thin;
 }

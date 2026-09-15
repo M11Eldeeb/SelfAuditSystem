@@ -10,7 +10,7 @@ export default function ResultsPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Link
           href="/admin/results/self-audit"
-          className="rounded-lg border border-neutral-200 bg-white p-6 transition hover:border-brand hover:shadow-sm"
+          className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-6 transition hover:border-brand hover:shadow-md hover:-translate-y-0.5"
         >
           <h2 className="text-lg font-semibold text-neutral-900">Self Audits</h2>
           <p className="mt-1 text-sm text-neutral-600">
@@ -19,7 +19,7 @@ export default function ResultsPage() {
         </Link>
         <Link
           href="/admin/results/internal-audit"
-          className="rounded-lg border border-neutral-200 bg-white p-6 transition hover:border-brand hover:shadow-sm"
+          className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-6 transition hover:border-brand hover:shadow-md hover:-translate-y-0.5"
         >
           <h2 className="text-lg font-semibold text-neutral-900">Internal Audits</h2>
           <p className="mt-1 text-sm text-neutral-600">Officer-led internal audits, finalized results per branch.</p>

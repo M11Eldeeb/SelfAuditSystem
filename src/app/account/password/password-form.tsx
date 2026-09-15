@@ -15,7 +15,7 @@ export function PasswordForm() {
     <form
       ref={formRef}
       action={formAction}
-      className="max-w-sm space-y-4 rounded-lg border border-neutral-200 bg-white p-4"
+      className="max-w-sm space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4"
     >
       <div className="space-y-1">
         <label htmlFor="new_password" className="text-sm font-medium text-neutral-700">
@@ -28,7 +28,7 @@ export function PasswordForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+          className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm focus:border-brand focus:outline-none"
         />
       </div>
 
@@ -43,7 +43,7 @@ export function PasswordForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+          className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm focus:border-brand focus:outline-none"
         />
       </div>
 
@@ -53,7 +53,7 @@ export function PasswordForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+        className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
         {pending ? "Saving..." : "Update password"}
       </button>

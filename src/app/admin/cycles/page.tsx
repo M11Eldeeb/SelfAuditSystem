@@ -50,16 +50,16 @@ export default async function CyclesPage() {
     <div className="space-y-8">
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Generate audit cycle</h1>
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <CycleForm />
         </div>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Cycles</h2>
-        <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+            <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-2">Cycle month</th>
                 <th className="px-4 py-2">Claims month</th>
@@ -109,9 +109,9 @@ export default async function CyclesPage() {
           Cycles with branches still needing review. A branch drops off this list once it&apos;s
           finalized - find it under Results after that.
         </p>
-        <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+            <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-2">Cycle</th>
                 <th className="px-4 py-2">Branches pending</th>

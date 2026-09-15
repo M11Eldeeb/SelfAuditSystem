@@ -55,9 +55,9 @@ export default async function WarrantyRoomPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>
-        <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+            <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-2">File</th>
                 <th className="px-4 py-2">Claims month</th>
@@ -86,7 +86,7 @@ export default async function WarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <Link href="/admin/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
           Do not scrap report →
         </Link>

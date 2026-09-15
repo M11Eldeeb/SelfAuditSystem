@@ -39,7 +39,7 @@ export function ScrapReviewCard({
         ];
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div>
         <p className="text-sm font-semibold text-neutral-900">
           Claim {claimNumber}
@@ -73,7 +73,7 @@ export function ScrapReviewCard({
           id={`comment-${requestId}`}
           name="comment"
           rows={2}
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
         />
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
         <div className="flex flex-wrap gap-2">

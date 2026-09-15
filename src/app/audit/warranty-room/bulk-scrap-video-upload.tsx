@@ -67,7 +67,7 @@ export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
   if (requests.length === 0) return null;
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div className="space-y-1">
         <label className="text-sm font-medium text-neutral-700">Destruction video</label>
         <p className="text-xs text-neutral-500">
@@ -99,7 +99,7 @@ export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
           type="button"
           onClick={handleSubmit}
           disabled={uploading}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
           {uploading ? "Submitting..." : `Submit for all ${requests.length} claim(s)`}
         </button>

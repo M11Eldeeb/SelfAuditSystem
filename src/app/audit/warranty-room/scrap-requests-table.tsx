@@ -56,15 +56,15 @@ export function ScrapRequestsTable({ branchName, requests }: { branchName: strin
               }))
             )
           }
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
         >
           Download Excel
         </button>
       </div>
 
-      <div className="max-h-[32rem] overflow-auto rounded-lg border border-neutral-200 bg-white">
+      <div className="max-h-[32rem] overflow-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm">
         <table className="w-full min-w-[64rem] text-sm">
-          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-4 py-2">Claim</th>
               <th className="px-4 py-2">Work order</th>

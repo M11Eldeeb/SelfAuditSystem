@@ -140,7 +140,7 @@ export async function InternalAuditReportView({
         />
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <div className="flex items-center gap-3">
           <span className={`rounded-full px-3 py-1 text-lg font-semibold ${scoreBadgeClasses(overallScore)}`}>
             {overallScore}%
@@ -151,7 +151,7 @@ export async function InternalAuditReportView({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Department scores</h2>
-        <div className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="space-y-2 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           {departmentScores.map((d) => (
             <div key={d.departmentId} className="flex items-center gap-3">
               <span className="w-48 shrink-0 text-sm text-neutral-900">{d.label}</span>
@@ -176,7 +176,7 @@ export async function InternalAuditReportView({
         ) : (
           <div className="space-y-2">
             {recommendations.map((r, i) => (
-              <div key={i} className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div key={i} className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
                 <p className="text-sm font-medium text-neutral-900">
                   {r.dept} &middot; {r.checkpoint} ({r.pct}%)
                 </p>
@@ -190,7 +190,7 @@ export async function InternalAuditReportView({
       {departmentRemarks.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-neutral-900">Auditor remarks</h2>
-          <div className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">
+          <div className="space-y-2 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
             {departmentRemarks.map((r, i) => (
               <div key={i}>
                 <p className="text-sm font-medium text-neutral-900">{r.label}</p>
@@ -204,7 +204,7 @@ export async function InternalAuditReportView({
       {audit.branch_ops_note && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-neutral-900">Branch Operation note</h2>
-          <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+          <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-700">
             {audit.branch_ops_note}
           </p>
         </section>
@@ -212,7 +212,7 @@ export async function InternalAuditReportView({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Closing statement</h2>
-        <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+        <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-700">
           {audit.closing_statement || "—"}
         </p>
       </section>

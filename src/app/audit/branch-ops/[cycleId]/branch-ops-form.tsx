@@ -32,7 +32,7 @@ export function BranchOpsForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Questions</h2>
         {questions.map((q) => (
           <QuestionField
@@ -44,7 +44,7 @@ export function BranchOpsForm({
         ))}
       </div>
 
-      <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Required photos</h2>
         {photoTypes.map((pt) => (
           <PhotoUploadField
@@ -67,7 +67,7 @@ export function BranchOpsForm({
           type="submit"
           formNoValidate
           disabled={pending}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Submitting..." : "Submit branch operations"}
         </button>

@@ -2,9 +2,9 @@ import type { StandingsEntry } from "@/lib/standings";
 import { scoreBarClasses } from "@/lib/score-color";
 
 const RANK_BADGE = [
-  "bg-amber-400 text-amber-950",
-  "bg-neutral-300 text-neutral-800",
-  "bg-orange-300 text-orange-950",
+  "bg-linear-to-b from-amber-300 to-amber-500 text-amber-950",
+  "bg-linear-to-b from-neutral-200 to-neutral-400 text-neutral-800",
+  "bg-linear-to-b from-orange-200 to-orange-400 text-orange-950",
 ];
 
 export function StandingsList({
@@ -18,7 +18,7 @@ export function StandingsList({
   const topScore = entries[0].avg;
 
   return (
-    <div className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="space-y-2 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       {entries.map((e, i) => {
         const diff = Math.round((e.avg - topScore) * 10) / 10;
         return (

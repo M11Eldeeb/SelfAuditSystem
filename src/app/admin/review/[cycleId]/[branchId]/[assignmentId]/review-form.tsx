@@ -36,7 +36,7 @@ export function ReviewForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         {questions.map((q) => {
           const answer = answers.get(q.id);
           const review = reviews.get(q.id);
@@ -67,7 +67,7 @@ export function ReviewForm({
           type="submit"
           formNoValidate
           disabled={pending}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Saving..." : "Save review"}
         </button>

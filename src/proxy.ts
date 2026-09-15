@@ -57,8 +57,12 @@ export const config = {
      * 401, and (b) subject their request bodies to proxy's body-buffering
      * limit for no benefit. Role-based routing for pages (officer vs
      * branch_admin) is handled in layouts, since it needs a DB lookup that
-     * shouldn't run on every prefetch.
+     * shouldn't run on every prefetch. Static files anywhere under public/
+     * (favicon, logos, etc.) are also excluded - otherwise an unauthenticated
+     * request for one gets redirected to the /login HTML page instead of the
+     * asset, which breaks direct <img>/<Image> loads and 400s next/image's
+     * optimizer (it receives HTML where it expects image bytes).
      */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|webp|avif|svg)$).*)",
   ],
 };

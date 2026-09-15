@@ -29,14 +29,14 @@ export function InternalAuditBranchOpsForm({
           self_audit_audit_questions - see the matching comment in
           InternalAuditClaimForm. */}
       <input type="hidden" name="branch_question_ids" value={questions.map((q) => q.id).join(",")} readOnly />
-      <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <h2 className="text-sm font-semibold text-neutral-900">Branch Operation</h2>
         {questions.map((q) => (
           <ScoreSliderField key={q.id} question={q} initialValue={answers.get(q.id) ?? null} locked={locked} />
         ))}
       </div>
 
-      <div className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <label htmlFor="note" className="text-sm font-medium text-neutral-700">
           Note
         </label>
@@ -46,7 +46,7 @@ export function InternalAuditBranchOpsForm({
           rows={3}
           defaultValue={noteText}
           disabled={locked}
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
         />
       </div>
 
@@ -57,7 +57,7 @@ export function InternalAuditBranchOpsForm({
           type="submit"
           formNoValidate
           disabled={pending}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Saving..." : "Save & Continue to Finalize →"}
         </button>

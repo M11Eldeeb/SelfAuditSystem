@@ -74,7 +74,7 @@ export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: S
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4">
+    <section className="space-y-4 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs font-medium">
         {STEP_LABELS.map((label, i) => {
           const n = i + 1;

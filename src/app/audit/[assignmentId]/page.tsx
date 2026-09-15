@@ -72,7 +72,7 @@ export default async function AuditAssignmentPage({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">VIN</dt>
           <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>

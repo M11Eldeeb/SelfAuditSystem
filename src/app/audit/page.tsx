@@ -92,7 +92,7 @@ export default async function AuditDashboardPage({
           <select
             name="period"
             defaultValue={period}
-            className="rounded-md border border-neutral-300 px-2 py-1 text-xs"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1 text-xs"
           >
             {STANDINGS_PERIODS.map((p) => (
               <option key={p} value={p}>
@@ -102,7 +102,7 @@ export default async function AuditDashboardPage({
           </select>
           <button
             type="submit"
-            className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-dark"
+            className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-dark"
           >
             Apply
           </button>
@@ -144,7 +144,7 @@ export default async function AuditDashboardPage({
       {trend.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-neutral-900">Overview</h2>
-          <div className="rounded-lg border border-neutral-200 bg-white p-4">
+          <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
             {delta !== null && (
               <p className="mb-3 text-sm text-neutral-700">
                 {delta > 0 && (
@@ -205,9 +205,9 @@ export default async function AuditDashboardPage({
                 )}
               </span>
             </div>
-            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
               <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500">
+                <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
                   <tr>
                     <th className="px-4 py-2">Claim #</th>
                     <th className="px-4 py-2">Work order #</th>
@@ -237,7 +237,7 @@ export default async function AuditDashboardPage({
             </div>
 
             {allClaimsDone && (
-              <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200/70 bg-white shadow-sm px-4 py-3">
                 <div>
                   <p className="text-sm font-medium text-neutral-900">Branch Operations</p>
                   <p className="text-xs text-neutral-500">

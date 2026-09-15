@@ -7,7 +7,7 @@ export function DownloadExcelButton({ branchName, rows }: { branchName: string; 
     <button
       type="button"
       onClick={() => generateSupplierCollectionExcel(branchName, rows)}
-      className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+      className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
     >
       Download Excel
     </button>

@@ -23,7 +23,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           name="email"
           type="email"
           required
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         />
       </div>
       <div className="space-y-1">
@@ -33,7 +33,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
         <input
           id="user-name"
           name="full_name"
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         />
       </div>
       <div className="space-y-1">
@@ -45,7 +45,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           name="role"
           value={role}
           onChange={(e) => setRole(e.target.value as "officer" | "branch_admin")}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         >
           <option value="branch_admin">Branch admin</option>
           <option value="officer">Warranty officer</option>
@@ -60,7 +60,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
             id="user-branch"
             name="branch_id"
             required
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
           >
             <option value="">Select branch</option>
             {branches.map((b) => (
@@ -74,7 +74,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
+        className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
         {pending ? "Creating..." : "Create account"}
       </button>

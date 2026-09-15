@@ -15,9 +15,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const user = await requireRole("officer");
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50">
+    <div className="app-shell-bg flex min-h-screen flex-col">
       <NavBar user={user} links={ADMIN_LINKS} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>
   );
 }

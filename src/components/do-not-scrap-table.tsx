@@ -17,23 +17,23 @@ export function DoNotScrapTable({ branchName, rows }: { branchName: string; rows
           <button
             type="button"
             onClick={() => generateDoNotScrapExcel(branchName, rows)}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Download Excel
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Print
           </button>
         </div>
       </div>
 
-      <div className="max-h-[36rem] overflow-auto rounded-lg border border-neutral-200 bg-white print:max-h-none print:overflow-visible">
+      <div className="max-h-[36rem] overflow-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm print:max-h-none print:overflow-visible">
         <table className="w-full min-w-[64rem] text-sm">
-          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-medium uppercase text-neutral-500 print:static">
+          <thead className="sticky top-0 bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200 print:static">
             <tr>
               <th className="px-4 py-2">Claim</th>
               <th className="px-4 py-2">Work order</th>
