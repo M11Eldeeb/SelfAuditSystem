@@ -235,11 +235,36 @@ export async function upsertScrapRequestsChunk(
 
     const { data: claimMatches, error: claimErr } = await supabase
       .from("self_audit_claims")
-      .select("id, branch_id, claim_number")
+      .select("id, branch_id, claim_number, main_part_name, raw_row")
       .in("claim_number", claimNumbers);
     if (claimErr) return { error: claimErr.message };
     const claimIdByKey = new Map((claimMatches ?? []).map((m) => [`${m.branch_id}:${m.claim_number}`, m.id]));
     const claimIds = [...new Set(claimIdByKey.values())];
+
+    // Fallback part for a claim with no self_audit_claim_parts rows at all -
+    // older exports' "Part Details" sheet didn't cover every claim that has
+    // a part on the main sheet (has_parts=true came from that main sheet's
+    // own "Main Part" column, independent of Part Details coverage), so a
+    // real number of legitimately-has-a-part claims have nothing in
+    // self_audit_claim_parts. Without this, upsertScrapRequestsChunk skipped
+    // them entirely - a claim correctly listed on "Parts should be scraped"
+    // could never get a scrap request, leaving it stuck in Do Not Scrap
+    // forever. Mirrors the same main-part fallback upsertSupplierPartsChunk
+    // already uses when a claim has no part-detail rows.
+    const mainPartNoByClaimId = new Map<string, string>();
+    (claimMatches ?? []).forEach((m) => {
+      const rawRow = (m.raw_row ?? {}) as Record<string, unknown>;
+      const key = Object.keys(rawRow).find((h) =>
+        ["main part", "part number", "part no", "part code"].includes(
+          h.trim().toLowerCase().replace(/\s+/g, " ")
+        )
+      );
+      const value = key ? String(rawRow[key] ?? "").trim() : "";
+      if (value) mainPartNoByClaimId.set(m.id, value);
+    });
+    const mainPartNameByClaimId = new Map(
+      (claimMatches ?? []).filter((m) => m.main_part_name).map((m) => [m.id, m.main_part_name as string])
+    );
 
     const [{ data: allParts, error: partsErr }, { data: reserved, error: reservedErr }] = await Promise.all([
       claimIds.length
@@ -284,10 +309,16 @@ export async function upsertScrapRequestsChunk(
         unmatchedClaims += 1;
         return;
       }
-      const claimParts = partsByClaimId.get(claimId) ?? [];
+      let claimParts = partsByClaimId.get(claimId) ?? [];
       if (claimParts.length === 0) {
-        skippedNoParts += 1;
-        return;
+        const fallbackPartNo = mainPartNoByClaimId.get(claimId);
+        if (!fallbackPartNo) {
+          skippedNoParts += 1;
+          return;
+        }
+        claimParts = [
+          { part_no: fallbackPartNo, part_name: mainPartNameByClaimId.get(claimId) ?? null, quantity: null },
+        ];
       }
       const reservedSet = reservedByClaimId.get(claimId) ?? new Set<string>();
       const remaining = claimParts.filter((p) => !reservedSet.has(p.part_no));
