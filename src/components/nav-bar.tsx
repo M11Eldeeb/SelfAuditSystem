@@ -65,12 +65,17 @@ export function NavBar({
           <span className="max-w-[9rem] truncate text-sm whitespace-nowrap text-neutral-400" title={user.email}>
             {displayName}
           </span>
-          <Link
-            href="/account/password"
-            className="text-sm font-medium whitespace-nowrap text-neutral-300 transition hover:text-white"
-          >
-            Change password
-          </Link>
+          {/* Officers can change their own password from their row in Branches
+              & Users instead, which keeps this already-crowded nav shorter -
+              branch admins have no other route to it, so they keep this link. */}
+          {user.role !== "officer" && (
+            <Link
+              href="/account/password"
+              className="text-sm font-medium whitespace-nowrap text-neutral-300 transition hover:text-white"
+            >
+              Change password
+            </Link>
+          )}
           <form action={logout}>
             <button
               type="submit"

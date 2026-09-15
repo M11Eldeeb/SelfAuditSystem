@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BranchForm } from "./branch-form";
@@ -79,8 +80,19 @@ export default async function BranchesPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-start justify-end gap-3">
-                      <ResetPasswordButton userId={u.id} email={u.email} />
-                      {u.id !== currentUser?.id && <DeleteUserButton userId={u.id} email={u.email} />}
+                      {u.id === currentUser?.id ? (
+                        <Link
+                          href="/account/password"
+                          className="text-xs text-neutral-600 hover:text-neutral-900"
+                        >
+                          Change password
+                        </Link>
+                      ) : (
+                        <>
+                          <ResetPasswordButton userId={u.id} email={u.email} />
+                          <DeleteUserButton userId={u.id} email={u.email} />
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
