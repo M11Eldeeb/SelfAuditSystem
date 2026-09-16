@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseScrappedParts, type SkippedScrappedRow } from "@/lib/warranty-room/parse-scrapped-parts";
 import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -28,6 +29,7 @@ const DETAILS_SHEET = "RepPartToDestroyDetailsView";
 export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -112,7 +114,10 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
           return chunkResult;
         },
         CONCURRENCY,
-        (done, total) => setProgress(`Uploading - ${done}/${total} chunks...`)
+        (done, total) => {
+          setProgress(`Uploading - ${Math.min(done * NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}`);
+          setProgressPercent((done / total) * 100);
+        }
       );
       if (chunkError) {
         setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
@@ -120,6 +125,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
       }
 
       setProgress("Finishing up...");
+      setProgressPercent(null);
       const finishResult = await postJsonWithRetry("/api/warranty-room/upload/finish", {
         batchId,
         totalRows: parts.length,
@@ -145,6 +151,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
       onUploaded?.();
     } finally {
       setProgress(null);
+      setProgressPercent(null);
       setPending(false);
     }
   }
@@ -177,7 +184,8 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         Reads the &quot;{DETAILS_SHEET}&quot; sheet - reference data only, used by the do-not-scrap list.
       </p>
 
-      {progress && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {!!state?.unmatched && (

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseScrapRequests, type SkippedScrapRequestRow } from "@/lib/warranty-room/parse-scrap-requests";
 import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -32,6 +33,7 @@ const DETAILS_SHEET = "RepClaimOrderView";
 export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -114,7 +116,10 @@ export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Br
           return chunkResult;
         },
         CONCURRENCY,
-        (done, total) => setProgress(`Processing - ${done}/${total} chunks...`)
+        (done, total) => {
+          setProgress(`Processing - ${Math.min(done * NETWORK_CHUNK_SIZE, requests.length)} of ${requests.length}`);
+          setProgressPercent((done / total) * 100);
+        }
       );
       if (chunkError) {
         setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
@@ -122,6 +127,7 @@ export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Br
       }
 
       setProgress("Finishing up...");
+      setProgressPercent(null);
       const finishResult = await postJsonWithRetry("/api/warranty-room/upload/finish", {
         batchId,
         totalRows: requests.length,
@@ -138,6 +144,7 @@ export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Br
       onUploaded?.();
     } finally {
       setProgress(null);
+      setProgressPercent(null);
       setPending(false);
     }
   }
@@ -171,7 +178,8 @@ export function ScrapRequestsUploadForm({ branches, onUploaded }: { branches: Br
         supplier is automatically excluded from what the branch is asked to scrap.
       </p>
 
-      {progress && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {!!state?.skippedNoParts && (

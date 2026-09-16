@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseSupplierParts, type SkippedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
 import { postJsonWithRetry } from "@/lib/warranty-room/client-upload";
+import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -41,6 +42,7 @@ const SHEET_NAME = "Sheet1";
 export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -115,7 +117,8 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       let mainPartOnly = 0;
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) {
         const chunk = parts.slice(i, i + NETWORK_CHUNK_SIZE);
-        setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}...`);
+        setProgress(`Uploading ${i + 1}-${Math.min(i + NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}`);
+        setProgressPercent((Math.min(i + NETWORK_CHUNK_SIZE, parts.length) / parts.length) * 100);
         const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
           batchId,
           table: "supplier_parts",
@@ -137,6 +140,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       }
 
       setProgress("Finishing up...");
+      setProgressPercent(null);
       const finishResult = await postJsonWithRetry("/api/warranty-room/upload/finish", {
         batchId,
         totalRows: parts.length,
@@ -164,6 +168,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
       onUploaded?.();
     } finally {
       setProgress(null);
+      setProgressPercent(null);
       setPending(false);
     }
   }
@@ -208,7 +213,8 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
         video-recorded, and hands it over once the supplier collects it.
       </p>
 
-      {progress && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {!!state?.unmatchedClaims && (

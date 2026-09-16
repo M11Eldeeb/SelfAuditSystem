@@ -8,6 +8,7 @@ import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
 import { currentYearMonth } from "@/lib/month";
 import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -53,6 +54,7 @@ const PART_DETAILS_SHEET = "Part Details";
 export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
   const [progress, setProgress] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -146,7 +148,10 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         claimChunks,
         (chunk) => postJsonWithRetry("/api/claims/upload/chunk", { batchId, claims: chunk }),
         CONCURRENCY,
-        (done, total) => setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length} (${done}/${total} chunks)...`)
+        (done, total) => {
+          setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length}`);
+          setProgressPercent((done / total) * 100);
+        }
       );
       if (chunkError) {
         setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
@@ -154,6 +159,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
 
       setProgress("Finishing up...");
+      setProgressPercent(null);
       const finishResult = await postJsonWithRetry("/api/claims/upload/finish", {
         batchId,
         totalClaims: claims.length,
@@ -206,7 +212,10 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
                   return chunkResult;
                 },
                 CONCURRENCY,
-                (done, total) => setProgress(`Uploading part details (${done}/${total} chunks)...`)
+                (done, total) => {
+                  setProgress(`Uploading part details - ${Math.min(done * NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}`);
+                  setProgressPercent((done / total) * 100);
+                }
               );
               if (error) {
                 partDetailsError = `Part details stopped partway (${partsUploaded ?? 0} of ${parts.length} rows uploaded): ${error}. Uploading the same file again is safe and will pick up the rest.`;
@@ -224,6 +233,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       onUploaded?.();
     } finally {
       setProgress(null);
+      setProgressPercent(null);
       setPending(false);
     }
   }
@@ -275,7 +285,8 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         there&apos;s no size limit from the server.
       </p>
 
-      {progress && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
+      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {typeof state?.partsUploaded === "number" && (
