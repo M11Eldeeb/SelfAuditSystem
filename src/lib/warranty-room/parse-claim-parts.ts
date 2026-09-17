@@ -1,7 +1,8 @@
 import { extractBranchCodeFromDealerField, extractBranchCodeFromWorkOrder, parseDateValue } from "@/lib/parse-claims";
 
 export interface ParsedClaimPartRow {
-  branch_id: string;
+  /** Best-effort guess from this row's own Dealer field - null when that field is blank/unrecognized. Not fatal: upsertClaimPartsChunk resolves the real branch_id from the matched claim instead of relying on this. */
+  branch_id: string | null;
   claim_number: string;
   part_no: string;
   part_name: string | null;
@@ -41,9 +42,16 @@ function matchColumns(headers: string[]): Partial<Record<Field, number>> {
  * Parses the "Part Details" sheet from the claims data export into one row
  * per part per claim - self_audit_claims only ever stores one ("main") part
  * per claim, so this is the only place every part on a claim is available.
- * Branch is resolved the same way src/lib/parse-claims.ts resolves it (a
- * Dealer field, falling back to a Work Order No prefix) so a row here maps
- * to exactly the same branch a claims-data upload would give it.
+ *
+ * This sheet has no Work Order column at all, and in real exports a large
+ * share of rows (confirmed ~39% in one real 78k-row export) have a blank
+ * Dealer field with no other row for that same claim carrying one either -
+ * not sparse/inconsistent, entire claims just have no Dealer on this sheet.
+ * A row is no longer dropped for that - branch_id here is only a best-effort
+ * hint from the Dealer field when present; upsertClaimPartsChunk resolves
+ * the real branch_id by matching the claim itself (already looked up by
+ * claim_number), the same claim_number-only fallback insertScrappedPartsChunk
+ * already uses for a sheet with the same gap.
  */
 export function parseClaimParts(
   headers: string[],
@@ -66,14 +74,10 @@ export function parseClaimParts(
     const rowNum = i + 2;
     const dealerRaw = cols.dealer != null ? String(row[cols.dealer] ?? "").trim() : "";
     const branchRaw = extractBranchCodeFromDealerField(dealerRaw) || dealerRaw || extractBranchCodeFromWorkOrder(dealerRaw) || "";
-    const branchId = branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined;
+    const branchId = branchRaw ? (branchLookup.get(branchRaw.toLowerCase()) ?? null) : null;
     const claimNumber = String(row[claimNumberCol] ?? "").trim();
     const partNo = String(row[partNoCol] ?? "").trim();
 
-    if (!branchRaw || !branchId) {
-      skipped.push({ row: rowNum, reason: `Unrecognized branch "${branchRaw}"` });
-      return;
-    }
     if (!claimNumber) {
       skipped.push({ row: rowNum, reason: "Missing claim number" });
       return;

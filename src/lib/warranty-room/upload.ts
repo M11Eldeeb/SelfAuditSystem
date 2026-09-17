@@ -54,7 +54,18 @@ export async function upsertClaimsChunk(batchId: string, claims: ParsedClaimRow[
   return {};
 }
 
-/** Resolves each part row's claim by (branch_id, claim_number), then upserts into self_audit_claim_parts. */
+/**
+ * Resolves each part row's claim by claim_number, preferring a match in the
+ * row's own guessed branch (from its Dealer field) when known, otherwise
+ * taking any claim with that number - the Part Details sheet has no Work
+ * Order column and, in real exports, a large share of rows have no Dealer
+ * value at all for entire claims (not just sparse gaps), so requiring a
+ * resolved branch up front silently dropped a large fraction of real part
+ * rows. The matched claim's own branch_id is stored, not the row's guess -
+ * it's the authoritative value regardless of what (if anything) the sheet
+ * said. Same reasoning as insertScrappedPartsChunk's fallback for the same
+ * gap on a different sheet.
+ */
 export async function upsertClaimPartsChunk(
   batchId: string,
   parts: ParsedClaimPartRow[]
@@ -71,16 +82,21 @@ export async function upsertClaimPartsChunk(
       .in("claim_number", claimNumbers);
     if (lookupError) return { error: lookupError.message };
 
-    const claimIdByKey = new Map<string, string>();
-    (matches ?? []).forEach((m) => claimIdByKey.set(`${m.branch_id}:${m.claim_number}`, m.id));
+    const claimsByNumber = new Map<string, { id: string; branch_id: string }[]>();
+    (matches ?? []).forEach((m) => {
+      const list = claimsByNumber.get(m.claim_number) ?? [];
+      list.push({ id: m.id, branch_id: m.branch_id });
+      claimsByNumber.set(m.claim_number, list);
+    });
 
     const rows = chunk
       .map((p) => {
-        const claimId = claimIdByKey.get(`${p.branch_id}:${p.claim_number}`);
-        if (!claimId) return null;
+        const candidates = claimsByNumber.get(p.claim_number) ?? [];
+        const match = (p.branch_id && candidates.find((c) => c.branch_id === p.branch_id)) || candidates[0];
+        if (!match) return null;
         return {
-          claim_id: claimId,
-          branch_id: p.branch_id,
+          claim_id: match.id,
+          branch_id: match.branch_id,
           part_no: p.part_no,
           part_name: p.part_name,
           quantity: p.quantity,
