@@ -38,25 +38,32 @@ export default async function AuditDashboardPage() {
   const cycleMonthById = new Map(cycles.map((c) => [c.id, c.cycle_month]));
   const currentCycleId = cycles.find((c) => c.status === "open")?.id ?? null;
 
-  const [{ data: assignments }, { data: results }, { data: opsProgress }, { data: allBranches }, { data: allResults }] =
-    await Promise.all([
-      supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
-      supabase
-        .from("self_audit_audit_results")
-        .select("*")
-        .eq("branch_id", user.branch_id!)
-        .order("finalized_at", { ascending: true }),
-      supabase
-        .from("self_audit_branch_operation_progress")
-        .select("*")
-        .eq("branch_id", user.branch_id!)
-        .in("cycle_id", cycleIds),
-      supabase.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
-      supabase.from("self_audit_audit_results").select("*"),
-    ]);
+  const [
+    { data: assignments },
+    { data: results },
+    { data: opsProgress },
+    { data: allBranches },
+    { data: allResults },
+    { data: allInternalAudits },
+  ] = await Promise.all([
+    supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
+    supabase
+      .from("self_audit_audit_results")
+      .select("*")
+      .eq("branch_id", user.branch_id!)
+      .order("finalized_at", { ascending: true }),
+    supabase
+      .from("self_audit_branch_operation_progress")
+      .select("*")
+      .eq("branch_id", user.branch_id!)
+      .in("cycle_id", cycleIds),
+    supabase.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
+    supabase.from("self_audit_audit_results").select("*"),
+    supabase.rpc("get_finalized_internal_audit_scores"),
+  ]);
 
   const podiumStandings = computeCurrentCycleStandings(allResults ?? [], allBranches ?? [], currentCycleId);
-  const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? []);
+  const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? [], allInternalAudits ?? []);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
@@ -88,7 +95,9 @@ export default async function AuditDashboardPage() {
       {overallStandings.length > 0 && (
         <div className="space-y-2">
           <h2 className="text-base font-semibold text-neutral-900">Branch Standings</h2>
-          <p className="text-xs text-neutral-500">Every branch&apos;s average across all finalized cycles.</p>
+          <p className="text-xs text-neutral-500">
+            Every branch&apos;s average across all finalized self-audit cycles and internal audits.
+          </p>
           <StandingsList entries={overallStandings} hideScores />
         </div>
       )}

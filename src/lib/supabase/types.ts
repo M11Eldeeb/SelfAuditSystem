@@ -748,6 +748,13 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string[];
       };
+      get_finalized_internal_audit_scores: {
+        Args: Record<string, never>;
+        Returns: {
+          branch_id: string;
+          score_pct: number;
+        }[];
+      };
     };
     Enums: {
       user_role: UserRole;

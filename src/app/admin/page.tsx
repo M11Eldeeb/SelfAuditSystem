@@ -31,14 +31,16 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: results }, { data: branches }, { data: cycles }, { data: branchAdmins }] = await Promise.all([
-    supabase.from("self_audit_audit_results").select("*"),
-    supabase.from("self_audit_branches").select("id, name").order("name"),
-    supabase.from("self_audit_audit_cycles").select("id, cycle_month, status"),
-    supabase.from("self_audit_users").select("email").eq("role", "branch_admin"),
-  ]);
+  const [{ data: results }, { data: branches }, { data: cycles }, { data: branchAdmins }, { data: internalAudits }] =
+    await Promise.all([
+      supabase.from("self_audit_audit_results").select("*"),
+      supabase.from("self_audit_branches").select("id, name").order("name"),
+      supabase.from("self_audit_audit_cycles").select("id, cycle_month, status"),
+      supabase.from("self_audit_users").select("email").eq("role", "branch_admin"),
+      supabase.rpc("get_finalized_internal_audit_scores"),
+    ]);
 
-  if (!results || results.length === 0) {
+  if ((!results || results.length === 0) && (!internalAudits || internalAudits.length === 0)) {
     return (
       <div className="space-y-2">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Overview</h1>
@@ -49,6 +51,8 @@ export default async function AdminOverviewPage({
       </div>
     );
   }
+
+  const safeResults = results ?? [];
 
   const selectedBranchIds = new Set(
     params.branch ? (Array.isArray(params.branch) ? params.branch : [params.branch]) : []
@@ -64,7 +68,7 @@ export default async function AdminOverviewPage({
   );
   const filteredBranchIds = new Set(filteredBranches.map((b) => b.id));
 
-  const filteredResults = results.filter((r) => {
+  const filteredResults = safeResults.filter((r) => {
     if (!filteredBranchIds.has(r.branch_id)) return false;
     const cycleMonth = cycleMonthById.get(r.cycle_id);
     if (!cycleMonth) return false;
@@ -87,10 +91,11 @@ export default async function AdminOverviewPage({
   // Podium and standings use the branch selection but are independent of the
   // from/to date range used by the trend-by-cycle table below: the podium is
   // always this cycle only, standings are always all-time.
-  const branchScopedResults = results.filter((r) => filteredBranchIds.has(r.branch_id));
+  const branchScopedResults = safeResults.filter((r) => filteredBranchIds.has(r.branch_id));
+  const branchScopedInternalAudits = (internalAudits ?? []).filter((a) => filteredBranchIds.has(a.branch_id));
   const openCycle = (cycles ?? []).find((c) => c.status === "open") ?? null;
   const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, openCycle?.id ?? null);
-  const overallStandings = computeOverallStandings(branchScopedResults, filteredBranches);
+  const overallStandings = computeOverallStandings(branchScopedResults, filteredBranches, branchScopedInternalAudits);
   const cycleLabel = openCycle
     ? new Date(`${openCycle.cycle_month}T00:00:00Z`).toLocaleDateString("en-US", {
         month: "long",
@@ -195,7 +200,8 @@ export default async function AdminOverviewPage({
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-neutral-900">Standings</h2>
             <p className="text-sm text-neutral-600">
-              Every branch&apos;s average across all finalized cycles, best to worst. Difference shown is vs. the top performer.
+              Every branch&apos;s average across all finalized self-audit cycles and internal audits, best
+              to worst. Difference shown is vs. the top performer.
             </p>
             <StandingsList entries={overallStandings} />
           </div>

@@ -9,6 +9,8 @@ export type StandingsEntry = {
   cyclesUsed: number;
 };
 
+type ScoredRow = { branch_id: string; score_pct: number };
+
 /**
  * Podium: strictly this cycle's finalized results - a branch not yet
  * finalized for the current cycle doesn't appear, even if an older result
@@ -35,21 +37,31 @@ export function computeCurrentCycleStandings(
   return entries.sort((a, b) => b.avg - a.avg);
 }
 
-/** Standings: each branch's average across every finalized cycle on file, not just a recent window. */
+/**
+ * Standings: each branch's average across every finalized self-audit cycle
+ * on file, plus every finalized internal audit for that branch (each one
+ * counted the same as a self-audit cycle's score, not just a recent
+ * window) - the podium stays self-audit-only (computeCurrentCycleStandings),
+ * this is the one place internal audit results feed in.
+ */
 export function computeOverallStandings(
   results: Result[],
-  branches: { id: string; name: string }[]
+  branches: { id: string; name: string }[],
+  internalAuditResults: ScoredRow[] = []
 ): StandingsEntry[] {
   const entries: StandingsEntry[] = [];
   for (const branch of branches) {
-    const branchResults = results.filter((r) => r.branch_id === branch.id);
-    if (branchResults.length === 0) continue;
-    const avg = branchResults.reduce((sum, r) => sum + r.score_pct, 0) / branchResults.length;
+    const branchScores = [
+      ...results.filter((r) => r.branch_id === branch.id).map((r) => r.score_pct),
+      ...internalAuditResults.filter((r) => r.branch_id === branch.id).map((r) => r.score_pct),
+    ];
+    if (branchScores.length === 0) continue;
+    const avg = branchScores.reduce((sum, s) => sum + s, 0) / branchScores.length;
     entries.push({
       branchId: branch.id,
       name: branch.name,
       avg: Math.round(avg * 10) / 10,
-      cyclesUsed: branchResults.length,
+      cyclesUsed: branchScores.length,
     });
   }
 
