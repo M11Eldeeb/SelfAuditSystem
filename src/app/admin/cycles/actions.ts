@@ -11,6 +11,15 @@ import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-cl
 
 const CLAIMS_PER_BRANCH = 10;
 
+// A claim in one of these states isn't a real, settled warranty case to
+// audit - confirmed against real data (raw_row->>'Status' spellings exactly
+// as the source export uses them): "Draft saved" never got submitted,
+// "Rejected"/"Closed" are dead regardless of parts, "Returned from chief
+// agent" is bounced back and not actually progressing. Same reasoning
+// get_do_not_scrap_claims already uses for which claims are worth
+// flagging, applied here at sampling time instead of after the fact.
+const CYCLE_EXCLUDED_STATUSES = new Set(["Draft saved", "Rejected", "Returned from chief agent", "Closed"]);
+
 export type GenerateCycleState =
   | {
       error?: string;
@@ -97,7 +106,7 @@ export async function generateCycle(
   for (const branch of branches) {
     const { data: claims } = await supabase
       .from("self_audit_claims")
-      .select("id")
+      .select("id, raw_row")
       .eq("branch_id", branch.id)
       .eq("upload_batch_id", latestBatch.id)
       .eq("has_parts", true)
@@ -105,7 +114,10 @@ export async function generateCycle(
       .lt("creation_date", cycleMonth);
 
     const available = (claims ?? []).filter(
-      (c) => !auditedClaimIds.has(c.id) && !warrantyRoomExcludedIds.has(c.id)
+      (c) =>
+        !auditedClaimIds.has(c.id) &&
+        !warrantyRoomExcludedIds.has(c.id) &&
+        !CYCLE_EXCLUDED_STATUSES.has(String((c.raw_row as Record<string, unknown> | null)?.Status ?? ""))
     );
     const selected = shuffle(available).slice(0, CLAIMS_PER_BRANCH);
 
