@@ -52,15 +52,42 @@ export async function updateBranch(_prev: ActionState, formData: FormData): Prom
   return { success: `Branch "${name}" updated.` };
 }
 
-export async function setBranchActive(branchId: string, active: boolean): Promise<{ error?: string }> {
+/**
+ * Closing a branch mid-cycle removes it from any audit cycle it's still
+ * sitting in - but only the parts of that cycle nobody has touched yet
+ * (assignments/branch-ops still "not_started"). Anything already
+ * in_progress, submitted, or reviewed is real work and is left alone
+ * regardless of the branch's active flag, matching the standing rule that
+ * only untouched/future cycle state is safe to change automatically.
+ */
+export async function setBranchActive(branchId: string, active: boolean): Promise<{ error?: string; removedAssignments?: number }> {
   await requireRole("officer");
 
   const supabase = await createClient();
   const { error } = await supabase.from("self_audit_branches").update({ active }).eq("id", branchId);
   if (error) return { error: error.message };
 
+  let removedAssignments = 0;
+  if (!active) {
+    const [assignmentsResult, opsResult] = await Promise.all([
+      supabase
+        .from("self_audit_audit_assignments")
+        .delete({ count: "exact" })
+        .eq("branch_id", branchId)
+        .eq("status", "not_started"),
+      supabase
+        .from("self_audit_branch_operation_progress")
+        .delete()
+        .eq("branch_id", branchId)
+        .eq("status", "not_started"),
+    ]);
+    if (assignmentsResult.error) return { error: assignmentsResult.error.message };
+    if (opsResult.error) return { error: opsResult.error.message };
+    removedAssignments = assignmentsResult.count ?? 0;
+  }
+
   revalidatePath("/admin/branches");
-  return {};
+  return { removedAssignments };
 }
 
 export async function createUser(_prev: ActionState, formData: FormData): Promise<ActionState> {

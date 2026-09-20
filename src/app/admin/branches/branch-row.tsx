@@ -10,6 +10,7 @@ type Branch = Database["public"]["Tables"]["self_audit_branches"]["Row"];
 export function BranchRow({ branch }: { branch: Branch }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closeNotice, setCloseNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isTogglingActive, startToggleTransition] = useTransition();
 
@@ -26,46 +27,61 @@ export function BranchRow({ branch }: { branch: Branch }) {
   };
 
   const handleToggleActive = () => {
+    setCloseNotice(null);
     startToggleTransition(async () => {
-      await setBranchActive(branch.id, !branch.active);
+      const result = await setBranchActive(branch.id, !branch.active);
+      if (!result.error && result.removedAssignments) {
+        setCloseNotice(
+          `Removed ${result.removedAssignments} not-yet-started assignment(s) from the current cycle.`
+        );
+      }
     });
   };
 
   if (!editing) {
     return (
-      <tr>
-        <td className="px-4 py-2 text-neutral-900">{branch.name}</td>
-        <td className="px-4 py-2 text-neutral-600">{branch.code}</td>
-        <td className="px-4 py-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              branch.active ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"
-            }`}
-          >
-            {branch.active ? "Active" : "Closed"}
-          </span>
-        </td>
-        <td className="px-4 py-2 text-right">
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={handleToggleActive}
-              disabled={isTogglingActive}
-              className="text-xs text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+      <>
+        <tr>
+          <td className="px-4 py-2 text-neutral-900">{branch.name}</td>
+          <td className="px-4 py-2 text-neutral-600">{branch.code}</td>
+          <td className="px-4 py-2">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                branch.active ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"
+              }`}
             >
-              {branch.active ? "Mark closed" : "Reopen"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="text-xs text-neutral-600 hover:text-neutral-900"
-            >
-              Edit
-            </button>
-            <DeleteBranchButton branchId={branch.id} name={branch.name} />
-          </div>
-        </td>
-      </tr>
+              {branch.active ? "Active" : "Closed"}
+            </span>
+          </td>
+          <td className="px-4 py-2 text-right">
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleToggleActive}
+                disabled={isTogglingActive}
+                className="text-xs text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+              >
+                {branch.active ? "Mark closed" : "Reopen"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="text-xs text-neutral-600 hover:text-neutral-900"
+              >
+                Edit
+              </button>
+              <DeleteBranchButton branchId={branch.id} name={branch.name} />
+            </div>
+          </td>
+        </tr>
+        {closeNotice && (
+          <tr>
+            <td colSpan={4} className="px-4 pb-2 text-right text-xs text-amber-700">
+              {closeNotice}
+            </td>
+          </tr>
+        )}
+      </>
     );
   }
 
