@@ -5,26 +5,16 @@ import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
 import { Podium } from "@/components/podium";
 import { StandingsList } from "@/components/standings-list";
-import {
-  computeStandings,
-  parseStandingsPeriod,
-  STANDINGS_PERIODS,
-  STANDINGS_PERIOD_LABELS,
-} from "@/lib/standings";
+import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
 
 function daysRemaining(deadlineAt: string | null): number | null {
   if (!deadlineAt) return null;
   return Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000);
 }
 
-export default async function AuditDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ period?: string }>;
-}) {
+export default async function AuditDashboardPage() {
   const user = await requireRole("branch_admin");
   await expireOverdueAssignments();
-  const period = parseStandingsPeriod((await searchParams).period);
   const supabase = await createClient();
 
   const { data: cycles } = await supabase
@@ -46,6 +36,7 @@ export default async function AuditDashboardPage({
 
   const cycleIds = cycles.map((c) => c.id);
   const cycleMonthById = new Map(cycles.map((c) => [c.id, c.cycle_month]));
+  const currentCycleId = cycles.find((c) => c.status === "open")?.id ?? null;
 
   const [{ data: assignments }, { data: results }, { data: opsProgress }, { data: allBranches }, { data: allResults }] =
     await Promise.all([
@@ -64,7 +55,8 @@ export default async function AuditDashboardPage({
       supabase.from("self_audit_audit_results").select("*"),
     ]);
 
-  const standings = computeStandings(allResults ?? [], allBranches ?? [], cycleMonthById, period);
+  const podiumStandings = computeCurrentCycleStandings(allResults ?? [], allBranches ?? [], currentCycleId);
+  const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? []);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =
@@ -84,35 +76,22 @@ export default async function AuditDashboardPage({
 
   const cyclesWithWork = cycles.filter((c) => (assignmentsByCycle.get(c.id) ?? []).length > 0);
 
-  const standingsSection = standings.length > 0 && (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold text-neutral-900">Branch Standings</h2>
-        <form method="get" className="flex items-center gap-2">
-          <select
-            name="period"
-            defaultValue={period}
-            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-2 py-1 text-xs"
-          >
-            {STANDINGS_PERIODS.map((p) => (
-              <option key={p} value={p}>
-                {STANDINGS_PERIOD_LABELS[p]}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-dark"
-          >
-            Apply
-          </button>
-        </form>
-      </div>
-      <p className="text-xs text-neutral-500">
-        How every branch compares, {STANDINGS_PERIOD_LABELS[period].toLowerCase()}.
-      </p>
-      <Podium entries={standings} hideScores />
-      <StandingsList entries={standings} hideScores />
+  const standingsSection = (podiumStandings.length > 0 || overallStandings.length > 0) && (
+    <section className="space-y-5">
+      {podiumStandings.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold text-neutral-900">Top performers</h2>
+          <p className="text-xs text-neutral-500">Current cycle.</p>
+          <Podium entries={podiumStandings} hideScores />
+        </div>
+      )}
+      {overallStandings.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold text-neutral-900">Branch Standings</h2>
+          <p className="text-xs text-neutral-500">Every branch&apos;s average across all finalized cycles.</p>
+          <StandingsList entries={overallStandings} hideScores />
+        </div>
+      )}
     </section>
   );
 

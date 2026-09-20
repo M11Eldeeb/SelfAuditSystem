@@ -2,19 +2,6 @@ import type { Database } from "./supabase/types";
 
 type Result = Database["public"]["Tables"]["self_audit_audit_results"]["Row"];
 
-export const STANDINGS_PERIODS = ["1", "3", "6"] as const;
-export type StandingsPeriod = (typeof STANDINGS_PERIODS)[number];
-
-export const STANDINGS_PERIOD_LABELS: Record<StandingsPeriod, string> = {
-  "1": "Latest cycle",
-  "3": "Last 3 cycles (avg)",
-  "6": "Last 6 cycles (avg)",
-};
-
-export function parseStandingsPeriod(value: string | undefined): StandingsPeriod {
-  return (STANDINGS_PERIODS as readonly string[]).includes(value ?? "") ? (value as StandingsPeriod) : "1";
-}
-
 export type StandingsEntry = {
   branchId: string;
   name: string;
@@ -22,20 +9,40 @@ export type StandingsEntry = {
   cyclesUsed: number;
 };
 
-export function computeStandings(
+/**
+ * Podium: strictly this cycle's finalized results - a branch not yet
+ * finalized for the current cycle doesn't appear, even if an older result
+ * would otherwise make it look good. currentCycleId is null when there's no
+ * open cycle, which just means no podium.
+ */
+export function computeCurrentCycleStandings(
   results: Result[],
   branches: { id: string; name: string }[],
-  cycleMonthById: Map<string, string>,
-  period: StandingsPeriod
+  currentCycleId: string | null
 ): StandingsEntry[] {
-  const n = Number(period);
+  if (!currentCycleId) return [];
+  const nameById = new Map(branches.map((b) => [b.id, b.name]));
 
+  const entries: StandingsEntry[] = results
+    .filter((r) => r.cycle_id === currentCycleId && nameById.has(r.branch_id))
+    .map((r) => ({
+      branchId: r.branch_id,
+      name: nameById.get(r.branch_id)!,
+      avg: Math.round(r.score_pct * 10) / 10,
+      cyclesUsed: 1,
+    }));
+
+  return entries.sort((a, b) => b.avg - a.avg);
+}
+
+/** Standings: each branch's average across every finalized cycle on file, not just a recent window. */
+export function computeOverallStandings(
+  results: Result[],
+  branches: { id: string; name: string }[]
+): StandingsEntry[] {
   const entries: StandingsEntry[] = [];
   for (const branch of branches) {
-    const branchResults = results
-      .filter((r) => r.branch_id === branch.id && cycleMonthById.has(r.cycle_id))
-      .sort((a, b) => cycleMonthById.get(b.cycle_id)!.localeCompare(cycleMonthById.get(a.cycle_id)!))
-      .slice(0, n);
+    const branchResults = results.filter((r) => r.branch_id === branch.id);
     if (branchResults.length === 0) continue;
     const avg = branchResults.reduce((sum, r) => sum + r.score_pct, 0) / branchResults.length;
     entries.push({

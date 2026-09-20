@@ -2,12 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Podium } from "@/components/podium";
 import { StandingsList } from "@/components/standings-list";
-import {
-  computeStandings,
-  parseStandingsPeriod,
-  STANDINGS_PERIODS,
-  STANDINGS_PERIOD_LABELS,
-} from "@/lib/standings";
+import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
 
 export default async function AdminOverviewPage({
   searchParams,
@@ -17,17 +12,15 @@ export default async function AdminOverviewPage({
     from?: string;
     to?: string;
     sort?: string;
-    period?: string;
   }>;
 }) {
   const params = await searchParams;
-  const period = parseStandingsPeriod(params.period);
   const supabase = await createClient();
 
   const [{ data: results }, { data: branches }, { data: cycles }] = await Promise.all([
     supabase.from("self_audit_audit_results").select("*"),
     supabase.from("self_audit_branches").select("id, name").order("name"),
-    supabase.from("self_audit_audit_cycles").select("id, cycle_month"),
+    supabase.from("self_audit_audit_cycles").select("id, cycle_month, status"),
   ]);
 
   if (!results || results.length === 0) {
@@ -76,11 +69,13 @@ export default async function AdminOverviewPage({
 
   const resultByBranchCycle = new Map(filteredResults.map((r) => [`${r.branch_id}:${r.cycle_id}`, r]));
 
-  // Standings/podium use the branch selection but always rank by each branch's
-  // most recent N cycles, independent of the from/to date range used by the
-  // trend-by-cycle table below.
+  // Podium and standings use the branch selection but are independent of the
+  // from/to date range used by the trend-by-cycle table below: the podium is
+  // always this cycle only, standings are always all-time.
   const branchScopedResults = results.filter((r) => filteredBranchIds.has(r.branch_id));
-  const standings = computeStandings(branchScopedResults, filteredBranches, cycleMonthById, period);
+  const currentCycleId = (cycles ?? []).find((c) => c.status === "open")?.id ?? null;
+  const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, currentCycleId);
+  const overallStandings = computeOverallStandings(branchScopedResults, filteredBranches);
 
   return (
     <div className="space-y-8">
@@ -91,23 +86,6 @@ export default async function AdminOverviewPage({
 
       <form method="get" className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <label htmlFor="period" className="text-xs font-medium text-neutral-700">
-              Standings period
-            </label>
-            <select
-              id="period"
-              name="period"
-              defaultValue={period}
-              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
-            >
-              {STANDINGS_PERIODS.map((p) => (
-                <option key={p} value={p}>
-                  {STANDINGS_PERIOD_LABELS[p]}
-                </option>
-              ))}
-            </select>
-          </div>
           <div className="space-y-1">
             <label htmlFor="from" className="text-xs font-medium text-neutral-700">
               From
@@ -175,19 +153,23 @@ export default async function AdminOverviewPage({
         </div>
       </form>
 
-      {standings.length > 0 ? (
+      {(podiumStandings.length > 0 || overallStandings.length > 0) ? (
         <section className="space-y-6">
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-neutral-900">Top performers</h2>
-            <p className="text-sm text-neutral-600">{STANDINGS_PERIOD_LABELS[period]}.</p>
-            <Podium entries={standings} />
+            <p className="text-sm text-neutral-600">Current cycle.</p>
+            {podiumStandings.length > 0 ? (
+              <Podium entries={podiumStandings} />
+            ) : (
+              <p className="text-sm text-neutral-500">No branch has been finalized for the current cycle yet.</p>
+            )}
           </div>
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-neutral-900">Standings</h2>
             <p className="text-sm text-neutral-600">
-              Every branch, best to worst. Difference shown is vs. the top performer.
+              Every branch&apos;s average across all finalized cycles, best to worst. Difference shown is vs. the top performer.
             </p>
-            <StandingsList entries={standings} />
+            <StandingsList entries={overallStandings} />
           </div>
         </section>
       ) : (
