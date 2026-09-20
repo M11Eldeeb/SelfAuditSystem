@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * There's no scheduled job in this app (keeps it on Vercel's free tier), so
- * the 30-day submission deadline is enforced lazily: called from the pages
+ * the submission deadline (AUDIT_CYCLE_DEADLINE_DAYS from cycle creation) is
+ * enforced lazily: called from the pages
  * officers and branch admins actually visit, it flips any claim assignment
  * still not_started/in_progress on a cycle whose deadline has passed to
  * 'expired'. Scoring treats 'expired' as a flat 0% (see finalizeBranchAudit)

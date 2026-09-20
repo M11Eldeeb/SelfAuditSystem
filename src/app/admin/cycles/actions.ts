@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { shiftMonth } from "@/lib/month";
 import { shuffle } from "@/lib/shuffle";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
+import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
 
 const CLAIMS_PER_BRANCH = 10;
@@ -58,7 +59,7 @@ export async function generateCycle(
     return { error: "Upload a claims file first." };
   }
 
-  const deadlineAt = new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString();
+  const deadlineAt = new Date(Date.now() + AUDIT_CYCLE_DEADLINE_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: cycle, error: cycleError } = await supabase
     .from("self_audit_audit_cycles")

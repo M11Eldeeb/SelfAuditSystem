@@ -6,6 +6,7 @@ import { AuditForm } from "./audit-form";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { buildPhotoStatusMap } from "@/lib/photo-status";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
+import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 
 export default async function AuditAssignmentPage({
   params,
@@ -64,10 +65,11 @@ export default async function AuditAssignmentPage({
 
       {assignment.status === "expired" && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-medium">30 day countdown ended</p>
+          <p className="font-medium">{AUDIT_CYCLE_DEADLINE_DAYS} day countdown ended</p>
           <p className="mt-1">
-            This claim wasn&apos;t submitted before the audit cycle&apos;s 30-day deadline, so it&apos;s
-            automatically scored 0% and can no longer be answered.
+            This claim wasn&apos;t submitted before the audit cycle&apos;s {AUDIT_CYCLE_DEADLINE_DAYS}-day
+            deadline, so it&apos;s automatically scored 0% and can no longer be answered. Your warranty
+            officer can reopen it if needed.
           </p>
         </div>
       )}

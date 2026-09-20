@@ -6,6 +6,64 @@ import { createClient } from "@/lib/supabase/server";
 import { scoreAnswer, scorePct } from "@/lib/scoring";
 
 export type FinalizeState = { error?: string; success?: string } | undefined;
+export type ReopenState = { error?: string } | undefined;
+
+/**
+ * Deadline passing auto-scores an unsubmitted claim at 0% (expire-assignments.ts)
+ * so the app never silently stalls waiting on a branch that stopped
+ * responding. But the officer may know the branch actually did the work late,
+ * or just wants to give them a real shot at their rightful score instead of
+ * a flat zero - this puts the assignment back in front of the branch admin
+ * exactly as if the deadline hadn't passed. Only the assignment's status
+ * changes; expire-assignments.ts never touched the branch admin's saved
+ * answers (self_audit_audit_answers), so anything they'd already filled in
+ * is still there. Blocked once the branch is finalized - reopening after
+ * that would invalidate an already-recorded result with no re-finalize path
+ * wired up yet.
+ */
+export async function reopenExpiredAssignment(
+  cycleId: string,
+  branchId: string,
+  assignmentId: string
+): Promise<ReopenState> {
+  await requireRole("officer");
+  const supabase = await createClient();
+
+  const { data: existingResult } = await supabase
+    .from("self_audit_audit_results")
+    .select("id")
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (existingResult) {
+    return { error: "This branch's results are already finalized for this cycle." };
+  }
+
+  const { data: assignment } = await supabase
+    .from("self_audit_audit_assignments")
+    .select("id, status")
+    .eq("id", assignmentId)
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (!assignment) return { error: "Assignment not found." };
+  if (assignment.status !== "expired") return { error: "Only an expired assignment can be reopened." };
+
+  const { count: answerCount } = await supabase
+    .from("self_audit_audit_answers")
+    .select("question_id", { count: "exact", head: true })
+    .eq("assignment_id", assignmentId);
+
+  const { error } = await supabase
+    .from("self_audit_audit_assignments")
+    .update({ status: (answerCount ?? 0) > 0 ? "in_progress" : "not_started" })
+    .eq("id", assignmentId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/admin/review/${cycleId}/${branchId}`);
+  revalidatePath("/audit");
+  return {};
+}
 
 export async function finalizeBranchAudit(
   cycleId: string,

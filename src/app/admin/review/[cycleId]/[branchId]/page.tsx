@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { FinalizeButton } from "./finalize-button";
+import { ReopenAssignmentButton } from "./reopen-assignment-button";
 
 export default async function BranchReviewPage({
   params,
@@ -87,7 +88,11 @@ export default async function BranchReviewPage({
                   {a.status === "not_started" || a.status === "in_progress" ? (
                     <span className="text-xs text-neutral-400">Not submitted yet</span>
                   ) : a.status === "expired" ? (
-                    <span className="text-xs text-red-500">Auto-scored, nothing to review</span>
+                    result ? (
+                      <span className="text-xs text-red-500">Auto-scored, nothing to review</span>
+                    ) : (
+                      <ReopenAssignmentButton cycleId={cycleId} branchId={branchId} assignmentId={a.id} />
+                    )
                   ) : (
                     <Link
                       href={`/admin/review/${cycleId}/${branchId}/${a.id}`}

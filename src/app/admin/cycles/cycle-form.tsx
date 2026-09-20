@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { generateCycle } from "./actions";
 import { currentYearMonth } from "@/lib/month";
+import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 
 export function CycleForm() {
   const [state, formAction, pending] = useActionState(generateCycle, undefined);
@@ -54,7 +55,7 @@ export function CycleForm() {
                 const monthLabel = state.cycleMonthLabel ?? "";
                 const appUrl = window.location.origin;
                 const subject = `${monthLabel} self audit is ready`;
-                const body = `Hello,\n\nThe self audit for ${monthLabel} has been set up. Please sign in to check your branch's assigned claims and complete the self audit within 30 days.\n\nSign in: ${appUrl}/audit\n\nWarranty Department`;
+                const body = `Hello,\n\nThe self audit for ${monthLabel} has been set up. Please sign in to check your branch's assigned claims and complete the self audit within ${AUDIT_CYCLE_DEADLINE_DAYS} days.\n\nSign in: ${appUrl}/audit\n\nWarranty Department`;
                 const mailto = `mailto:?bcc=${encodeURIComponent(
                   state.notifyEmails!.join(",")
                 )}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
