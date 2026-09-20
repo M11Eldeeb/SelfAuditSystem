@@ -98,7 +98,7 @@ export default async function AdminOverviewPage({
         timeZone: "UTC",
       })
     : "";
-  const podiumEmailCc = [...PODIUM_EMAIL_CC, ...(branchAdmins ?? []).map((u) => u.email).filter((e): e is string => !!e)];
+  const podiumEmailTo = (branchAdmins ?? []).map((u) => u.email).filter((e): e is string => !!e);
 
   return (
     <div className="space-y-8">
@@ -182,7 +182,12 @@ export default async function AdminOverviewPage({
             <h2 className="text-lg font-semibold text-neutral-900">Top performers</h2>
             <p className="text-sm text-neutral-600">Current cycle.</p>
             {podiumStandings.length > 0 ? (
-              <PodiumCongrats entries={podiumStandings} cycleLabel={cycleLabel} ccEmails={podiumEmailCc} />
+              <PodiumCongrats
+                entries={podiumStandings}
+                cycleLabel={cycleLabel}
+                toEmails={podiumEmailTo}
+                ccEmails={PODIUM_EMAIL_CC}
+              />
             ) : (
               <p className="text-sm text-neutral-500">No branch has been finalized for the current cycle yet.</p>
             )}

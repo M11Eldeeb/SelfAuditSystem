@@ -8,17 +8,20 @@ import type { StandingsEntry } from "@/lib/standings";
  * A mailto: link can't carry an attachment - there's no such thing as a
  * mailto attachment, in any browser or mail client. So this is a two-step,
  * fully manual flow by necessity: download an image of the podium exactly as
- * rendered here, then the mailto link opens a draft with everyone CC'd and
- * the congratulations text ready, for the officer to attach that image to
- * and send themselves. Nothing is sent automatically.
+ * rendered here, then the mailto link opens a draft (branch admins in To,
+ * warranty head/fellow officer/branch managers in Cc) with the
+ * congratulations text ready, for the officer to attach that image to and
+ * send themselves. Nothing is sent automatically.
  */
 export function PodiumCongrats({
   entries,
   cycleLabel,
+  toEmails,
   ccEmails,
 }: {
   entries: StandingsEntry[];
   cycleLabel: string;
+  toEmails: string[];
   ccEmails: string[];
 }) {
   const podiumRef = useRef<HTMLDivElement>(null);
@@ -33,9 +36,12 @@ export function PodiumCongrats({
     setError(null);
     setDownloading(true);
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(podiumRef.current, { backgroundColor: "#ffffff", scale: 2 });
-      const dataUrl = canvas.toDataURL("image/png");
+      // html2canvas can't parse the oklch() colors Tailwind v4's default
+      // palette renders as (a documented html2canvas/Tailwind-v4 mismatch -
+      // it throws on any computed color in a color space it doesn't
+      // recognize). modern-screenshot handles oklch/color-mix natively.
+      const { domToPng } = await import("modern-screenshot");
+      const dataUrl = await domToPng(podiumRef.current, { backgroundColor: "#ffffff", scale: 2 });
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = `podium-${cycleLabel.toLowerCase().replace(/\s+/g, "-")}.png`;
@@ -47,6 +53,7 @@ export function PodiumCongrats({
     }
   }
 
+  const to = [...new Set(toEmails)].join(",");
   const cc = [...new Set(ccEmails)].join(",");
   const subject = `${cycleLabel} Self-Audit — Top Performing Branches`;
   const ranked = top3.map((e, i) => `${i + 1}. ${e.name} — ${e.avg}%`).join("\n");
@@ -62,9 +69,9 @@ export function PodiumCongrats({
     "To every other branch: thank you for your continued effort and participation this cycle. We encourage you to keep pushing forward and aim for a podium finish next month.",
     "",
     "Best regards,",
-    "Warranty Audit Team",
+    "JMM Warranty Team",
   ].join("\n");
-  const mailtoHref = `mailto:?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoHref = `mailto:${encodeURIComponent(to)}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <div className="space-y-3">
