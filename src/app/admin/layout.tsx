@@ -4,7 +4,7 @@ import { NavBar } from "@/components/nav-bar";
 
 const ADMIN_LINKS = [
   { href: "/admin", label: "Overview" },
-  { href: "/admin/cycles", label: "Audit Cycles" },
+  { href: "/admin/cycles", label: "Self Audit" },
   { href: "/admin/internal-audit", label: "Internal Audit" },
   { href: "/admin/warranty-room", label: "Warranty Room" },
   { href: "/admin/results", label: "Results" },
