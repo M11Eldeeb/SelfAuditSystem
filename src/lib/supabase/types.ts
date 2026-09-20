@@ -755,6 +755,12 @@ export interface Database {
           score_pct: number;
         }[];
       };
+      finish_claims_upload: {
+        Args: {
+          p_batch_id: string;
+        };
+        Returns: number;
+      };
     };
     Enums: {
       user_role: UserRole;

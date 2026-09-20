@@ -1,7 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
-import { selectAllRows } from "@/lib/supabase/paginate";
 
 const DB_CHUNK_SIZE = 500;
 
@@ -56,6 +55,13 @@ export async function upsertClaimsChunk(
  * what happened once: an old version of this scoped the cleanup globally
  * across ALL branches instead of just the ones in the new batch). Claims
  * already tied to an audit_assignment are left alone regardless.
+ *
+ * Computed via finish_claims_upload (migration 0030) rather than paginating
+ * the batch's claims, every audit_assignment on file, and every non-batch
+ * claim in JS (selectAllRows, 1000 rows/page) - for a 60k-row batch that was
+ * 100+ sequential round trips just to compute a small stale-id set, on top
+ * of upload_batch_id having no index at all on this table (also fixed in
+ * that migration), which made every one of those pages a sequential scan.
  */
 export async function finishUpload(
   batchId: string,
@@ -64,44 +70,15 @@ export async function finishUpload(
 ): Promise<{ success?: string; error?: string; deletedCount?: number }> {
   const supabase = await createClient();
 
-  const batchClaimRows = await selectAllRows<{ branch_id: string }>(async (from, to) =>
-    supabase.from("self_audit_claims").select("branch_id").eq("upload_batch_id", batchId).range(from, to)
-  );
-  const batchBranchIds = [...new Set(batchClaimRows.map((r) => r.branch_id))];
-
-  if (batchBranchIds.length === 0) {
-    return { success: `Processed ${totalClaims} claim(s) from "${filename}".`, deletedCount: 0 };
-  }
-
-  const referencedRows = await selectAllRows<{ claim_id: string }>(async (from, to) =>
-    supabase.from("self_audit_audit_assignments").select("claim_id").range(from, to)
-  );
-  const referencedIds = new Set(referencedRows.map((r) => r.claim_id));
-
-  const staleRows = await selectAllRows<{ id: string }>(async (from, to) =>
-    supabase
-      .from("self_audit_claims")
-      .select("id")
-      .neq("upload_batch_id", batchId)
-      .in("branch_id", batchBranchIds)
-      .range(from, to)
-  );
-  const staleIds = staleRows.map((r) => r.id).filter((id) => !referencedIds.has(id));
-
-  let deletedCount = 0;
-  for (let i = 0; i < staleIds.length; i += DB_CHUNK_SIZE) {
-    const chunk = staleIds.slice(i, i + DB_CHUNK_SIZE);
-    const { error, count } = await supabase.from("self_audit_claims").delete({ count: "exact" }).in("id", chunk);
-    if (error) break; // don't fail the whole upload over cleanup
-    deletedCount += count ?? chunk.length;
-  }
+  const { data: deletedCount, error } = await supabase.rpc("finish_claims_upload", { p_batch_id: batchId });
+  if (error) return { error: error.message };
 
   return {
     success: `Processed ${totalClaims} claim(s) from "${filename}" (new claims added, existing ones updated)${
-      deletedCount > 0
+      deletedCount && deletedCount > 0
         ? `. Removed ${deletedCount} claim(s) no longer in this file for the branch(es) it covers.`
         : "."
     }`,
-    deletedCount,
+    deletedCount: deletedCount ?? 0,
   };
 }

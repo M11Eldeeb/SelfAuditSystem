@@ -1,0 +1,12 @@
+-- self_audit_claims only has claims_branch_id_claim_number_key, a composite
+-- unique index on (branch_id, claim_number) - useless for a query that
+-- filters by claim_number alone, which is exactly what every Warranty Room
+-- upload step does when matching sheet rows to claims (Part Details,
+-- Scrapped Parts, Scrap Requests, Supplier Parts all look up
+-- `.in("claim_number", [...])` with no branch_id filter, since several of
+-- those sheets don't reliably carry a resolvable branch per row - see
+-- upsertClaimPartsChunk/insertScrappedPartsChunk/upsertScrapRequestsChunk in
+-- src/lib/warranty-room/upload.ts). Confirmed via pg_stat_statements as one
+-- of the slowest query shapes in the whole upload path (mean ~1.6s/call on
+-- a 60k-row table without this).
+create index if not exists claims_claim_number_idx on public.self_audit_claims (claim_number);
