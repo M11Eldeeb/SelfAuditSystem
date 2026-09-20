@@ -1,8 +1,22 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Podium } from "@/components/podium";
+import { PodiumCongrats } from "@/components/podium-congrats";
 import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
+
+// Standing recipients for the monthly podium congratulations email, on top
+// of every branch admin (fetched fresh below - branches/admins change).
+const PODIUM_EMAIL_CC = [
+  "mustafa.nasr@jiadmotors.com", // warranty head
+  "ahmad.hamdani@jiadmotors.com", // fellow warranty officer
+  "ahmed.gomaa@jiadmotors.com",
+  "ahmed.hablil@jiadmotors.com",
+  "saleh.ismail@jiadmotors.com",
+  "osman.ahmed@jiadmotors.com",
+  "ahmed.nader@jiadmotors.com",
+  "adil.almakhlafi@jiadmotors.com",
+  "rami.kamli@jiadmotors.com",
+];
 
 export default async function AdminOverviewPage({
   searchParams,
@@ -17,10 +31,11 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: results }, { data: branches }, { data: cycles }] = await Promise.all([
+  const [{ data: results }, { data: branches }, { data: cycles }, { data: branchAdmins }] = await Promise.all([
     supabase.from("self_audit_audit_results").select("*"),
     supabase.from("self_audit_branches").select("id, name").order("name"),
     supabase.from("self_audit_audit_cycles").select("id, cycle_month, status"),
+    supabase.from("self_audit_users").select("email").eq("role", "branch_admin"),
   ]);
 
   if (!results || results.length === 0) {
@@ -73,9 +88,17 @@ export default async function AdminOverviewPage({
   // from/to date range used by the trend-by-cycle table below: the podium is
   // always this cycle only, standings are always all-time.
   const branchScopedResults = results.filter((r) => filteredBranchIds.has(r.branch_id));
-  const currentCycleId = (cycles ?? []).find((c) => c.status === "open")?.id ?? null;
-  const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, currentCycleId);
+  const openCycle = (cycles ?? []).find((c) => c.status === "open") ?? null;
+  const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, openCycle?.id ?? null);
   const overallStandings = computeOverallStandings(branchScopedResults, filteredBranches);
+  const cycleLabel = openCycle
+    ? new Date(`${openCycle.cycle_month}T00:00:00Z`).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "";
+  const podiumEmailCc = [...PODIUM_EMAIL_CC, ...(branchAdmins ?? []).map((u) => u.email).filter((e): e is string => !!e)];
 
   return (
     <div className="space-y-8">
@@ -159,7 +182,7 @@ export default async function AdminOverviewPage({
             <h2 className="text-lg font-semibold text-neutral-900">Top performers</h2>
             <p className="text-sm text-neutral-600">Current cycle.</p>
             {podiumStandings.length > 0 ? (
-              <Podium entries={podiumStandings} />
+              <PodiumCongrats entries={podiumStandings} cycleLabel={cycleLabel} ccEmails={podiumEmailCc} />
             ) : (
               <p className="text-sm text-neutral-500">No branch has been finalized for the current cycle yet.</p>
             )}
