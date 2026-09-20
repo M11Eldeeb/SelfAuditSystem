@@ -7,6 +7,15 @@ export default async function WarrantyRoomPage() {
   await requireRole("officer");
   const supabase = await createClient();
 
+  // Warranty Room's own upload kinds are tagged onto self_audit_upload_batches'
+  // source_filename (e.g. "[warranty-room:scrapped_parts] file.xlsx" - see
+  // startWarrantyRoomBatch in src/lib/warranty-room/upload.ts); the plain
+  // claims upload (self_audit_claims itself, via the older /api/claims/*
+  // route) is untagged. "All claims data" is really two separate batches -
+  // the claims themselves plus that file's Part Details sheet - so its last
+  // synced date is whichever of the two ran more recently.
+  const latestBatch = (rows: { uploaded_at: string }[] | null) => rows?.[0]?.uploaded_at ?? null;
+
   const [
     { data: branches },
     { count: claimsCount },
@@ -16,6 +25,11 @@ export default async function WarrantyRoomPage() {
     { count: supplierCollectionsCount },
     { data: batches },
     { count: scrapPendingCount },
+    { data: claimsBatch },
+    { data: claimsPartsBatch },
+    { data: scrappedPartsBatch },
+    { data: scrapRequestsBatch },
+    { data: supplierPartsBatch },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_claims").select("id", { count: "exact", head: true }),
@@ -28,7 +42,42 @@ export default async function WarrantyRoomPage() {
       .from("self_audit_scrap_requests")
       .select("id", { count: "exact", head: true })
       .in("status", ["pending_review", "pending_manufacturer"]),
+    supabase
+      .from("self_audit_upload_batches")
+      .select("uploaded_at")
+      .not("source_filename", "like", "[warranty-room:%")
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("self_audit_upload_batches")
+      .select("uploaded_at")
+      .like("source_filename", "[warranty-room:claims_data]%")
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("self_audit_upload_batches")
+      .select("uploaded_at")
+      .like("source_filename", "[warranty-room:scrapped_parts]%")
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("self_audit_upload_batches")
+      .select("uploaded_at")
+      .like("source_filename", "[warranty-room:scrap_requests]%")
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("self_audit_upload_batches")
+      .select("uploaded_at")
+      .like("source_filename", "[warranty-room:supplier_parts]%")
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
   ]);
+
+  const claimsDataLastSynced = [latestBatch(claimsBatch), latestBatch(claimsPartsBatch)]
+    .filter((d): d is string => d != null)
+    .sort()
+    .at(-1);
 
   return (
     <div className="space-y-8">
@@ -50,6 +99,12 @@ export default async function WarrantyRoomPage() {
           scrapRequestsCount: scrapRequestsCount ?? 0,
           scrapPendingCount: scrapPendingCount ?? 0,
           supplierCollectionsCount: supplierCollectionsCount ?? 0,
+        }}
+        lastSynced={{
+          claimsData: claimsDataLastSynced ?? null,
+          scrappedParts: latestBatch(scrappedPartsBatch),
+          scrapRequests: latestBatch(scrapRequestsBatch),
+          supplierParts: latestBatch(supplierPartsBatch),
         }}
       />
 

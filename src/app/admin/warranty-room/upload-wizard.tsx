@@ -18,7 +18,22 @@ type Stats = {
   supplierCollectionsCount: number;
 };
 
+type LastSynced = {
+  claimsData: string | null;
+  scrappedParts: string | null;
+  scrapRequests: string | null;
+  supplierParts: string | null;
+};
+
 const STEP_LABELS = ["All claims data", "Parts already scraped", "Parts should be scraped", "Supplier parts"];
+
+function LastSyncedNote({ at }: { at: string | null }) {
+  return (
+    <p className="text-xs text-neutral-400">
+      Last synced: {at ? new Date(at).toLocaleString() : "never"}
+    </p>
+  );
+}
 
 /**
  * Only the active step's upload form is ever mounted - the officer asked for
@@ -43,7 +58,15 @@ function initialCompleted(stats: Stats): Set<number> {
   return done;
 }
 
-export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: Stats }) {
+export function UploadWizard({
+  branches,
+  stats,
+  lastSynced,
+}: {
+  branches: Branch[];
+  stats: Stats;
+  lastSynced: LastSynced;
+}) {
   const [step, setStep] = useState(1);
   const [completed, setCompleted] = useState<Set<number>>(() => initialCompleted(stats));
   const [maxReached, setMaxReached] = useState(() => {
@@ -115,6 +138,7 @@ export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: S
       {step === 1 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-neutral-900">1. All claims data</h2>
+          <LastSyncedNote at={lastSynced.claimsData} />
           <ClaimsUploadForm branches={branches} onUploaded={() => markDone(1)} />
           <div className="flex items-center justify-between">
             <p className="text-xs text-neutral-500">{stats.claimPartsCount} part detail row(s) on file across all claims.</p>
@@ -128,6 +152,7 @@ export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: S
       {step === 2 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-neutral-900">2. Parts already scraped</h2>
+          <LastSyncedNote at={lastSynced.scrappedParts} />
           <ScrappedPartsUploadForm branches={branches} onUploaded={() => markDone(2)} />
           <div className="flex items-center justify-between">
             <p className="text-xs text-neutral-500">{stats.scrappedPartsCount} already-scrapped part row(s) on file.</p>
@@ -141,6 +166,7 @@ export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: S
       {step === 3 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-neutral-900">3. Parts should be scraped</h2>
+          <LastSyncedNote at={lastSynced.scrapRequests} />
           <ScrapRequestsUploadForm branches={branches} onUploaded={() => markDone(3)} />
           <div className="flex items-center justify-between">
             <p className="text-xs text-neutral-500">
@@ -159,6 +185,7 @@ export function UploadWizard({ branches, stats }: { branches: Branch[]; stats: S
       {step === 4 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-neutral-900">4. Supplier parts</h2>
+          <LastSyncedNote at={lastSynced.supplierParts} />
           <SupplierPartsUploadForm branches={branches} onUploaded={() => markDone(4)} />
           <p className="text-xs text-neutral-500">
             <Link href="/admin/warranty-room/supplier-parts" className="text-brand hover:underline">
