@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
+import { isExcludedClaimStatus } from "@/lib/excluded-claim-statuses";
 import { shuffle } from "@/lib/shuffle";
 import { buildWorkOrderCounts, computeAuditFlag } from "@/lib/audit-flag";
 import { selectWithPartCap } from "@/lib/internal-audit-sampling";
@@ -48,7 +49,10 @@ async function sampleEligibleClaims(
     getWarrantyRoomExcludedClaimIds(supabase),
   ]);
   const eligible = (candidateClaims ?? []).filter(
-    (c) => !auditedClaimIds.has(c.id) && !warrantyRoomExcludedIds.has(c.id)
+    (c) =>
+      !auditedClaimIds.has(c.id) &&
+      !warrantyRoomExcludedIds.has(c.id) &&
+      !isExcludedClaimStatus(String((c.raw_row as Record<string, unknown> | null)?.Status ?? ""))
   );
 
   let ordered: ((typeof eligible)[number] & { _flag?: number })[];

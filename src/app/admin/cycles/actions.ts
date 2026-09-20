@@ -8,24 +8,9 @@ import { shuffle } from "@/lib/shuffle";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
 import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
+import { isExcludedClaimStatus } from "@/lib/excluded-claim-statuses";
 
 const CLAIMS_PER_BRANCH = 10;
-
-// A claim in one of these states isn't a real, settled warranty case to
-// audit - confirmed against real data (raw_row->>'Status' spellings exactly
-// as the source export uses them): "Draft saved" never got submitted,
-// "Rejected"/"Closed" are dead regardless of parts. Same reasoning
-// get_do_not_scrap_claims already uses for which claims are worth
-// flagging, applied here at sampling time instead of after the fact.
-const CYCLE_EXCLUDED_STATUSES = new Set(["Draft saved", "Rejected", "Closed"]);
-
-// Any status containing "returned" (case-insensitive) is excluded too, not
-// just the one spelling seen so far ("Returned from chief agent") - the
-// export could introduce "Returned to dealer" or similar later and this
-// should catch it without needing another hardcoded string added by hand.
-function isExcludedStatus(status: string): boolean {
-  return CYCLE_EXCLUDED_STATUSES.has(status) || status.toLowerCase().includes("returned");
-}
 
 export type GenerateCycleState =
   | {
@@ -124,7 +109,7 @@ export async function generateCycle(
       (c) =>
         !auditedClaimIds.has(c.id) &&
         !warrantyRoomExcludedIds.has(c.id) &&
-        !isExcludedStatus(String((c.raw_row as Record<string, unknown> | null)?.Status ?? ""))
+        !isExcludedClaimStatus(String((c.raw_row as Record<string, unknown> | null)?.Status ?? ""))
     );
     const selected = shuffle(available).slice(0, CLAIMS_PER_BRANCH);
 
