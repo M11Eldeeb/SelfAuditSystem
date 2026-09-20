@@ -138,6 +138,7 @@ export default async function CyclesPage() {
                 <th className="px-4 py-2">Cycle month</th>
                 <th className="px-4 py-2">Claims month</th>
                 <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Deadline</th>
                 <th className="px-4 py-2">Assignments</th>
                 <th className="px-4 py-2">Submitted</th>
                 <th className="px-4 py-2">Reviewed</th>
@@ -147,11 +148,23 @@ export default async function CyclesPage() {
             <tbody className="divide-y divide-neutral-100">
               {(cycles ?? []).map((c) => {
                 const stat = statsByCycle.get(c.id) ?? { total: 0, submitted: 0, reviewed: 0 };
+                const remaining = c.status === "open" ? daysRemaining(c.deadline_at) : null;
                 return (
                   <tr key={c.id}>
                     <td className="px-4 py-2 text-neutral-900">{c.cycle_month.slice(0, 7)}</td>
                     <td className="px-4 py-2 text-neutral-600">{c.claims_month.slice(0, 7)}</td>
                     <td className="px-4 py-2 text-neutral-600 capitalize">{c.status}</td>
+                    <td className="px-4 py-2">
+                      {remaining === null ? (
+                        <span className="text-neutral-300">—</span>
+                      ) : remaining > 0 ? (
+                        <span className={remaining <= 5 ? "font-medium text-red-600" : "text-neutral-600"}>
+                          {remaining} day{remaining === 1 ? "" : "s"} left
+                        </span>
+                      ) : (
+                        <span className="font-medium text-red-600">Deadline passed</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-neutral-600">{stat.total}</td>
                     <td className="px-4 py-2 text-neutral-600">{stat.submitted}</td>
                     <td className="px-4 py-2 text-neutral-600">{stat.reviewed}</td>
@@ -167,7 +180,7 @@ export default async function CyclesPage() {
               })}
               {(cycles ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-neutral-400">
                     No audit cycles yet.
                   </td>
                 </tr>

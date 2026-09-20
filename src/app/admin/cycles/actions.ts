@@ -58,7 +58,7 @@ export async function generateCycle(
     return { error: "Upload a claims file first." };
   }
 
-  const deadlineAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const deadlineAt = new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: cycle, error: cycleError } = await supabase
     .from("self_audit_audit_cycles")
