@@ -41,6 +41,7 @@ export default async function AuditDashboardPage() {
     { data: allBranches },
     { data: allResults },
     { data: allInternalAudits },
+    { data: allHistoricalInternalAudits },
   ] = await Promise.all([
     supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
     supabase
@@ -56,10 +57,14 @@ export default async function AuditDashboardPage() {
     supabase.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
     supabase.from("self_audit_audit_results").select("*"),
     supabase.rpc("get_finalized_internal_audit_scores"),
+    supabase.rpc("get_historical_internal_audit_scores"),
   ]);
 
   const podiumStandings = computeCurrentCycleStandings(allResults ?? [], allBranches ?? [], currentCycleId);
-  const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? [], allInternalAudits ?? []);
+  const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? [], [
+    ...(allInternalAudits ?? []),
+    ...(allHistoricalInternalAudits ?? []),
+  ]);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
   const { data: claims } =

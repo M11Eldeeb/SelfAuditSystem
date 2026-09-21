@@ -24,6 +24,15 @@ export default function ResultsPage() {
           <h2 className="text-lg font-semibold text-neutral-900">Internal Audits</h2>
           <p className="mt-1 text-sm text-neutral-600">Officer-led internal audits, finalized results per branch.</p>
         </Link>
+        <Link
+          href="/admin/results/historical"
+          className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-6 transition hover:border-brand hover:shadow-md hover:-translate-y-0.5"
+        >
+          <h2 className="text-lg font-semibold text-neutral-900">Historical Audits</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Pre-website self-audit and internal-audit results, added one branch and month at a time.
+          </p>
+        </Link>
       </div>
     </div>
   );

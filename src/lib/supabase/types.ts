@@ -688,6 +688,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_supplier_collection_parts"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_historical_audits: {
+        Row: {
+          id: string;
+          audit_type: "self_audit" | "internal_audit";
+          branch_id: string;
+          period_month: string;
+          score_pct: number;
+          pdf_path: string;
+          notes: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          audit_type: "self_audit" | "internal_audit";
+          branch_id: string;
+          period_month: string;
+          score_pct: number;
+          pdf_path: string;
+          notes?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_historical_audits"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -760,6 +786,13 @@ export interface Database {
           p_batch_id: string;
         };
         Returns: number;
+      };
+      get_historical_internal_audit_scores: {
+        Args: Record<string, never>;
+        Returns: {
+          branch_id: string;
+          score_pct: number;
+        }[];
       };
     };
     Enums: {
