@@ -225,26 +225,29 @@ export default async function AuditDashboardPage() {
               </table>
             </div>
 
-            {allClaimsDone && (
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200/70 bg-white shadow-sm px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-neutral-900">Branch Operations</p>
-                  <p className="text-xs text-neutral-500">
-                    {opsStatus === "not_started"
+            <div className="flex items-center justify-between rounded-xl border border-neutral-200/70 bg-white shadow-sm px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-neutral-900">
+                  Branch Operations <span className="font-normal text-neutral-400">(required, in addition to the claims above)</span>
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {!allClaimsDone
+                    ? "3 questions about branch-wide processes, answered once - unlocks after every claim above is submitted."
+                    : opsStatus === "not_started"
                       ? "3 questions about branch-wide processes, answered once."
                       : opsStatus === "submitted"
                         ? "Submitted - awaiting officer review."
                         : "Reviewed."}
-                  </p>
-                </div>
-                <Link
-                  href={`/audit/branch-ops/${cycle.id}`}
-                  className="text-sm text-brand hover:underline"
-                >
+                </p>
+              </div>
+              {allClaimsDone ? (
+                <Link href={`/audit/branch-ops/${cycle.id}`} className="text-sm text-brand hover:underline">
                   {opsStatus === "not_started" ? "Start" : "View"}
                 </Link>
-              </div>
-            )}
+              ) : (
+                <span className="text-xs text-neutral-400">Locked</span>
+              )}
+            </div>
           </section>
         );
       })}
