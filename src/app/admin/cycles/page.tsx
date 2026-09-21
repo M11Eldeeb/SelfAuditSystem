@@ -3,11 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CycleForm } from "./cycle-form";
 import { DeleteCycleButton } from "./delete-cycle-button";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
-
-function daysRemaining(deadlineAt: string | null): number {
-  if (!deadlineAt) return 0;
-  return Math.max(0, Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000));
-}
+import { daysRemaining } from "@/lib/cycle";
 
 export default async function CyclesPage() {
   await expireOverdueAssignments();
@@ -48,7 +44,7 @@ export default async function CyclesPage() {
     reminderRecipientCount = uniqueRecipients.length;
 
     if (uniqueRecipients.length > 0) {
-      const remaining = daysRemaining(openCycle.deadline_at);
+      const remaining = daysRemaining(openCycle.deadline_at) ?? 0;
       const cycleLabel = openCycle.cycle_month.slice(0, 7);
       const subject = `Reminder: ${cycleLabel} self-audit due in ${remaining} day${remaining === 1 ? "" : "s"}`;
       const body = [

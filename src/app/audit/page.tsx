@@ -6,11 +6,7 @@ import { expireOverdueAssignments } from "@/lib/expire-assignments";
 import { Podium } from "@/components/podium";
 import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
-
-function daysRemaining(deadlineAt: string | null): number | null {
-  if (!deadlineAt) return null;
-  return Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000);
-}
+import { daysRemaining } from "@/lib/cycle";
 
 export default async function AuditDashboardPage() {
   const user = await requireRole("branch_admin");
