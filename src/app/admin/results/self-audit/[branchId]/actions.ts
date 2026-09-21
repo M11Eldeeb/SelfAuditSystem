@@ -18,7 +18,7 @@ export async function deleteAuditResult(cycleId: string, branchId: string): Prom
     .eq("branch_id", branchId);
   if (error) return { error: error.message };
 
-  revalidatePath(`/admin/results/self-audit/${cycleId}`);
+  revalidatePath(`/admin/results/self-audit/${branchId}`);
   revalidatePath("/admin/results/self-audit");
   return {};
 }

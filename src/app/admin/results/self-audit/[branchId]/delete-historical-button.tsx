@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteHistoricalAudit } from "./actions";
+import { deleteHistoricalSelfAudit } from "../historical-actions";
 
-export function DeleteHistoricalAuditButton({ id }: { id: string }) {
+export function DeleteHistoricalButton({ id, branchId }: { id: string; branchId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleClick = () => {
-    if (!window.confirm("Delete this historical audit entry? This can't be undone.")) return;
+    if (!window.confirm("Delete this historical result? This can't be undone.")) return;
     setError(null);
     startTransition(async () => {
-      const result = await deleteHistoricalAudit(id);
+      const result = await deleteHistoricalSelfAudit(id, branchId);
       if (result.error) setError(result.error);
     });
   };

@@ -1,20 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createHistoricalAudit } from "./actions";
+import { createHistoricalInternalAudit } from "./historical-actions";
 import { WarrantyRoomFileUploadField } from "@/components/warranty-room-file-upload-field";
 import { currentYearMonth } from "@/lib/month";
 
-export function HistoricalAuditForm({ branches }: { branches: { id: string; name: string }[] }) {
-  const [state, formAction, pending] = useActionState(createHistoricalAudit, undefined);
+export function HistoricalInternalAuditForm({ branches }: { branches: { id: string; name: string }[] }) {
+  const [state, formAction, pending] = useActionState(createHistoricalInternalAudit, undefined);
   const [formKey, setFormKey] = useState(0);
 
-  // Remounting the whole form (uncontrolled fields all use defaultValue)
-  // right after a successful submit clears every field, including the file
-  // field's internal "uploaded" state - so the next entry can't silently
-  // reuse the previous one's PDF path. Done during render (React's
-  // documented pattern for reacting to a state change) rather than in an
-  // effect, since this must happen before the browser paints stale values.
   const [lastHandledState, setLastHandledState] = useState(state);
   if (state !== lastHandledState) {
     setLastHandledState(state);
@@ -23,29 +17,13 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
 
   return (
     <form key={formKey} action={formAction} className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
-          <label htmlFor="audit_type" className="text-xs font-medium text-neutral-700">
-            Audit type
-          </label>
-          <select
-            id="audit_type"
-            name="audit_type"
-            required
-            defaultValue="self_audit"
-            className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm px-3 py-1.5 text-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
-          >
-            <option value="self_audit">Self Audit</option>
-            <option value="internal_audit">Internal Audit</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label htmlFor="branch_id" className="text-xs font-medium text-neutral-700">
+          <label htmlFor="ia_branch_id" className="text-xs font-medium text-neutral-700">
             Branch
           </label>
           <select
-            id="branch_id"
+            id="ia_branch_id"
             name="branch_id"
             required
             defaultValue=""
@@ -63,11 +41,11 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="period_month" className="text-xs font-medium text-neutral-700">
+          <label htmlFor="ia_period_month" className="text-xs font-medium text-neutral-700">
             Month
           </label>
           <input
-            id="period_month"
+            id="ia_period_month"
             name="period_month"
             type="month"
             required
@@ -77,11 +55,11 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="score_pct" className="text-xs font-medium text-neutral-700">
+          <label htmlFor="ia_score_pct" className="text-xs font-medium text-neutral-700">
             Score (%)
           </label>
           <input
-            id="score_pct"
+            id="ia_score_pct"
             name="score_pct"
             type="number"
             min={0}
@@ -94,11 +72,11 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="notes" className="text-xs font-medium text-neutral-700">
+        <label htmlFor="ia_notes" className="text-xs font-medium text-neutral-700">
           Notes (optional)
         </label>
         <textarea
-          id="notes"
+          id="ia_notes"
           name="notes"
           rows={2}
           className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm px-3 py-1.5 text-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
@@ -110,7 +88,7 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
         helpText="Leave empty if no PDF exists for this result."
         accept="application/pdf"
         fieldName="pdf_path"
-        buildPath={(ext) => `historical-audits/${crypto.randomUUID()}.${ext}`}
+        buildPath={(ext) => `historical-audits/internal-audit/${crypto.randomUUID()}.${ext}`}
       />
 
       <button
@@ -118,7 +96,7 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
         disabled={pending}
         className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
-        {pending ? "Saving..." : "Add historical audit"}
+        {pending ? "Saving..." : "Add historical result"}
       </button>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

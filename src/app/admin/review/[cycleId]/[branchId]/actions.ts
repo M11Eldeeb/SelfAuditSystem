@@ -168,6 +168,6 @@ export async function finalizeBranchAudit(
 
   revalidatePath(`/admin/review/${cycleId}/${branchId}`);
   revalidatePath("/admin/results/self-audit");
-  revalidatePath(`/admin/results/self-audit/${cycleId}`);
+  revalidatePath(`/admin/results/self-audit/${branchId}`);
   return { success: "Results finalized." };
 }

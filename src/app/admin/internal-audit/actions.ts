@@ -382,7 +382,7 @@ export async function finalizeInternalAudit(
 
   const { data: audit } = await supabase
     .from("self_audit_internal_audits")
-    .select("status, auditor_id")
+    .select("status, auditor_id, branch_id")
     .eq("id", auditId)
     .single();
   if (!audit) return { error: "Internal audit not found." };
@@ -474,6 +474,7 @@ export async function finalizeInternalAudit(
 
   revalidatePath("/admin/internal-audit");
   revalidatePath("/admin/results/internal-audit");
+  if (audit.branch_id) revalidatePath(`/admin/results/internal-audit/${audit.branch_id}`);
   redirect(`/admin/internal-audit/${auditId}/report`);
 }
 
@@ -488,7 +489,7 @@ export async function deleteInternalAudit(auditId: string): Promise<{ error?: st
 
   const { data: audit } = await supabase
     .from("self_audit_internal_audits")
-    .select("status, auditor_id")
+    .select("status, auditor_id, branch_id")
     .eq("id", auditId)
     .single();
   if (!audit) return { error: "Internal audit not found." };
@@ -501,5 +502,6 @@ export async function deleteInternalAudit(auditId: string): Promise<{ error?: st
 
   revalidatePath("/admin/internal-audit");
   revalidatePath("/admin/results/internal-audit");
+  if (audit.branch_id) revalidatePath(`/admin/results/internal-audit/${audit.branch_id}`);
   return {};
 }

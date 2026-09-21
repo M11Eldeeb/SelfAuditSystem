@@ -1,71 +1,59 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { HistoricalSelfAuditForm } from "./historical-audit-form";
 
 export default async function SelfAuditResultsPage() {
   const supabase = await createClient();
 
-  const [{ data: cycles }, { data: results }] = await Promise.all([
-    supabase.from("self_audit_audit_cycles").select("*").order("cycle_month", { ascending: false }),
-    supabase.from("self_audit_audit_results").select("cycle_id, score_pct"),
+  const [{ data: branches }, { data: results }, { data: historical }] = await Promise.all([
+    supabase.from("self_audit_branches").select("id, name").order("name"),
+    supabase.from("self_audit_audit_results").select("branch_id"),
+    supabase.from("self_audit_historical_audits").select("branch_id").eq("audit_type", "self_audit"),
   ]);
 
-  const resultsByCycle = new Map<string, number[]>();
-  (results ?? []).forEach((r) => {
-    const list = resultsByCycle.get(r.cycle_id) ?? [];
-    list.push(r.score_pct);
-    resultsByCycle.set(r.cycle_id, list);
+  const countByBranch = new Map<string, number>();
+  [...(results ?? []), ...(historical ?? [])].forEach((r) => {
+    countByBranch.set(r.branch_id, (countByBranch.get(r.branch_id) ?? 0) + 1);
   });
 
-  const cyclesWithResults = (cycles ?? []).filter((c) => (resultsByCycle.get(c.id)?.length ?? 0) > 0);
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <div>
         <Link href="/admin/results" className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to results
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Self Audits</h1>
         <p className="text-sm text-neutral-600">
-          Finalized audit cycles, grouped by month. For a branch-vs-branch comparison, see Overview.
+          Pick a branch to see its finalized self-audit results. For a branch-vs-branch comparison,
+          see Overview.
         </p>
       </div>
-      <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
-            <tr>
-              <th className="px-4 py-2">Cycle</th>
-              <th className="px-4 py-2">Branches finalized</th>
-              <th className="px-4 py-2">Average score</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {cyclesWithResults.map((c) => {
-              const scores = resultsByCycle.get(c.id) ?? [];
-              const avg = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10;
-              return (
-                <tr key={c.id}>
-                  <td className="px-4 py-2 text-neutral-900">{c.cycle_month.slice(0, 7)}</td>
-                  <td className="px-4 py-2 text-neutral-600">{scores.length}</td>
-                  <td className="px-4 py-2 text-neutral-600">{avg}%</td>
-                  <td className="px-4 py-2 text-right">
-                    <Link href={`/admin/results/self-audit/${c.id}`} className="text-sm text-brand hover:underline">
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-            {cyclesWithResults.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
-                  No audit cycles have been finalized yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-neutral-900">Add historical result</h2>
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <HistoricalSelfAuditForm branches={branches ?? []} />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-neutral-900">Branches</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(branches ?? []).map((b) => (
+            <Link
+              key={b.id}
+              href={`/admin/results/self-audit/${b.id}`}
+              className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 transition hover:border-brand hover:shadow-md hover:-translate-y-0.5"
+            >
+              <p className="font-medium text-neutral-900">{b.name}</p>
+              <p className="text-xs text-neutral-500">
+                {countByBranch.get(b.id) ?? 0} result{countByBranch.get(b.id) === 1 ? "" : "s"}
+              </p>
+            </Link>
+          ))}
+          {(branches ?? []).length === 0 && <p className="text-sm text-neutral-400">No branches yet.</p>}
+        </div>
+      </section>
     </div>
   );
 }
