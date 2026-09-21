@@ -15,8 +15,8 @@ export default async function BranchInternalAuditReportPage({
   return (
     <InternalAuditReportView
       auditId={auditId}
-      backHref="/audit/internal-audit"
-      backLabel="Back to internal audit results"
+      backHref="/audit/results"
+      backLabel="Back to results"
       showEmailButton={false}
     />
   );
