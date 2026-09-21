@@ -37,13 +37,6 @@ export default async function InternalAuditResultsPage() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Add historical result</h2>
-        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-          <HistoricalInternalAuditForm branches={branches ?? []} />
-        </div>
-      </section>
-
-      <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Branches</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(branches ?? []).map((b) => (
@@ -61,6 +54,18 @@ export default async function InternalAuditResultsPage() {
           {(branches ?? []).length === 0 && <p className="text-sm text-neutral-400">No branches yet.</p>}
         </div>
       </section>
+
+      <details className="group rounded-xl border border-neutral-200/70 bg-white shadow-sm">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-neutral-700 marker:content-none">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-neutral-400 transition-transform group-open:rotate-90">&rsaquo;</span>
+            Add historical result
+          </span>
+        </summary>
+        <div className="border-t border-neutral-200/70 p-4">
+          <HistoricalInternalAuditForm branches={branches ?? []} />
+        </div>
+      </details>
 
       {allBranchesAudits.length > 0 && (
         <section className="space-y-3">
