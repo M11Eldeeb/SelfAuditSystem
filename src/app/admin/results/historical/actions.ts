@@ -29,8 +29,6 @@ export async function createHistoricalAudit(
   if (!Number.isFinite(scorePct) || scorePct < 0 || scorePct > 100) {
     return { error: "Score must be a number between 0 and 100." };
   }
-  if (!pdfPath) return { error: "Upload the report PDF first." };
-
   const supabase = await createClient();
 
   const { error } = await supabase.from("self_audit_historical_audits").insert({
@@ -38,7 +36,7 @@ export async function createHistoricalAudit(
     branch_id: branchId,
     period_month: shiftMonth(periodMonthInput, 0),
     score_pct: scorePct,
-    pdf_path: pdfPath,
+    pdf_path: pdfPath || null,
     notes: notes || null,
     uploaded_by: officer.id,
   });

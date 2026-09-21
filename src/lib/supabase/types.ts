@@ -695,7 +695,7 @@ export interface Database {
           branch_id: string;
           period_month: string;
           score_pct: number;
-          pdf_path: string;
+          pdf_path: string | null;
           notes: string | null;
           uploaded_by: string | null;
           created_at: string;
@@ -706,7 +706,7 @@ export interface Database {
           branch_id: string;
           period_month: string;
           score_pct: number;
-          pdf_path: string;
+          pdf_path?: string | null;
           notes?: string | null;
           uploaded_by?: string | null;
           created_at?: string;

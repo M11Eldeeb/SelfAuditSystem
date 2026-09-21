@@ -106,9 +106,9 @@ export function HistoricalAuditForm({ branches }: { branches: { id: string; name
       </div>
 
       <WarrantyRoomFileUploadField
-        label="Report PDF"
+        label="Report PDF (optional)"
+        helpText="Leave empty if no PDF exists for this result."
         accept="application/pdf"
-        required
         fieldName="pdf_path"
         buildPath={(ext) => `historical-audits/${crypto.randomUUID()}.${ext}`}
       />

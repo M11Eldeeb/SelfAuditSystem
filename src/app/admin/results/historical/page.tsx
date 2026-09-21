@@ -78,10 +78,12 @@ export default async function HistoricalAuditsPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      {e.pdfUrl && (
+                      {e.pdfUrl ? (
                         <a href={e.pdfUrl} target="_blank" rel="noreferrer" className="text-sm text-brand hover:underline">
                           View PDF
                         </a>
+                      ) : (
+                        <span className="text-sm text-neutral-300">No PDF</span>
                       )}
                       <DeleteHistoricalAuditButton id={e.id} />
                     </div>
