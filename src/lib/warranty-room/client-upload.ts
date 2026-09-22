@@ -30,8 +30,10 @@ export function createPhaseTimer() {
  * stop it - normal Cancel-button logic only stops the NEXT chunk from being
  * sent, not one already in flight. This is the hard backstop: whatever
  * happens, no single request can hold a database connection open past this.
- * Set well above the ~2.7-2.8s a healthy 2,000-row chunk takes (verified via
- * EXPLAIN ANALYZE against real data) so ordinary slowness is never cut off.
+ * Set well above the well under 1s a healthy 300-row chunk takes (verified
+ * via EXPLAIN ANALYZE against real data) so ordinary slowness under real
+ * production load - which has been substantial on this project's free tier -
+ * is never cut off before it has a real chance to finish.
  */
 export const CHUNK_TIMEOUT_MS = 45_000;
 

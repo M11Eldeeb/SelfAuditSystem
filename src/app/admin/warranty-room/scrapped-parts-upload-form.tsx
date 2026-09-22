@@ -28,30 +28,28 @@ type UploadState =
   | undefined;
 
 // Each chunk calls the upsert_scrapped_parts_chunk RPC directly from the
-// browser instead of proxying through a Vercel API route - this sheet used
-// to be the slowest upload in the app for two compounding reasons, both
-// fixed here. First, matching each row to a claim, checking whether it
-// already existed, and upserting it used to take ~5 sequential database
-// round trips per chunk (a claim lookup, two existing-key lookups, then up
-// to 3 separate upsert/insert statements) - upsert_scrapped_parts_chunk
-// does the same matching/diffing/upserting in ONE round trip via a single
-// SQL statement per branch (see its migration for the full reasoning).
-// Second, going straight to Supabase removes the fixed per-HTTP-request
-// overhead that dominated even the simpler claims upload (a Vercel function
-// invocation plus a fresh auth.getUser() round trip on every single
-// request) and Vercel's 4.5MB request-body cap, which no longer applies -
-// letting the chunk size grow from 300 to 2,000 rows. EXPLAIN ANALYZE
-// against this project's real data confirms the RPC itself easily handles
-// 2,000 rows in ~2.8s, far inside the 2-minute statement_timeout on this
-// project's Postgres. Chunks still run one at a time, not concurrently -
-// concurrency was tried and reverted previously after live testing showed
-// this project's Postgres compute (confirmed free-tier) can't absorb
-// several of these queries at once without individual requests degrading
-// sharply; that's a database-side limit, unrelated to which layer issues
-// the request, so it still applies here. Every chunk still retries on
-// failure - the RPC is idempotent (upserts on natural keys), so re-sending
-// one after a transient failure is always safe.
-const NETWORK_CHUNK_SIZE = 2000;
+// browser instead of proxying through a Vercel API route. Matching each row
+// to a claim, checking whether it already existed, and upserting it used to
+// take ~5 sequential database round trips per chunk (a claim lookup, two
+// existing-key lookups, then up to 3 separate upsert/insert statements) -
+// upsert_scrapped_parts_chunk does the same matching/diffing/upserting in
+// ONE round trip via a single SQL statement per branch (see its migration).
+// Calling Supabase directly also removes the Vercel-hop overhead (function
+// invocation + a fresh auth.getUser() round trip per chunk) - both are
+// "free" wins that don't change how much data Postgres has to write. Chunk
+// size stays at the original 300 on purpose - a 2,000-row chunk was tried
+// (fast in isolation, ~2.8s via EXPLAIN ANALYZE) but caused real statement
+// timeouts and drained this project's free-tier disk IO budget (burst
+// credits, like AWS EBS) under actual production load: fewer/bigger write
+// bursts drain that budget faster than the same total data spread across
+// more/smaller ones. 300 is the size already proven reliable here. Chunks
+// still run one at a time, not concurrently - concurrency was tried and
+// reverted previously after live testing showed this project's Postgres
+// compute can't absorb several of these queries at once without individual
+// requests degrading sharply. Every chunk still retries on failure - the
+// RPC is idempotent (upserts on natural keys), so re-sending one after a
+// transient failure is always safe.
+const NETWORK_CHUNK_SIZE = 300;
 const CONCURRENCY = 1;
 const DETAILS_SHEET = "RepPartToDestroyDetailsView";
 

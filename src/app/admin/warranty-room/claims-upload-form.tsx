@@ -32,29 +32,24 @@ type UploadState =
 
 // Rows are parsed in the browser, then each chunk upserts straight from the
 // browser to Supabase (supabase.from(...).upsert(...) / supabase.rpc(...))
-// instead of proxying through a Vercel API route. Root-caused via
-// EXPLAIN ANALYZE against this project's real data: neither the raw upsert
-// nor the RPC below is the bottleneck (a 2,000-row upsert runs in ~2.7s of
-// real database time, and this project's free-tier Postgres has a 2-minute
-// statement_timeout - huge headroom), and the project's Supabase
-// organization is confirmed on the free plan (shared, limited compute - the
-// likely reason concurrency degrades so badly, see below). With query
-// execution ruled out, what actually dominated the old, much-slower version
-// was the FIXED per-request overhead repeated hundreds of times: a Vercel
-// function invocation plus a fresh auth.getUser() round trip to GoTrue on
-// every single 300-row chunk. Calling Supabase directly removes that hop
-// entirely and, since Vercel's 4.5MB request-body cap no longer applies once
-// Supabase is the direct destination, lets the chunk size grow from 300 to
-// 2,000 - a real 60,000+ row export now takes ~30 requests instead of ~200.
-// Chunks still run one at a time, not concurrently - concurrency was tried
-// and reverted previously after live testing showed this project's Postgres
-// compute can't absorb several of these queries at once without individual
-// requests degrading sharply; that's a database-side limit, unrelated to
-// which layer issues the request, so it still applies here. Every chunk
-// still retries on failure (supabaseWithRetry) - every write below is
-// idempotent (upsert on a natural key), so re-sending one after a transient
-// failure is always safe.
-const NETWORK_CHUNK_SIZE = 2000;
+// instead of proxying through a Vercel API route - removes a Vercel function
+// invocation plus a fresh auth.getUser() round trip to GoTrue on every
+// chunk, a real, "free" win regardless of chunk size since it doesn't touch
+// how much data Postgres has to write. Chunk size stays at the original 300
+// on purpose - a 2,000-row chunk was tried (verified fast in isolation via
+// EXPLAIN ANALYZE, ~2.7s) but caused real statement timeouts and a project-
+// wide disk IO budget exhaustion under actual production load: this
+// project's free-tier disk has a burst-credit budget (like AWS EBS burst
+// credits), and fewer/bigger write bursts drain it faster than the same
+// total data spread across more/smaller ones. 300 is the size already
+// proven reliable here. Chunks still run one at a time, not concurrently -
+// concurrency was tried and reverted previously after live testing showed
+// this project's Postgres compute can't absorb several of these queries at
+// once without individual requests degrading sharply. Every chunk still
+// retries on failure (supabaseWithRetry) - every write below is idempotent
+// (upsert on a natural key), so re-sending one after a transient failure is
+// always safe.
+const NETWORK_CHUNK_SIZE = 300;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
 
