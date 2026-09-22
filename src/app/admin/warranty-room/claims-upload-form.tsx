@@ -7,7 +7,12 @@ import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbo
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
 import { currentYearMonth } from "@/lib/month";
-import { postJsonWithRetry, supabaseWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import {
+  postJsonWithRetry,
+  supabaseWithRetry,
+  runChunksWithConcurrency,
+  createPhaseTimer,
+} from "@/lib/warranty-room/client-upload";
 import { createClient } from "@/lib/supabase/client";
 import { UploadProgressBar } from "@/components/upload-progress-bar";
 
@@ -21,6 +26,7 @@ type UploadState =
       partsUploaded?: number;
       unmatchedParts?: number;
       partDetailsError?: string;
+      timing?: string;
     }
   | undefined;
 
@@ -72,11 +78,13 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const cancelledRef = useRef(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setState(undefined);
     setPending(true);
+    cancelledRef.current = false;
 
     try {
       const formData = new FormData(e.currentTarget);
@@ -100,6 +108,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         return;
       }
 
+      const timer = createPhaseTimer();
       setProgress("Reading file...");
       let headers: string[];
       let rows: unknown[][];
@@ -123,6 +132,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         setState({ error: "Could not read that file. Make sure it's a valid .xlsx or .csv export." });
         return;
       }
+      timer.mark("Read file");
 
       const branchLookup = new Map<string, string>();
       branches.forEach((b) => {
@@ -138,6 +148,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         return;
       }
 
+      timer.mark("Parse claims");
       if (claims.length === 0) {
         setState({ error: "No valid claim rows found in that file.", skipped });
         return;
@@ -155,11 +166,12 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
       const batchId = startResult.batchId as string;
       const supabase = createClient();
+      timer.mark("Create batch");
 
       const claimChunks: typeof claims[] = [];
       for (let i = 0; i < claims.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(claims.slice(i, i + NETWORK_CHUNK_SIZE));
 
-      const { error: chunkError } = await runChunksWithConcurrency(
+      const { error: chunkError, cancelled } = await runChunksWithConcurrency(
         claimChunks,
         (chunk) =>
           supabaseWithRetry(async () =>
@@ -174,10 +186,25 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         (done, total) => {
           setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length}`);
           setProgressPercent((done / total) * 100);
-        }
+        },
+        () => cancelledRef.current
       );
+      timer.mark("Upload claims");
       if (chunkError) {
-        setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
+        setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped, timing: timer.summary() });
+        return;
+      }
+      // Cancelled partway through - the batch isn't finished, so skip
+      // /finish entirely: finish_claims_upload treats every claim missing
+      // from a batch as stale for the branch(es) it covers and removes it,
+      // which would be wrong here since most rows simply haven't been sent
+      // yet, not genuinely absent from the source file.
+      if (cancelled) {
+        setState({
+          error: `Upload cancelled - already-uploaded rows are saved. Upload the same file again to finish (nothing was removed, since this batch never finished).`,
+          skipped,
+          timing: timer.summary(),
+        });
         return;
       }
 
@@ -188,8 +215,9 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         totalClaims: claims.length,
         filename: file.name,
       });
+      timer.mark("Finish");
       if (finishResult.error) {
-        setState({ error: finishResult.error, skipped });
+        setState({ error: finishResult.error, skipped, timing: timer.summary() });
         return;
       }
 
@@ -220,7 +248,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
               const partChunks: typeof parts[] = [];
               for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
 
-              const { error } = await runChunksWithConcurrency(
+              const { error, cancelled: partsCancelled } = await runChunksWithConcurrency(
                 partChunks,
                 async (chunk) => {
                   const chunkResult = await supabaseWithRetry(async () =>
@@ -237,19 +265,30 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
                 (done, total) => {
                   setProgress(`Uploading part details - ${Math.min(done * NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}`);
                   setProgressPercent((done / total) * 100);
-                }
+                },
+                () => cancelledRef.current
               );
               if (error) {
                 partDetailsError = `Part details stopped partway (${partsUploaded ?? 0} of ${parts.length} rows uploaded): ${error}. Uploading the same file again is safe and will pick up the rest.`;
+              } else if (partsCancelled) {
+                partDetailsError = `Part details cancelled (${partsUploaded ?? 0} of ${parts.length} rows uploaded) - already-uploaded rows are saved. Upload the same file again to pick up the rest.`;
               }
             }
           }
         } catch (err) {
           partDetailsError = `Part details failed: ${err instanceof Error ? err.message : "unknown error"}. Uploading the same file again is safe and will pick up the rest.`;
         }
+        timer.mark("Upload part details");
       }
 
-      setState({ success: finishResult.success as string, skipped, partsUploaded, unmatchedParts, partDetailsError });
+      setState({
+        success: finishResult.success as string,
+        skipped,
+        partsUploaded,
+        unmatchedParts,
+        partDetailsError,
+        timing: timer.summary(),
+      });
       formRef.current?.reset();
       router.refresh();
       onUploaded?.();
@@ -308,7 +347,23 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       </p>
 
       {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
-      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
+      {progress && progressPercent != null && (
+        <div className="flex max-w-sm items-end gap-3">
+          <div className="flex-1">
+            <UploadProgressBar label={progress} percent={progressPercent} />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              cancelledRef.current = true;
+            }}
+            className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {state?.timing && <p className="text-xs text-neutral-400">Timing: {state.timing}</p>}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {typeof state?.partsUploaded === "number" && (

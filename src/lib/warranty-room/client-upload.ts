@@ -2,6 +2,27 @@
 // on purpose, this runs in the browser.
 
 /**
+ * Tiny phase-duration tracker so a slow upload can be split into "which
+ * phase" (reading/parsing the file vs. each upload stage) instead of one
+ * opaque total - reading a large .xlsx client-side (ExcelJS) is CPU-bound
+ * browser work that upload-speed fixes to the network/DB side never touch,
+ * so telling the two apart from real numbers beats guessing a second time.
+ */
+export function createPhaseTimer() {
+  const phases: { label: string; ms: number }[] = [];
+  let start = performance.now();
+  return {
+    mark(label: string) {
+      phases.push({ label, ms: Math.round(performance.now() - start) });
+      start = performance.now();
+    },
+    summary(): string {
+      return phases.map((p) => `${p.label} ${(p.ms / 1000).toFixed(1)}s`).join(" · ");
+    },
+  };
+}
+
+/**
  * POSTs JSON and always resolves to a result object rather than throwing -
  * a network failure or an unparsable response (e.g. a proxy's HTML error
  * page for a 504) becomes { error }, same shape as a real API error.
@@ -80,14 +101,18 @@ export async function supabaseWithRetry<T>(
  * plan, a lighter per-chunk operation) rather than removed outright. Stops
  * issuing new work and returns the first error once one occurs, but lets
  * already-in-flight requests finish first (their rows are safely upserted
- * either way).
+ * either way). `isCancelled` is checked the same way - lets the officer's
+ * Cancel button stop a slow upload between chunks without aborting a
+ * request mid-flight (that chunk's rows are safely upserted; the ones after
+ * it just never get sent).
  */
 export async function runChunksWithConcurrency<T>(
   items: T[],
   worker: (item: T, index: number) => Promise<{ error?: string; [key: string]: unknown }>,
   concurrency: number,
-  onProgress?: (completed: number, total: number) => void
-): Promise<{ error?: string; results: { error?: string; [key: string]: unknown }[] }> {
+  onProgress?: (completed: number, total: number) => void,
+  isCancelled?: () => boolean
+): Promise<{ error?: string; cancelled?: boolean; results: { error?: string; [key: string]: unknown }[] }> {
   const results: { error?: string; [key: string]: unknown }[] = new Array(items.length);
   let nextIndex = 0;
   let completed = 0;
@@ -95,6 +120,7 @@ export async function runChunksWithConcurrency<T>(
 
   async function runOne(): Promise<void> {
     for (;;) {
+      if (isCancelled?.()) return;
       const i = nextIndex++;
       if (i >= items.length) return;
       if (firstError) return;
@@ -109,5 +135,5 @@ export async function runChunksWithConcurrency<T>(
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => runOne());
   await Promise.all(workers);
 
-  return { error: firstError, results };
+  return { error: firstError, cancelled: !firstError && !!isCancelled?.(), results };
 }

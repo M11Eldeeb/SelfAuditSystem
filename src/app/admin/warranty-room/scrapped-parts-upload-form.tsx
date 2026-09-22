@@ -4,14 +4,27 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseScrappedParts, type SkippedScrappedRow } from "@/lib/warranty-room/parse-scrapped-parts";
-import { postJsonWithRetry, supabaseWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import {
+  postJsonWithRetry,
+  supabaseWithRetry,
+  runChunksWithConcurrency,
+  createPhaseTimer,
+} from "@/lib/warranty-room/client-upload";
 import { createClient } from "@/lib/supabase/client";
 import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
 
 type UploadState =
-  | { error?: string; success?: string; skipped?: SkippedScrappedRow[]; unmatched?: number; merged?: number; added?: number }
+  | {
+      error?: string;
+      success?: string;
+      skipped?: SkippedScrappedRow[];
+      unmatched?: number;
+      merged?: number;
+      added?: number;
+      timing?: string;
+    }
   | undefined;
 
 // Each chunk calls the upsert_scrapped_parts_chunk RPC directly from the
@@ -50,11 +63,13 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const cancelledRef = useRef(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setState(undefined);
     setPending(true);
+    cancelledRef.current = false;
 
     try {
       const formData = new FormData(e.currentTarget);
@@ -68,6 +83,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         return;
       }
 
+      const timer = createPhaseTimer();
       setProgress("Reading file...");
       const buffer = await file.arrayBuffer();
       let sheets: Awaited<ReturnType<typeof readWorkbookSheets>>;
@@ -82,6 +98,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         setState({ error: `Could not find a "${DETAILS_SHEET}" sheet in that file.` });
         return;
       }
+      timer.mark("Read file");
 
       const branchLookup = new Map<string, string>();
       branches.forEach((b) => {
@@ -96,6 +113,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         setState({ error: err instanceof Error ? err.message : "Could not parse that sheet." });
         return;
       }
+      timer.mark("Parse rows");
       if (parts.length === 0) {
         setState({ error: "No valid rows found in that sheet.", skipped });
         return;
@@ -120,7 +138,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
       const partChunks: typeof parts[] = [];
       for (let i = 0; i < parts.length; i += NETWORK_CHUNK_SIZE) partChunks.push(parts.slice(i, i + NETWORK_CHUNK_SIZE));
 
-      const { error: chunkError } = await runChunksWithConcurrency(
+      const { error: chunkError, cancelled } = await runChunksWithConcurrency(
         partChunks,
         async (chunk) => {
           const chunkResult = await supabaseWithRetry<{ unmatched: number; merged: number; added: number }>(
@@ -137,10 +155,20 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         (done, total) => {
           setProgress(`Uploading - ${Math.min(done * NETWORK_CHUNK_SIZE, parts.length)} of ${parts.length}`);
           setProgressPercent((done / total) * 100);
-        }
+        },
+        () => cancelledRef.current
       );
+      timer.mark("Upload rows");
       if (chunkError) {
-        setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped });
+        setState({ error: `Upload failed partway through: ${chunkError}. Uploading again is safe - already-uploaded rows just get updated in place.`, skipped, timing: timer.summary() });
+        return;
+      }
+      if (cancelled) {
+        setState({
+          error: `Upload cancelled - ${added + merged} of ${parts.length} row(s) uploaded so far (saved). Upload the same file again to pick up the rest.`,
+          skipped,
+          timing: timer.summary(),
+        });
         return;
       }
 
@@ -151,8 +179,9 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         totalRows: parts.length,
         filename: file.name,
       });
+      timer.mark("Finish");
       if (finishResult.error) {
-        setState({ error: finishResult.error as string, skipped });
+        setState({ error: finishResult.error as string, skipped, timing: timer.summary() });
         return;
       }
 
@@ -165,6 +194,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         unmatched,
         merged,
         added,
+        timing: timer.summary(),
       });
       formRef.current?.reset();
       router.refresh();
@@ -205,7 +235,23 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
       </p>
 
       {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
-      {progress && progressPercent != null && <UploadProgressBar label={progress} percent={progressPercent} />}
+      {progress && progressPercent != null && (
+        <div className="flex max-w-sm items-end gap-3">
+          <div className="flex-1">
+            <UploadProgressBar label={progress} percent={progressPercent} />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              cancelledRef.current = true;
+            }}
+            className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {state?.timing && <p className="text-xs text-neutral-400">Timing: {state.timing}</p>}
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
       {!!state?.unmatched && (
