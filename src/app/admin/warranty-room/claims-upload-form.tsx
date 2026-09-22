@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readSpreadsheet } from "@/lib/read-spreadsheet";
 import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbook";
@@ -79,6 +79,23 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const cancelledRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Refreshing or closing the tab mid-upload is exactly what caused a real
+  // incident: the in-flight request kept running against the database with
+  // nothing left able to stop it, and the project stayed stuck for a long
+  // time after. This doesn't prevent that outright (the Cancel button plus
+  // CHUNK_TIMEOUT_MS do), but it stops the officer from reaching for
+  // refresh by accident in the first place.
+  useEffect(() => {
+    if (!pending) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [pending]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -174,13 +191,16 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       const { error: chunkError, cancelled } = await runChunksWithConcurrency(
         claimChunks,
         (chunk) =>
-          supabaseWithRetry(async () =>
-            await supabase
-              .from("self_audit_claims")
-              .upsert(
-                chunk.map((c) => ({ ...c, upload_batch_id: batchId })),
-                { onConflict: "branch_id,claim_number" }
-              )
+          supabaseWithRetry(
+            async (signal) =>
+              await supabase
+                .from("self_audit_claims")
+                .upsert(
+                  chunk.map((c) => ({ ...c, upload_batch_id: batchId })),
+                  { onConflict: "branch_id,claim_number" }
+                )
+                .abortSignal(signal),
+            (controller) => (abortControllerRef.current = controller)
           ),
         CONCURRENCY,
         (done, total) => {
@@ -251,8 +271,12 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
               const { error, cancelled: partsCancelled } = await runChunksWithConcurrency(
                 partChunks,
                 async (chunk) => {
-                  const chunkResult = await supabaseWithRetry(async () =>
-                    await supabase.rpc("upsert_claim_parts_chunk", { p_batch_id: wrStart.batchId as string, p_rows: chunk })
+                  const chunkResult = await supabaseWithRetry(
+                    async (signal) =>
+                      await supabase
+                        .rpc("upsert_claim_parts_chunk", { p_batch_id: wrStart.batchId as string, p_rows: chunk })
+                        .abortSignal(signal),
+                    (controller) => (abortControllerRef.current = controller)
                   );
                   if (!chunkResult.error) {
                     const unmatchedInChunk = chunkResult.data ?? 0;
@@ -356,6 +380,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
             type="button"
             onClick={() => {
               cancelledRef.current = true;
+              abortControllerRef.current?.abort();
             }}
             className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50"
           >

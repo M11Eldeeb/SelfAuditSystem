@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseScrappedParts, type SkippedScrappedRow } from "@/lib/warranty-room/parse-scrapped-parts";
@@ -64,6 +64,21 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const cancelledRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // See claims-upload-form.tsx - same real incident: an accidental
+  // mid-upload refresh with no way to stop the in-flight request left the
+  // database stuck for a long time. This nudges the officer toward Cancel
+  // instead of reaching for refresh.
+  useEffect(() => {
+    if (!pending) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [pending]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -142,7 +157,12 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         partChunks,
         async (chunk) => {
           const chunkResult = await supabaseWithRetry<{ unmatched: number; merged: number; added: number }>(
-            async () => await supabase.rpc("upsert_scrapped_parts_chunk", { p_batch_id: batchId, p_rows: chunk }).single()
+            async (signal) =>
+              await supabase
+                .rpc("upsert_scrapped_parts_chunk", { p_batch_id: batchId, p_rows: chunk })
+                .abortSignal(signal)
+                .single(),
+            (controller) => (abortControllerRef.current = controller)
           );
           if (!chunkResult.error && chunkResult.data) {
             unmatched += chunkResult.data.unmatched ?? 0;
@@ -244,6 +264,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
             type="button"
             onClick={() => {
               cancelledRef.current = true;
+              abortControllerRef.current?.abort();
             }}
             className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50"
           >

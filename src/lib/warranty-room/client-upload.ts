@@ -23,16 +23,55 @@ export function createPhaseTimer() {
 }
 
 /**
+ * Ceiling on how long a single chunk request is allowed to run before it's
+ * aborted client-side. A stuck browser tab (crashed render, killed network,
+ * a refresh that orphans the in-flight request) used to be able to leave a
+ * request running against the database with nothing on the client able to
+ * stop it - normal Cancel-button logic only stops the NEXT chunk from being
+ * sent, not one already in flight. This is the hard backstop: whatever
+ * happens, no single request can hold a database connection open past this.
+ * Set well above the ~2.7-2.8s a healthy 2,000-row chunk takes (verified via
+ * EXPLAIN ANALYZE against real data) so ordinary slowness is never cut off.
+ */
+export const CHUNK_TIMEOUT_MS = 45_000;
+
+/**
+ * An AbortController that also fires on its own after CHUNK_TIMEOUT_MS, and
+ * can be aborted early (Cancel button, or a new chunk starting - only one
+ * request is ever in flight at CONCURRENCY=1). Always call `clear()` once
+ * the request settles, success or failure, to release the timer.
+ */
+export function createChunkAbort(): { signal: AbortSignal; controller: AbortController; clear: () => void } {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
+  return { signal: controller.signal, controller, clear: () => clearTimeout(timeoutId) };
+}
+
+/**
  * POSTs JSON and always resolves to a result object rather than throwing -
  * a network failure or an unparsable response (e.g. a proxy's HTML error
- * page for a 504) becomes { error }, same shape as a real API error.
+ * page for a 504) becomes { error }, same shape as a real API error. Always
+ * bounded by CHUNK_TIMEOUT_MS (or an explicit `signal`, e.g. from a Cancel
+ * button) so a hung request can't hold the connection open indefinitely.
  */
-async function postJsonOnce(url: string, body: unknown): Promise<{ error?: string; [key: string]: unknown }> {
+async function postJsonOnce(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal
+): Promise<{ error?: string; [key: string]: unknown }> {
+  const abort = signal ? null : createChunkAbort();
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  } catch {
-    return { error: "network request failed." };
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: signal ?? abort!.signal,
+    });
+  } catch (err) {
+    return { error: err instanceof DOMException && err.name === "AbortError" ? "request timed out." : "network request failed." };
+  } finally {
+    abort?.clear();
   }
   try {
     const json = await res.json();
@@ -75,16 +114,37 @@ export async function postJsonWithRetry(
  * always safe. Returns `data` alongside `error` since some chunk workers
  * (the two matching RPCs) need the row back to report unmatched/merged/added
  * counts to the officer.
+ *
+ * `fn` receives a fresh AbortSignal every attempt (bounded by
+ * CHUNK_TIMEOUT_MS) - the caller must chain it onto the query builder via
+ * `.abortSignal(signal)`, so no single attempt can hold a database
+ * connection open indefinitely. `onAbortController` (optional) hands back
+ * each attempt's controller so a Cancel button can abort the one currently
+ * in flight, not just stop future chunks from being sent.
  */
 export async function supabaseWithRetry<T>(
-  fn: () => Promise<{ data: T | null; error: { message: string } | null }>,
+  fn: (signal: AbortSignal) => Promise<{ data: T | null; error: { message: string } | null }>,
+  onAbortController?: (controller: AbortController) => void,
   attempts = 3
 ): Promise<{ error?: string; data?: T | null }> {
   let lastError = "unknown error.";
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const { data, error } = await fn();
-    if (!error) return { data };
-    lastError = error.message;
+    const { signal, controller, clear } = createChunkAbort();
+    onAbortController?.(controller);
+    try {
+      const { data, error } = await fn(signal);
+      if (!error) return { data };
+      lastError = error.message;
+    } catch (err) {
+      lastError =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "request timed out or was cancelled."
+          : err instanceof Error
+            ? err.message
+            : "unknown error.";
+    } finally {
+      clear();
+    }
     if (attempt < attempts) await new Promise((r) => setTimeout(r, attempt * 800));
   }
   return { error: lastError };
@@ -101,10 +161,11 @@ export async function supabaseWithRetry<T>(
  * plan, a lighter per-chunk operation) rather than removed outright. Stops
  * issuing new work and returns the first error once one occurs, but lets
  * already-in-flight requests finish first (their rows are safely upserted
- * either way). `isCancelled` is checked the same way - lets the officer's
- * Cancel button stop a slow upload between chunks without aborting a
- * request mid-flight (that chunk's rows are safely upserted; the ones after
- * it just never get sent).
+ * either way). `isCancelled` is checked the same way, between chunks - it
+ * stops the NEXT chunk from being sent. Aborting the CURRENT in-flight
+ * request (Cancel button) is a separate mechanism: the caller's `worker`
+ * hands its per-attempt AbortController out via supabaseWithRetry's
+ * `onAbortController` so a Cancel click can abort it directly.
  */
 export async function runChunksWithConcurrency<T>(
   items: T[],
