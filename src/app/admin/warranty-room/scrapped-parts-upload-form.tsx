@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readWorkbookSheets } from "@/lib/warranty-room/read-workbook";
 import { parseScrappedParts, type SkippedScrappedRow } from "@/lib/warranty-room/parse-scrapped-parts";
-import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { postJsonWithRetry, supabaseWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { createClient } from "@/lib/supabase/client";
 import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
@@ -13,15 +14,31 @@ type UploadState =
   | { error?: string; success?: string; skipped?: SkippedScrappedRow[]; unmatched?: number; merged?: number; added?: number }
   | undefined;
 
-// A smaller chunk than the server's own DB_CHUNK_SIZE (500) gives extra
-// margin against the serverless function's own execution timeout - this
-// sheet alone can run 60,000+ rows. Chunks run one at a time, not
-// concurrently - live testing showed running several at once against this
-// project's Supabase tier makes individual requests degrade sharply (~3s to
-// 60s+), worse than the timeout this is trying to avoid. Every chunk still
-// retries on failure - the upsert this hits is idempotent, so re-sending one
-// after a timeout is safe.
-const NETWORK_CHUNK_SIZE = 300;
+// Each chunk calls the upsert_scrapped_parts_chunk RPC directly from the
+// browser instead of proxying through a Vercel API route - this sheet used
+// to be the slowest upload in the app for two compounding reasons, both
+// fixed here. First, matching each row to a claim, checking whether it
+// already existed, and upserting it used to take ~5 sequential database
+// round trips per chunk (a claim lookup, two existing-key lookups, then up
+// to 3 separate upsert/insert statements) - upsert_scrapped_parts_chunk
+// does the same matching/diffing/upserting in ONE round trip via a single
+// SQL statement per branch (see its migration for the full reasoning).
+// Second, going straight to Supabase removes the fixed per-HTTP-request
+// overhead that dominated even the simpler claims upload (a Vercel function
+// invocation plus a fresh auth.getUser() round trip on every single
+// request) and Vercel's 4.5MB request-body cap, which no longer applies -
+// letting the chunk size grow from 300 to 2,000 rows. EXPLAIN ANALYZE
+// against this project's real data confirms the RPC itself easily handles
+// 2,000 rows in ~2.8s, far inside the 2-minute statement_timeout on this
+// project's Postgres. Chunks still run one at a time, not concurrently -
+// concurrency was tried and reverted previously after live testing showed
+// this project's Postgres compute (confirmed free-tier) can't absorb
+// several of these queries at once without individual requests degrading
+// sharply; that's a database-side limit, unrelated to which layer issues
+// the request, so it still applies here. Every chunk still retries on
+// failure - the RPC is idempotent (upserts on natural keys), so re-sending
+// one after a transient failure is always safe.
+const NETWORK_CHUNK_SIZE = 2000;
 const CONCURRENCY = 1;
 const DETAILS_SHEET = "RepPartToDestroyDetailsView";
 
@@ -95,6 +112,7 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
         return;
       }
       const batchId = startResult.batchId as string;
+      const supabase = createClient();
 
       let unmatched = 0;
       let merged = 0;
@@ -105,11 +123,13 @@ export function ScrappedPartsUploadForm({ branches, onUploaded }: { branches: Br
       const { error: chunkError } = await runChunksWithConcurrency(
         partChunks,
         async (chunk) => {
-          const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", { batchId, table: "scrapped_parts", rows: chunk });
-          if (!chunkResult.error) {
-            unmatched += (chunkResult.unmatched as number) ?? 0;
-            merged += (chunkResult.merged as number) ?? 0;
-            added += (chunkResult.added as number) ?? 0;
+          const chunkResult = await supabaseWithRetry<{ unmatched: number; merged: number; added: number }>(
+            async () => await supabase.rpc("upsert_scrapped_parts_chunk", { p_batch_id: batchId, p_rows: chunk }).single()
+          );
+          if (!chunkResult.error && chunkResult.data) {
+            unmatched += chunkResult.data.unmatched ?? 0;
+            merged += chunkResult.data.merged ?? 0;
+            added += chunkResult.data.added ?? 0;
           }
           return chunkResult;
         },

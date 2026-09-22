@@ -47,6 +47,29 @@ export async function postJsonWithRetry(
 }
 
 /**
+ * Same idempotent-retry contract as postJsonWithRetry, but for a chunk that
+ * calls Supabase directly from the browser (supabase.from(...).upsert(...)
+ * or supabase.rpc(...)) instead of going through a Vercel API route. Every
+ * caller upserts on a natural key, so retrying after a transient failure is
+ * always safe. Returns `data` alongside `error` since some chunk workers
+ * (the two matching RPCs) need the row back to report unmatched/merged/added
+ * counts to the officer.
+ */
+export async function supabaseWithRetry<T>(
+  fn: () => Promise<{ data: T | null; error: { message: string } | null }>,
+  attempts = 3
+): Promise<{ error?: string; data?: T | null }> {
+  let lastError = "unknown error.";
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const { data, error } = await fn();
+    if (!error) return { data };
+    lastError = error.message;
+    if (attempt < attempts) await new Promise((r) => setTimeout(r, attempt * 800));
+  }
+  return { error: lastError };
+}
+
+/**
  * Runs `worker` over every item with at most `concurrency` requests in
  * flight at once. Every call site currently passes 1 (fully sequential) -
  * running several chunks at once was tried and reverted after live testing

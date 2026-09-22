@@ -794,6 +794,24 @@ export interface Database {
           score_pct: number;
         }[];
       };
+      upsert_scrapped_parts_chunk: {
+        Args: {
+          p_batch_id: string;
+          p_rows: unknown[];
+        };
+        Returns: {
+          unmatched: number;
+          merged: number;
+          added: number;
+        }[];
+      };
+      upsert_claim_parts_chunk: {
+        Args: {
+          p_batch_id: string;
+          p_rows: unknown[];
+        };
+        Returns: number;
+      };
     };
     Enums: {
       user_role: UserRole;

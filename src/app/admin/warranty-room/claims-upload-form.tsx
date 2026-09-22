@@ -7,7 +7,8 @@ import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbo
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
 import { currentYearMonth } from "@/lib/month";
-import { postJsonWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { postJsonWithRetry, supabaseWithRetry, runChunksWithConcurrency } from "@/lib/warranty-room/client-upload";
+import { createClient } from "@/lib/supabase/client";
 import { UploadProgressBar } from "@/components/upload-progress-bar";
 
 type Branch = { id: string; name: string; code: string };
@@ -23,30 +24,43 @@ type UploadState =
     }
   | undefined;
 
-// Rows are parsed in the browser and sent up in chunks instead of uploading
-// the raw file - Vercel's serverless functions cap request bodies at 4.5MB
-// (not configurable), and a real monthly export here has been 50MB+. A
-// smaller chunk than the server's own DB_CHUNK_SIZE (500) gives extra
-// margin against the serverless function's own execution timeout - large
-// real exports here run 60,000+ rows, and even at 500/chunk a "Gateway
-// Timeout" partway through has been seen in practice. Chunks run one at a
-// time, not concurrently - tried running several in parallel to speed this
-// up, but live testing showed it makes things *worse*: this project's
-// Supabase tier clearly can't absorb several of these upserts at once,
-// individual requests degraded from ~3s to 60s+ under concurrency, which is
-// worse than the timeout this is trying to avoid. Every chunk still retries
-// on failure (postJsonWithRetry) - upserts are idempotent, so re-sending one
-// after a timeout is always safe.
-const NETWORK_CHUNK_SIZE = 300;
+// Rows are parsed in the browser, then each chunk upserts straight from the
+// browser to Supabase (supabase.from(...).upsert(...) / supabase.rpc(...))
+// instead of proxying through a Vercel API route. Root-caused via
+// EXPLAIN ANALYZE against this project's real data: neither the raw upsert
+// nor the RPC below is the bottleneck (a 2,000-row upsert runs in ~2.7s of
+// real database time, and this project's free-tier Postgres has a 2-minute
+// statement_timeout - huge headroom), and the project's Supabase
+// organization is confirmed on the free plan (shared, limited compute - the
+// likely reason concurrency degrades so badly, see below). With query
+// execution ruled out, what actually dominated the old, much-slower version
+// was the FIXED per-request overhead repeated hundreds of times: a Vercel
+// function invocation plus a fresh auth.getUser() round trip to GoTrue on
+// every single 300-row chunk. Calling Supabase directly removes that hop
+// entirely and, since Vercel's 4.5MB request-body cap no longer applies once
+// Supabase is the direct destination, lets the chunk size grow from 300 to
+// 2,000 - a real 60,000+ row export now takes ~30 requests instead of ~200.
+// Chunks still run one at a time, not concurrently - concurrency was tried
+// and reverted previously after live testing showed this project's Postgres
+// compute can't absorb several of these queries at once without individual
+// requests degrading sharply; that's a database-side limit, unrelated to
+// which layer issues the request, so it still applies here. Every chunk
+// still retries on failure (supabaseWithRetry) - every write below is
+// idempotent (upsert on a natural key), so re-sending one after a transient
+// failure is always safe.
+const NETWORK_CHUNK_SIZE = 2000;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
 
 /**
- * Uploads claims exactly as this form always has (same self_audit_claims
- * upsert, same /api/claims/upload/* routes - untouched by anything below).
- * The one addition: if the workbook also has a "Part Details" sheet (the
- * same file this app's claims exports already come in), it's parsed and
- * uploaded too, populating self_audit_claim_parts for the Warranty Room
+ * Uploads claims into the same self_audit_claims table this form always
+ * has - the batch is still created and finished via /api/claims/upload/
+ * start and /finish (one request each, never the bottleneck), but each
+ * chunk in between now upserts directly to Supabase from the browser (see
+ * NETWORK_CHUNK_SIZE above). The one addition: if the workbook also has a
+ * "Part Details" sheet (the same file this app's claims exports already
+ * come in), it's parsed and uploaded too via the upsert_claim_parts_chunk
+ * RPC, populating self_audit_claim_parts for the Warranty Room
  * scrap/do-not-scrap lists. That part is purely additive and non-blocking -
  * a missing or unparsable Part Details sheet doesn't affect the claims
  * upload at all, it's just skipped.
@@ -140,13 +154,22 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         return;
       }
       const batchId = startResult.batchId as string;
+      const supabase = createClient();
 
       const claimChunks: typeof claims[] = [];
       for (let i = 0; i < claims.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(claims.slice(i, i + NETWORK_CHUNK_SIZE));
 
       const { error: chunkError } = await runChunksWithConcurrency(
         claimChunks,
-        (chunk) => postJsonWithRetry("/api/claims/upload/chunk", { batchId, claims: chunk }),
+        (chunk) =>
+          supabaseWithRetry(async () =>
+            await supabase
+              .from("self_audit_claims")
+              .upsert(
+                chunk.map((c) => ({ ...c, upload_batch_id: batchId })),
+                { onConflict: "branch_id,claim_number" }
+              )
+          ),
         CONCURRENCY,
         (done, total) => {
           setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length}`);
@@ -200,14 +223,13 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
               const { error } = await runChunksWithConcurrency(
                 partChunks,
                 async (chunk) => {
-                  const chunkResult = await postJsonWithRetry("/api/warranty-room/upload/chunk", {
-                    batchId: wrStart.batchId,
-                    table: "claim_parts",
-                    rows: chunk,
-                  });
+                  const chunkResult = await supabaseWithRetry(async () =>
+                    await supabase.rpc("upsert_claim_parts_chunk", { p_batch_id: wrStart.batchId as string, p_rows: chunk })
+                  );
                   if (!chunkResult.error) {
-                    partsUploaded = (partsUploaded ?? 0) + chunk.length - ((chunkResult.unmatched as number) ?? 0);
-                    unmatchedParts += (chunkResult.unmatched as number) ?? 0;
+                    const unmatchedInChunk = chunkResult.data ?? 0;
+                    partsUploaded = (partsUploaded ?? 0) + chunk.length - unmatchedInChunk;
+                    unmatchedParts += unmatchedInChunk;
                   }
                   return chunkResult;
                 },

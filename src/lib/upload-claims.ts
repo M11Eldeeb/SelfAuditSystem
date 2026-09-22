@@ -1,8 +1,5 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { ParsedClaimRow } from "@/lib/parse-claims";
-
-const DB_CHUNK_SIZE = 500;
 
 export async function startUploadBatch(
   officerId: string,
@@ -28,21 +25,6 @@ export async function startUploadBatch(
 
   if (error || !batch) return { error: error?.message ?? "Could not create the upload batch." };
   return { batchId: batch.id };
-}
-
-export async function upsertClaimsChunk(
-  batchId: string,
-  claims: ParsedClaimRow[]
-): Promise<{ error?: string }> {
-  const supabase = await createClient();
-
-  for (let i = 0; i < claims.length; i += DB_CHUNK_SIZE) {
-    const chunk = claims.slice(i, i + DB_CHUNK_SIZE).map((c) => ({ ...c, upload_batch_id: batchId }));
-    const { error } = await supabase.from("self_audit_claims").upsert(chunk, { onConflict: "branch_id,claim_number" });
-    if (error) return { error: error.message };
-  }
-
-  return {};
 }
 
 /**

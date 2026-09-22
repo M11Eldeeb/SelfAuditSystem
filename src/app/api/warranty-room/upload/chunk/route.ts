@@ -1,19 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import {
-  upsertClaimsChunk,
-  upsertClaimPartsChunk,
-  insertScrappedPartsChunk,
-  upsertScrapRequestsChunk,
-  upsertSupplierPartsChunk,
-} from "@/lib/warranty-room/upload";
+import { upsertClaimsChunk, upsertScrapRequestsChunk, upsertSupplierPartsChunk } from "@/lib/warranty-room/upload";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
-import type { ParsedClaimPartRow } from "@/lib/warranty-room/parse-claim-parts";
-import type { ParsedScrappedPartRow } from "@/lib/warranty-room/parse-scrapped-parts";
 import type { ParsedScrapRequestRow } from "@/lib/warranty-room/parse-scrap-requests";
 import type { ParsedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
 
-type ChunkTable = "claims" | "claim_parts" | "scrapped_parts" | "scrap_requests" | "supplier_parts";
+type ChunkTable = "claims" | "scrap_requests" | "supplier_parts";
 
 export const maxDuration = 60;
 
@@ -37,14 +29,6 @@ export async function POST(request: Request) {
 
     if (table === "claims") {
       const result = await upsertClaimsChunk(batchId, rows as ParsedClaimRow[]);
-      return NextResponse.json(result);
-    }
-    if (table === "claim_parts") {
-      const result = await upsertClaimPartsChunk(batchId, rows as ParsedClaimPartRow[]);
-      return NextResponse.json(result);
-    }
-    if (table === "scrapped_parts") {
-      const result = await insertScrappedPartsChunk(batchId, rows as ParsedScrappedPartRow[]);
       return NextResponse.json(result);
     }
     if (table === "scrap_requests") {

@@ -1,7 +1,7 @@
 import { extractBranchCodeFromDealerField, extractBranchCodeFromWorkOrder, parseDateValue } from "@/lib/parse-claims";
 
 export interface ParsedClaimPartRow {
-  /** Best-effort guess from this row's own Dealer field - null when that field is blank/unrecognized. Not fatal: upsertClaimPartsChunk resolves the real branch_id from the matched claim instead of relying on this. */
+  /** Best-effort guess from this row's own Dealer field - null when that field is blank/unrecognized. Not fatal: the upsert_claim_parts_chunk RPC resolves the real branch_id from the matched claim instead of relying on this. */
   branch_id: string | null;
   claim_number: string;
   part_no: string;
@@ -48,10 +48,10 @@ function matchColumns(headers: string[]): Partial<Record<Field, number>> {
  * Dealer field with no other row for that same claim carrying one either -
  * not sparse/inconsistent, entire claims just have no Dealer on this sheet.
  * A row is no longer dropped for that - branch_id here is only a best-effort
- * hint from the Dealer field when present; upsertClaimPartsChunk resolves
- * the real branch_id by matching the claim itself (already looked up by
- * claim_number), the same claim_number-only fallback insertScrappedPartsChunk
- * already uses for a sheet with the same gap.
+ * hint from the Dealer field when present; the upsert_claim_parts_chunk RPC
+ * resolves the real branch_id by matching the claim itself (by
+ * claim_number), the same claim_number-only fallback the
+ * upsert_scrapped_parts_chunk RPC already uses for a sheet with the same gap.
  */
 export function parseClaimParts(
   headers: string[],
