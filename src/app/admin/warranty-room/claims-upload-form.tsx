@@ -26,8 +26,6 @@ type UploadState =
       partsUploaded?: number;
       unmatchedParts?: number;
       partDetailsError?: string;
-      scrapRequestsCreated?: number;
-      scrapGenerationError?: string;
       timing?: string;
     }
   | undefined;
@@ -54,21 +52,6 @@ type UploadState =
 const NETWORK_CHUNK_SIZE = 300;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
-// Rows-of-self_audit_claims per generate_scrap_requests_chunk() call (not
-// filtered results - the raw scan window) - see the big comment at its call
-// site for why this is paged instead of one call over the whole table.
-// 5,000/page repeatedly measured safe in isolated testing (well under the
-// real 8s statement_timeout) but still failed twice in real production use -
-// this project's free-tier disk throughput is proven to vary a lot moment
-// to moment (same root cause as the earlier upload-speed incident), so a
-// page size that's "safe" against one measurement isn't safe against a
-// colder/more-throttled moment. Cut hard, to 1,500 (~5x more margin against
-// the worst rate actually measured), rather than keep chasing an exact safe
-// number against a target that doesn't hold still.
-const SCAN_PAGE_SIZE = 1500;
-const SCAN_PAGE_MAX_PAGES = 80; // ~120,000 claims at this page size - ceiling against an infinite loop bug, not a real limit
-const SCAN_PAGE_MIN_SIZE = 100; // floor a shrinking page size never goes below
-const SCAN_PAGE_MAX_SHRINKS = 6; // per page slice, before giving up on it entirely
 
 /**
  * Uploads claims into the same self_audit_claims table this form always
@@ -81,11 +64,16 @@ const SCAN_PAGE_MAX_SHRINKS = 6; // per page slice, before giving up on it entir
  * self_audit_claim_parts for the Warranty Room scrap/do-not-scrap lists.
  * That part is purely additive and non-blocking - a missing or unparsable
  * Part Details sheet doesn't affect the claims upload at all, it's just
- * skipped. Finally, generate_scrap_requests_chunk() (paged - see its call
- * site) re-checks every claim's Verification Date against the 90-day
- * holding period and flags anything newly eligible - this is the ONLY thing
- * that decides what needs scrapping now (no separate "Parts should be
- * scraped" sheet to upload anymore).
+ * skipped. Scrap eligibility (90 days past a claim's Verification Date,
+ * once Approved/Settled/To Be Settled) is recomputed separately by
+ * run_generate_scrap_requests_all(), on a pg_cron schedule (every 10
+ * minutes) rather than as part of this upload - three real "canceling
+ * statement due to statement timeout" failures in production proved no
+ * fixed page size survives this project's free-tier disk throughput
+ * reliably under real concurrent load (isolated testing always succeeded;
+ * only real usage failed, since only real usage has concurrent load to
+ * contend with). A scheduled job sidesteps the interactive request's 8s
+ * statement_timeout entirely - it runs as `postgres`, which has none.
  */
 export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
@@ -321,84 +309,12 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         timer.mark("Upload part details");
       }
 
-      // Recomputes which claims just crossed the 90-day holding period
-      // (Verification Date) and flags them to scrap - runs after Part
-      // Details so newly-uploaded claim_parts rows are already in place for
-      // its part-matching. Non-blocking, same reasoning as Part Details
-      // above: a failure here doesn't undo the successful claims upload.
-      //
-      // Paged in SCAN_PAGE_SIZE-row slices of self_audit_claims (not
-      // filtered results - every claim, has-parts or not) rather than one
-      // call over the whole table. A single unpaged call genuinely failed in
-      // production ("canceling statement due to statement timeout") - the
-      // `authenticated` role has an 8s statement_timeout (confirmed via
-      // pg_roles, not the ~2min this migration tool's own connection showed)
-      // and scanning the full ~61,000-row table took ~12-20s measured live,
-      // a cold-cache disk-throughput cost (a scan touching zero JSONB was
-      // equally slow) that no WHERE-clause rewrite fixes. Tried wrapping the
-      // call in SET LOCAL statement_timeout inside the function first - does
-      // NOT work, confirmed live: Postgres arms the timeout when the outer
-      // RPC call begins and a SET LOCAL mid-function doesn't rearm it for
-      // that same already-in-flight call. 5,000 rows/page verified safely
-      // under 8s as a real standalone call (not a looped test, which itself
-      // becomes one long outer statement and defeats the point).
-      let scrapRequestsCreated: number | undefined;
-      let scrapGenerationError: string | undefined;
-      try {
-        let afterId: string | null = null;
-        let pageSize = SCAN_PAGE_SIZE;
-        let pages = 0;
-        let shrinks = 0;
-        scrapRequestsCreated = 0;
-        for (;;) {
-          pages += 1;
-          if (pages > SCAN_PAGE_MAX_PAGES) {
-            scrapGenerationError = `Stopped updating the scrap list after ${SCAN_PAGE_MAX_PAGES} pages - this shouldn't happen. Re-upload the same file to retry.`;
-            break;
-          }
-          setProgress(
-            `Updating scrap list - page ${pages}${pageSize < SCAN_PAGE_SIZE ? ` (smaller batch: ${pageSize} rows, database is slow right now)` : ""}...`
-          );
-          const { data, error } = await supabaseWithRetry(
-            async (signal) =>
-              await supabase
-                .rpc("generate_scrap_requests_chunk", { p_after_id: afterId, p_limit: pageSize })
-                .abortSignal(signal),
-            (controller) => (abortControllerRef.current = controller)
-          );
-          if (error) {
-            // A slow moment for the database rather than a hard failure -
-            // this project's disk throughput is proven to vary a lot run to
-            // run (see the comment above), so retry this same slice with a
-            // smaller page before giving up on it, rather than assuming any
-            // fixed page size is always safe.
-            if (pageSize > SCAN_PAGE_MIN_SIZE && shrinks < SCAN_PAGE_MAX_SHRINKS) {
-              pageSize = Math.max(SCAN_PAGE_MIN_SIZE, Math.floor(pageSize / 2));
-              shrinks += 1;
-              continue;
-            }
-            scrapGenerationError = `Could not update the scrap list: ${error}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
-            break;
-          }
-          shrinks = 0;
-          const page = data?.[0];
-          scrapRequestsCreated += page?.created ?? 0;
-          if (!page || page.scanned < pageSize || !page.next_after_id) break;
-          afterId = page.next_after_id;
-        }
-      } catch (err) {
-        scrapGenerationError = `Could not update the scrap list: ${err instanceof Error ? err.message : "unknown error"}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
-      }
-      timer.mark("Update scrap list");
-
       setState({
         success: finishResult.success as string,
         skipped,
         partsUploaded,
         unmatchedParts,
         partDetailsError,
-        scrapRequestsCreated,
-        scrapGenerationError,
         timing: timer.summary(),
       });
       formRef.current?.reset();
@@ -455,8 +371,9 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         Submit Date, Creation Date, Verification Date. Branch, Claim Number, and Creation Date are
         required. If the file also has a &quot;{PART_DETAILS_SHEET}&quot; sheet, every part on each claim
         is picked up too. Claims that reach 90 days past their Verification Date (once Approved,
-        Settled, or To Be Settled) are automatically flagged to scrap after every upload. The file
-        is parsed in your browser, so there&apos;s no size limit from the server.
+        Settled, or To Be Settled) are automatically flagged to scrap - checked every 10 minutes in
+        the background, not tied to this upload finishing. The file is parsed in your browser, so
+        there&apos;s no size limit from the server.
       </p>
 
       {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
@@ -489,12 +406,6 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         </p>
       )}
       {state?.partDetailsError && <p className="text-sm text-amber-700">{state.partDetailsError}</p>}
-      {!!state?.scrapRequestsCreated && (
-        <p className="text-sm text-emerald-600">
-          {state.scrapRequestsCreated} claim(s) newly crossed the 90-day holding period and were flagged to scrap.
-        </p>
-      )}
-      {state?.scrapGenerationError && <p className="text-sm text-amber-700">{state.scrapGenerationError}</p>}
 
       {state?.skipped && state.skipped.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
