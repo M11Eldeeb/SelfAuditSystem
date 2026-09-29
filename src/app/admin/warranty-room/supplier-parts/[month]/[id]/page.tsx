@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupplierPartOverdue } from "@/lib/warranty-room/supplier-overdue";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { DownloadExcelButton } from "./download-button";
-import { CollectionActions } from "../collection-actions";
+import { CollectionActions } from "../../collection-actions";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
@@ -13,10 +13,10 @@ const STATUS_LABELS: Record<string, string> = {
   handed_over: "Handed over",
 };
 
-export default async function SupplierCollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SupplierCollectionDetailPage({ params }: { params: Promise<{ month: string; id: string }> }) {
   await requireRole("officer");
   const supabase = await createClient();
-  const { id } = await params;
+  const { month, id } = await params;
 
   const { data: collection } = await supabase
     .from("self_audit_supplier_collections")
@@ -64,8 +64,8 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/warranty-room/supplier-parts" className="text-sm text-neutral-500 hover:text-neutral-800">
-          &larr; Back to Supplier parts
+        <Link href={`/admin/warranty-room/supplier-parts/${month}`} className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to {month}
         </Link>
       </div>
 

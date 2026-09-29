@@ -13,25 +13,40 @@ import { buildDoNotScrapWorkbookBuffer } from "@/lib/warranty-room/do-not-scrap-
  * react.dev/errors/441 and Next.js GitHub issues). A plain HTTP file
  * response has no such payload-shape constraint; only the compact xlsx
  * binary crosses the network, not raw JSON rows.
+ *
+ * maxDuration matches the other Warranty Room routes (upload/start etc.) -
+ * without it this defaults to the platform's standard timeout, which a
+ * large branch's row count (tens of thousands) plus ExcelJS's in-memory
+ * workbook build can plausibly exceed.
  */
+export const maxDuration = 60;
+
 export async function GET() {
   const user = await requireRole("branch_admin");
   const supabase = await createClient();
 
-  const [rows, { data: branch }] = await Promise.all([
-    getDoNotScrapClaims(supabase, user.branch_id ?? ""),
-    supabase.from("self_audit_branches").select("name").eq("id", user.branch_id ?? "").single(),
-  ]);
-  const buffer = await buildDoNotScrapWorkbookBuffer(rows);
-  const claimCount = new Set(rows.map((r) => r.claim_number)).size;
-  const branchSlug = (branch?.name ?? "branch").replace(/\s+/g, "_");
+  try {
+    const [rows, { data: branch }] = await Promise.all([
+      getDoNotScrapClaims(supabase, user.branch_id ?? ""),
+      supabase.from("self_audit_branches").select("name").eq("id", user.branch_id ?? "").single(),
+    ]);
+    const buffer = await buildDoNotScrapWorkbookBuffer(rows);
+    const claimCount = new Set(rows.map((r) => r.claim_number)).size;
+    const branchSlug = (branch?.name ?? "branch").replace(/\s+/g, "_");
 
-  return new NextResponse(buffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="Do_Not_Scrap_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
-      "X-Claim-Count": String(claimCount),
-      "X-Part-Count": String(rows.length),
-    },
-  });
+    return new NextResponse(buffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="Do_Not_Scrap_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
+        "X-Claim-Count": String(claimCount),
+        "X-Part-Count": String(rows.length),
+      },
+    });
+  } catch (err) {
+    console.error("Do not scrap download failed:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Could not generate the report." },
+      { status: 500 }
+    );
+  }
 }

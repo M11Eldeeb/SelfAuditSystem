@@ -14,7 +14,10 @@ export function DoNotScrapDownloadButton() {
     setSummary(null);
     try {
       const res = await fetch("/api/warranty-room/download/do-not-scrap");
-      if (!res.ok) throw new Error(`Could not generate the report (${res.status}).`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ? `Could not generate the report: ${body.error}` : `Could not generate the report (${res.status}).`);
+      }
       const claimCount = res.headers.get("X-Claim-Count") ?? "?";
       const partCount = res.headers.get("X-Part-Count") ?? "?";
       const blob = await res.blob();

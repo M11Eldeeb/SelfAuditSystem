@@ -22,7 +22,10 @@ export function ScrappingListDownloadButton({ branchId }: { branchId?: string })
         ? `/api/warranty-room/download/scrapping-list?branch=${encodeURIComponent(branchId)}`
         : "/api/warranty-room/download/scrapping-list";
       const res = await fetch(endpoint);
-      if (!res.ok) throw new Error(`Could not generate the report (${res.status}).`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ? `Could not generate the report: ${body.error}` : `Could not generate the report (${res.status}).`);
+      }
       const claimCount = res.headers.get("X-Claim-Count") ?? "?";
       const partCount = res.headers.get("X-Part-Count") ?? "?";
       const blob = await res.blob();
