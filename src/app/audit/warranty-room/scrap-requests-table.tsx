@@ -16,9 +16,7 @@ type Request = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending_branch: "Awaiting your submission",
-  returned_to_branch: "Returned to you - please redo and resubmit",
-  manufacturer_returned: "Returned by the manufacturer - please redo and resubmit",
+  pending: "Awaiting your submission",
 };
 
 /** Every pending claim's parts in one table (was a stack of per-claim bullet lists) - exportable, scrollable. */

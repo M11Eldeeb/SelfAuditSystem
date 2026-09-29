@@ -3,8 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ClaimsUploadForm } from "./claims-upload-form";
-import { ScrappedPartsUploadForm } from "./scrapped-parts-upload-form";
-import { ScrapRequestsUploadForm } from "./scrap-requests-upload-form";
 import { SupplierPartsUploadForm } from "./supplier-parts-upload-form";
 
 type Branch = { id: string; name: string; code: string };
@@ -12,20 +10,17 @@ type Branch = { id: string; name: string; code: string };
 type Stats = {
   claimsCount: number;
   claimPartsCount: number;
-  scrappedPartsCount: number;
   scrapRequestsCount: number;
-  scrapPendingCount: number;
+  scrapReadyCount: number;
   supplierCollectionsCount: number;
 };
 
 type LastSynced = {
   claimsData: string | null;
-  scrappedParts: string | null;
-  scrapRequests: string | null;
   supplierParts: string | null;
 };
 
-const STEP_LABELS = ["All claims data", "Parts already scraped", "Parts should be scraped", "Supplier parts"];
+const STEP_LABELS = ["All claims data", "Supplier parts"];
 
 function LastSyncedNote({ at }: { at: string | null }) {
   return (
@@ -37,9 +32,9 @@ function LastSyncedNote({ at }: { at: string | null }) {
 
 /**
  * Only the active step's upload form is ever mounted - the officer asked for
- * this after almost uploading a file into the wrong section: with all four
- * file inputs visible at once, it's easy to click the wrong one. Completing
- * a step (or explicitly skipping it) advances to the next; a completed step
+ * this after almost uploading a file into the wrong section: with all file
+ * inputs visible at once, it's easy to click the wrong one. Completing a
+ * step (or explicitly skipping it) advances to the next; a completed step
  * can be reopened to redo it, but its form isn't rendered until then.
  *
  * The checkmarks start seeded from real data (stats), not just this
@@ -52,9 +47,7 @@ function LastSyncedNote({ at }: { at: string | null }) {
 function initialCompleted(stats: Stats): Set<number> {
   const done = new Set<number>();
   if (stats.claimsCount > 0) done.add(1);
-  if (stats.scrappedPartsCount > 0) done.add(2);
-  if (stats.scrapRequestsCount > 0) done.add(3);
-  if (stats.supplierCollectionsCount > 0) done.add(4);
+  if (stats.supplierCollectionsCount > 0) done.add(2);
   return done;
 }
 
@@ -75,18 +68,18 @@ export function UploadWizard({
   });
 
   function advance(n: number) {
-    const next = Math.min(n + 1, 4);
+    const next = Math.min(n + 1, 2);
     setStep(next);
     setMaxReached((prev) => Math.max(prev, next));
   }
 
   function markDone(n: number) {
     setCompleted((prev) => new Set(prev).add(n));
-    if (n < 4) advance(n);
+    if (n < 2) advance(n);
   }
 
   function skip(n: number) {
-    if (n < 4) advance(n);
+    if (n < 2) advance(n);
   }
 
   // Only a step already reached (completed, skipped, or the current one) can
@@ -129,7 +122,7 @@ export function UploadWizard({
                 </span>
                 {label}
               </button>
-              {n < 4 && <span className="text-neutral-300">→</span>}
+              {n < 2 && <span className="text-neutral-300">→</span>}
             </li>
           );
         })}
@@ -141,7 +134,13 @@ export function UploadWizard({
           <LastSyncedNote at={lastSynced.claimsData} />
           <ClaimsUploadForm branches={branches} onUploaded={() => markDone(1)} />
           <div className="flex items-center justify-between">
-            <p className="text-xs text-neutral-500">{stats.claimPartsCount} part detail row(s) on file across all claims.</p>
+            <p className="text-xs text-neutral-500">
+              {stats.claimPartsCount} part detail row(s) on file &middot; {stats.scrapRequestsCount} claim(s)
+              flagged to scrap &middot;{" "}
+              <Link href="/admin/warranty-room/scrap" className="text-brand hover:underline">
+                {stats.scrapReadyCount} destruction video(s) ready to download →
+              </Link>
+            </p>
             <button type="button" onClick={() => skip(1)} className="text-xs font-medium text-neutral-500 hover:text-neutral-800">
               Skip this step →
             </button>
@@ -151,42 +150,9 @@ export function UploadWizard({
 
       {step === 2 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-neutral-900">2. Parts already scraped</h2>
-          <LastSyncedNote at={lastSynced.scrappedParts} />
-          <ScrappedPartsUploadForm branches={branches} onUploaded={() => markDone(2)} />
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-neutral-500">{stats.scrappedPartsCount} already-scrapped part row(s) on file.</p>
-            <button type="button" onClick={() => skip(2)} className="text-xs font-medium text-neutral-500 hover:text-neutral-800">
-              Skip this step →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-neutral-900">3. Parts should be scraped</h2>
-          <LastSyncedNote at={lastSynced.scrapRequests} />
-          <ScrapRequestsUploadForm branches={branches} onUploaded={() => markDone(3)} />
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-neutral-500">
-              {stats.scrapRequestsCount} scrap request(s) on file &middot;{" "}
-              <Link href="/admin/warranty-room/scrap" className="text-brand hover:underline">
-                {stats.scrapPendingCount} awaiting review or manufacturer decision →
-              </Link>
-            </p>
-            <button type="button" onClick={() => skip(3)} className="text-xs font-medium text-neutral-500 hover:text-neutral-800">
-              Skip this step →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-neutral-900">4. Supplier parts</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">2. Supplier parts</h2>
           <LastSyncedNote at={lastSynced.supplierParts} />
-          <SupplierPartsUploadForm branches={branches} onUploaded={() => markDone(4)} />
+          <SupplierPartsUploadForm branches={branches} onUploaded={() => markDone(2)} />
           <p className="text-xs text-neutral-500">
             <Link href="/admin/warranty-room/supplier-parts" className="text-brand hover:underline">
               {stats.supplierCollectionsCount} supplier collection(s) on file →
@@ -195,9 +161,9 @@ export function UploadWizard({
         </div>
       )}
 
-      {completed.size === 4 && (
+      {completed.size === 2 && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          All 4 uploads done for this round. Click any step above to redo it if needed.
+          Both uploads done for this round. Click either step above to redo it if needed.
         </p>
       )}
     </section>

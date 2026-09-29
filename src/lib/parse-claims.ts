@@ -17,6 +17,7 @@ export interface ParsedClaimRow {
   return_times_dealer: number | null;
   labor_code: string | null;
   main_part_name: string | null;
+  verification_date: string | null;
   raw_row: Record<string, unknown>;
 }
 
@@ -95,6 +96,12 @@ const FIELD_ALIASES = {
   return_times: ["return times", "return times saic", "returns"],
   return_times_dealer: ["return times dealer", "return times (dealer)", "return times(dealer)"],
   labor_code: ["main labor", "main labor code", "labor code", "labour code", "primary labor code", "labor op code"],
+  // Drives the auto-scrap-eligibility check (Warranty Room): a claim crosses
+  // the 90-day holding period this many days after this date. Confirmed
+  // real column name in JIAD's export - was previously only readable out of
+  // raw_row (see src/lib/warranty-room/supplier-overdue.ts), now a proper
+  // typed/indexed column on self_audit_claims.
+  verification_date: ["verification date"],
 } as const;
 
 type Field = keyof typeof FIELD_ALIASES;
@@ -269,6 +276,7 @@ export function parseClaimRows(
       return_times_dealer: numOrNull(get(row, "return_times_dealer")),
       labor_code: str(get(row, "labor_code")),
       main_part_name: str(get(row, "main_part_name")),
+      verification_date: parseDateValue(get(row, "verification_date")),
       raw_row: rawRow,
     });
   });

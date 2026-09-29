@@ -26,6 +26,8 @@ type UploadState =
       partsUploaded?: number;
       unmatchedParts?: number;
       partDetailsError?: string;
+      scrapRequestsCreated?: number;
+      scrapGenerationError?: string;
       timing?: string;
     }
   | undefined;
@@ -58,13 +60,16 @@ const PART_DETAILS_SHEET = "Part Details";
  * has - the batch is still created and finished via /api/claims/upload/
  * start and /finish (one request each, never the bottleneck), but each
  * chunk in between now upserts directly to Supabase from the browser (see
- * NETWORK_CHUNK_SIZE above). The one addition: if the workbook also has a
- * "Part Details" sheet (the same file this app's claims exports already
- * come in), it's parsed and uploaded too via the upsert_claim_parts_chunk
- * RPC, populating self_audit_claim_parts for the Warranty Room
- * scrap/do-not-scrap lists. That part is purely additive and non-blocking -
- * a missing or unparsable Part Details sheet doesn't affect the claims
- * upload at all, it's just skipped.
+ * NETWORK_CHUNK_SIZE above). If the workbook also has a "Part Details" sheet
+ * (the same file this app's claims exports already come in), it's parsed
+ * and uploaded too via the upsert_claim_parts_chunk RPC, populating
+ * self_audit_claim_parts for the Warranty Room scrap/do-not-scrap lists.
+ * That part is purely additive and non-blocking - a missing or unparsable
+ * Part Details sheet doesn't affect the claims upload at all, it's just
+ * skipped. Finally, generate_scrap_requests() re-checks every claim's
+ * Verification Date against the 90-day holding period and flags anything
+ * newly eligible - this is the ONLY thing that decides what needs scrapping
+ * now (no separate "Parts should be scraped" sheet to upload anymore).
  */
 export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
@@ -300,12 +305,33 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         timer.mark("Upload part details");
       }
 
+      // Recomputes which claims just crossed the 90-day holding period
+      // (Verification Date) and flags them to scrap - runs after Part
+      // Details so newly-uploaded claim_parts rows are already in place for
+      // its part-matching. Non-blocking, same reasoning as Part Details
+      // above: a failure here doesn't undo the successful claims upload.
+      let scrapRequestsCreated: number | undefined;
+      let scrapGenerationError: string | undefined;
+      try {
+        const { data, error } = await supabase.rpc("generate_scrap_requests");
+        if (error) {
+          scrapGenerationError = `Could not update the scrap list: ${error.message}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
+        } else {
+          scrapRequestsCreated = data ?? 0;
+        }
+      } catch (err) {
+        scrapGenerationError = `Could not update the scrap list: ${err instanceof Error ? err.message : "unknown error"}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
+      }
+      timer.mark("Update scrap list");
+
       setState({
         success: finishResult.success as string,
         skipped,
         partsUploaded,
         unmatchedParts,
         partDetailsError,
+        scrapRequestsCreated,
+        scrapGenerationError,
         timing: timer.summary(),
       });
       formRef.current?.reset();
@@ -359,10 +385,11 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       <p className="text-xs text-neutral-500">
         Expected columns (any order, header names are flexible): Branch, Claim Number, VIN,
         Vehicle Model, Mileage, Part Serial Number, Part Production Date, Repair End Date, Dealer
-        Submit Date, Creation Date. Branch, Claim Number, and Creation Date are required. If the
-        file also has a &quot;{PART_DETAILS_SHEET}&quot; sheet, every part on each claim is picked up too
-        (used by the scrap and do-not-scrap lists below). The file is parsed in your browser, so
-        there&apos;s no size limit from the server.
+        Submit Date, Creation Date, Verification Date. Branch, Claim Number, and Creation Date are
+        required. If the file also has a &quot;{PART_DETAILS_SHEET}&quot; sheet, every part on each claim
+        is picked up too. Claims that reach 90 days past their Verification Date (once Approved,
+        Settled, or To Be Settled) are automatically flagged to scrap after every upload. The file
+        is parsed in your browser, so there&apos;s no size limit from the server.
       </p>
 
       {progress && progressPercent == null && <p className="text-sm text-neutral-600">{progress}</p>}
@@ -395,6 +422,12 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         </p>
       )}
       {state?.partDetailsError && <p className="text-sm text-amber-700">{state.partDetailsError}</p>}
+      {!!state?.scrapRequestsCreated && (
+        <p className="text-sm text-emerald-600">
+          {state.scrapRequestsCreated} claim(s) newly crossed the 90-day holding period and were flagged to scrap.
+        </p>
+      )}
+      {state?.scrapGenerationError && <p className="text-sm text-amber-700">{state.scrapGenerationError}</p>}
 
       {state?.skipped && state.skipped.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">

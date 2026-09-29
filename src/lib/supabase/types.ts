@@ -96,6 +96,7 @@ export interface Database {
           return_times_dealer: number | null;
           labor_code: string | null;
           main_part_name: string | null;
+          verification_date: string | null;
           created_at: string;
         };
         Insert: {
@@ -120,6 +121,7 @@ export interface Database {
           return_times_dealer?: number | null;
           labor_code?: string | null;
           main_part_name?: string | null;
+          verification_date?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_claims"]["Insert"]>;
@@ -734,13 +736,9 @@ export interface Database {
         };
         Returns: void;
       };
-      decide_scrap_request: {
-        Args: {
-          p_scrap_request_id: string;
-          p_new_status: string;
-          p_comment: string | null;
-        };
-        Returns: void;
+      generate_scrap_requests: {
+        Args: Record<string, never>;
+        Returns: number;
       };
       hand_over_supplier_collection: {
         Args: {

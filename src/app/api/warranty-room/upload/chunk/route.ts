@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { upsertClaimsChunk, upsertScrapRequestsChunk, upsertSupplierPartsChunk } from "@/lib/warranty-room/upload";
+import { upsertClaimsChunk, upsertSupplierPartsChunk } from "@/lib/warranty-room/upload";
 import type { ParsedClaimRow } from "@/lib/parse-claims";
-import type { ParsedScrapRequestRow } from "@/lib/warranty-room/parse-scrap-requests";
 import type { ParsedSupplierPartRow } from "@/lib/warranty-room/parse-supplier-parts";
 
-type ChunkTable = "claims" | "scrap_requests" | "supplier_parts";
+type ChunkTable = "claims" | "supplier_parts";
 
 export const maxDuration = 60;
 
@@ -29,10 +28,6 @@ export async function POST(request: Request) {
 
     if (table === "claims") {
       const result = await upsertClaimsChunk(batchId, rows as ParsedClaimRow[]);
-      return NextResponse.json(result);
-    }
-    if (table === "scrap_requests") {
-      const result = await upsertScrapRequestsChunk(batchId, rows as ParsedScrapRequestRow[]);
       return NextResponse.json(result);
     }
     if (table === "supplier_parts") {

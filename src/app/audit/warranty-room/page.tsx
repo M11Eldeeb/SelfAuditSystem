@@ -6,8 +6,6 @@ import { ScrapRequestsTable } from "./scrap-requests-table";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { BulkScrapVideoUpload } from "./bulk-scrap-video-upload";
 
-const PENDING_BRANCH_STATUSES = ["pending_branch", "returned_to_branch", "manufacturer_returned"];
-
 export default async function BranchWarrantyRoomPage() {
   const user = await requireRole("branch_admin");
   const supabase = await createClient();
@@ -17,7 +15,7 @@ export default async function BranchWarrantyRoomPage() {
       .from("self_audit_scrap_requests")
       .select("id, claim_id, work_order_no, status")
       .eq("branch_id", user.branch_id ?? "")
-      .in("status", PENDING_BRANCH_STATUSES)
+      .eq("status", "pending")
       .order("created_at", { ascending: true }),
     supabase.from("self_audit_branches").select("name").eq("id", user.branch_id ?? "").single(),
     supabase

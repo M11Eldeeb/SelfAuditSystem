@@ -8,7 +8,7 @@ export default async function WarrantyRoomPage() {
   const supabase = await createClient();
 
   // Warranty Room's own upload kinds are tagged onto self_audit_upload_batches'
-  // source_filename (e.g. "[warranty-room:scrapped_parts] file.xlsx" - see
+  // source_filename (e.g. "[warranty-room:supplier_parts] file.xlsx" - see
   // startWarrantyRoomBatch in src/lib/warranty-room/upload.ts); the plain
   // claims upload (self_audit_claims itself, via the older /api/claims/*
   // route) is untagged. "All claims data" is really two separate batches -
@@ -20,28 +20,21 @@ export default async function WarrantyRoomPage() {
     { data: branches },
     { count: claimsCount },
     { count: claimPartsCount },
-    { count: scrappedPartsCount },
     { count: scrapRequestsCount },
+    { count: scrapReadyCount },
     { count: supplierCollectionsCount },
     { data: batches },
-    { count: scrapPendingCount },
     { data: claimsBatch },
     { data: claimsPartsBatch },
-    { data: scrappedPartsBatch },
-    { data: scrapRequestsBatch },
     { data: supplierPartsBatch },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_claims").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_claim_parts").select("id", { count: "exact", head: true }),
-    supabase.from("self_audit_scrapped_parts").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }),
+    supabase.from("self_audit_scrap_requests").select("id", { count: "exact", head: true }).eq("status", "scrapped"),
     supabase.from("self_audit_supplier_collections").select("id", { count: "exact", head: true }),
     supabase.from("self_audit_upload_batches").select("*").order("uploaded_at", { ascending: false }).limit(5),
-    supabase
-      .from("self_audit_scrap_requests")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["pending_review", "pending_manufacturer"]),
     supabase
       .from("self_audit_upload_batches")
       .select("uploaded_at")
@@ -52,18 +45,6 @@ export default async function WarrantyRoomPage() {
       .from("self_audit_upload_batches")
       .select("uploaded_at")
       .like("source_filename", "[warranty-room:claims_data]%")
-      .order("uploaded_at", { ascending: false })
-      .limit(1),
-    supabase
-      .from("self_audit_upload_batches")
-      .select("uploaded_at")
-      .like("source_filename", "[warranty-room:scrapped_parts]%")
-      .order("uploaded_at", { ascending: false })
-      .limit(1),
-    supabase
-      .from("self_audit_upload_batches")
-      .select("uploaded_at")
-      .like("source_filename", "[warranty-room:scrap_requests]%")
       .order("uploaded_at", { ascending: false })
       .limit(1),
     supabase
@@ -84,9 +65,9 @@ export default async function WarrantyRoomPage() {
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">
-          Claims data, and what happens to a claim&apos;s removed parts after settlement: already
-          scrapped, queued to be scrapped, reserved for the manufacturer&apos;s supplier to collect, or
-          kept (not scrapped).
+          Upload claims data and it automatically works out what happens to each claim&apos;s removed
+          parts after settlement: flagged to scrap once 90 days past Verification Date, reserved for
+          the manufacturer&apos;s supplier to collect, or kept (not scrapped).
         </p>
       </section>
 
@@ -95,15 +76,12 @@ export default async function WarrantyRoomPage() {
         stats={{
           claimsCount: claimsCount ?? 0,
           claimPartsCount: claimPartsCount ?? 0,
-          scrappedPartsCount: scrappedPartsCount ?? 0,
           scrapRequestsCount: scrapRequestsCount ?? 0,
-          scrapPendingCount: scrapPendingCount ?? 0,
+          scrapReadyCount: scrapReadyCount ?? 0,
           supplierCollectionsCount: supplierCollectionsCount ?? 0,
         }}
         lastSynced={{
           claimsData: claimsDataLastSynced ?? null,
-          scrappedParts: latestBatch(scrappedPartsBatch),
-          scrapRequests: latestBatch(scrapRequestsBatch),
           supplierParts: latestBatch(supplierPartsBatch),
         }}
       />
