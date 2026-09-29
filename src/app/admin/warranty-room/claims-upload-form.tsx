@@ -54,6 +54,11 @@ type UploadState =
 const NETWORK_CHUNK_SIZE = 300;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
+// Rows-of-self_audit_claims per generate_scrap_requests_chunk() call (not
+// filtered results - the raw scan window) - see the big comment at its call
+// site for why this is paged instead of one call over the whole table.
+const SCAN_PAGE_SIZE = 5000;
+const SCAN_PAGE_MAX_PAGES = 50; // ~250,000 claims - generous ceiling against an infinite loop bug, not a real limit
 
 /**
  * Uploads claims into the same self_audit_claims table this form always
@@ -66,10 +71,11 @@ const PART_DETAILS_SHEET = "Part Details";
  * self_audit_claim_parts for the Warranty Room scrap/do-not-scrap lists.
  * That part is purely additive and non-blocking - a missing or unparsable
  * Part Details sheet doesn't affect the claims upload at all, it's just
- * skipped. Finally, generate_scrap_requests() re-checks every claim's
- * Verification Date against the 90-day holding period and flags anything
- * newly eligible - this is the ONLY thing that decides what needs scrapping
- * now (no separate "Parts should be scraped" sheet to upload anymore).
+ * skipped. Finally, generate_scrap_requests_chunk() (paged - see its call
+ * site) re-checks every claim's Verification Date against the 90-day
+ * holding period and flags anything newly eligible - this is the ONLY thing
+ * that decides what needs scrapping now (no separate "Parts should be
+ * scraped" sheet to upload anymore).
  */
 export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[]; onUploaded?: () => void }) {
   const [state, setState] = useState<UploadState>(undefined);
@@ -310,14 +316,50 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       // Details so newly-uploaded claim_parts rows are already in place for
       // its part-matching. Non-blocking, same reasoning as Part Details
       // above: a failure here doesn't undo the successful claims upload.
+      //
+      // Paged in SCAN_PAGE_SIZE-row slices of self_audit_claims (not
+      // filtered results - every claim, has-parts or not) rather than one
+      // call over the whole table. A single unpaged call genuinely failed in
+      // production ("canceling statement due to statement timeout") - the
+      // `authenticated` role has an 8s statement_timeout (confirmed via
+      // pg_roles, not the ~2min this migration tool's own connection showed)
+      // and scanning the full ~61,000-row table took ~12-20s measured live,
+      // a cold-cache disk-throughput cost (a scan touching zero JSONB was
+      // equally slow) that no WHERE-clause rewrite fixes. Tried wrapping the
+      // call in SET LOCAL statement_timeout inside the function first - does
+      // NOT work, confirmed live: Postgres arms the timeout when the outer
+      // RPC call begins and a SET LOCAL mid-function doesn't rearm it for
+      // that same already-in-flight call. 5,000 rows/page verified safely
+      // under 8s as a real standalone call (not a looped test, which itself
+      // becomes one long outer statement and defeats the point).
       let scrapRequestsCreated: number | undefined;
       let scrapGenerationError: string | undefined;
       try {
-        const { data, error } = await supabase.rpc("generate_scrap_requests");
-        if (error) {
-          scrapGenerationError = `Could not update the scrap list: ${error.message}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
-        } else {
-          scrapRequestsCreated = data ?? 0;
+        let afterId: string | null = null;
+        let pages = 0;
+        scrapRequestsCreated = 0;
+        for (;;) {
+          pages += 1;
+          if (pages > SCAN_PAGE_MAX_PAGES) {
+            scrapGenerationError = `Stopped updating the scrap list after ${SCAN_PAGE_MAX_PAGES} pages - this shouldn't happen. Re-upload the same file to retry.`;
+            break;
+          }
+          setProgress(`Updating scrap list - page ${pages}...`);
+          const { data, error } = await supabaseWithRetry(
+            async (signal) =>
+              await supabase
+                .rpc("generate_scrap_requests_chunk", { p_after_id: afterId, p_limit: SCAN_PAGE_SIZE })
+                .abortSignal(signal),
+            (controller) => (abortControllerRef.current = controller)
+          );
+          if (error) {
+            scrapGenerationError = `Could not update the scrap list: ${error}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
+            break;
+          }
+          const page = data?.[0];
+          scrapRequestsCreated += page?.created ?? 0;
+          if (!page || page.scanned < SCAN_PAGE_SIZE || !page.next_after_id) break;
+          afterId = page.next_after_id;
         }
       } catch (err) {
         scrapGenerationError = `Could not update the scrap list: ${err instanceof Error ? err.message : "unknown error"}. The claims upload itself succeeded - re-upload the same file to retry this step.`;

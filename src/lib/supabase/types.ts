@@ -750,9 +750,16 @@ export interface Database {
         };
         Returns: void;
       };
-      generate_scrap_requests: {
-        Args: Record<string, never>;
-        Returns: number;
+      generate_scrap_requests_chunk: {
+        Args: {
+          p_after_id: string | null;
+          p_limit: number;
+        };
+        Returns: {
+          created: number;
+          scanned: number;
+          next_after_id: string | null;
+        }[];
       };
       hand_over_supplier_collection: {
         Args: {
