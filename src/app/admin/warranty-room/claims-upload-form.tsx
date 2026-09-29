@@ -57,8 +57,18 @@ const PART_DETAILS_SHEET = "Part Details";
 // Rows-of-self_audit_claims per generate_scrap_requests_chunk() call (not
 // filtered results - the raw scan window) - see the big comment at its call
 // site for why this is paged instead of one call over the whole table.
-const SCAN_PAGE_SIZE = 5000;
-const SCAN_PAGE_MAX_PAGES = 50; // ~250,000 claims - generous ceiling against an infinite loop bug, not a real limit
+// 5,000/page repeatedly measured safe in isolated testing (well under the
+// real 8s statement_timeout) but still failed twice in real production use -
+// this project's free-tier disk throughput is proven to vary a lot moment
+// to moment (same root cause as the earlier upload-speed incident), so a
+// page size that's "safe" against one measurement isn't safe against a
+// colder/more-throttled moment. Cut hard, to 1,500 (~5x more margin against
+// the worst rate actually measured), rather than keep chasing an exact safe
+// number against a target that doesn't hold still.
+const SCAN_PAGE_SIZE = 1500;
+const SCAN_PAGE_MAX_PAGES = 80; // ~120,000 claims at this page size - ceiling against an infinite loop bug, not a real limit
+const SCAN_PAGE_MIN_SIZE = 100; // floor a shrinking page size never goes below
+const SCAN_PAGE_MAX_SHRINKS = 6; // per page slice, before giving up on it entirely
 
 /**
  * Uploads claims into the same self_audit_claims table this form always
@@ -336,7 +346,9 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       let scrapGenerationError: string | undefined;
       try {
         let afterId: string | null = null;
+        let pageSize = SCAN_PAGE_SIZE;
         let pages = 0;
+        let shrinks = 0;
         scrapRequestsCreated = 0;
         for (;;) {
           pages += 1;
@@ -344,21 +356,34 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
             scrapGenerationError = `Stopped updating the scrap list after ${SCAN_PAGE_MAX_PAGES} pages - this shouldn't happen. Re-upload the same file to retry.`;
             break;
           }
-          setProgress(`Updating scrap list - page ${pages}...`);
+          setProgress(
+            `Updating scrap list - page ${pages}${pageSize < SCAN_PAGE_SIZE ? ` (smaller batch: ${pageSize} rows, database is slow right now)` : ""}...`
+          );
           const { data, error } = await supabaseWithRetry(
             async (signal) =>
               await supabase
-                .rpc("generate_scrap_requests_chunk", { p_after_id: afterId, p_limit: SCAN_PAGE_SIZE })
+                .rpc("generate_scrap_requests_chunk", { p_after_id: afterId, p_limit: pageSize })
                 .abortSignal(signal),
             (controller) => (abortControllerRef.current = controller)
           );
           if (error) {
+            // A slow moment for the database rather than a hard failure -
+            // this project's disk throughput is proven to vary a lot run to
+            // run (see the comment above), so retry this same slice with a
+            // smaller page before giving up on it, rather than assuming any
+            // fixed page size is always safe.
+            if (pageSize > SCAN_PAGE_MIN_SIZE && shrinks < SCAN_PAGE_MAX_SHRINKS) {
+              pageSize = Math.max(SCAN_PAGE_MIN_SIZE, Math.floor(pageSize / 2));
+              shrinks += 1;
+              continue;
+            }
             scrapGenerationError = `Could not update the scrap list: ${error}. The claims upload itself succeeded - re-upload the same file to retry this step.`;
             break;
           }
+          shrinks = 0;
           const page = data?.[0];
           scrapRequestsCreated += page?.created ?? 0;
-          if (!page || page.scanned < SCAN_PAGE_SIZE || !page.next_after_id) break;
+          if (!page || page.scanned < pageSize || !page.next_after_id) break;
           afterId = page.next_after_id;
         }
       } catch (err) {
