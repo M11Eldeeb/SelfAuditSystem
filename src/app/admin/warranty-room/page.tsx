@@ -119,7 +119,15 @@ export default async function WarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/admin/warranty-room/supplier-parts" className="text-sm font-medium text-brand hover:underline">
+            Supplier parts →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">
+            Month, then branch - every collection uploaded for the supplier to pick up.
+          </p>
+        </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <Link href="/admin/warranty-room/destroy-evidence" className="text-sm font-medium text-brand hover:underline">
             Destroy evidence →
