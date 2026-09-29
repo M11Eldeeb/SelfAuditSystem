@@ -565,7 +565,6 @@ export interface Database {
           settlement_date: string | null;
           holding_period_days: number | null;
           status: string;
-          video_path: string | null;
           submitted_at: string | null;
           upload_batch_id: string | null;
           created_at: string;
@@ -580,12 +579,27 @@ export interface Database {
           settlement_date?: string | null;
           holding_period_days?: number | null;
           status?: string;
-          video_path?: string | null;
           submitted_at?: string | null;
           upload_batch_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_scrap_requests"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_scrap_request_videos: {
+        Row: {
+          id: string;
+          scrap_request_id: string;
+          video_path: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scrap_request_id: string;
+          video_path: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrap_request_videos"]["Insert"]>;
         Relationships: [];
       };
       self_audit_scrap_request_parts: {
@@ -732,7 +746,7 @@ export interface Database {
       submit_scrap_request: {
         Args: {
           p_scrap_request_id: string;
-          p_video_path: string;
+          p_video_paths: string[];
         };
         Returns: void;
       };

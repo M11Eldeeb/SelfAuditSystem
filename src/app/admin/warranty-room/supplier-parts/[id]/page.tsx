@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupplierPartOverdue } from "@/lib/warranty-room/supplier-overdue";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { DownloadExcelButton } from "./download-button";
+import { CollectionActions } from "../collection-actions";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
@@ -84,7 +85,10 @@ export default async function SupplierCollectionDetailPage({ params }: { params:
             <p className="mt-1 text-xs font-medium text-amber-700">{overdueCount} part(s) more than 90 days overdue</p>
           )}
         </div>
-        <DownloadExcelButton branchName={branchName} rows={rows} />
+        <div className="flex items-center gap-4">
+          <DownloadExcelButton branchName={branchName} rows={rows} />
+          <CollectionActions collectionId={collection.id} status={collection.status} redirectAfterDelete />
+        </div>
       </div>
 
       <div className="max-h-[36rem] overflow-auto rounded-md border border-neutral-200">

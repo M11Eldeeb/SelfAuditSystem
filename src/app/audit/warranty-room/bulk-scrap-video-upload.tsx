@@ -8,28 +8,29 @@ import { submitScrapRequestsBulk } from "./actions";
 type Req = { id: string; claimNumber: string; workOrderNo: string | null };
 
 /**
- * One video, one button, applied to every pending claim at once - not one
- * video per claim (the branch films a single destruction video covering
- * everything in that session, so one upload should be enough to submit all
- * of them).
+ * One or more videos, one button, applied to every pending claim at once -
+ * not one video per claim (the branch films the destruction in one session
+ * covering everything, so the same set of videos applies to all of them).
+ * Multiple files are allowed since a single video isn't always practical
+ * (several angles, a session split into clips).
  */
 export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<{ claimNumber: string; error?: string }[] | null>(null);
   const router = useRouter();
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    setFile(e.target.files?.[0] ?? null);
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    setFiles(Array.from(e.target.files ?? []));
     setResults(null);
     setError(null);
   }
 
   async function handleSubmit() {
-    if (!file) {
-      setError("Choose a video first.");
+    if (files.length === 0) {
+      setError("Choose at least one video first.");
       return;
     }
 
@@ -38,25 +39,31 @@ export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
     setResults(null);
 
     try {
-      setProgress("Uploading video...");
       const supabase = createClient();
-      const ext = file.name.split(".").pop() || "bin";
-      // One shared path (not per claim) since it's the same file for every
-      // claim - each submission below just points at this same video.
-      const path = `bulk-${crypto.randomUUID()}/video-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("warranty-room-files")
-        .upload(path, file, { upsert: true, contentType: file.type || undefined });
-      if (uploadError) {
-        setError(`Upload failed: ${uploadError.message}`);
-        return;
+      // One shared folder (not per claim) since it's the same videos for
+      // every claim - each submission below just points at these same paths.
+      const folder = `bulk-${crypto.randomUUID()}`;
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setProgress(`Uploading video ${i + 1} of ${files.length}...`);
+        const file = files[i];
+        const ext = file.name.split(".").pop() || "bin";
+        const path = `${folder}/video-${i + 1}-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("warranty-room-files")
+          .upload(path, file, { upsert: true, contentType: file.type || undefined });
+        if (uploadError) {
+          setError(`Upload failed on video ${i + 1}: ${uploadError.message}`);
+          return;
+        }
+        paths.push(path);
       }
 
       setProgress(`Submitting ${requests.length} claim(s)...`);
-      const mappings = requests.map((r) => ({ requestId: r.id, claimNumber: r.claimNumber, videoPath: path }));
+      const mappings = requests.map((r) => ({ requestId: r.id, claimNumber: r.claimNumber, videoPaths: paths }));
       const { results: submitResults } = await submitScrapRequestsBulk(mappings);
       setResults(submitResults.map((r) => ({ claimNumber: r.claimNumber, error: r.error })));
-      setFile(null);
+      setFiles([]);
       router.refresh();
     } finally {
       setUploading(false);
@@ -69,17 +76,22 @@ export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
   return (
     <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div className="space-y-1">
-        <label className="text-sm font-medium text-neutral-700">Destruction video</label>
+        <label className="text-sm font-medium text-neutral-700">Destruction video(s)</label>
         <p className="text-xs text-neutral-500">
-          One video, submitted for all {requests.length} pending claim(s) below at once - no need to upload one per part.
+          One or more videos, submitted for all {requests.length} pending claim(s) below at once - no
+          need to upload one per part.
         </p>
         <input
           type="file"
           accept="video/*"
+          multiple
           disabled={uploading}
-          onChange={handleFile}
+          onChange={handleFiles}
           className="block w-full text-sm text-neutral-700 file:mr-3 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-neutral-700 file:shadow-sm hover:file:bg-neutral-50"
         />
+        {files.length > 0 && (
+          <p className="text-xs text-neutral-500">{files.length} video(s) selected.</p>
+        )}
       </div>
 
       {progress && <p className="text-sm text-neutral-600">{progress}</p>}
@@ -94,7 +106,7 @@ export function BulkScrapVideoUpload({ requests }: { requests: Req[] }) {
         </div>
       )}
 
-      {file && (
+      {files.length > 0 && (
         <button
           type="button"
           onClick={handleSubmit}
