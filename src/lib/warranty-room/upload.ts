@@ -16,6 +16,18 @@ export async function startWarrantyRoomBatch(
   if (!/\.(xlsx|csv)$/i.test(filename)) return { error: "Only .xlsx or .csv files are supported." };
 
   const supabase = await createClient();
+
+  // Promote whatever's still pending into "presumed_scrapped" BEFORE this
+  // upload's data lands - anything pending at this instant necessarily came
+  // from an earlier claims dataset (see migration 0043), so this is exactly
+  // the "next upload starts a new cycle" boundary the officer asked for. A
+  // single bulk UPDATE keyed on scrap_requests (a few thousand rows), not
+  // the 61k-row claims table, so no statement_timeout risk here.
+  if (kind === "claims_data") {
+    const { error: promoteError } = await supabase.rpc("promote_stale_scrap_requests");
+    if (promoteError) return { error: `Could not roll over the previous scrap cycle: ${promoteError.message}` };
+  }
+
   const { data: batch, error } = await supabase
     .from("self_audit_upload_batches")
     .insert({

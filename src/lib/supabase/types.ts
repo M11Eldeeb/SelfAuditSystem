@@ -782,6 +782,27 @@ export interface Database {
           holding_period_days: number | null;
         }[];
       };
+      get_already_scrapped_claims: {
+        Args: {
+          p_branch_id: string;
+        };
+        Returns: {
+          claim_number: string;
+          work_order_no: string | null;
+          status: string;
+          part_no: string | null;
+          part_name: string | null;
+          quantity: number | null;
+          holding_period_days: number | null;
+          first_submit_date: string | null;
+          repair_end_date: string | null;
+          submitted_at: string | null;
+        }[];
+      };
+      promote_stale_scrap_requests: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
       get_warranty_room_excluded_claim_ids: {
         Args: Record<string, never>;
         Returns: string[];

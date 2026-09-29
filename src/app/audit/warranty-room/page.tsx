@@ -6,74 +6,87 @@ import { ScrapRequestsTable } from "./scrap-requests-table";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { BulkScrapVideoUpload } from "./bulk-scrap-video-upload";
 
+type ClaimEmbed = {
+  claim_number: string;
+  raw_row: Record<string, unknown> | null;
+  repair_end_date: string | null;
+} | null;
+
+type ScrapRequestRow = {
+  id: string;
+  claim_id: string;
+  work_order_no: string | null;
+  status: string;
+  self_audit_claims: ClaimEmbed;
+  self_audit_scrap_request_parts: { part_no: string; part_name: string | null; quantity: number | null }[];
+  self_audit_scrap_request_events: { event_type: string; comment: string | null; created_at: string }[];
+};
+
+type CollectionRow = {
+  id: string;
+  collection_date: string | null;
+  self_audit_supplier_collection_parts: {
+    work_order_no: string | null;
+    vin: string | null;
+    part_no: string | null;
+    part_name: string | null;
+    quantity: number | null;
+    main_labor_name: string | null;
+    planned_pickup_date: string | null;
+    raw_row: Record<string, unknown> | null;
+    self_audit_claims: ClaimEmbed;
+  }[];
+};
+
 export default async function BranchWarrantyRoomPage() {
   const user = await requireRole("branch_admin");
   const supabase = await createClient();
 
-  const [{ data: requests }, { data: branch }, { data: collections }] = await Promise.all([
+  // Fetch each table's related rows via a single PostgREST-embedded query
+  // (FK-based join) instead of a separate .in(ids) lookup. Some branches now
+  // carry hundreds of pending scrap_requests (bulk-flagged by the cron job),
+  // and a .in() list that long silently failed - past the request pipeline's
+  // URL/query-length limit, with the error never checked - leaving every
+  // derived field blank and claim_number falling back to the raw UUID.
+  const [{ data: requestsRaw, error: requestsError }, { data: branch }, { data: collectionsRaw, error: collectionsError }] = await Promise.all([
     supabase
       .from("self_audit_scrap_requests")
-      .select("id, claim_id, work_order_no, status")
+      .select(
+        `id, claim_id, work_order_no, status,
+         self_audit_claims ( claim_number, raw_row, repair_end_date ),
+         self_audit_scrap_request_parts ( part_no, part_name, quantity ),
+         self_audit_scrap_request_events ( event_type, comment, created_at )`
+      )
       .eq("branch_id", user.branch_id ?? "")
       .eq("status", "pending")
       .order("created_at", { ascending: true }),
     supabase.from("self_audit_branches").select("name").eq("id", user.branch_id ?? "").single(),
     supabase
       .from("self_audit_supplier_collections")
-      .select("id, collection_date")
+      .select(
+        `id, collection_date,
+         self_audit_supplier_collection_parts (
+           work_order_no, vin, part_no, part_name, quantity, main_labor_name, planned_pickup_date, raw_row,
+           self_audit_claims ( claim_number, raw_row, repair_end_date )
+         )`
+      )
       .eq("branch_id", user.branch_id ?? "")
       .eq("status", "pending")
       .order("created_at", { ascending: true }),
   ]);
 
-  const requestIds = (requests ?? []).map((r) => r.id);
-  const claimIds = (requests ?? []).map((r) => r.claim_id);
-  const collectionIds = (collections ?? []).map((c) => c.id);
+  if (requestsError) throw new Error(`Failed to load scrap requests: ${requestsError.message}`);
+  if (collectionsError) throw new Error(`Failed to load supplier collections: ${collectionsError.message}`);
 
-  const [{ data: claims }, { data: parts }, { data: events }, { data: collectionParts }] = await Promise.all([
-    claimIds.length
-      ? supabase.from("self_audit_claims").select("id, claim_number, raw_row, repair_end_date").in("id", claimIds)
-      : Promise.resolve({ data: [] }),
-    requestIds.length
-      ? supabase.from("self_audit_scrap_request_parts").select("scrap_request_id, part_no, part_name, quantity").in("scrap_request_id", requestIds)
-      : Promise.resolve({ data: [] }),
-    requestIds.length
-      ? supabase
-          .from("self_audit_scrap_request_events")
-          .select("scrap_request_id, event_type, comment, created_at")
-          .in("scrap_request_id", requestIds)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
-    collectionIds.length
-      ? supabase
-          .from("self_audit_supplier_collection_parts")
-          .select("collection_id, work_order_no, vin, part_no, part_name, quantity, main_labor_name, planned_pickup_date, claim_id, raw_row")
-          .in("collection_id", collectionIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const requests = (requestsRaw ?? []) as unknown as ScrapRequestRow[];
+  const collections = (collectionsRaw ?? []) as unknown as CollectionRow[];
 
-  const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
-  const claimNumberById = new Map((claims ?? []).map((c) => [c.id, c.claim_number]));
-  const partsByRequestId = new Map<string, { part_no: string; part_name: string | null; quantity: number | null }[]>();
-  (parts ?? []).forEach((p) => {
-    const list = partsByRequestId.get(p.scrap_request_id) ?? [];
-    list.push(p);
-    partsByRequestId.set(p.scrap_request_id, list);
-  });
   const lastCommentByRequestId = new Map<string, string>();
-  (events ?? []).forEach((e) => {
-    if (!e.comment || lastCommentByRequestId.has(e.scrap_request_id)) return;
-    lastCommentByRequestId.set(e.scrap_request_id, e.comment);
+  requests.forEach((r) => {
+    const sorted = [...r.self_audit_scrap_request_events].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const withComment = sorted.find((e) => e.comment);
+    if (withComment?.comment) lastCommentByRequestId.set(r.id, withComment.comment);
   });
-
-  // Supplier collection parts don't store the claim number directly - look
-  // it up via claim_id (they may reference claims outside this branch admin's
-  // own claim fetch above, so resolve separately).
-  const collectionClaimIds = [...new Set((collectionParts ?? []).map((p) => p.claim_id).filter((id): id is string => !!id))];
-  const { data: collectionClaims } = collectionClaimIds.length
-    ? await supabase.from("self_audit_claims").select("id, claim_number, raw_row, repair_end_date").in("id", collectionClaimIds)
-    : { data: [] };
-  const collectionClaimById = new Map((collectionClaims ?? []).map((c) => [c.id, c]));
 
   const collectionPartsByCollectionId = new Map<
     string,
@@ -92,25 +105,26 @@ export default async function BranchWarrantyRoomPage() {
       holding_period_days: number | null;
     }[]
   >();
-  (collectionParts ?? []).forEach((p) => {
-    const claim = p.claim_id ? collectionClaimById.get(p.claim_id) : undefined;
-    const claimRawRow = claim?.raw_row as Record<string, unknown> | null | undefined;
-    const list = collectionPartsByCollectionId.get(p.collection_id) ?? [];
-    list.push({
-      claim_number: claim?.claim_number ?? "—",
-      work_order_no: p.work_order_no,
-      vin: p.vin,
-      part_no: p.part_no,
-      part_name: p.part_name,
-      quantity: p.quantity,
-      main_labor_name: p.main_labor_name,
-      planned_pickup_date: p.planned_pickup_date,
-      raw_row: p.raw_row,
-      first_submit_date: getFirstSubmitDate(claimRawRow),
-      repair_end_date: claim?.repair_end_date ?? null,
-      holding_period_days: computeHoldingPeriodDays(claimRawRow),
+  collections.forEach((c) => {
+    const list = c.self_audit_supplier_collection_parts.map((p) => {
+      const claim = p.self_audit_claims;
+      const claimRawRow = claim?.raw_row;
+      return {
+        claim_number: claim?.claim_number ?? "—",
+        work_order_no: p.work_order_no,
+        vin: p.vin,
+        part_no: p.part_no,
+        part_name: p.part_name,
+        quantity: p.quantity,
+        main_labor_name: p.main_labor_name,
+        planned_pickup_date: p.planned_pickup_date,
+        raw_row: p.raw_row,
+        first_submit_date: getFirstSubmitDate(claimRawRow),
+        repair_end_date: claim?.repair_end_date ?? null,
+        holding_period_days: computeHoldingPeriodDays(claimRawRow),
+      };
     });
-    collectionPartsByCollectionId.set(p.collection_id, list);
+    collectionPartsByCollectionId.set(c.id, list);
   });
 
   return (
@@ -123,26 +137,25 @@ export default async function BranchWarrantyRoomPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Parts to scrap</h2>
         <BulkScrapVideoUpload
-          requests={(requests ?? []).map((r) => ({
+          requests={requests.map((r) => ({
             id: r.id,
-            claimNumber: claimNumberById.get(r.claim_id) ?? r.claim_id,
+            claimNumber: r.self_audit_claims?.claim_number ?? r.claim_id,
             workOrderNo: r.work_order_no,
           }))}
         />
         <ScrapRequestsTable
           branchName={branch?.name ?? ""}
-          requests={(requests ?? []).map((r) => {
-            const claim = claimById.get(r.claim_id);
-            const claimRawRow = claim?.raw_row as Record<string, unknown> | null | undefined;
+          requests={requests.map((r) => {
+            const claimRawRow = r.self_audit_claims?.raw_row;
             return {
               id: r.id,
-              claimNumber: claimNumberById.get(r.claim_id) ?? r.claim_id,
+              claimNumber: r.self_audit_claims?.claim_number ?? r.claim_id,
               workOrderNo: r.work_order_no,
               status: r.status,
-              parts: partsByRequestId.get(r.id) ?? [],
+              parts: r.self_audit_scrap_request_parts,
               lastComment: lastCommentByRequestId.get(r.id) ?? null,
               firstSubmitDate: getFirstSubmitDate(claimRawRow),
-              repairEndDate: claim?.repair_end_date ?? null,
+              repairEndDate: r.self_audit_claims?.repair_end_date ?? null,
               holdingPeriodDays: computeHoldingPeriodDays(claimRawRow),
             };
           })}
@@ -151,13 +164,13 @@ export default async function BranchWarrantyRoomPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Supplier parts</h2>
-        {(collections ?? []).length === 0 && (
+        {collections.length === 0 && (
           <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">
             Nothing pending right now.
           </p>
         )}
         <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
-          {(collections ?? []).map((c) => (
+          {collections.map((c) => (
             <SupplierCollectionCard
               key={c.id}
               collectionId={c.id}
@@ -169,11 +182,19 @@ export default async function BranchWarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-        <Link href="/audit/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
-          Do not scrap list →
-        </Link>
-        <p className="mt-1 text-xs text-neutral-500">Claims to keep on hand - not flagged to scrap, not already scrapped.</p>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/audit/warranty-room/already-scrapped" className="text-sm font-medium text-brand hover:underline">
+            Already scrapped list →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">Claims no longer pending - video submitted, or holding period exceeded in an earlier upload.</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/audit/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
+            Do not scrap list →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">Claims to keep on hand - not flagged to scrap, not already scrapped.</p>
+        </div>
       </section>
     </div>
   );
