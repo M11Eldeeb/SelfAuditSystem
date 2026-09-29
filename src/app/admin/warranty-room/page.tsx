@@ -119,13 +119,23 @@ export default async function WarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-        <Link href="/admin/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
-          Do not scrap report →
-        </Link>
-        <p className="mt-1 text-xs text-neutral-500">
-          Claims with parts on hand, per branch, that were never flagged to scrap and aren&apos;t already scrapped.
-        </p>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/admin/warranty-room/destroy-evidence" className="text-sm font-medium text-brand hover:underline">
+            Destroy evidence →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">
+            Monthly bulk destruction videos submitted by branches, per self-audit cycle.
+          </p>
+        </div>
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/admin/warranty-room/do-not-scrap" className="text-sm font-medium text-brand hover:underline">
+            Do not scrap report →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">
+            Claims with parts on hand, per branch, that were never flagged to scrap and aren&apos;t already scrapped.
+          </p>
+        </div>
       </section>
     </div>
   );

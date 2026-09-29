@@ -4,8 +4,10 @@ import ExcelJS from "exceljs";
 import type { AlreadyScrappedRow } from "@/lib/warranty-room/already-scrapped";
 
 const STATUS_LABELS: Record<string, string> = {
+  pending: "Flagged to scrap (this cycle)",
   presumed_scrapped: "Presumed scrapped (holding period exceeded)",
   scrapped: "Scrapped (video submitted)",
+  scrapped_legacy: "Scrapped (prior system)",
 };
 
 const COLUMNS: { header: string; key: string }[] = [

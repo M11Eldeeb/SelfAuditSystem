@@ -330,6 +330,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_branch_operation_progress"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_destroy_evidence: {
+        Row: {
+          cycle_id: string;
+          branch_id: string;
+          status: string;
+          submitted_at: string | null;
+          submitted_by: string | null;
+          sent_at: string | null;
+          sent_by: string | null;
+        };
+        Insert: {
+          cycle_id: string;
+          branch_id: string;
+          status?: string;
+          submitted_at?: string | null;
+          submitted_by?: string | null;
+          sent_at?: string | null;
+          sent_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_destroy_evidence_videos: {
+        Row: {
+          id: string;
+          cycle_id: string;
+          branch_id: string;
+          video_path: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          cycle_id: string;
+          branch_id: string;
+          video_path: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence_videos"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_branch_operation_answers: {
         Row: {
           cycle_id: string;
