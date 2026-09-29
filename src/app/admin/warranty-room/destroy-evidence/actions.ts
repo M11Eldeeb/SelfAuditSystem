@@ -45,3 +45,26 @@ export async function markDestroyEvidenceSent(cycleId: string, branchId: string)
   revalidatePath("/admin/warranty-room/destroy-evidence");
   return {};
 }
+
+/**
+ * Sends a submission back to the branch to add or remove videos before
+ * resubmitting - flips status back to 'pending' without touching the videos
+ * already uploaded (the branch admin's page lists and can delete them
+ * individually, or add more, once it's unlocked again).
+ */
+export async function returnDestroyEvidence(cycleId: string, branchId: string): Promise<{ error?: string }> {
+  await requireRole("officer");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("self_audit_destroy_evidence")
+    .update({ status: "pending", submitted_at: null, submitted_by: null })
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/admin/warranty-room/destroy-evidence/${cycleId}`);
+  revalidatePath("/admin/warranty-room/destroy-evidence");
+  revalidatePath("/audit/warranty-room");
+  return {};
+}

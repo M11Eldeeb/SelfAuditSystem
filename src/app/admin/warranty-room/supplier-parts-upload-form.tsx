@@ -60,6 +60,10 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
         setState({ error: "Choose a file to upload." });
         return;
       }
+      if (!collectionDate) {
+        setState({ error: "Set the collection date - branches see this as a countdown to when the supplier arrives." });
+        return;
+      }
       if (!/\.(xlsx|csv)$/i.test(file.name)) {
         setState({ error: "Only .xlsx files are supported for this upload." });
         return;
@@ -197,6 +201,7 @@ export function SupplierPartsUploadForm({ branches, onUploaded }: { branches: Br
             id="wr-collection-date"
             name="collection_date"
             type="date"
+            required
             className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
           />
         </div>

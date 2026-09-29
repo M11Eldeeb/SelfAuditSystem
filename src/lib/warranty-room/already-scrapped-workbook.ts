@@ -1,13 +1,16 @@
-// No "server-only" here on purpose - runs in the browser, same as
-// src/lib/warranty-room/do-not-scrap-excel.ts.
+// Isomorphic (no "use client"/"server-only") - ExcelJS's buffer generation
+// runs the same in Node and the browser. Split out from
+// already-scrapped-excel.ts so the download API route (server-side) and the
+// old in-browser path can share the exact same workbook-building logic.
 import ExcelJS from "exceljs";
 import type { AlreadyScrappedRow } from "@/lib/warranty-room/already-scrapped";
 
-const STATUS_LABELS: Record<string, string> = {
+export const ALREADY_SCRAPPED_STATUS_LABELS: Record<string, string> = {
   pending: "Flagged to scrap (this cycle)",
   presumed_scrapped: "Presumed scrapped (holding period exceeded)",
   scrapped: "Scrapped (video submitted)",
   scrapped_legacy: "Scrapped (prior system)",
+  supplier_collected: "Collected by supplier",
 };
 
 const COLUMNS: { header: string; key: string }[] = [
@@ -23,7 +26,7 @@ const COLUMNS: { header: string; key: string }[] = [
   { header: "Submitted At", key: "submitted_at" },
 ];
 
-export async function generateAlreadyScrappedExcel(branchName: string, rows: AlreadyScrappedRow[]): Promise<void> {
+export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRow[]): Promise<ExcelJS.Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Already Scrapped");
 
@@ -34,7 +37,7 @@ export async function generateAlreadyScrappedExcel(branchName: string, rows: Alr
     sheet.addRow({
       claim_number: r.claim_number,
       work_order_no: r.work_order_no ?? "",
-      status_label: STATUS_LABELS[r.status] ?? r.status,
+      status_label: ALREADY_SCRAPPED_STATUS_LABELS[r.status] ?? r.status,
       part_no: r.part_no ?? "",
       part_name: r.part_name ?? "",
       quantity: r.quantity ?? "",
@@ -45,14 +48,5 @@ export async function generateAlreadyScrappedExcel(branchName: string, rows: Alr
     });
   });
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `Already_Scrapped_${branchName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  return workbook.xlsx.writeBuffer();
 }

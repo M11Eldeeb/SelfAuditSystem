@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { MarkSentButton } from "../mark-sent-button";
+import { ReturnButton } from "../return-button";
+import { DownloadAllButton } from "../download-all-button";
 
 export default async function DestroyEvidenceCyclePage({ params }: { params: Promise<{ cycleId: string }> }) {
   await requireRole("officer");
@@ -66,11 +68,17 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
                       : `Submitted ${e.submitted_at ? new Date(e.submitted_at).toLocaleString() : ""}`}
                   </p>
                 </div>
-                {e.status === "submitted" && <MarkSentButton cycleId={cycleId} branchId={e.branch_id} />}
+                {e.status === "submitted" && (
+                  <div className="flex items-start gap-3">
+                    <ReturnButton cycleId={cycleId} branchId={e.branch_id} />
+                    <MarkSentButton cycleId={cycleId} branchId={e.branch_id} />
+                  </div>
+                )}
               </div>
 
               {branchVideos.length > 0 ? (
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <DownloadAllButton urls={branchVideos.map((v) => v.url).filter((u): u is string => !!u)} />
                   {branchVideos.map((v, i) =>
                     v.url ? (
                       <a
@@ -80,7 +88,7 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
                         rel="noreferrer"
                         className="text-sm font-medium text-brand hover:underline"
                       >
-                        Download video {branchVideos.length > 1 ? i + 1 : ""} →
+                        Video {branchVideos.length > 1 ? i + 1 : ""} →
                       </a>
                     ) : (
                       <span key={v.path} className="text-sm text-neutral-400">

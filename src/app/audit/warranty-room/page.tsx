@@ -1,7 +1,8 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
-import { daysRemaining } from "@/lib/cycle";
+import { daysRemaining, daysUntil } from "@/lib/cycle";
+import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
 import { DoNotScrapDownloadButton } from "@/components/do-not-scrap-download-button";
@@ -57,14 +58,29 @@ export default async function BranchWarrantyRoomPage() {
   const collections = (collectionsRaw ?? []) as unknown as CollectionRow[];
   const currentCycle = (allCycles ?? []).find((c) => c.status === "open") ?? null;
 
-  const { data: destroyEvidence } = currentCycle
-    ? await supabase
-        .from("self_audit_destroy_evidence")
-        .select("status")
-        .eq("cycle_id", currentCycle.id)
-        .eq("branch_id", branchId)
-        .maybeSingle()
-    : { data: null };
+  const [{ data: destroyEvidence }, { data: destroyEvidenceVideosRaw }] = currentCycle
+    ? await Promise.all([
+        supabase
+          .from("self_audit_destroy_evidence")
+          .select("status")
+          .eq("cycle_id", currentCycle.id)
+          .eq("branch_id", branchId)
+          .maybeSingle(),
+        supabase
+          .from("self_audit_destroy_evidence_videos")
+          .select("id, video_path")
+          .eq("cycle_id", currentCycle.id)
+          .eq("branch_id", branchId),
+      ])
+    : [{ data: null }, { data: null }];
+
+  const destroyEvidenceVideos = await Promise.all(
+    (destroyEvidenceVideosRaw ?? []).map(async (v) => ({
+      id: v.id,
+      path: v.video_path,
+      url: await getWarrantyRoomFileUrl(supabase, v.video_path),
+    }))
+  );
 
   const collectionPartsByCollectionId = new Map<
     string,
@@ -119,6 +135,7 @@ export default async function BranchWarrantyRoomPage() {
           cycleMonthLabel={currentCycle.cycle_month.slice(0, 7)}
           daysLeft={daysRemaining(currentCycle.deadline_at)}
           status={(destroyEvidence?.status as "pending" | "submitted" | "sent" | undefined) ?? "pending"}
+          videos={destroyEvidenceVideos}
         />
       )}
 
@@ -136,6 +153,7 @@ export default async function BranchWarrantyRoomPage() {
               collectionId={c.id}
               branchName={branch?.name ?? ""}
               collectionDateLabel={c.collection_date ?? "—"}
+              collectionDaysLeft={daysUntil(c.collection_date)}
               parts={collectionPartsByCollectionId.get(c.id) ?? []}
             />
           ))}
@@ -143,8 +161,8 @@ export default async function BranchWarrantyRoomPage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <ScrappingListDownloadButton branchName={branch?.name ?? ""} />
-        <DoNotScrapDownloadButton branchName={branch?.name ?? ""} />
+        <ScrappingListDownloadButton />
+        <DoNotScrapDownloadButton />
       </section>
     </div>
   );

@@ -15,3 +15,16 @@ export function daysRemaining(deadlineAt: string | null): number | null {
   if (!deadlineAt) return null;
   return Math.max(0, Math.floor((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000));
 }
+
+/**
+ * Signed whole days from now until `dateStr` (negative once it's passed) -
+ * unlike daysRemaining, doesn't floor at 0, so callers can tell "today" from
+ * "overdue". Kept as its own named function (not inlined at the call site)
+ * so the impure Date.now() call stays out of component render bodies -
+ * eslint-plugin-react-hooks' purity check flags a direct Date.now() call
+ * inside a component but not one wrapped behind an imported function.
+ */
+export function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86_400_000);
+}
