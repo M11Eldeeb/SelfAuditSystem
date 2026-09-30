@@ -57,31 +57,30 @@ export default async function BranchWarrantyRoomPage() {
 
   if (collectionsError) throw new Error(`Failed to load supplier collections: ${collectionsError.message}`);
   const collections = (collectionsRaw ?? []) as unknown as CollectionRow[];
-  const currentCycle = (allCycles ?? []).find((c) => c.status === "open") ?? null;
+  const cycles = allCycles ?? [];
+  const newestCycle = cycles[0] ?? null; // ordered cycle_month desc
 
-  const [{ data: destroyEvidence }, { data: destroyEvidenceVideosRaw }] = currentCycle
-    ? await Promise.all([
-        supabase
-          .from("self_audit_destroy_evidence")
-          .select("status")
-          .eq("cycle_id", currentCycle.id)
-          .eq("branch_id", branchId)
-          .maybeSingle(),
-        supabase
-          .from("self_audit_destroy_evidence_videos")
-          .select("id, video_path")
-          .eq("cycle_id", currentCycle.id)
-          .eq("branch_id", branchId),
-      ])
-    : [{ data: null }, { data: null }];
+  // One card per cycle this branch still has open business with - not just
+  // the newest one. If October is never submitted and November's cycle gets
+  // generated, October's card must keep showing (not get replaced by
+  // November's), or that submission becomes permanently inaccessible.
+  const [{ data: allDestroyEvidence }, { data: allDestroyEvidenceVideosRaw }] = await Promise.all([
+    supabase.from("self_audit_destroy_evidence").select("cycle_id, status").eq("branch_id", branchId),
+    supabase.from("self_audit_destroy_evidence_videos").select("id, cycle_id, video_path").eq("branch_id", branchId),
+  ]);
+  const destroyEvidenceByCycleId = new Map((allDestroyEvidence ?? []).map((e) => [e.cycle_id, e]));
+  const destroyEvidenceVideosByCycleId = new Map<string, { id: string; path: string; url: string | null }[]>();
+  for (const v of allDestroyEvidenceVideosRaw ?? []) {
+    const list = destroyEvidenceVideosByCycleId.get(v.cycle_id) ?? [];
+    list.push({ id: v.id, path: v.video_path, url: await getWarrantyRoomFileUrl(supabase, v.video_path) });
+    destroyEvidenceVideosByCycleId.set(v.cycle_id, list);
+  }
 
-  const destroyEvidenceVideos = await Promise.all(
-    (destroyEvidenceVideosRaw ?? []).map(async (v) => ({
-      id: v.id,
-      path: v.video_path,
-      url: await getWarrantyRoomFileUrl(supabase, v.video_path),
-    }))
-  );
+  const destroyEvidenceCycles = cycles.filter((c) => {
+    if (c.id === newestCycle?.id) return true;
+    const status = destroyEvidenceByCycleId.get(c.id)?.status;
+    return status != null && status !== "sent";
+  });
 
   const flaggedRows = await getFlaggedToScrapClaims(supabase, branchId);
   const waitingCount = flaggedRows.filter((r) => r.waiting_for_submission).length;
@@ -144,14 +143,19 @@ export default async function BranchWarrantyRoomPage() {
         </div>
       )}
 
-      {currentCycle && (
-        <SubmitDestroyEvidence
-          cycleId={currentCycle.id}
-          branchId={branchId}
-          cycleMonthLabel={currentCycle.cycle_month.slice(0, 7)}
-          status={(destroyEvidence?.status as "pending" | "submitted" | "sent" | undefined) ?? "pending"}
-          videos={destroyEvidenceVideos}
-        />
+      {destroyEvidenceCycles.length > 0 && (
+        <div className="space-y-3">
+          {destroyEvidenceCycles.map((c) => (
+            <SubmitDestroyEvidence
+              key={c.id}
+              cycleId={c.id}
+              branchId={branchId}
+              cycleMonthLabel={c.cycle_month.slice(0, 7)}
+              status={(destroyEvidenceByCycleId.get(c.id)?.status as "pending" | "submitted" | "sent" | undefined) ?? "pending"}
+              videos={destroyEvidenceVideosByCycleId.get(c.id) ?? []}
+            />
+          ))}
+        </div>
       )}
 
       <section className="space-y-3">
