@@ -10,9 +10,8 @@ import ExcelJS from "exceljs";
 import type { AlreadyScrappedRow } from "@/lib/warranty-room/already-scrapped";
 
 export const ALREADY_SCRAPPED_STATUS_LABELS: Record<string, string> = {
-  presumed_scrapped: "Presumed scrapped (holding period exceeded)",
   scrapped: "Scrapped (video submitted)",
-  scrapped_legacy: "Scrapped (prior system)",
+  scrapped_legacy: "Scrapped (destroy list)",
   supplier_collected: "Collected by supplier",
 };
 

@@ -16,13 +16,14 @@ export type AlreadyScrappedRow = {
 };
 
 /**
- * Claims whose scrap request is no longer pending - either the branch
- * submitted destruction video ('scrapped'), or its holding period exceeded
- * 90 days in an earlier claims-upload cycle and it was auto-promoted here
- * without requiring one ('presumed_scrapped', migration 0043). Computed
- * server-side (get_already_scrapped_claims, migration 0044) for the same
- * reason get_do_not_scrap_claims is: some branches carry 600+ scrap requests,
- * too many to safely fetch by id list from the client.
+ * Claims confirmed already scrapped - either the branch submitted
+ * destruction video and the officer approved it ('scrapped'), it's in the
+ * destroy list ('scrapped_legacy'), or the supplier collected it
+ * ('supplier_collected'). Nothing is ever presumed scrapped just because
+ * time passed (migration 0060 retired that). Computed server-side
+ * (get_already_scrapped_claims, migration 0044) for the same reason
+ * get_do_not_scrap_claims is: some branches carry 600+ scrap requests, too
+ * many to safely fetch by id list from the client.
  */
 export async function getAlreadyScrappedClaims(
   supabase: SupabaseClient<Database>,

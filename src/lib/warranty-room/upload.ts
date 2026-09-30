@@ -17,11 +17,10 @@ export async function startWarrantyRoomBatch(
 
   const supabase = await createClient();
 
-  // Scrap-request rollover (presumed_scrapped promotion + releasing newly-
-  // queued claims to pending) no longer happens here - moved to self-audit
-  // cycle generation (release_scrap_requests_for_new_cycle, called from
-  // generateCycle) so it's a once-a-month event tied to the cycle, not to
-  // every claims upload. See migration 0054.
+  // Claims uploads no longer trigger any scrap-status rollover. A claim is
+  // "already scrapped" only via the destroy list (self_audit_scrapped_parts)
+  // or an approved destroy-evidence submission - never presumed just
+  // because time passed (migration 0060 retired that entirely).
 
   const { data: batch, error } = await supabase
     .from("self_audit_upload_batches")
