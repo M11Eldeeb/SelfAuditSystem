@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { FinalizeButton } from "./finalize-button";
+import { ForceFinalizeButton } from "./force-finalize-button";
 import { ReopenAssignmentButton } from "./reopen-assignment-button";
 
 export default async function BranchReviewPage({
@@ -130,7 +131,10 @@ export default async function BranchReviewPage({
       </div>
 
       {!result && (
-        <FinalizeButton cycleId={cycleId} branchId={branchId} disabled={!allReviewed || opsStatus !== "reviewed"} />
+        <>
+          <FinalizeButton cycleId={cycleId} branchId={branchId} disabled={!allReviewed || opsStatus !== "reviewed"} />
+          {(!allReviewed || opsStatus !== "reviewed") && <ForceFinalizeButton cycleId={cycleId} branchId={branchId} />}
+        </>
       )}
     </div>
   );

@@ -171,3 +171,112 @@ export async function finalizeBranchAudit(
   revalidatePath(`/admin/results/self-audit/${branchId}`);
   return { success: "Results finalized." };
 }
+
+/**
+ * Escape hatch for finalizeBranchAudit's normal gates (all claims reviewed,
+ * branch ops reviewed) - an officer-only override for a branch that simply
+ * never responded and isn't going to before the officer needs the result.
+ * Every question without a real recorded answer scores 0%: claim questions
+ * on an assignment that was never reviewed (not just 'expired'), and every
+ * branch-ops question if there's no reviewed submission at all. Also flips
+ * any non-terminal assignment to 'expired' and the ops progress row to
+ * 'reviewed' (branch_ops_status has no 'expired' value) so the review page
+ * reflects reality afterward, not a stuck "not submitted" state next to a
+ * published score.
+ */
+export async function forceFinalizeBranchAudit(cycleId: string, branchId: string): Promise<FinalizeState> {
+  const officer = await requireRole("officer");
+  const supabase = await createClient();
+
+  const { data: existingResult } = await supabase
+    .from("self_audit_audit_results")
+    .select("id")
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (existingResult) return { error: "This branch's results are already finalized for this cycle." };
+
+  const { data: assignments } = await supabase
+    .from("self_audit_audit_assignments")
+    .select("*")
+    .eq("cycle_id", cycleId)
+    .eq("branch_id", branchId);
+  if (!assignments || assignments.length === 0) {
+    return { error: "No assignments found for this branch/cycle." };
+  }
+
+  const assignmentIds = assignments.map((a) => a.id);
+  const [{ data: questions }, { data: reviews }, { data: opsAnswers }] = await Promise.all([
+    supabase.from("self_audit_audit_questions").select("*"),
+    supabase.from("self_audit_ai_reviews").select("*").in("assignment_id", assignmentIds),
+    supabase.from("self_audit_branch_operation_answers").select("*").eq("cycle_id", cycleId).eq("branch_id", branchId),
+  ]);
+
+  const claimQuestions = (questions ?? []).filter((q) => q.scope === "claim");
+  const opsQuestions = (questions ?? []).filter((q) => q.scope === "branch");
+
+  const reviewByAssignmentAndQuestion = new Map((reviews ?? []).map((r) => [`${r.assignment_id}:${r.question_id}`, r]));
+  const opsAnswerByQuestion = new Map((opsAnswers ?? []).map((a) => [a.question_id, a]));
+
+  const allScores: number[] = [];
+  const perQuestionScores = new Map<string, number[]>();
+  const pushScore = (questionId: string, score: number) => {
+    allScores.push(score);
+    const list = perQuestionScores.get(questionId) ?? [];
+    list.push(score);
+    perQuestionScores.set(questionId, list);
+  };
+
+  assignments.forEach((a) => {
+    claimQuestions.forEach((q) => {
+      const review = reviewByAssignmentAndQuestion.get(`${a.id}:${q.id}`);
+      const finalValue = review ? (review.officer_value ?? review.ai_suggested_value) : null;
+      pushScore(q.id, scoreAnswer(q, finalValue));
+    });
+  });
+
+  opsQuestions.forEach((q) => {
+    const answer = opsAnswerByQuestion.get(q.id);
+    const finalValue = answer ? (answer.officer_value ?? answer.answer_value) : null;
+    pushScore(q.id, scoreAnswer(q, finalValue));
+  });
+
+  const breakdown: Record<string, number> = {};
+  perQuestionScores.forEach((scores, questionId) => {
+    breakdown[questionId] = scorePct(scores);
+  });
+
+  const { error: resultError } = await supabase.from("self_audit_audit_results").upsert(
+    {
+      cycle_id: cycleId,
+      branch_id: branchId,
+      score_pct: scorePct(allScores),
+      per_question_breakdown: breakdown,
+      finalized_by: officer.id,
+      finalized_at: new Date().toISOString(),
+    },
+    { onConflict: "cycle_id,branch_id" }
+  );
+  if (resultError) return { error: resultError.message };
+
+  const staleAssignmentIds = assignments.filter((a) => a.status !== "reviewed" && a.status !== "expired").map((a) => a.id);
+  if (staleAssignmentIds.length > 0) {
+    await supabase.from("self_audit_audit_assignments").update({ status: "expired" }).in("id", staleAssignmentIds);
+  }
+
+  await supabase.from("self_audit_branch_operation_progress").upsert(
+    {
+      cycle_id: cycleId,
+      branch_id: branchId,
+      status: "reviewed",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: officer.id,
+    },
+    { onConflict: "cycle_id,branch_id" }
+  );
+
+  revalidatePath(`/admin/review/${cycleId}/${branchId}`);
+  revalidatePath("/admin/results/self-audit");
+  revalidatePath(`/admin/results/self-audit/${branchId}`);
+  return { success: "Results force-finalized - every unanswered question scored 0%." };
+}
