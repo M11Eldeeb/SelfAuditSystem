@@ -841,7 +841,7 @@ export interface Database {
       };
       release_scrap_requests_for_new_cycle: {
         Args: Record<string, never>;
-        Returns: { promoted: number; released: number };
+        Returns: { promoted: number };
       };
       get_warranty_room_excluded_claim_ids: {
         Args: Record<string, never>;
