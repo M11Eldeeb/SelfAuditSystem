@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import { generateWarrantyRoomCycle } from "./cycle-actions";
 import { currentYearMonth } from "@/lib/month";
-import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 
 export function WarrantyRoomCycleForm() {
   const [state, formAction, pending] = useActionState(generateWarrantyRoomCycle, undefined);
@@ -13,8 +12,8 @@ export function WarrantyRoomCycleForm() {
       <div>
         <h2 className="text-sm font-semibold text-neutral-900">Warranty room cycle</h2>
         <p className="text-xs text-neutral-500">
-          Sets this month&apos;s destroy-evidence deadline ({AUDIT_CYCLE_DEADLINE_DAYS} days) - independent of the
-          self-audit cycle.
+          Starts this month&apos;s destroy-evidence submission window - independent of the self-audit cycle. No
+          deadline: unsubmitted parts just stay off the Scrapped List until submitted.
         </p>
       </div>
       <form action={formAction} className="flex flex-wrap items-end gap-3">

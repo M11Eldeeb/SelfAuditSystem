@@ -8,18 +8,22 @@ import { addDestroyEvidenceVideo, deleteDestroyEvidenceVideo, submitDestroyEvide
 type Status = "pending" | "submitted" | "sent";
 type Video = { id: string; path: string; url: string | null };
 
+/**
+ * No deadline - a branch that never submits just keeps its flagged parts
+ * off the Scrapped List forever (they're never approved), which is already
+ * the enforcement mechanism. No need for a countdown to block submission on
+ * top of that.
+ */
 export function SubmitDestroyEvidence({
   cycleId,
   branchId,
   cycleMonthLabel,
-  daysLeft,
   status,
   videos,
 }: {
   cycleId: string;
   branchId: string;
   cycleMonthLabel: string;
-  daysLeft: number | null;
   status: Status;
   videos: Video[];
 }) {
@@ -29,8 +33,7 @@ export function SubmitDestroyEvidence({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const deadlinePassed = daysLeft !== null && daysLeft <= 0;
-  const locked = status !== "pending" || deadlinePassed;
+  const locked = status !== "pending";
 
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -89,19 +92,11 @@ export function SubmitDestroyEvidence({
     <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-neutral-900">Submit destroy evidence</h2>
-        <span className="text-xs text-neutral-500">
-          {cycleMonthLabel} cycle
-          {status === "pending" && daysLeft !== null && (
-            <span className={`ml-2 font-medium ${daysLeft <= 5 ? "text-red-600" : "text-neutral-500"}`}>
-              {daysLeft > 0 ? `· ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to submit` : "· Submission deadline passed"}
-            </span>
-          )}
-        </span>
+        <span className="text-xs text-neutral-500">{cycleMonthLabel} cycle</span>
       </div>
 
       {status === "submitted" && <p className="text-sm text-emerald-700">Submitted - awaiting officer approval.</p>}
       {status === "sent" && <p className="text-sm text-neutral-500">Approved - this cycle&apos;s flagged parts were moved to the Scrapped List.</p>}
-      {status === "pending" && deadlinePassed && <p className="text-sm text-red-600">The submission deadline for this cycle has passed.</p>}
 
       {videos.length > 0 && (
         <ul className="space-y-1">

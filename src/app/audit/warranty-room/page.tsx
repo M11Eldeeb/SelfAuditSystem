@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
-import { daysRemaining, daysUntil } from "@/lib/cycle";
+import { daysUntil } from "@/lib/cycle";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
@@ -52,7 +52,7 @@ export default async function BranchWarrantyRoomPage() {
     // Same "newest cycle_month that's open" resolution src/app/audit/page.tsx
     // uses for the self-audit cycle - this is Warranty Room's own, separate
     // cycle (self_audit_warranty_room_cycles), not tied to self-audit.
-    supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month, deadline_at, status").order("cycle_month", { ascending: false }),
+    supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month, status").order("cycle_month", { ascending: false }),
   ]);
 
   if (collectionsError) throw new Error(`Failed to load supplier collections: ${collectionsError.message}`);
@@ -149,7 +149,6 @@ export default async function BranchWarrantyRoomPage() {
           cycleId={currentCycle.id}
           branchId={branchId}
           cycleMonthLabel={currentCycle.cycle_month.slice(0, 7)}
-          daysLeft={daysRemaining(currentCycle.deadline_at)}
           status={(destroyEvidence?.status as "pending" | "submitted" | "sent" | undefined) ?? "pending"}
           videos={destroyEvidenceVideos}
         />

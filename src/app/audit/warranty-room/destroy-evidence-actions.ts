@@ -63,12 +63,13 @@ export async function deleteDestroyEvidenceVideo(videoId: string, videoPath: str
 }
 
 /**
- * One bulk destruction-evidence submission per branch per self-audit cycle -
- * replaces submit_scrap_request (per-claim video) as the branch admin's
- * ongoing workflow. Same 25-day deadline as the self-audit cycle itself
- * (deadline_at, set at cycle creation - see src/lib/cycle.ts). Videos
- * themselves are already attached (addDestroyEvidenceVideo) by the time
- * this is called - this just locks the cycle in as submitted.
+ * One bulk destruction-evidence submission per branch per warranty room
+ * cycle - replaces submit_scrap_request (per-claim video) as the branch
+ * admin's ongoing workflow. No deadline - a branch that never submits just
+ * never gets its flagged parts approved onto the Scrapped List, which is
+ * enforcement enough on its own. Videos themselves are already attached
+ * (addDestroyEvidenceVideo) by the time this is called - this just locks
+ * the cycle in as submitted.
  */
 export async function submitDestroyEvidence(cycleId: string): Promise<{ error?: string }> {
   const user = await requireRole("branch_admin");
@@ -77,13 +78,10 @@ export async function submitDestroyEvidence(cycleId: string): Promise<{ error?: 
 
   const { data: cycle } = await supabase
     .from("self_audit_warranty_room_cycles")
-    .select("deadline_at")
+    .select("id")
     .eq("id", cycleId)
     .single();
   if (!cycle) return { error: "Warranty room cycle not found." };
-  if (cycle.deadline_at && new Date(cycle.deadline_at).getTime() < Date.now()) {
-    return { error: "The submission deadline for this cycle has passed." };
-  }
 
   const { count } = await supabase
     .from("self_audit_destroy_evidence_videos")

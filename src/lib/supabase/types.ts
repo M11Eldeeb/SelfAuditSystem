@@ -167,7 +167,6 @@ export interface Database {
           id: string;
           cycle_month: string;
           status: string;
-          deadline_at: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -175,7 +174,6 @@ export interface Database {
           id?: string;
           cycle_month: string;
           status?: string;
-          deadline_at?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
