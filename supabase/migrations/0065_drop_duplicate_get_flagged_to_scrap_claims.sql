@@ -1,0 +1,14 @@
+-- Bug: migration 0064's `create or replace function get_flagged_to_scrap_claims(p_branch_id uuid, p_cycle_id uuid default null)`
+-- did not replace the original 1-argument version - CREATE OR REPLACE only
+-- replaces a function with the exact same argument signature, and adding a
+-- parameter changes that, so it silently created a SECOND overload instead.
+-- With both `get_flagged_to_scrap_claims(uuid)` and
+-- `get_flagged_to_scrap_claims(uuid, uuid default null)` present, any call
+-- passing only p_branch_id matched both (the second one via its default),
+-- making the call ambiguous - Postgres raised "function ... is not unique",
+-- which crashed the branch admin's Warranty Room page render (surfaced as
+-- an opaque "Minified React error #441" - message stripped in production,
+-- confirmed via react.dev/errors/441 earlier this session for the same
+-- error class). Drops the stale 1-argument overload; only the 2-argument
+-- version (with default) remains.
+drop function if exists public.get_flagged_to_scrap_claims(uuid);
