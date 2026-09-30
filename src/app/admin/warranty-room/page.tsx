@@ -28,6 +28,7 @@ export default async function WarrantyRoomPage() {
     { data: claimsBatch },
     { data: claimsPartsBatch },
     { data: supplierPartsBatch },
+    { data: branchAdmins },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_claims").select("id", { count: "exact", head: true }),
@@ -54,6 +55,7 @@ export default async function WarrantyRoomPage() {
       .like("source_filename", "[warranty-room:supplier_parts]%")
       .order("uploaded_at", { ascending: false })
       .limit(1),
+    supabase.from("self_audit_users").select("email").eq("role", "branch_admin"),
   ]);
 
   const claimsDataLastSynced = [latestBatch(claimsBatch), latestBatch(claimsPartsBatch)]
@@ -87,7 +89,7 @@ export default async function WarrantyRoomPage() {
         }}
       />
 
-      <WarrantyRoomCycleForm />
+      <WarrantyRoomCycleForm branchAdminEmails={[...new Set((branchAdmins ?? []).map((a) => a.email))]} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>
@@ -136,7 +138,7 @@ export default async function WarrantyRoomPage() {
             Destroy evidence →
           </Link>
           <p className="mt-1 text-xs text-neutral-500">
-            Monthly bulk destruction videos submitted by branches - approve or return, per self-audit cycle.
+            Monthly bulk destruction videos submitted by branches - approve or return, per warranty room cycle.
           </p>
         </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
