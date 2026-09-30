@@ -879,7 +879,7 @@ export interface Database {
           holding_period_days: number | null;
           first_submit_date: string | null;
           repair_end_date: string | null;
-          waiting_for_submission: boolean;
+          cycle_month: string | null;
         }[];
       };
       get_warranty_room_excluded_claim_ids: {

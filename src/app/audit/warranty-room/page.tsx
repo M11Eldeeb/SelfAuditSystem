@@ -83,7 +83,7 @@ export default async function BranchWarrantyRoomPage() {
   });
 
   const flaggedRows = await getFlaggedToScrapClaims(supabase, branchId);
-  const waitingCount = flaggedRows.filter((r) => r.waiting_for_submission).length;
+  const waitingCount = flaggedRows.filter((r) => r.cycle_month !== newestCycle?.cycle_month).length;
 
   const collectionPartsByCollectionId = new Map<
     string,
