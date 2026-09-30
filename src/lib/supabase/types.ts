@@ -843,6 +843,28 @@ export interface Database {
         Args: Record<string, never>;
         Returns: { promoted: number };
       };
+      approve_destroy_evidence: {
+        Args: {
+          p_cycle_id: string;
+          p_branch_id: string;
+        };
+        Returns: number;
+      };
+      get_flagged_to_scrap_claims: {
+        Args: {
+          p_branch_id: string;
+        };
+        Returns: {
+          claim_number: string;
+          work_order_no: string | null;
+          part_no: string | null;
+          part_name: string | null;
+          quantity: number | null;
+          holding_period_days: number | null;
+          first_submit_date: string | null;
+          repair_end_date: string | null;
+        }[];
+      };
       get_warranty_room_excluded_claim_ids: {
         Args: Record<string, never>;
         Returns: string[];

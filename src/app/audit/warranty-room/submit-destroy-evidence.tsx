@@ -99,8 +99,8 @@ export function SubmitDestroyEvidence({
         </span>
       </div>
 
-      {status === "submitted" && <p className="text-sm text-emerald-700">Submitted - awaiting the officer to collect it.</p>}
-      {status === "sent" && <p className="text-sm text-neutral-500">Submitted and collected by the officer for this cycle.</p>}
+      {status === "submitted" && <p className="text-sm text-emerald-700">Submitted - awaiting officer approval.</p>}
+      {status === "sent" && <p className="text-sm text-neutral-500">Approved - this cycle&apos;s flagged parts were moved to the Scrapped List.</p>}
       {status === "pending" && deadlinePassed && <p className="text-sm text-red-600">The submission deadline for this cycle has passed.</p>}
 
       {videos.length > 0 && (

@@ -5,8 +5,7 @@ import { daysRemaining, daysUntil } from "@/lib/cycle";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
-import { DoNotScrapDownloadButton } from "@/components/do-not-scrap-download-button";
-import { ScrappingListDownloadButton } from "@/components/scrapping-list-download-button";
+import { ReportDownloadButton } from "@/components/report-download-button";
 
 type CollectionRow = {
   id: string;
@@ -160,9 +159,25 @@ export default async function BranchWarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
-        <ScrappingListDownloadButton />
-        <DoNotScrapDownloadButton />
+      <section className="grid gap-3 sm:grid-cols-3">
+        <ReportDownloadButton
+          endpoint="/api/warranty-room/download/flagged-to-scrap"
+          label="Flagged to be scrapped"
+          description="Past 90 days held, awaiting destroy evidence and approval. Downloads as Excel."
+          filenameFallback="Flagged_To_Scrap.xlsx"
+        />
+        <ReportDownloadButton
+          endpoint="/api/warranty-room/download/scrapped-list"
+          label="Scrapped list"
+          description="Every claim already scrapped. Downloads as Excel."
+          filenameFallback="Scrapped_List.xlsx"
+        />
+        <ReportDownloadButton
+          endpoint="/api/warranty-room/download/do-not-scrap"
+          label="Do not scrap list"
+          description="Claims to keep on hand - not flagged to scrap, not already scrapped. Downloads as Excel."
+          filenameFallback="Do_Not_Scrap.xlsx"
+        />
       </section>
     </div>
   );

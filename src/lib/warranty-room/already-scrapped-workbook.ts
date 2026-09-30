@@ -2,24 +2,18 @@
 // runs the same in Node and the browser. Split out from
 // already-scrapped-excel.ts so the download API route (server-side) and the
 // old in-browser path can share the exact same workbook-building logic.
+//
+// 'pending' rows moved to their own report (Flagged to be Scrapped -
+// flagged-to-scrap-workbook.ts, migration 0056) - this one is Scrapped List,
+// "already done" only, so no 'pending' status/highlight logic here anymore.
 import ExcelJS from "exceljs";
 import type { AlreadyScrappedRow } from "@/lib/warranty-room/already-scrapped";
 
 export const ALREADY_SCRAPPED_STATUS_LABELS: Record<string, string> = {
-  pending: "NEW scrap part (this cycle)",
   presumed_scrapped: "Presumed scrapped (holding period exceeded)",
   scrapped: "Scrapped (video submitted)",
   scrapped_legacy: "Scrapped (prior system)",
   supplier_collected: "Collected by supplier",
-};
-
-// A 'pending' row crossed its 90-day holding period between the last claims
-// upload and this one - the officer/branch admin asked for these to stand
-// out as newly-scrap parts rather than blend into the historical rows.
-const NEW_SCRAP_FILL: ExcelJS.Fill = {
-  type: "pattern",
-  pattern: "solid",
-  fgColor: { argb: "FFFFF2A6" },
 };
 
 const COLUMNS: { header: string; key: string }[] = [
@@ -37,13 +31,13 @@ const COLUMNS: { header: string; key: string }[] = [
 
 export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRow[]): Promise<ExcelJS.Buffer> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Already Scrapped");
+  const sheet = workbook.addWorksheet("Scrapped List");
 
   sheet.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 22 }));
   sheet.getRow(1).font = { bold: true };
 
   rows.forEach((r) => {
-    const row = sheet.addRow({
+    sheet.addRow({
       claim_number: r.claim_number,
       work_order_no: r.work_order_no ?? "",
       status_label: ALREADY_SCRAPPED_STATUS_LABELS[r.status] ?? r.status,
@@ -55,7 +49,6 @@ export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRo
       holding_period_days: r.holding_period_days ?? "",
       submitted_at: r.submitted_at ?? "",
     });
-    if (r.status === "pending") row.eachCell((cell) => (cell.fill = NEW_SCRAP_FILL));
   });
 
   return workbook.xlsx.writeBuffer();

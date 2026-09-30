@@ -5,15 +5,23 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * "Download, then mark sent" for one branch's destruction evidence: deletes
- * the video files from storage (irreversible - the confirm dialog on the
- * client is the safety check) and marks the branch collected for this cycle.
- * Storage delete happens BEFORE the DB is touched - if it fails, the row
- * stays 'submitted' and the video rows stay put, so nothing is silently lost.
+ * Approves one branch's destruction evidence: moves every one of that
+ * branch's currently-'pending' scrap requests to 'scrapped' (via the
+ * approve_destroy_evidence RPC - the actual decision, done first so it's
+ * never lost), then deletes the video files from storage and their rows
+ * (irreversible - the confirm dialog on the client is the safety check).
+ * If the cleanup fails after approval, the approval itself still stands;
+ * only the video cleanup needs retrying.
  */
-export async function markDestroyEvidenceSent(cycleId: string, branchId: string): Promise<{ error?: string }> {
-  const officer = await requireRole("officer");
+export async function approveDestroyEvidence(cycleId: string, branchId: string): Promise<{ error?: string; scrappedCount?: number }> {
+  await requireRole("officer");
   const supabase = await createClient();
+
+  const { data: scrappedCount, error: approveError } = await supabase.rpc("approve_destroy_evidence", {
+    p_cycle_id: cycleId,
+    p_branch_id: branchId,
+  });
+  if (approveError) return { error: approveError.message };
 
   const { data: videos } = await supabase
     .from("self_audit_destroy_evidence_videos")
@@ -24,7 +32,7 @@ export async function markDestroyEvidenceSent(cycleId: string, branchId: string)
   const paths = (videos ?? []).map((v) => v.video_path);
   if (paths.length > 0) {
     const { error: removeError } = await supabase.storage.from("warranty-room-files").remove(paths);
-    if (removeError) return { error: `Could not delete video files: ${removeError.message}` };
+    if (removeError) return { error: `Approved, but could not delete video files: ${removeError.message}`, scrappedCount: scrappedCount ?? undefined };
   }
 
   const { error: videosDeleteError } = await supabase
@@ -32,18 +40,11 @@ export async function markDestroyEvidenceSent(cycleId: string, branchId: string)
     .delete()
     .eq("cycle_id", cycleId)
     .eq("branch_id", branchId);
-  if (videosDeleteError) return { error: videosDeleteError.message };
-
-  const { error: updateError } = await supabase
-    .from("self_audit_destroy_evidence")
-    .update({ status: "sent", sent_at: new Date().toISOString(), sent_by: officer.id })
-    .eq("cycle_id", cycleId)
-    .eq("branch_id", branchId);
-  if (updateError) return { error: updateError.message };
+  if (videosDeleteError) return { error: `Approved, but could not clean up video records: ${videosDeleteError.message}`, scrappedCount: scrappedCount ?? undefined };
 
   revalidatePath(`/admin/warranty-room/destroy-evidence/${cycleId}`);
   revalidatePath("/admin/warranty-room/destroy-evidence");
-  return {};
+  return { scrappedCount: scrappedCount ?? undefined };
 }
 
 /**

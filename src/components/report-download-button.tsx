@@ -2,8 +2,25 @@
 
 import { useState } from "react";
 
-/** No preview page - clicking downloads the Excel report directly (generated server-side, see /api/warranty-room/download/do-not-scrap). */
-export function DoNotScrapDownloadButton() {
+/**
+ * Shared by every Warranty Room report download (Do Not Scrap, Scrapped
+ * List, Flagged to be Scrapped) - all three fetch a server-generated xlsx
+ * file route and trigger a save, reading claim/part counts back from
+ * response headers. No preview page; clicking downloads directly.
+ */
+export function ReportDownloadButton({
+  endpoint,
+  branchId,
+  label,
+  description,
+  filenameFallback,
+}: {
+  endpoint: string;
+  branchId?: string;
+  label: string;
+  description: string;
+  filenameFallback: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -13,7 +30,8 @@ export function DoNotScrapDownloadButton() {
     setError(null);
     setSummary(null);
     try {
-      const res = await fetch("/api/warranty-room/download/do-not-scrap");
+      const url = branchId ? `${endpoint}?branch=${encodeURIComponent(branchId)}` : endpoint;
+      const res = await fetch(url);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error ? `Could not generate the report: ${body.error}` : `Could not generate the report (${res.status}).`);
@@ -21,14 +39,14 @@ export function DoNotScrapDownloadButton() {
       const claimCount = res.headers.get("X-Claim-Count") ?? "?";
       const partCount = res.headers.get("X-Part-Count") ?? "?";
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "Do_Not_Scrap.xlsx";
+      a.href = objectUrl;
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? filenameFallback;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
       setSummary(`${claimCount} claim(s), ${partCount} part row(s).`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate the report.");
@@ -45,9 +63,9 @@ export function DoNotScrapDownloadButton() {
         disabled={loading}
         className="text-sm font-medium text-brand hover:underline disabled:opacity-50"
       >
-        {loading ? "Preparing..." : "Do not scrap list →"}
+        {loading ? "Preparing..." : `${label} →`}
       </button>
-      <p className="mt-1 text-xs text-neutral-500">Claims to keep on hand - not flagged to scrap, not already scrapped. Downloads as Excel.</p>
+      <p className="mt-1 text-xs text-neutral-500">{description}</p>
       {summary && <p className="mt-1 text-xs text-emerald-700">{summary}</p>}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

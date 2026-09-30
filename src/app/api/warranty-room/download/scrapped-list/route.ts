@@ -34,13 +34,13 @@ export async function GET(request: Request) {
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="Scrapping_List_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
+        "Content-Disposition": `attachment; filename="Scrapped_List_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
         "X-Claim-Count": String(claimCount),
         "X-Part-Count": String(rows.length),
       },
     });
   } catch (err) {
-    console.error("Scrapping list download failed:", err);
+    console.error("Scrapped list download failed:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Could not generate the report." },
       { status: 500 }

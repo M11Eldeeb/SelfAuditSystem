@@ -119,7 +119,7 @@ export default async function WarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <Link href="/admin/warranty-room/supplier-parts" className="text-sm font-medium text-brand hover:underline">
             Supplier parts →
@@ -133,15 +133,23 @@ export default async function WarrantyRoomPage() {
             Destroy evidence →
           </Link>
           <p className="mt-1 text-xs text-neutral-500">
-            Monthly bulk destruction videos submitted by branches, per self-audit cycle.
+            Monthly bulk destruction videos submitted by branches - approve or return, per self-audit cycle.
           </p>
         </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-          <Link href="/admin/warranty-room/scrapping-list" className="text-sm font-medium text-brand hover:underline">
-            Scrapping list →
+          <Link href="/admin/warranty-room/flagged-to-scrap" className="text-sm font-medium text-brand hover:underline">
+            Flagged to be scrapped →
           </Link>
           <p className="mt-1 text-xs text-neutral-500">
-            Every claim flagged to scrap, presumed scrapped, or scrapped, per branch.
+            Past 90 days held, awaiting destroy evidence and approval, per branch.
+          </p>
+        </div>
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <Link href="/admin/warranty-room/scrapped-list" className="text-sm font-medium text-brand hover:underline">
+            Scrapped list →
+          </Link>
+          <p className="mt-1 text-xs text-neutral-500">
+            Every claim already scrapped, per branch.
           </p>
         </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">

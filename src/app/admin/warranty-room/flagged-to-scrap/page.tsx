@@ -1,8 +1,8 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ScrappingListDownloadButton } from "@/components/scrapping-list-download-button";
+import { ReportDownloadButton } from "@/components/report-download-button";
 
-export default async function OfficerScrappingListPage({
+export default async function OfficerFlaggedToScrapPage({
   searchParams,
 }: {
   searchParams: Promise<{ branch?: string }>;
@@ -17,9 +17,10 @@ export default async function OfficerScrappingListPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Scrapping list</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Flagged to be scrapped</h1>
         <p className="text-sm text-neutral-600">
-          Every claim flagged to scrap, presumed scrapped, or scrapped for the selected branch.
+          Claims past 90 days held, awaiting the branch&apos;s destroy evidence and approval, for the selected
+          branch.
         </p>
       </div>
 
@@ -49,7 +50,13 @@ export default async function OfficerScrappingListPage({
         </button>
       </form>
 
-      <ScrappingListDownloadButton branchId={selectedBranch} />
+      <ReportDownloadButton
+        endpoint="/api/warranty-room/download/flagged-to-scrap"
+        branchId={selectedBranch}
+        label="Flagged to be scrapped"
+        description="Claims past 90 days held, awaiting destroy evidence and approval. Downloads as Excel."
+        filenameFallback="Flagged_To_Scrap.xlsx"
+      />
     </div>
   );
 }
