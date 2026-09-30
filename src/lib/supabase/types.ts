@@ -869,6 +869,7 @@ export interface Database {
       get_flagged_to_scrap_claims: {
         Args: {
           p_branch_id: string;
+          p_cycle_id?: string;
         };
         Returns: {
           claim_number: string;

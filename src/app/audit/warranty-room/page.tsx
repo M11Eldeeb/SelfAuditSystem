@@ -179,13 +179,7 @@ export default async function BranchWarrantyRoomPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <ReportDownloadButton
-          endpoint="/api/warranty-room/download/flagged-to-scrap"
-          label="Flagged to be scrapped"
-          description="Past 90 days held, awaiting destroy evidence and approval. Downloads as Excel."
-          filenameFallback="Flagged_To_Scrap.xlsx"
-        />
+      <section className="grid gap-3 sm:grid-cols-2">
         <ReportDownloadButton
           endpoint="/api/warranty-room/download/scrapped-list"
           label="Scrapped list"

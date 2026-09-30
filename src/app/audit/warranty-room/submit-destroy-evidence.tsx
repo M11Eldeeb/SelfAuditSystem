@@ -30,10 +30,36 @@ export function SubmitDestroyEvidence({
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingFlagged, setDownloadingFlagged] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const locked = status !== "pending";
+
+  async function handleDownloadFlagged() {
+    setDownloadingFlagged(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/warranty-room/download/flagged-to-scrap?cycle=${encodeURIComponent(cycleId)}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Could not generate the report (${res.status}).`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? `Flagged_To_Scrap_${cycleMonthLabel}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not generate the report.");
+    } finally {
+      setDownloadingFlagged(false);
+    }
+  }
 
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -94,6 +120,15 @@ export function SubmitDestroyEvidence({
         <h2 className="text-sm font-semibold text-neutral-900">Submit destroy evidence</h2>
         <span className="text-xs text-neutral-500">{cycleMonthLabel} cycle</span>
       </div>
+
+      <button
+        type="button"
+        onClick={handleDownloadFlagged}
+        disabled={downloadingFlagged}
+        className="text-sm font-medium text-brand hover:underline disabled:opacity-50"
+      >
+        {downloadingFlagged ? "Preparing..." : `Flagged to be scrapped - Cycle ${cycleMonthLabel} →`}
+      </button>
 
       {status === "submitted" && <p className="text-sm text-emerald-700">Submitted - awaiting officer approval.</p>}
       {status === "sent" && <p className="text-sm text-neutral-500">Approved - this cycle&apos;s flagged parts were moved to the Scrapped List.</p>}

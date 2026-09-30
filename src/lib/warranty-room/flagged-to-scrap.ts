@@ -26,9 +26,13 @@ export type FlaggedToScrapRow = {
  */
 export async function getFlaggedToScrapClaims(
   supabase: SupabaseClient<Database>,
-  branchId: string
+  branchId: string,
+  cycleId?: string
 ): Promise<FlaggedToScrapRow[]> {
-  const { data, error } = await supabase.rpc("get_flagged_to_scrap_claims", { p_branch_id: branchId });
+  const { data, error } = await supabase.rpc("get_flagged_to_scrap_claims", {
+    p_branch_id: branchId,
+    p_cycle_id: cycleId ?? undefined,
+  });
   if (error) throw new Error(error.message);
   return data ?? [];
 }
