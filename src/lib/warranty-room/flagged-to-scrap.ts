@@ -11,6 +11,8 @@ export type FlaggedToScrapRow = {
   holding_period_days: number | null;
   first_submit_date: string | null;
   repair_end_date: string | null;
+  /** Flagged in an earlier cycle and still no destroy evidence submitted - carried over, not newly flagged this cycle. */
+  waiting_for_submission: boolean;
 };
 
 /**

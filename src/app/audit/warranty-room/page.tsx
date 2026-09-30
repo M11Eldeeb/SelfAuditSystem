@@ -6,6 +6,7 @@ import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
 import { ReportDownloadButton } from "@/components/report-download-button";
+import { getFlaggedToScrapClaims } from "@/lib/warranty-room/flagged-to-scrap";
 
 type CollectionRow = {
   id: string;
@@ -81,6 +82,9 @@ export default async function BranchWarrantyRoomPage() {
     }))
   );
 
+  const flaggedRows = await getFlaggedToScrapClaims(supabase, branchId);
+  const waitingCount = flaggedRows.filter((r) => r.waiting_for_submission).length;
+
   const collectionPartsByCollectionId = new Map<
     string,
     {
@@ -126,6 +130,18 @@ export default async function BranchWarrantyRoomPage() {
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">Claims flagged to have their removed parts scrapped, or reserved for the manufacturer&apos;s supplier to collect.</p>
       </div>
+
+      {waitingCount > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4">
+          <p className="text-sm font-medium text-amber-900">
+            {waitingCount} part(s) still waiting for destroy evidence submission from an earlier cycle.
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            These stay flagged to scrap - they were never approved, so they weren&apos;t written off. Submit
+            evidence for them along with this cycle&apos;s.
+          </p>
+        </div>
+      )}
 
       {currentCycle && (
         <SubmitDestroyEvidence

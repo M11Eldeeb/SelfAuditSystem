@@ -82,13 +82,11 @@ export async function generateCycle(
     };
   }
 
-  // Warranty Room scrap-request rollover is tied to cycle generation, not
-  // claims upload (see migration 0054) - rolls last cycle's pending batch to
-  // presumed_scrapped and releases everything the background cron has
-  // queued since then as this cycle's newly-flagged batch. A cheap bulk
-  // update on scrap_requests alone (not the claims table), safe to run here.
-  const { error: releaseError } = await supabase.rpc("release_scrap_requests_for_new_cycle");
-  if (releaseError) return { error: `Could not roll over the scrap-request cycle: ${releaseError.message}` };
+  // Warranty Room no longer auto-promotes still-pending scrap requests at
+  // cycle boundaries (migration 0057) - a branch that missed a deadline
+  // keeps its parts flagged (not silently written off as "already
+  // scrapped"), just marked "waiting for submission" once the new cycle's
+  // start makes them carried-over (see get_flagged_to_scrap_claims).
 
   // A claim already assigned to self-audit OR sampled into an internal audit
   // is never resampled by either workflow again - fetched once, filtered
