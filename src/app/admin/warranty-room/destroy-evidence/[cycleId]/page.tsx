@@ -12,7 +12,7 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
   const { cycleId } = await params;
 
   const supabase = await createClient();
-  const { data: cycle } = await supabase.from("self_audit_audit_cycles").select("id, cycle_month").eq("id", cycleId).single();
+  const { data: cycle } = await supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month").eq("id", cycleId).single();
   if (!cycle) notFound();
 
   const { data: evidence } = await supabase

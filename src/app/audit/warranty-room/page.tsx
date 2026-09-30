@@ -48,10 +48,11 @@ export default async function BranchWarrantyRoomPage() {
       .eq("status", "pending")
       .order("created_at", { ascending: true }),
     // Not .maybeSingle() on status='open' - nothing in the schema guarantees
-    // at most one open cycle at a time (generateCycle never closes the
-    // previous one), so more than one row would throw. Same "newest cycle_month
-    // that's open" resolution src/app/audit/page.tsx already uses.
-    supabase.from("self_audit_audit_cycles").select("id, cycle_month, deadline_at, status").order("cycle_month", { ascending: false }),
+    // at most one open cycle at a time, so more than one row would throw.
+    // Same "newest cycle_month that's open" resolution src/app/audit/page.tsx
+    // uses for the self-audit cycle - this is Warranty Room's own, separate
+    // cycle (self_audit_warranty_room_cycles), not tied to self-audit.
+    supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month, deadline_at, status").order("cycle_month", { ascending: false }),
   ]);
 
   if (collectionsError) throw new Error(`Failed to load supplier collections: ${collectionsError.message}`);

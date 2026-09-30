@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
+import { WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
 
 export default async function WarrantyRoomPage() {
   await requireRole("officer");
@@ -85,6 +86,8 @@ export default async function WarrantyRoomPage() {
           supplierParts: latestBatch(supplierPartsBatch),
         }}
       />
+
+      <WarrantyRoomCycleForm />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>

@@ -162,6 +162,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"]>;
         Relationships: [];
       };
+      self_audit_warranty_room_cycles: {
+        Row: {
+          id: string;
+          cycle_month: string;
+          status: string;
+          deadline_at: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          cycle_month: string;
+          status?: string;
+          deadline_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_warranty_room_cycles"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_audit_cycles: {
         Row: {
           id: string;

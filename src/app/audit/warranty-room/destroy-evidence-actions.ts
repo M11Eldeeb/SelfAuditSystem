@@ -76,11 +76,11 @@ export async function submitDestroyEvidence(cycleId: string): Promise<{ error?: 
   const branchId = user.branch_id!;
 
   const { data: cycle } = await supabase
-    .from("self_audit_audit_cycles")
+    .from("self_audit_warranty_room_cycles")
     .select("deadline_at")
     .eq("id", cycleId)
     .single();
-  if (!cycle) return { error: "Audit cycle not found." };
+  if (!cycle) return { error: "Warranty room cycle not found." };
   if (cycle.deadline_at && new Date(cycle.deadline_at).getTime() < Date.now()) {
     return { error: "The submission deadline for this cycle has passed." };
   }

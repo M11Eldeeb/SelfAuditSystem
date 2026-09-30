@@ -7,7 +7,7 @@ export default async function DestroyEvidenceCyclesPage() {
   const supabase = await createClient();
 
   const [{ data: cycles }, { data: evidence }] = await Promise.all([
-    supabase.from("self_audit_audit_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }),
+    supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }),
     supabase.from("self_audit_destroy_evidence").select("cycle_id, status"),
   ]);
 
@@ -30,7 +30,7 @@ export default async function DestroyEvidenceCyclesPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Destroy evidence</h1>
         <p className="text-sm text-neutral-600">
-          One bulk destruction-video submission per branch per self-audit cycle. Downloading a branch&apos;s videos
+          One bulk destruction-video submission per branch per warranty room cycle. Downloading a branch&apos;s videos
           removes them from storage and marks that branch sent for the cycle.
         </p>
       </div>
