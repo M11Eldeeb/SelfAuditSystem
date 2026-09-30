@@ -17,16 +17,11 @@ export async function startWarrantyRoomBatch(
 
   const supabase = await createClient();
 
-  // Promote whatever's still pending into "presumed_scrapped" BEFORE this
-  // upload's data lands - anything pending at this instant necessarily came
-  // from an earlier claims dataset (see migration 0043), so this is exactly
-  // the "next upload starts a new cycle" boundary the officer asked for. A
-  // single bulk UPDATE keyed on scrap_requests (a few thousand rows), not
-  // the 61k-row claims table, so no statement_timeout risk here.
-  if (kind === "claims_data") {
-    const { error: promoteError } = await supabase.rpc("promote_stale_scrap_requests");
-    if (promoteError) return { error: `Could not roll over the previous scrap cycle: ${promoteError.message}` };
-  }
+  // Scrap-request rollover (presumed_scrapped promotion + releasing newly-
+  // queued claims to pending) no longer happens here - moved to self-audit
+  // cycle generation (release_scrap_requests_for_new_cycle, called from
+  // generateCycle) so it's a once-a-month event tied to the cycle, not to
+  // every claims upload. See migration 0054.
 
   const { data: batch, error } = await supabase
     .from("self_audit_upload_batches")

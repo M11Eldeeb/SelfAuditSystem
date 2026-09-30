@@ -839,9 +839,9 @@ export interface Database {
           submitted_at: string | null;
         }[];
       };
-      promote_stale_scrap_requests: {
+      release_scrap_requests_for_new_cycle: {
         Args: Record<string, never>;
-        Returns: number;
+        Returns: { promoted: number; released: number };
       };
       get_warranty_room_excluded_claim_ids: {
         Args: Record<string, never>;
