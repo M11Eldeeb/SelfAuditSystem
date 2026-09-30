@@ -5,10 +5,12 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Approves one branch's destruction evidence: moves every one of that
- * branch's currently-'pending' scrap requests to 'scrapped' (via the
- * approve_destroy_evidence RPC - the actual decision, done first so it's
- * never lost), then deletes the video files from storage and their rows
+ * Approves one branch's destruction evidence for THIS cycle: moves that
+ * branch's 'pending' scrap requests flagged in this specific cycle to
+ * 'scrapped' (via the approve_destroy_evidence RPC - the actual decision,
+ * done first so it's never lost) - an older, still-unsubmitted cycle for
+ * the same branch is untouched, so it can be approved or returned
+ * independently. Then deletes the video files from storage and their rows
  * (irreversible - the confirm dialog on the client is the safety check).
  * If the cleanup fails after approval, the approval itself still stands;
  * only the video cleanup needs retrying.

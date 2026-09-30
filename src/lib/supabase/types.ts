@@ -625,6 +625,7 @@ export interface Database {
           status: string;
           submitted_at: string | null;
           upload_batch_id: string | null;
+          cycle_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -639,6 +640,7 @@ export interface Database {
           status?: string;
           submitted_at?: string | null;
           upload_batch_id?: string | null;
+          cycle_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_scrap_requests"]["Insert"]>;
