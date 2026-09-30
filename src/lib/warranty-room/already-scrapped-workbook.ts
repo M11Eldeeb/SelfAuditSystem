@@ -6,11 +6,20 @@ import ExcelJS from "exceljs";
 import type { AlreadyScrappedRow } from "@/lib/warranty-room/already-scrapped";
 
 export const ALREADY_SCRAPPED_STATUS_LABELS: Record<string, string> = {
-  pending: "Flagged to scrap (this cycle)",
+  pending: "NEW scrap part (this cycle)",
   presumed_scrapped: "Presumed scrapped (holding period exceeded)",
   scrapped: "Scrapped (video submitted)",
   scrapped_legacy: "Scrapped (prior system)",
   supplier_collected: "Collected by supplier",
+};
+
+// A 'pending' row crossed its 90-day holding period between the last claims
+// upload and this one - the officer/branch admin asked for these to stand
+// out as newly-scrap parts rather than blend into the historical rows.
+const NEW_SCRAP_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFF2A6" },
 };
 
 const COLUMNS: { header: string; key: string }[] = [
@@ -34,7 +43,7 @@ export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRo
   sheet.getRow(1).font = { bold: true };
 
   rows.forEach((r) => {
-    sheet.addRow({
+    const row = sheet.addRow({
       claim_number: r.claim_number,
       work_order_no: r.work_order_no ?? "",
       status_label: ALREADY_SCRAPPED_STATUS_LABELS[r.status] ?? r.status,
@@ -46,6 +55,7 @@ export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRo
       holding_period_days: r.holding_period_days ?? "",
       submitted_at: r.submitted_at ?? "",
     });
+    if (r.status === "pending") row.eachCell((cell) => (cell.fill = NEW_SCRAP_FILL));
   });
 
   return workbook.xlsx.writeBuffer();
