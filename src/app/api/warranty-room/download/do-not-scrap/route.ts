@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getDoNotScrapClaims } from "@/lib/warranty-room/do-not-scrap";
 import { buildDoNotScrapWorkbookBuffer } from "@/lib/warranty-room/do-not-scrap-workbook";
@@ -18,17 +18,26 @@ import { buildDoNotScrapWorkbookBuffer } from "@/lib/warranty-room/do-not-scrap-
  * without it this defaults to the platform's standard timeout, which a
  * large branch's row count (tens of thousands) plus ExcelJS's in-memory
  * workbook build can plausibly exceed.
+ *
+ * Officers pick any branch via ?branch=<id>; branch admins always get their
+ * own branch regardless of the query param (same pattern as the other two
+ * Warranty Room report routes).
  */
 export const maxDuration = 60;
 
-export async function GET() {
-  const user = await requireRole("branch_admin");
-  const supabase = await createClient();
+export async function GET(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  const requestedBranchId = new URL(request.url).searchParams.get("branch");
+  const branchId = user.role === "officer" ? (requestedBranchId ?? "") : (user.branch_id ?? "");
+  if (!branchId) return NextResponse.json({ error: "No branch specified." }, { status: 400 });
 
   try {
+    const supabase = await createClient();
     const [rows, { data: branch }] = await Promise.all([
-      getDoNotScrapClaims(supabase, user.branch_id ?? ""),
-      supabase.from("self_audit_branches").select("name").eq("id", user.branch_id ?? "").single(),
+      getDoNotScrapClaims(supabase, branchId),
+      supabase.from("self_audit_branches").select("name").eq("id", branchId).single(),
     ]);
     const buffer = await buildDoNotScrapWorkbookBuffer(rows);
     const claimCount = new Set(rows.map((r) => r.claim_number)).size;

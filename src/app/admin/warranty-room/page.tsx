@@ -151,7 +151,7 @@ export default async function WarrantyRoomPage() {
         </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <Link href="/admin/warranty-room/scrapped-list" className="text-sm font-medium text-brand hover:underline">
-            Scrapped list →
+            Already scrapped list →
           </Link>
           <p className="mt-1 text-xs text-neutral-500">
             Every claim already scrapped, per branch.

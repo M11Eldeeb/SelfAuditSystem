@@ -28,7 +28,10 @@ export default async function ScrapDownloadsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Scrap destruction videos</h1>
+        <Link href="/admin/warranty-room" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Warranty Room
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Scrap destruction videos</h1>
         <p className="text-sm text-neutral-600">
           Grouped by the month submitted, then by branch. Download and submit each one through the
           manufacturer&apos;s portal separately - nothing here needs approval or rejection.

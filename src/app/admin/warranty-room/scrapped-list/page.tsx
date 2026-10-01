@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ReportDownloadButton } from "@/components/report-download-button";
@@ -17,10 +18,13 @@ export default async function OfficerScrappedListPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Scrapped list</h1>
+        <Link href="/admin/warranty-room" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Warranty Room
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Already scrapped list</h1>
         <p className="text-sm text-neutral-600">
-          Every claim already scrapped for the selected branch - video-confirmed, presumed by holding period,
-          from the prior system, or collected by the supplier.
+          Every claim already scrapped for the selected branch - video-confirmed, from the destroy list, or
+          collected by the supplier.
         </p>
       </div>
 
@@ -53,9 +57,9 @@ export default async function OfficerScrappedListPage({
       <ReportDownloadButton
         endpoint="/api/warranty-room/download/scrapped-list"
         branchId={selectedBranch}
-        label="Scrapped list"
+        label="Already scrapped list"
         description="Every claim already scrapped. Downloads as Excel."
-        filenameFallback="Scrapped_List.xlsx"
+        filenameFallback="Already_Scrapped_List.xlsx"
       />
     </div>
   );

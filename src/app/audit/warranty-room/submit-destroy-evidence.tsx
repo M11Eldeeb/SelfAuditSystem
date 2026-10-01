@@ -131,7 +131,7 @@ export function SubmitDestroyEvidence({
       </button>
 
       {status === "submitted" && <p className="text-sm text-emerald-700">Submitted - awaiting officer approval.</p>}
-      {status === "sent" && <p className="text-sm text-neutral-500">Approved - this cycle&apos;s flagged parts were moved to the Scrapped List.</p>}
+      {status === "sent" && <p className="text-sm text-neutral-500">Approved - this cycle&apos;s flagged parts were moved to the Already Scrapped List.</p>}
 
       {videos.length > 0 && (
         <ul className="space-y-1">

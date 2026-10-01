@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ReportDownloadButton } from "@/components/report-download-button";
@@ -17,7 +18,10 @@ export default async function OfficerFlaggedToScrapPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Flagged to be scrapped</h1>
+        <Link href="/admin/warranty-room" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Warranty Room
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Flagged to be scrapped</h1>
         <p className="text-sm text-neutral-600">
           Claims past 90 days held, awaiting the branch&apos;s destroy evidence and approval, for the selected
           branch.

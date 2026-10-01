@@ -21,7 +21,7 @@ export function WarrantyRoomCycleForm({ branchAdminEmails }: { branchAdminEmails
         <h2 className="text-sm font-semibold text-neutral-900">Warranty room cycle</h2>
         <p className="text-xs text-neutral-500">
           Starts this month&apos;s destroy-evidence submission window - independent of the self-audit cycle. No
-          deadline: unsubmitted parts just stay off the Scrapped List until submitted.
+          deadline: unsubmitted parts just stay off the Already Scrapped List until submitted.
         </p>
       </div>
       <form action={formAction} className="flex flex-wrap items-end gap-3">

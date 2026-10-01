@@ -30,7 +30,7 @@ const COLUMNS: { header: string; key: string }[] = [
 
 export async function buildAlreadyScrappedWorkbookBuffer(rows: AlreadyScrappedRow[]): Promise<ExcelJS.Buffer> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Scrapped List");
+  const sheet = workbook.addWorksheet("Already Scrapped List");
 
   sheet.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 22 }));
   sheet.getRow(1).font = { bold: true };

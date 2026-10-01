@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="Scrapped_List_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
+        "Content-Disposition": `attachment; filename="Already_Scrapped_List_${branchSlug}_${new Date().toISOString().slice(0, 10)}.xlsx"`,
         "X-Claim-Count": String(claimCount),
         "X-Part-Count": String(rows.length),
       },

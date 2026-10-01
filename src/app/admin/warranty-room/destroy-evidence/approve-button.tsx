@@ -11,14 +11,14 @@ export function ApproveButton({ cycleId, branchId }: { cycleId: string; branchId
   const router = useRouter();
 
   const handleClick = () => {
-    if (!window.confirm("Approve? This moves this branch's currently-flagged parts to Scrapped List and permanently deletes these video files - only do this after downloading them.")) return;
+    if (!window.confirm("Approve? This moves this branch's currently-flagged parts to the Already Scrapped List and permanently deletes these video files - only do this after downloading them.")) return;
     setError(null);
     setSuccess(null);
     startTransition(async () => {
       const result = await approveDestroyEvidence(cycleId, branchId);
       if (result.error) setError(result.error);
       else {
-        setSuccess(`${result.scrappedCount ?? 0} part(s) moved to Scrapped List.`);
+        setSuccess(`${result.scrappedCount ?? 0} part(s) moved to the Already Scrapped List.`);
         router.refresh();
       }
     });

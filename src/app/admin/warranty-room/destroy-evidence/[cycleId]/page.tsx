@@ -46,7 +46,7 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{cycle.cycle_month.slice(0, 7)}</h1>
         <p className="text-sm text-neutral-600">
-          Download each branch&apos;s videos, then Approve (moves their flagged parts to Scrapped List) or Return
+          Download each branch&apos;s videos, then Approve (moves their flagged parts to the Already Scrapped List) or Return
           (sends it back for changes).
         </p>
       </div>

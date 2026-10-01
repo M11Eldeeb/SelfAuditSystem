@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getDoNotScrapClaims } from "@/lib/warranty-room/do-not-scrap";
-import { DoNotScrapTable } from "@/components/do-not-scrap-table";
+import { ReportDownloadButton } from "@/components/report-download-button";
 
 export default async function DoNotScrapPage({
   searchParams,
@@ -14,20 +14,21 @@ export default async function DoNotScrapPage({
 
   const { data: branches } = await supabase.from("self_audit_branches").select("id, name, code").order("name");
   const selectedBranch = branchId || branches?.[0]?.id || "";
-  const rows = selectedBranch ? await getDoNotScrapClaims(supabase, selectedBranch) : [];
-  const branchName = (branches ?? []).find((b) => b.id === selectedBranch)?.name ?? "";
 
   return (
     <div className="space-y-6">
-      <div className="print:hidden">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Do not scrap</h1>
+      <div>
+        <Link href="/admin/warranty-room" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Warranty Room
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Do not scrap</h1>
         <p className="text-sm text-neutral-600">
           Claims with parts on hand that were never flagged to be scrapped and aren&apos;t already
           scrapped - the branch should hold onto these.
         </p>
       </div>
 
-      <form method="get" className="flex flex-wrap items-end gap-3 print:hidden">
+      <form method="get" className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label htmlFor="branch" className="text-xs font-medium text-neutral-700">
             Branch
@@ -53,10 +54,13 @@ export default async function DoNotScrapPage({
         </button>
       </form>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-neutral-900 print:block">{branchName}</h2>
-        <DoNotScrapTable branchName={branchName} rows={rows} />
-      </div>
+      <ReportDownloadButton
+        endpoint="/api/warranty-room/download/do-not-scrap"
+        branchId={selectedBranch}
+        label="Do not scrap list"
+        description="Claims to keep on hand - not flagged to scrap, not already scrapped. Downloads as Excel."
+        filenameFallback="Do_Not_Scrap.xlsx"
+      />
     </div>
   );
 }

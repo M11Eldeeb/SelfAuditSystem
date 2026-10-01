@@ -182,9 +182,9 @@ export default async function BranchWarrantyRoomPage() {
       <section className="grid gap-3 sm:grid-cols-2">
         <ReportDownloadButton
           endpoint="/api/warranty-room/download/scrapped-list"
-          label="Scrapped list"
+          label="Already scrapped list"
           description="Every claim already scrapped. Downloads as Excel."
-          filenameFallback="Scrapped_List.xlsx"
+          filenameFallback="Already_Scrapped_List.xlsx"
         />
         <ReportDownloadButton
           endpoint="/api/warranty-room/download/do-not-scrap"
