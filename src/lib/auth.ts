@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/types";
+import type { Database, UserRole } from "@/lib/supabase/types";
 
 export type CurrentUser = Database["public"]["Tables"]["self_audit_users"]["Row"];
 
@@ -31,8 +31,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return profile ?? null;
 });
 
-/** Redirects to /login if not signed in, or to the other role's home if the role doesn't match. */
-export async function requireRole(role: "officer" | "branch_admin"): Promise<CurrentUser> {
+/** Each role's landing page. */
+export function homePathFor(role: UserRole | null | undefined): string {
+  if (role === "officer") return "/admin";
+  if (role === "finance") return "/finance";
+  return "/audit";
+}
+
+/** Redirects to /login if not signed in, or to the user's own home if the role doesn't match. */
+export async function requireRole(role: UserRole): Promise<CurrentUser> {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -40,7 +47,7 @@ export async function requireRole(role: "officer" | "branch_admin"): Promise<Cur
   }
 
   if (user.role !== role) {
-    redirect(user.role === "officer" ? "/admin" : "/audit");
+    redirect(homePathFor(user.role));
   }
 
   return user;

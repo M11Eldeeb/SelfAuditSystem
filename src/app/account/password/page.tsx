@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, homePathFor } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
 import { PasswordForm } from "./password-form";
 
@@ -7,7 +7,7 @@ export default async function AccountPasswordPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const homeHref = user.role === "officer" ? "/admin" : "/audit";
+  const homeHref = homePathFor(user.role);
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-50">

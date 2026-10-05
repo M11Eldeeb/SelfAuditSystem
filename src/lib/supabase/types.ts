@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin";
+export type UserRole = "officer" | "branch_admin" | "finance";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -899,6 +899,15 @@ export interface Database {
           p_batch_id: string;
         };
         Returns: number;
+      };
+      get_finance_summary: {
+        Args: Record<string, never>;
+        Returns: {
+          month: string;
+          claim_count: number;
+          total_adjusted: number;
+          currency: string | null;
+        }[];
       };
       get_historical_internal_audit_scores: {
         Args: Record<string, never>;

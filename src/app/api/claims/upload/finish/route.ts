@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { DASHBOARD_CLAIMS_TAG } from "@/lib/dashboard/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { finishUpload } from "@/lib/upload-claims";
 
@@ -21,7 +22,11 @@ export async function POST(request: Request) {
     if (!batchId) return NextResponse.json({ error: "Malformed finish request." }, { status: 400 });
 
     const result = await finishUpload(batchId, Number(totalClaims) || 0, String(filename ?? ""));
-    if (result.success) revalidatePath("/admin/warranty-room");
+    if (result.success) {
+      revalidatePath("/admin/warranty-room");
+      // New claims: the KPI dashboard's cached numbers are out of date now.
+      revalidateTag(DASHBOARD_CLAIMS_TAG, { expire: 0 });
+    }
     return NextResponse.json(result);
   } catch (err) {
     console.error("Claims upload (finish) failed:", err);

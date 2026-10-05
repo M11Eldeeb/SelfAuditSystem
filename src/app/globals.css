@@ -79,3 +79,15 @@ body {
   scrollbar-color: #d4d4d4 transparent;
   scrollbar-width: thin;
 }
+
+/* KPI dashboard: headings and big numbers (Space Grotesk, loaded by the
+   dashboard component itself via next/font). */
+.font-display {
+  font-family: var(--font-display), var(--font-sans), Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes dash-load {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}

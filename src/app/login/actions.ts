@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { homePathFor } from "@/lib/auth";
 
 export type LoginState = { error?: string } | undefined;
 
@@ -26,5 +27,5 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     .eq("id", data.user.id)
     .single();
 
-  redirect(profile?.role === "officer" ? "/admin" : "/audit");
+  redirect(homePathFor(profile?.role));
 }

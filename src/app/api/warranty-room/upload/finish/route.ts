@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { DASHBOARD_CLAIMS_TAG } from "@/lib/dashboard/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { finishWarrantyRoomBatch } from "@/lib/warranty-room/upload";
 
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
 
     const result = await finishWarrantyRoomBatch(batchId, Number(totalRows) || 0, String(filename ?? ""));
     revalidatePath("/admin/warranty-room");
+    // Scrapped parts changed: warranty room numbers on the KPI dashboard too.
+    revalidateTag(DASHBOARD_CLAIMS_TAG, { expire: 0 });
     return NextResponse.json(result);
   } catch (err) {
     console.error("Warranty room upload (finish) failed:", err);

@@ -5,7 +5,7 @@ import { createUser } from "./actions";
 
 export function UserForm({ branches }: { branches: { id: string; name: string }[] }) {
   const [state, formAction, pending] = useActionState(createUser, undefined);
-  const [role, setRole] = useState<"officer" | "branch_admin">("branch_admin");
+  const [role, setRole] = useState<"officer" | "branch_admin" | "finance">("branch_admin");
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -44,11 +44,12 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           id="user-role"
           name="role"
           value={role}
-          onChange={(e) => setRole(e.target.value as "officer" | "branch_admin")}
+          onChange={(e) => setRole(e.target.value as "officer" | "branch_admin" | "finance")}
           className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         >
           <option value="branch_admin">Branch admin</option>
           <option value="officer">Warranty officer</option>
+          <option value="finance">Finance</option>
         </select>
       </div>
       {role === "branch_admin" && (

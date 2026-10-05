@@ -98,7 +98,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const role = String(formData.get("role") ?? "");
   const branchId = String(formData.get("branch_id") ?? "");
 
-  if (!email || (role !== "officer" && role !== "branch_admin")) {
+  if (!email || (role !== "officer" && role !== "branch_admin" && role !== "finance")) {
     return { error: "Email and a valid role are required." };
   }
   if (role === "branch_admin" && !branchId) {

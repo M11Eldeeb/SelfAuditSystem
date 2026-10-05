@@ -4,6 +4,7 @@ import { NavBar } from "@/components/nav-bar";
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit", label: "My Audits" },
+  { href: "/audit/dashboard", label: "Dashboard" },
   { href: "/audit/results", label: "Results" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
 ];
