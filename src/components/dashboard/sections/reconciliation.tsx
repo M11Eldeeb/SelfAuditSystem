@@ -29,12 +29,56 @@ function Toggle<T extends string>({
             type="button"
             // Clicking the active choice again clears it.
             onClick={() => onChange(active ? null : o.value)}
-            className={`rounded-md px-2 py-1 text-[11px] font-bold whitespace-nowrap transition ${active ? `${o.on} shadow-sm` : "text-[#575e70] hover:text-[#0b1c30]"}`}
+            className={`rounded-md px-1.5 py-1 text-[11px] font-bold whitespace-nowrap transition ${active ? `${o.on} shadow-sm` : "text-[#575e70] hover:text-[#0b1c30]"}`}
           >
             {o.label}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** "HER-12345-2" -> "12345": the job card number without branch prefix or repeat suffix. */
+function workOrderNumber(workOrderNo: string): string {
+  return workOrderNo.match(/^[A-Za-z]+-(\d+)/)?.[1] ?? (workOrderNo.replace(/\D/g, "") || workOrderNo);
+}
+
+/** Click to copy `copy` (which may differ from what's shown); flashes "Copied". */
+function CopyText({ text, copy, className = "" }: { text: string; copy: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title={`Copy ${copy}`}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(copy);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch {
+          // Clipboard blocked (e.g. insecure context) - nothing to do.
+        }
+      }}
+      className={`group/copy flex max-w-full items-center gap-1 rounded px-1 -mx-1 text-left transition hover:bg-[#dce9ff] ${className}`}
+    >
+      <span className="truncate">{copied ? "Copied!" : text}</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0 opacity-0 transition group-hover/copy:opacity-60" aria-hidden="true">
+        {copied ? <path d="M5 12l5 5L20 7" /> : <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></>}
+      </svg>
+    </button>
+  );
+}
+
+/** One truncated line; the full text pops up while the cursor is on it. */
+function HoverText({ text, className = "" }: { text: string | null; className?: string }) {
+  if (!text) return <div className={className}>—</div>;
+  return (
+    <div className={`group/hover relative ${className}`}>
+      <div className="truncate">{text}</div>
+      <div className="pointer-events-none absolute top-full left-0 z-30 mt-1 hidden max-w-80 rounded-lg bg-[#0b1c30] px-3 py-1.5 text-[11px] font-medium whitespace-normal text-white shadow-lg group-hover/hover:block">
+        {text}
+      </div>
     </div>
   );
 }
@@ -280,55 +324,67 @@ export function ReconciliationSection({
             </div>
           }
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+          {/* Fixed layout so a full row fits the panel without sideways scroll;
+              long labor / part / notes text is cut and shown in full on hover. */}
+          <div className="overflow-x-auto lg:overflow-visible">
+            <table className="w-full min-w-[60rem] table-fixed text-left text-xs">
+              <colgroup>
+                <col className="w-[9.25rem]" />
+                <col className="w-[9rem]" />
+                <col className="w-[6.5rem]" />
+                <col className="w-[6rem]" />
+                <col className="w-[5.75rem]" />
+                <col />
+                <col className="w-[8.25rem]" />
+                <col className="w-[9.5rem]" />
+                <col className="w-[5.5rem]" />
+              </colgroup>
+              <thead className="bg-[#eff4ff] text-[10px] font-bold tracking-wider text-[#575e70] uppercase">
                 <tr>
-                  <th className="px-3 py-2.5">VIN</th>
-                  <th className="px-3 py-2.5">Claim no.</th>
-                  <th className="px-3 py-2.5">Work order</th>
-                  <th className="px-3 py-2.5 text-right">Loss</th>
-                  <th className="px-3 py-2.5">First submit</th>
-                  <th className="px-3 py-2.5">Main labor</th>
-                  <th className="px-3 py-2.5">Main part</th>
-                  <th className="px-3 py-2.5">Deducted by</th>
-                  <th className="px-3 py-2.5">Outcome</th>
-                  <th className="px-3 py-2.5">Notes</th>
+                  <th className="px-2 py-2.5">VIN</th>
+                  <th className="px-2 py-2.5">Claim no.</th>
+                  <th className="px-2 py-2.5">Work order</th>
+                  <th className="px-2 py-2.5 text-right">Loss</th>
+                  <th className="px-2 py-2.5">1st submit</th>
+                  <th className="px-2 py-2.5">Labor / part</th>
+                  <th className="px-2 py-2.5">Deducted by</th>
+                  <th className="px-2 py-2.5">Outcome</th>
+                  <th className="px-2 py-2.5">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e5eeff]">
                 {visible.map((r) => (
                   <tr key={r.claimId} className={`align-middle ${saving.has(r.claimId) ? "opacity-60" : ""} hover:bg-[#eff4ff]/50`}>
-                    <td className="px-3 py-2 font-mono text-xs">{r.vin ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs font-semibold whitespace-nowrap">
-                      {r.claimNumber}
-                      {!branchId && <div className="text-[10px] font-normal text-[#575e70]">{branchName.get(r.branchId)}</div>}
+                    <td className="truncate px-2 py-2 font-mono text-[11px]">{r.vin ?? "—"}</td>
+                    <td className="px-2 py-2">
+                      <CopyText text={r.claimNumber} copy={r.claimNumber} className="font-semibold" />
+                      {!branchId && <div className="truncate text-[10px] text-[#575e70]">{branchName.get(r.branchId)}</div>}
                     </td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">{r.workOrderNo ?? "—"}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <span className={`font-display font-bold ${r.lossAmount > 0.005 ? "text-[#9a000d]" : "text-[#575e70]"}`}>{fmtNum(r.lossAmount, 2)}</span>
-                      <div className="text-[10px] text-[#575e70]">
-                        {fmtNum(r.claimAmount, 2)} → {fmtNum(r.adjustedAmount, 2)}
-                      </div>
+                    <td className="px-2 py-2">
+                      {r.workOrderNo ? <CopyText text={r.workOrderNo} copy={workOrderNumber(r.workOrderNo)} /> : "—"}
                     </td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDate(r.firstSubmitDate)}</td>
-                    <td className="max-w-56 truncate px-3 py-2 text-xs" title={r.laborName ?? undefined}>
-                      {r.laborName ?? "—"}
+                    <td className="px-2 py-2 text-right whitespace-nowrap">
+                      <span className={`font-display text-[13px] font-bold ${r.lossAmount > 0.005 ? "text-[#9a000d]" : "text-[#575e70]"}`}>
+                        {fmtNum(r.lossAmount, 2)}
+                      </span>
+                      <div className="text-[10px] text-[#575e70]">of {fmtNum(r.claimAmount, 2)}</div>
                     </td>
-                    <td className="max-w-44 truncate px-3 py-2 text-xs" title={r.partName ?? undefined}>
-                      {r.partName ?? "—"}
+                    <td className="px-2 py-2 whitespace-nowrap">{fmtDate(r.firstSubmitDate)}</td>
+                    <td className="px-2 py-2">
+                      <HoverText text={r.laborName} className="font-semibold text-[#0b1c30]" />
+                      <HoverText text={r.partName} className="text-[10px] text-[#575e70]" />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-2">
                       <Toggle
                         value={r.deductionType}
                         onChange={(v) => update(r, { deductionType: v })}
                         options={[
                           { value: "saic", label: "SAIC", on: "bg-[#0041b0] text-white" },
-                          { value: "internal", label: "Internally", on: "bg-[#575e70] text-white" },
+                          { value: "internal", label: "Internal", on: "bg-[#575e70] text-white" },
                         ]}
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-2">
                       <Toggle
                         value={r.outcome}
                         onChange={(v) => update(r, { outcome: v })}
@@ -338,23 +394,29 @@ export function ReconciliationSection({
                         ]}
                       />
                     </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(r)}
-                        title={r.notes ?? "Add notes"}
-                        className={`max-w-40 truncate rounded-lg px-2 py-1 text-[11px] font-semibold ring-1 transition ${
-                          r.notes ? "bg-[#fff7e6] text-amber-800 ring-amber-200" : "bg-white text-[#575e70] ring-[#dce9ff] hover:bg-[#eff4ff]"
-                        }`}
-                      >
-                        {r.notes ? `📝 ${r.notes}` : "+ Notes"}
-                      </button>
+                    <td className="px-2 py-2">
+                      <div className="group relative">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(r)}
+                          className={`block w-full truncate rounded-lg px-2 py-1 text-left text-[11px] font-semibold ring-1 transition ${
+                            r.notes ? "bg-[#fff7e6] text-amber-800 ring-amber-200" : "bg-white text-[#575e70] ring-[#dce9ff] hover:bg-[#eff4ff]"
+                          }`}
+                        >
+                          {r.notes ? `📝 ${r.notes}` : "+ Notes"}
+                        </button>
+                        {r.notes && (
+                          <div className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden w-64 rounded-lg bg-[#0b1c30] px-3 py-2 text-[11px] whitespace-pre-wrap text-white shadow-lg group-hover:block">
+                            {r.notes}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-3 py-10 text-center text-sm text-[#575e70]">
+                    <td colSpan={9} className="px-3 py-10 text-center text-sm text-[#575e70]">
                       No claims match.
                     </td>
                   </tr>

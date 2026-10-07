@@ -60,24 +60,16 @@ body {
   border-radius: 2px;
 }
 
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background-color: #d4d4d4;
-  border-radius: 999px;
-  border: 3px solid #fafafa;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--brand);
-}
+/* Scrollbars: just a thin thumb, no track, and only while scrolling. The
+   ScrollActivity component (root layout) sets .is-scrolling on <html> for a
+   moment after any scroll - page or inner panel. */
 * {
-  scrollbar-color: #d4d4d4 transparent;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+html.is-scrolling,
+html.is-scrolling * {
+  scrollbar-color: rgb(11 28 48 / 0.35) transparent;
 }
 
 /* KPI dashboard: headings and big numbers (Space Grotesk, loaded by the
@@ -91,3 +83,4 @@ body {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(300%); }
 }
+
