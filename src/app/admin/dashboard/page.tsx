@@ -25,10 +25,14 @@ export default async function AdminDashboardPage({
       ? allBranches.filter((b) => selectedBranchIds.has(b.id))
       : (branches ?? []).filter((b) => b.active).map(({ id, name }) => ({ id, name }));
 
+  const claimSide = getCachedClaimSide(scopeBranches, from, to);
   // Not awaited: the trends tab streams in once ready, so the rest of the
-  // dashboard isn't held up by the 7-month comparison.
-  const trends = getCachedTrends(scopeBranches, from, to);
-  const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
+  // dashboard isn't held up by the 7-month comparison. Started only after the
+  // claims side is done, so the two don't hit the database at the same time.
+  const trends = claimSide.then(() => getCachedTrends(scopeBranches, from, to));
+  // Rejections surface in the trends tab (its error boundary), not here.
+  trends.catch(() => {});
+  const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
   return (
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-2rem))] -translate-x-1/2`}>

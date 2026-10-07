@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { baseJobCard, listMonths } from "@/lib/dashboard/kpis";
+import { baseJobCard, listMonths, runPooled, withRetry } from "@/lib/dashboard/kpis";
 import { shiftMonth } from "@/lib/month";
 
 type Client = SupabaseClient<Database>;
@@ -74,16 +74,18 @@ async function fetchSlice(supabase: Client, branchId: string, month: string): Pr
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   const rows: TrendClaim[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from("self_audit_claims")
-      .select(TREND_SELECT)
-      .eq("branch_id", branchId)
-      .gte("repair_end_date", `${month}-01`)
-      .lte("repair_end_date", end)
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message || "Timed out loading claims.");
-    const page = (data ?? []) as TrendClaim[];
+    const page = (await withRetry(
+      () =>
+        supabase
+          .from("self_audit_claims")
+          .select(TREND_SELECT)
+          .eq("branch_id", branchId)
+          .gte("repair_end_date", `${month}-01`)
+          .lte("repair_end_date", end)
+          .order("id")
+          .range(from, from + PAGE - 1),
+      "claims"
+    )) as TrendClaim[];
     rows.push(...page);
     if (page.length < PAGE) break;
   }
@@ -92,17 +94,8 @@ async function fetchSlice(supabase: Client, branchId: string, month: string): Pr
 
 async function fetchWindow(supabase: Client, branchIds: string[], months: string[]): Promise<TrendClaim[]> {
   const tasks = branchIds.flatMap((b) => months.map((m) => () => fetchSlice(supabase, b, m)));
-  const results: TrendClaim[][] = new Array(tasks.length);
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(8, tasks.length) }, async () => {
-      while (next < tasks.length) {
-        const i = next++;
-        results[i] = await tasks[i]();
-      }
-    })
-  );
-  return results.flat();
+  // Kept low: this runs alongside other dashboard queries on a small database.
+  return (await runPooled(tasks, 3)).flat();
 }
 
 function buildTrends(

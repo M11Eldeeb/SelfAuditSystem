@@ -12,6 +12,7 @@ import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
 import { FinancialsSection } from "@/components/dashboard/sections/financials";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
 import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
+import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
   overview: Icon.gauge,
@@ -304,9 +305,11 @@ export function KpiDashboard({
           {tab === "financials" && <FinancialsSection {...sectionProps} />}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
           {tab === "trends" && trends && (
-            <Suspense fallback={<TrendsSkeleton />}>
-              <TrendsSection trends={trends} data={data} />
-            </Suspense>
+            <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+              <Suspense fallback={<TrendsSkeleton />}>
+                <TrendsSection trends={trends} data={data} />
+              </Suspense>
+            </SectionErrorBoundary>
           )}
 
           {multiBranch && tab === "overview" && (

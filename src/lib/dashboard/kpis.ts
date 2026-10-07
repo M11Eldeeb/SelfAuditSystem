@@ -73,29 +73,38 @@ const UNSUBMITTED_STATUSES = new Set(["Draft saved", "Saved"]);
 
 const PAGE = 1000;
 
+type PageResult = { data: unknown; error: { message: string } | null };
+
 /**
- * Pages through a query in parallel: one count request first, then every
- * page at once, instead of the sequential selectAllRows loop.
+ * Runs one query, retrying up to twice on failure. The database is a small
+ * instance: under a burst of dashboard queries an individual statement can
+ * hit the 8s timeout (PostgREST then returns an error with an empty
+ * message), and a short pause and retry almost always gets through.
  */
-async function fetchAllParallel<T>(
-  count: (q: Client) => PromiseLike<{ count: number | null; error: { message: string } | null }>,
-  page: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-  supabase: Client
-): Promise<T[]> {
-  const { count: total, error } = await count(supabase);
-  if (error) throw new Error(error.message || "Timed out counting rows.");
-  const pages = Math.ceil((total ?? 0) / PAGE);
-  const results = await Promise.all(
-    Array.from({ length: pages }, (_, i) => page(i * PAGE, i * PAGE + PAGE - 1))
-  );
-  return results.flatMap((r) => {
-    if (r.error) throw new Error(r.error.message || "Timed out loading rows.");
-    return (r.data as T[]) ?? [];
-  });
+export async function withRetry(run: () => PromiseLike<PageResult>, label: string): Promise<unknown[]> {
+  let lastError = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 400 * attempt));
+    const { data, error } = await run();
+    if (!error) return (data as unknown[]) ?? [];
+    lastError = error.message;
+  }
+  throw new Error(lastError || `Timed out loading ${label}.`);
+}
+
+/** Pages through a query sequentially (no separate count request), with retries. */
+async function fetchPaged<T>(page: (from: number, to: number) => PromiseLike<PageResult>, label: string): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const rows = (await withRetry(() => page(from, from + PAGE - 1), label)) as T[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
 }
 
 /** Runs async tasks with at most `limit` in flight at once. */
-async function runPooled<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+export async function runPooled<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
   let next = 0;
   await Promise.all(
@@ -109,6 +118,10 @@ async function runPooled<T>(tasks: (() => Promise<T>)[], limit: number): Promise
   return results;
 }
 
+// At most this many claim queries in flight per dashboard load - more than
+// this and the small database starts timing statements out.
+const CONCURRENCY = 4;
+
 /**
  * Claims for the given branches and repair-end months, fetched one
  * (branch, month) slice at a time - each slice is a few hundred rows read
@@ -119,25 +132,22 @@ async function runPooled<T>(tasks: (() => Promise<T>)[], limit: number): Promise
 async function fetchClaims(supabase: Client, branchIds: string[], months: string[]): Promise<DashboardClaim[]> {
   const tasks = branchIds.flatMap((branchId) =>
     months.map((m) => async () => {
-      const rows: DashboardClaim[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await supabase
-          .from("self_audit_claims")
-          .select(CLAIM_SELECT)
-          .eq("branch_id", branchId)
-          .gte("repair_end_date", `${m}-01`)
-          .lte("repair_end_date", monthEnd(m))
-          .order("id")
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(error.message || "Timed out loading claims.");
-        const page = (data ?? []) as unknown as DashboardClaim[];
-        rows.push(...page);
-        if (page.length < PAGE) break;
-      }
+      const rows = await fetchPaged<DashboardClaim>(
+        (from, to) =>
+          supabase
+            .from("self_audit_claims")
+            .select(CLAIM_SELECT)
+            .eq("branch_id", branchId)
+            .gte("repair_end_date", `${m}-01`)
+            .lte("repair_end_date", monthEnd(m))
+            .order("id")
+            .range(from, to),
+        "claims"
+      );
       return rows;
     })
   );
-  return (await runPooled(tasks, 8)).flat();
+  return (await runPooled(tasks, CONCURRENCY)).flat();
 }
 
 // --- date & number helpers ----------------------------------------------------
@@ -472,14 +482,13 @@ export async function getClaimSide(
 
   const [allClaims, doNotScrap, scrapRequests] = await Promise.all([
     fetchClaims(supabase, branchIds, months),
-    fetchAllParallel<{
+    fetchPaged<{
       branch_id: string;
       part_no: string | null;
       part_name: string | null;
       quantity: number | null;
       holding_period_days: number | null;
     }>(
-      (q) => q.from("self_audit_do_not_scrap_cache").select("id", { count: "exact", head: true }).in("branch_id", branchIds),
       (from, to) =>
         supabase
           .from("self_audit_do_not_scrap_cache")
@@ -487,15 +496,9 @@ export async function getClaimSide(
           .in("branch_id", branchIds)
           .order("id")
           .range(from, to),
-      supabase
+      "warranty room parts"
     ),
-    fetchAllParallel<{ branch_id: string }>(
-      (q) =>
-        q
-          .from("self_audit_scrap_requests")
-          .select("id", { count: "exact", head: true })
-          .in("branch_id", branchIds)
-          .eq("status", "pending"),
+    fetchPaged<{ branch_id: string }>(
       (from, to) =>
         supabase
           .from("self_audit_scrap_requests")
@@ -504,7 +507,7 @@ export async function getClaimSide(
           .eq("status", "pending")
           .order("id")
           .range(from, to),
-      supabase
+      "scrap requests"
     ),
   ]);
 
