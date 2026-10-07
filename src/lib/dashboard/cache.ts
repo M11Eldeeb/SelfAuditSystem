@@ -2,13 +2,14 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClaimSide, type ClaimSide } from "@/lib/dashboard/kpis";
+import { getTrendData, type TrendData } from "@/lib/dashboard/trends";
 
 export const DASHBOARD_CLAIMS_TAG = "dashboard-claims";
 
 const cachedClaimSide = unstable_cache(
   async (branchesKey: string, from: string, to: string): Promise<ClaimSide> =>
     getClaimSide(createAdminClient(), { branches: JSON.parse(branchesKey), from, to }),
-  ["dashboard-claim-side-v1"],
+  ["dashboard-claim-side-v2"],
   // Claims only change on upload (which expires this tag right away) and
   // scrap requests on the nightly cron - 10 minutes is a safety net.
   { revalidate: 600, tags: [DASHBOARD_CLAIMS_TAG] }
@@ -23,4 +24,17 @@ const cachedClaimSide = unstable_cache(
 export function getCachedClaimSide(branches: { id: string; name: string }[], from: string, to: string): Promise<ClaimSide> {
   const key = JSON.stringify([...branches].sort((a, b) => a.id.localeCompare(b.id)).map(({ id, name }) => ({ id, name })));
   return cachedClaimSide(key, from, to);
+}
+
+const cachedTrends = unstable_cache(
+  async (branchesKey: string, from: string, to: string): Promise<TrendData> =>
+    getTrendData(createAdminClient(), { branches: JSON.parse(branchesKey), from, to }),
+  ["dashboard-trends-v1"],
+  { revalidate: 600, tags: [DASHBOARD_CLAIMS_TAG] }
+);
+
+/** Officer-only trend & repeat-repair data, cached like the claims side. */
+export function getCachedTrends(branches: { id: string; name: string }[], from: string, to: string): Promise<TrendData> {
+  const key = JSON.stringify([...branches].sort((a, b) => a.id.localeCompare(b.id)).map(({ id, name }) => ({ id, name })));
+  return cachedTrends(key, from, to);
 }

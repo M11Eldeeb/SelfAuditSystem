@@ -33,6 +33,8 @@ type DashboardClaim = {
   sublet_adjusted: string | null;
   labor_name: string | null;
   part_name: string | null;
+  part_no: string | null;
+  vehicle_model: string | null;
   series: string | null;
   currency: string | null;
 };
@@ -60,6 +62,8 @@ const CLAIM_SELECT = [
   'sublet_adjusted:raw_row->>"Adjusted Sublet TOL."',
   'labor_name:raw_row->>"Main Labor Name"',
   "part_name:main_part_name",
+  'part_no:raw_row->>"Main Part"',
+  "vehicle_model",
   'series:raw_row->>"Vehicle Series"',
   "currency:raw_row->>currency",
 ].join(",");
@@ -336,6 +340,8 @@ export type DashboardData = {
   selfAuditScores: ScorePoint[];
   internalAuditScores: ScorePoint[];
   pending: PendingTask[];
+  /** Display names for codes seen in the period (labor code -> name, part name -> number, model code -> series). */
+  labels: { labor: Record<string, string>; partNo: Record<string, string>; series: Record<string, string> };
 };
 
 function computeClaimKpis(claims: DashboardClaim[], days: number): ClaimKpis {
@@ -699,6 +705,11 @@ export async function getClaimSide(
       topParts: [...partMap.values()].sort((a, b) => b.count - a.count).slice(0, 10),
     },
     branchRows,
+    labels: {
+      labor: Object.fromEntries(claims.filter((c) => c.labor_code && c.labor_name).map((c) => [c.labor_code!, c.labor_name!])),
+      partNo: Object.fromEntries(claims.filter((c) => c.part_name && c.part_no).map((c) => [c.part_name!, c.part_no!])),
+      series: Object.fromEntries(claims.filter((c) => c.vehicle_model && c.series).map((c) => [c.vehicle_model!, c.series!])),
+    },
   };
 }
 

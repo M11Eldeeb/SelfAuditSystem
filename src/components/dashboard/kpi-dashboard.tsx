@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { Suspense, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchRow, DashboardData } from "@/lib/dashboard/kpis";
+import type { TrendData } from "@/lib/dashboard/trends";
 import { C, Meter } from "@/components/dashboard/charts";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
@@ -10,12 +11,14 @@ import { OverviewSection } from "@/components/dashboard/sections/overview";
 import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
 import { FinancialsSection } from "@/components/dashboard/sections/financials";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
+import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
   overview: Icon.gauge,
   cycle: Icon.timer,
   financials: Icon.receipt,
   warranty: Icon.box,
+  trends: Icon.alert,
 };
 
 const inputClass =
@@ -62,6 +65,7 @@ export function KpiDashboard({
   selectedBranchIds,
   scopeBranches,
   rangeClamped,
+  trends,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -73,6 +77,8 @@ export function KpiDashboard({
   selectedBranchIds: string[];
   scopeBranches: { id: string; name: string }[];
   rangeClamped: boolean;
+  /** Officer only - streamed in after the rest of the page. */
+  trends?: Promise<TrendData>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -85,7 +91,8 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const current = DASHBOARD_TABS.find((x) => x.id === tab)!;
+  const tabs = DASHBOARD_TABS.filter((x) => !x.officerOnly || (isOfficer && trends));
+  const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
     const qs = new URLSearchParams({ tab: next.tab ?? tab, from: next.from ?? from, to: next.to ?? to });
@@ -140,7 +147,7 @@ export function KpiDashboard({
             </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col">
-            {DASHBOARD_TABS.map((x) => {
+            {tabs.map((x) => {
               const active = x.id === tab;
               const TabIcon = TAB_ICONS[x.id];
               return (
@@ -296,6 +303,11 @@ export function KpiDashboard({
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
           {tab === "financials" && <FinancialsSection {...sectionProps} />}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
+          {tab === "trends" && trends && (
+            <Suspense fallback={<TrendsSkeleton />}>
+              <TrendsSection trends={trends} data={data} />
+            </Suspense>
+          )}
 
           {multiBranch && tab === "overview" && (
             <Panel

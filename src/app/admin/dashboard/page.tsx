@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/kpis";
-import { getCachedClaimSide } from "@/lib/dashboard/cache";
+import { getCachedClaimSide, getCachedTrends } from "@/lib/dashboard/cache";
 import { displayFont } from "@/components/dashboard/font";
 import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
@@ -25,13 +25,16 @@ export default async function AdminDashboardPage({
       ? allBranches.filter((b) => selectedBranchIds.has(b.id))
       : (branches ?? []).filter((b) => b.active).map(({ id, name }) => ({ id, name }));
 
+  // Not awaited: the trends tab streams in once ready, so the rest of the
+  // dashboard isn't held up by the 7-month comparison.
+  const trends = getCachedTrends(scopeBranches, from, to);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
   return (
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab)}
+        tab={parseTab(params.tab, true)}
         basePath="/admin/dashboard"
         from={from}
         to={to}
@@ -40,6 +43,7 @@ export default async function AdminDashboardPage({
         selectedBranchIds={[...selectedBranchIds]}
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
+        trends={trends}
       />
     </div>
   );
