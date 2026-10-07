@@ -13,6 +13,7 @@ import { FinancialsSection } from "@/components/dashboard/sections/financials";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
 import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
+import { ReconciliationSection } from "@/components/dashboard/sections/reconciliation";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
   overview: Icon.gauge,
@@ -20,6 +21,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   financials: Icon.receipt,
   warranty: Icon.box,
   trends: Icon.alert,
+  reconciliation: Icon.money,
 };
 
 const inputClass =
@@ -67,6 +69,7 @@ export function KpiDashboard({
   scopeBranches,
   rangeClamped,
   trends,
+  settlementOrders = [],
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -80,6 +83,8 @@ export function KpiDashboard({
   rangeClamped: boolean;
   /** Officer only - streamed in after the rest of the page. */
   trends?: Promise<TrendData>;
+  /** Officer only - newest first. */
+  settlementOrders?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -92,7 +97,7 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = DASHBOARD_TABS.filter((x) => !x.officerOnly || (isOfficer && trends));
+  const tabs = DASHBOARD_TABS.filter((x) => !x.officerOnly || isOfficer);
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -204,10 +209,14 @@ export function KpiDashboard({
                 <Pill tone="bad">{scopeLabel}</Pill>
                 {isPending && <Pill tone="muted">Updating…</Pill>}
               </div>
-              <p className="text-sm text-[#575e70]">
-                Claims with repair end date in <strong className="text-[#0b1c30]">{periodLabel}</strong> · {fmtNum(t.workingDays, 1)} working days
-                (Thu = ½ day)
-              </p>
+              {tab === "reconciliation" ? (
+                <p className="text-sm text-[#575e70]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
+              ) : (
+                <p className="text-sm text-[#575e70]">
+                  Claims with repair end date in <strong className="text-[#0b1c30]">{periodLabel}</strong> · {fmtNum(t.workingDays, 1)} working days
+                  (Thu = ½ day)
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 rounded-lg bg-[#eff4ff] px-3 py-1.5 text-xs font-semibold text-[#0b1c30]">
               <Icon.check size={16} />
@@ -215,6 +224,7 @@ export function KpiDashboard({
             </div>
           </div>
 
+          {tab !== "reconciliation" && (
           <div className="relative mt-4 space-y-3 border-t border-[#e5eeff] pt-4">
             <div className="flex flex-wrap items-end gap-3">
               <label className="space-y-1">
@@ -297,6 +307,7 @@ export function KpiDashboard({
               </div>
             )}
           </div>
+          )}
         </div>
 
         <div className={`space-y-5 transition-opacity duration-200 ${isPending ? "pointer-events-none opacity-50" : ""}`}>
@@ -310,6 +321,9 @@ export function KpiDashboard({
                 <TrendsSection trends={trends} data={data} />
               </Suspense>
             </SectionErrorBoundary>
+          )}
+          {tab === "reconciliation" && isOfficer && (
+            <ReconciliationSection settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />
           )}
 
           {multiBranch && tab === "overview" && (

@@ -15,7 +15,10 @@ export default async function AdminDashboardPage({
   const { from, to, clamped } = resolveMonthRange(params);
   const supabase = await createClient();
 
-  const { data: branches } = await supabase.from("self_audit_branches").select("id, name, active").order("name");
+  const [{ data: branches }, { data: orders }] = await Promise.all([
+    supabase.from("self_audit_branches").select("id, name, active").order("name"),
+    supabase.rpc("get_settlement_orders"),
+  ]);
   const allBranches = (branches ?? []).map(({ id, name }) => ({ id, name }));
 
   const selectedBranchIds = new Set(params.branch ? (Array.isArray(params.branch) ? params.branch : [params.branch]) : []);
@@ -48,6 +51,7 @@ export default async function AdminDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         trends={trends}
+        settlementOrders={(orders ?? []).map((o) => o.settlement_order)}
       />
     </div>
   );

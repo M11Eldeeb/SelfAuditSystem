@@ -370,6 +370,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_reconciliation: {
+        Row: {
+          claim_id: string;
+          deduction_type: "saic" | "internal" | null;
+          outcome: "reinvoiced" | "overdue" | null;
+          notes: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          claim_id: string;
+          deduction_type?: "saic" | "internal" | null;
+          outcome?: "reinvoiced" | "overdue" | null;
+          notes?: string | null;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_reconciliation"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_destroy_evidence_videos: {
         Row: {
           id: string;
@@ -899,6 +919,10 @@ export interface Database {
           p_batch_id: string;
         };
         Returns: number;
+      };
+      get_settlement_orders: {
+        Args: Record<string, never>;
+        Returns: { settlement_order: string }[];
       };
       get_finance_summary: {
         Args: Record<string, never>;
