@@ -30,7 +30,6 @@ export function FinancialsSection({ data, onOpenReconciliation }: SectionProps &
 
   return (
     <div className="space-y-5">
-      <ReconProgress data={data} onOpen={onOpenReconciliation} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card accent={C.red} className="flex flex-col justify-between gap-3">
@@ -283,6 +282,8 @@ export function FinancialsSection({ data, onOpenReconciliation }: SectionProps &
           </table>
         </div>
       </Panel>
+
+      <ReconProgress data={data} onOpen={onOpenReconciliation} />
     </div>
   );
 }

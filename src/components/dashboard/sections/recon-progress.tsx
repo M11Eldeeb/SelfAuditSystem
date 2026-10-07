@@ -1,5 +1,5 @@
 import type { DashboardData } from "@/lib/dashboard/kpis";
-import { RECON_FROM_ORDER } from "@/lib/dashboard/recon-constants";
+import { RECON_FROM_ORDER, isOnOrAfterReconStart, settlementDate } from "@/lib/dashboard/recon-constants";
 import { C, Meter, StackedBar } from "@/components/dashboard/charts";
 import { Label, Panel, Pill, fmtInt, fmtNum } from "@/components/dashboard/ui";
 
@@ -8,7 +8,7 @@ import { Label, Panel, Pill, fmtInt, fmtNum } from "@/components/dashboard/ui";
  * short, how many (and how much) have been reviewed vs are still pending.
  */
 export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: () => void }) {
-  const rows = data.reconciliation;
+  const rows = data.reconciliation.filter((r) => isOnOrAfterReconStart(r.order));
   const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
   const lossCount = sum((r) => r.lossCount);
   const lossAmount = sum((r) => r.lossAmount);
@@ -22,7 +22,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
     <Panel
       eyebrow="Settlement reconciliation"
       title="Reviewed vs pending"
-      subtitle={`Settled claims paid short by SAIC, settlement ${RECON_FROM_ORDER} onward`}
+      subtitle={`Settled claims paid short by SAIC, settlement ${RECON_FROM_ORDER} (${settlementDate(RECON_FROM_ORDER)}) onward`}
       action={
         onOpen && (
           <button
@@ -94,7 +94,10 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                   const p = r.lossAmount ? (r.reviewedAmount / r.lossAmount) * 100 : 0;
                   return (
                     <tr key={r.order} className="hover:bg-[#eff4ff]/50">
-                      <td className="px-3 py-2 font-semibold text-[#0b1c30]">{r.order}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold text-[#0b1c30]">{r.order}</div>
+                        <div className="text-[10px] text-[#575e70]">{settlementDate(r.order)}</div>
+                      </td>
                       <td className="px-3 py-2 text-right">{fmtInt(r.lossCount)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmtNum(r.lossAmount, 2)}</td>
                       <td className="px-3 py-2 text-right text-emerald-700">

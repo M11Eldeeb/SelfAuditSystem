@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { loadReconciliation, saveReconciliation, type ReconciliationRow } from "@/app/admin/dashboard/reconciliation-actions";
 import { C, StackedBar } from "@/components/dashboard/charts";
+import { settlementDate } from "@/lib/dashboard/recon-constants";
 import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
 
 type Filter = "all" | "open" | "reinvoiced" | "overdue";
@@ -212,7 +213,7 @@ export function ReconciliationSection({
             <select value={order} onChange={(e) => setOrder(e.target.value)} className={`block ${selectClass} min-w-48`}>
               {settlementOrders.map((o) => (
                 <option key={o} value={o}>
-                  {o}
+                  {o} · {settlementDate(o)}
                 </option>
               ))}
             </select>

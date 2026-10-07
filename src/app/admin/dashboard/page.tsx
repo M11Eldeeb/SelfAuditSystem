@@ -1,4 +1,4 @@
-import { RECON_FROM_ORDER } from "@/lib/dashboard/recon-constants";
+import { isOnOrAfterReconStart } from "@/lib/dashboard/recon-constants";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/kpis";
 import { getCachedClaimSide, getCachedTrends } from "@/lib/dashboard/cache";
@@ -52,7 +52,7 @@ export default async function AdminDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         trends={trends}
-        settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter((o) => o >= RECON_FROM_ORDER)}
+        settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
     </div>
   );
