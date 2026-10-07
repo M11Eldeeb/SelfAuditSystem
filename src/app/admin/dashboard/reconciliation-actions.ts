@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ReconciliationRow = {
   claimId: string;
@@ -47,7 +48,11 @@ const SELECT: string =
  */
 export async function loadReconciliation(settlementOrder: string, branchIds: string[]): Promise<ReconciliationRow[]> {
   await requireRole("officer");
-  const supabase = await createClient();
+  // Service-role read, after the officer check above: under the caller's
+  // RLS, Postgres won't use the settlement-order expression index (->> isn't
+  // leakproof, so it can't run ahead of the policy) and the lookup becomes
+  // a ~15s full scan that times out. Officers can read every claim anyway.
+  const supabase = createAdminClient();
 
   const rows: Raw[] = [];
   const PAGE = 1000;
