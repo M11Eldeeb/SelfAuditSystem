@@ -313,7 +313,9 @@ export function KpiDashboard({
         <div className={`space-y-5 transition-opacity duration-200 ${isPending ? "pointer-events-none opacity-50" : ""}`}>
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
-          {tab === "financials" && <FinancialsSection {...sectionProps} />}
+          {tab === "financials" && (
+            <FinancialsSection {...sectionProps} onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined} />
+          )}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
           {tab === "trends" && trends && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>

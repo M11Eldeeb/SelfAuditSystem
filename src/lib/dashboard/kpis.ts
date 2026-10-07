@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import { RECON_FROM_ORDER } from "@/lib/dashboard/recon-constants";
 
 type Client = SupabaseClient<Database>;
 
@@ -309,6 +310,18 @@ export type WeekdayPoint = { dow: number; label: string; repaired: number; submi
 
 export type SeriesStat = { series: string; count: number; amount: number; avgRepairDays: number | null; avgSubmitDays: number | null };
 
+export type ReconSummary = {
+  order: string;
+  lossCount: number;
+  lossAmount: number;
+  reviewedCount: number;
+  reviewedAmount: number;
+  reinvoicedAmount: number;
+  overdueAmount: number;
+  saicAmount: number;
+  internalAmount: number;
+};
+
 export type DashboardData = {
   months: string[];
   currency: string;
@@ -350,6 +363,8 @@ export type DashboardData = {
   selfAuditScores: ScorePoint[];
   internalAuditScores: ScorePoint[];
   pending: PendingTask[];
+  /** Settlement reconciliation progress per settlement order (all branches in scope summed). */
+  reconciliation: ReconSummary[];
   /** Display names for codes seen in the period (labor code -> name, part name -> number, model code -> series). */
   labels: { labor: Record<string, string>; partNo: Record<string, string>; series: Record<string, string> };
 };
@@ -448,7 +463,7 @@ type BranchClaimRow = ClaimKpis & { branchId: string; name: string; warrantyRoom
  */
 export type ClaimSide = Omit<
   DashboardData,
-  "pending" | "selfAuditScores" | "internalAuditScores" | "branchRows" | "totals" | "cycle"
+  "pending" | "selfAuditScores" | "internalAuditScores" | "branchRows" | "totals" | "cycle" | "reconciliation"
 > & {
   totals: Omit<DashboardData["totals"], "avgSelfAuditDays" | "avgScrapEvidenceDays">;
   cycle: Omit<DashboardData["cycle"], "selfAudit" | "scrapEvidence">;
@@ -739,6 +754,7 @@ export async function getDashboardData(
     { data: internalAudits },
     { data: wrCycles },
     { data: evidence },
+    { data: recon },
   ] = await Promise.all([
     claimSidePromise,
     supabase.from("self_audit_audit_cycles").select("id, cycle_month, claims_month, status, deadline_at, created_at"),
@@ -761,7 +777,35 @@ export async function getDashboardData(
       .from("self_audit_destroy_evidence")
       .select("cycle_id, branch_id, status, submitted_at")
       .in("branch_id", branchIds),
+    // Live, not cached: reviews change as officers work through claims. The
+    // RPC limits a branch admin to their own branch on its own.
+    supabase.rpc("get_reconciliation_summary", { p_branch_ids: branchIds, p_from_order: RECON_FROM_ORDER }),
   ]);
+
+  const reconByOrder = new Map<string, ReconSummary>();
+  for (const r of recon ?? []) {
+    const s = reconByOrder.get(r.settlement_order) ?? {
+      order: r.settlement_order,
+      lossCount: 0,
+      lossAmount: 0,
+      reviewedCount: 0,
+      reviewedAmount: 0,
+      reinvoicedAmount: 0,
+      overdueAmount: 0,
+      saicAmount: 0,
+      internalAmount: 0,
+    };
+    s.lossCount += Number(r.loss_count);
+    s.lossAmount += Number(r.loss_amount);
+    s.reviewedCount += Number(r.reviewed_count);
+    s.reviewedAmount += Number(r.reviewed_amount);
+    s.reinvoicedAmount += Number(r.reinvoiced_amount);
+    s.overdueAmount += Number(r.overdue_amount);
+    s.saicAmount += Number(r.saic_amount);
+    s.internalAmount += Number(r.internal_amount);
+    reconByOrder.set(r.settlement_order, s);
+  }
+  const reconciliation = [...reconByOrder.values()].sort((a, b) => b.order.localeCompare(a.order));
 
   // Self audit submission days = admin completion date - officer generate
   // date, for the cycles auditing claims from the selected months.
@@ -864,5 +908,6 @@ export async function getDashboardData(
     selfAuditScores,
     internalAuditScores,
     pending,
+    reconciliation,
   };
 }

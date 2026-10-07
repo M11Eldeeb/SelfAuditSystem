@@ -920,6 +920,21 @@ export interface Database {
         };
         Returns: number;
       };
+      get_reconciliation_summary: {
+        Args: { p_branch_ids: string[]; p_from_order?: string };
+        Returns: {
+          settlement_order: string;
+          branch_id: string;
+          loss_count: number;
+          loss_amount: number;
+          reviewed_count: number;
+          reviewed_amount: number;
+          reinvoiced_amount: number;
+          overdue_amount: number;
+          saic_amount: number;
+          internal_amount: number;
+        }[];
+      };
       get_settlement_orders: {
         Args: Record<string, never>;
         Returns: { settlement_order: string }[];

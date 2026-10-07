@@ -1,6 +1,7 @@
 import { BarList, C, Donut, GroupedColumns, Meter, Ring, StackedBar, dayShort, monthShort } from "@/components/dashboard/charts";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
 import type { SectionProps } from "./overview";
+import { ReconProgress } from "./recon-progress";
 
 const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = {
   Settled: "good",
@@ -10,7 +11,7 @@ const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = 
   Rejected: "bad",
 };
 
-export function FinancialsSection({ data }: SectionProps) {
+export function FinancialsSection({ data, onOpenReconciliation }: SectionProps & { onOpenReconciliation?: () => void }) {
   const t = data.totals;
   const cur = data.currency;
   const cost = data.costSplit;
@@ -29,6 +30,8 @@ export function FinancialsSection({ data }: SectionProps) {
 
   return (
     <div className="space-y-5">
+      <ReconProgress data={data} onOpen={onOpenReconciliation} />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card accent={C.red} className="flex flex-col justify-between gap-3">
           <div>
