@@ -196,6 +196,7 @@ export function ReconciliationSection({
   const sum = (f: (r: ReconciliationRow) => boolean) => withLoss.filter(f).reduce((s, r) => s + r.lossAmount, 0);
   const saic = sum((r) => r.deductionType === "saic");
   const internal = sum((r) => r.deductionType === "internal");
+  const gw = sum((r) => r.deductionType === "gw");
   const reinvoiced = sum((r) => r.outcome === "reinvoiced");
   const overdue = sum((r) => r.outcome === "overdue");
   const reviewed = withLoss.filter((r) => r.deductionType || r.outcome).length;
@@ -270,9 +271,13 @@ export function ReconciliationSection({
                 <span className="text-[#575e70]">Internally</span>
                 <strong>{fmtNum(internal, 2)}</strong>
               </div>
+              <div className="flex justify-between">
+                <span className="text-[#575e70]">GW</span>
+                <strong>{fmtNum(gw, 2)}</strong>
+              </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-[#575e70]">Not classified</span>
-                <span>{fmtNum(totalLoss - saic - internal, 2)}</span>
+                <span>{fmtNum(totalLoss - saic - internal - gw, 2)}</span>
               </div>
             </div>
           </Card>
@@ -336,7 +341,7 @@ export function ReconciliationSection({
                 <col className="w-[6rem]" />
                 <col className="w-[5.75rem]" />
                 <col />
-                <col className="w-[8.25rem]" />
+                <col className="w-[10rem]" />
                 <col className="w-[9.5rem]" />
                 <col className="w-[5.5rem]" />
               </colgroup>
@@ -382,6 +387,7 @@ export function ReconciliationSection({
                         options={[
                           { value: "saic", label: "SAIC", on: "bg-[#0041b0] text-white" },
                           { value: "internal", label: "Internal", on: "bg-[#575e70] text-white" },
+                          { value: "gw", label: "GW", on: "bg-[#7c3aed] text-white" },
                         ]}
                       />
                     </td>

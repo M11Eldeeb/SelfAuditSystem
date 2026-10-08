@@ -17,7 +17,7 @@ export type ReconciliationRow = {
   firstSubmitDate: string | null;
   laborName: string | null;
   partName: string | null;
-  deductionType: "saic" | "internal" | null;
+  deductionType: "saic" | "internal" | "gw" | null;
   outcome: "reinvoiced" | "overdue" | null;
   notes: string | null;
   updatedAt: string | null;
@@ -108,7 +108,7 @@ export async function loadReconciliation(settlementOrder: string, branchIds: str
 /** Saves one claim's review. Only the fields passed are changed. */
 export async function saveReconciliation(
   claimId: string,
-  patch: { deductionType?: "saic" | "internal" | null; outcome?: "reinvoiced" | "overdue" | null; notes?: string | null }
+  patch: { deductionType?: "saic" | "internal" | "gw" | null; outcome?: "reinvoiced" | "overdue" | null; notes?: string | null }
 ): Promise<{ error?: string; updatedAt?: string }> {
   const user = await requireRole("officer");
   const supabase = await createClient();

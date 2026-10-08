@@ -320,6 +320,7 @@ export type ReconSummary = {
   overdueAmount: number;
   saicAmount: number;
   internalAmount: number;
+  gwAmount: number;
 };
 
 export type DashboardData = {
@@ -794,6 +795,7 @@ export async function getDashboardData(
       overdueAmount: 0,
       saicAmount: 0,
       internalAmount: 0,
+      gwAmount: 0,
     };
     s.lossCount += Number(r.loss_count);
     s.lossAmount += Number(r.loss_amount);
@@ -803,6 +805,7 @@ export async function getDashboardData(
     s.overdueAmount += Number(r.overdue_amount);
     s.saicAmount += Number(r.saic_amount);
     s.internalAmount += Number(r.internal_amount);
+    s.gwAmount += Number(r.gw_amount);
     reconByOrder.set(r.settlement_order, s);
   }
   const reconciliation = [...reconByOrder.values()].sort((a, b) => b.order.localeCompare(a.order));

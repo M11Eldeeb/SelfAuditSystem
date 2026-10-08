@@ -64,7 +64,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
               <span className="font-semibold text-[#0b1c30]">{pct.toFixed(1)}% of the loss amount reviewed</span>
               <span className="text-[#575e70]">
                 Reinvoiced {fmtNum(sum((r) => r.reinvoicedAmount), 2)} · Overdue {fmtNum(sum((r) => r.overdueAmount), 2)} · SAIC{" "}
-                {fmtNum(sum((r) => r.saicAmount), 2)} · Internal {fmtNum(sum((r) => r.internalAmount), 2)}
+                {fmtNum(sum((r) => r.saicAmount), 2)} · Internal {fmtNum(sum((r) => r.internalAmount), 2)} · GW {fmtNum(sum((r) => r.gwAmount), 2)}
               </span>
             </div>
             <StackedBar

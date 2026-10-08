@@ -373,7 +373,7 @@ export interface Database {
       self_audit_reconciliation: {
         Row: {
           claim_id: string;
-          deduction_type: "saic" | "internal" | null;
+          deduction_type: "saic" | "internal" | "gw" | null;
           outcome: "reinvoiced" | "overdue" | null;
           notes: string | null;
           updated_by: string | null;
@@ -381,7 +381,7 @@ export interface Database {
         };
         Insert: {
           claim_id: string;
-          deduction_type?: "saic" | "internal" | null;
+          deduction_type?: "saic" | "internal" | "gw" | null;
           outcome?: "reinvoiced" | "overdue" | null;
           notes?: string | null;
           updated_by?: string | null;
@@ -933,6 +933,7 @@ export interface Database {
           overdue_amount: number;
           saic_amount: number;
           internal_amount: number;
+          gw_amount: number;
         }[];
       };
       get_settlement_orders: {
