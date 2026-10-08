@@ -8,6 +8,7 @@ const ADMIN_LINKS = [
   { href: "/admin/cycles", label: "Self Audit" },
   { href: "/admin/internal-audit", label: "Internal Audit" },
   { href: "/admin/warranty-room", label: "Warranty Room" },
+  { href: "/admin/part-returns", label: "Part Return" },
   { href: "/admin/results", label: "Results" },
   { href: "/admin/branches", label: "Branches & Users" },
 ];

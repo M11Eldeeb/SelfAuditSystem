@@ -370,6 +370,83 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_part_returns: {
+        Row: {
+          id: string;
+          request_no: number;
+          branch_id: string;
+          status: "open" | "dispatched" | "closed";
+          officer_note: string | null;
+          created_by: string | null;
+          created_at: string;
+          branch_waybill: string | null;
+          branch_closed_by: string | null;
+          branch_closed_at: string | null;
+          invoice_no: string | null;
+          shipping_company: string | null;
+          oem_waybill: string | null;
+          closed_by: string | null;
+          closed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          branch_id: string;
+          status?: "open" | "dispatched" | "closed";
+          officer_note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          branch_waybill?: string | null;
+          branch_closed_by?: string | null;
+          branch_closed_at?: string | null;
+          invoice_no?: string | null;
+          shipping_company?: string | null;
+          oem_waybill?: string | null;
+          closed_by?: string | null;
+          closed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_part_returns"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_part_return_items: {
+        Row: {
+          id: string;
+          request_id: string;
+          claim_id: string | null;
+          claim_number: string;
+          work_order_no: string | null;
+          vin: string | null;
+          claim_amount: number | null;
+          part_no: string | null;
+          part_name: string | null;
+          quantity: number | null;
+          status: "requested" | "dispatched" | "missing";
+          missing_reason: string | null;
+          deduction_status: "none" | "pending" | "deducted";
+          deducted_by: string | null;
+          deducted_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          claim_id?: string | null;
+          claim_number: string;
+          work_order_no?: string | null;
+          vin?: string | null;
+          claim_amount?: number | null;
+          part_no?: string | null;
+          part_name?: string | null;
+          quantity?: number | null;
+          status?: "requested" | "dispatched" | "missing";
+          missing_reason?: string | null;
+          deduction_status?: "none" | "pending" | "deducted";
+          deducted_by?: string | null;
+          deducted_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_part_return_items"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_reconciliation: {
         Row: {
           claim_id: string;

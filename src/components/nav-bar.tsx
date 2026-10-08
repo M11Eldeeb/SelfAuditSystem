@@ -25,7 +25,7 @@ export function NavBar({
   const displayName = user.full_name?.trim() || user.email;
 
   return (
-    <header className="sticky top-0 z-20 border-b border-black/40 bg-linear-to-b from-brand-ink-soft to-brand-ink shadow-lg shadow-black/10">
+    <header className="sticky top-0 z-20 print:hidden border-b border-black/40 bg-linear-to-b from-brand-ink-soft to-brand-ink shadow-lg shadow-black/10">
       <div className="h-[3px] bg-linear-to-r from-brand via-brand-light to-brand" />
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-5">

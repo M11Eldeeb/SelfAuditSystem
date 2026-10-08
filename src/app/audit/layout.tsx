@@ -7,6 +7,7 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
   { href: "/audit/results", label: "Results" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
+  { href: "/audit/part-returns", label: "Part Return" },
 ];
 
 export default async function AuditLayout({ children }: { children: ReactNode }) {
