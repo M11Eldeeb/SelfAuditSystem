@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_TONE, requestLabel, type PartReturn } from "@/lib/part-returns";
 import { DeductionButtons } from "./deduction-buttons";
+import { DeleteRequestButton } from "./delete-request-button";
 
 const TABS: { id: PartReturn["status"] | "all"; label: string }[] = [
   { id: "open", label: "Waiting for branch" },
@@ -116,10 +117,12 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
                   </td>
                   <td className="px-4 py-2.5 text-neutral-600">{fmtDate(r.created_at)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{r.branch_waybill ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     <Link href={`/admin/part-returns/${r.id}`} className="text-sm font-medium text-brand hover:underline">
                       {r.status === "dispatched" ? "Receive & close" : "Open"}
                     </Link>
+                    <span className="mx-2 text-neutral-300">|</span>
+                    <DeleteRequestButton requestId={r.id} label={requestLabel(r.request_no)} status={r.status} />
                   </td>
                 </tr>
               );

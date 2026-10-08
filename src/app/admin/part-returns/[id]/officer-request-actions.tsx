@@ -23,7 +23,11 @@ export function OfficerRequestActions({ requestId, status, itemIds }: { requestI
   };
 
   const remove = () => {
-    if (!window.confirm("Withdraw this request? The branch hasn't acted on it yet.")) return;
+    const warning =
+      status === "open"
+        ? "Delete this request? The branch hasn't acted on it yet."
+        : "Delete this request? The branch has already acted on it - its waybill, missing-part justifications and any deduction tracker entries will be deleted too. This can't be undone.";
+    if (!window.confirm(warning)) return;
     startTransition(async () => {
       const res = await deletePartReturn(requestId);
       if (res.error) setError(res.error);
@@ -41,11 +45,9 @@ export function OfficerRequestActions({ requestId, status, itemIds }: { requestI
         >
           Print claims & parts
         </a>
-        {status === "open" && (
-          <button type="button" onClick={remove} disabled={isPending} className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-            Withdraw request
-          </button>
-        )}
+        <button type="button" onClick={remove} disabled={isPending} className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Delete request
+        </button>
       </div>
 
       {status === "dispatched" && (

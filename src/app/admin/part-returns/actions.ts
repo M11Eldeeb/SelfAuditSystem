@@ -199,12 +199,16 @@ export async function closePartReturn(
   return {};
 }
 
-/** Withdraw a request the branch hasn't acted on yet. */
+/**
+ * Deletes a request in any status, with all its parts (cascade) - including
+ * any of its missing parts on the deduction tracker.
+ */
 export async function deletePartReturn(requestId: string): Promise<{ error?: string }> {
   await requireRole("officer");
   const supabase = await createClient();
-  const { error } = await supabase.from("self_audit_part_returns").delete().eq("id", requestId).eq("status", "open");
+  const { data, error } = await supabase.from("self_audit_part_returns").delete().eq("id", requestId).select("id");
   if (error) return { error: error.message };
+  if (!data?.length) return { error: "Request not found - it may already be deleted." };
   revalidatePath("/admin/part-returns", "layout");
   return {};
 }
