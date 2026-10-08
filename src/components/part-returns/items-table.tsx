@@ -1,4 +1,6 @@
 import type { PartReturnItem } from "@/lib/part-returns";
+import type { PartFlag } from "@/lib/part-return-flags";
+import { FlagBadges } from "./flag-badges";
 
 const ITEM_TONE: Record<PartReturnItem["status"], string> = {
   requested: "bg-amber-50 text-amber-700",
@@ -12,7 +14,15 @@ const ITEM_LABEL: Record<PartReturnItem["status"], string> = {
 };
 
 /** Read-only list of a request's claims and parts, grouped by claim. */
-export function ItemsTable({ items, renderAction }: { items: PartReturnItem[]; renderAction?: (item: PartReturnItem) => React.ReactNode }) {
+export function ItemsTable({
+  items,
+  renderAction,
+  flags,
+}: {
+  items: PartReturnItem[];
+  renderAction?: (item: PartReturnItem) => React.ReactNode;
+  flags?: Record<string, PartFlag[]>;
+}) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm">
       <table className="w-full text-sm">
@@ -35,7 +45,10 @@ export function ItemsTable({ items, renderAction }: { items: PartReturnItem[]; r
               </td>
               <td className="px-4 py-2.5 font-mono text-xs">{i.vin ?? "—"}</td>
               <td className="px-4 py-2.5">
-                <div>{i.part_name ?? "—"}</div>
+                <div>
+                  {i.part_name ?? "—"}
+                  <FlagBadges flags={flags?.[i.id]} />
+                </div>
                 <div className="font-mono text-xs text-neutral-500">{i.part_no}</div>
               </td>
               <td className="px-4 py-2.5 text-right">{i.quantity ?? 1}</td>

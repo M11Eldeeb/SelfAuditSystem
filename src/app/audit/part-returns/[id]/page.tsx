@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_TONE, requestLabel } from "@/lib/part-returns";
 import { ItemsTable } from "@/components/part-returns/items-table";
+import { flagsFor, getPartFlags } from "@/lib/part-return-flags";
 import { BranchRequestForm } from "./branch-request-form";
 
 export default async function BranchPartReturnPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,9 @@ export default async function BranchPartReturnPage({ params }: { params: Promise
     supabase.from("self_audit_part_return_items").select("*").eq("request_id", id).order("claim_number").order("part_no"),
   ]);
   if (!request) notFound();
+  // Request already confirmed as this branch's (RLS read above).
+  const flagMap = await getPartFlags([...new Set((items ?? []).map((i) => i.claim_id).filter((c): c is string => !!c))]);
+  const flags = Object.fromEntries((items ?? []).map((i) => [i.id, flagsFor(flagMap, i.claim_id, i.part_no)]));
 
   return (
     <div className="space-y-5">
@@ -33,7 +37,7 @@ export default async function BranchPartReturnPage({ params }: { params: Promise
       </div>
 
       {request.status === "open" ? (
-        <BranchRequestForm requestId={request.id} items={items ?? []} />
+        <BranchRequestForm requestId={request.id} items={items ?? []} flags={flags} />
       ) : (
         <>
           <p className="text-sm text-neutral-600">
@@ -47,7 +51,7 @@ export default async function BranchPartReturnPage({ params }: { params: Promise
               </>
             )}
           </p>
-          <ItemsTable items={items ?? []} />
+          <ItemsTable items={items ?? []} flags={flags} />
           <a
             href={`/audit/part-returns/${request.id}/print`}
             target="_blank"

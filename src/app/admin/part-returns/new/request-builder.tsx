@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPartReturns, lookupClaims, type LookupClaim, type NewItem } from "../actions";
+import { FlagBadges } from "@/components/part-returns/flag-badges";
 
 const input =
   "rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
@@ -33,7 +34,11 @@ export function RequestBuilder({ branches }: { branches: { id: string; name: str
       // New claims come in with every part ticked - untick what isn't needed.
       setSelected((s) => {
         const n = new Set(s);
-        for (const c of fresh) c.parts.forEach((_, i) => n.add(partKey(c.claimId, i)));
+        // ...except parts already scrapped / handed to the supplier.
+        for (const c of fresh)
+          c.parts.forEach((p, i) => {
+            if (!p.flags.some((f) => f.kind === "scrapped" || (f.kind === "supplier" && f.detail.startsWith("Already")))) n.add(partKey(c.claimId, i));
+          });
         return n;
       });
       if (res.claims.length) setText("");
@@ -130,6 +135,19 @@ export function RequestBuilder({ branches }: { branches: { id: string; name: str
 
       {claims.length > 0 && (
         <div className="space-y-3">
+          {(() => {
+            const all = claims.flatMap((c) => c.parts.flatMap((p) => p.flags));
+            const count = (k: string) => claims.reduce((s, c) => s + c.parts.filter((p) => p.flags.some((f) => f.kind === k)).length, 0);
+            if (all.length === 0) return null;
+            return (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <strong>Check before sending:</strong> {count("scrapped") > 0 && <>{count("scrapped")} part(s) already scrapped · </>}
+                {count("flagged") > 0 && <>{count("flagged")} flagged to be scrapped (tell the branch not to scrap) · </>}
+                {count("supplier") > 0 && <>{count("supplier")} on the supplier list · </>}
+                scrapped and handed-over parts are unticked.
+              </div>
+            );
+          })()}
           {claims.map((c) => (
             <div key={c.claimId} className="rounded-xl border border-neutral-200/70 bg-white shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3">
@@ -172,7 +190,10 @@ export function RequestBuilder({ branches }: { branches: { id: string; name: str
                         <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50">
                           <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)} className="accent-brand" />
                           <span className="w-32 font-mono text-xs text-neutral-600">{p.partNo ?? "—"}</span>
-                          <span className="flex-1">{p.partName ?? "—"}</span>
+                          <span className="flex-1">
+                            {p.partName ?? "—"}
+                            <FlagBadges flags={p.flags} />
+                          </span>
                           <span className="text-xs text-neutral-500">Qty {p.quantity ?? 1}</span>
                         </label>
                       </li>

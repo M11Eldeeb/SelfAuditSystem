@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PartReturnItem } from "@/lib/part-returns";
+import type { PartFlag } from "@/lib/part-return-flags";
+import { FlagBadges } from "@/components/part-returns/flag-badges";
 import { closeBranchPartReturn } from "../actions";
 
 const input =
   "block w-full rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
 
-export function BranchRequestForm({ requestId, items }: { requestId: string; items: PartReturnItem[] }) {
+export function BranchRequestForm({ requestId, items, flags = {} }: { requestId: string; items: PartReturnItem[]; flags?: Record<string, PartFlag[]> }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,11 @@ export function BranchRequestForm({ requestId, items }: { requestId: string; ite
 
   return (
     <div className="space-y-4">
+      {items.some((i) => flags[i.id]?.some((f) => f.kind === "flagged")) && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <strong>Do not scrap</strong> the parts marked “Flagged to scrap” - the warranty team needs them back for the manufacturer.
+        </div>
+      )}
       <div className="overflow-x-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase">
@@ -96,7 +103,10 @@ export function BranchRequestForm({ requestId, items }: { requestId: string; ite
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <div>{i.part_name ?? "—"}</div>
+                    <div>
+                      {i.part_name ?? "—"}
+                      <FlagBadges flags={flags[i.id]} />
+                    </div>
                     <div className="font-mono text-xs text-neutral-500">{i.part_no}</div>
                   </td>
                   <td className="px-3 py-2.5 text-right">{i.quantity ?? 1}</td>

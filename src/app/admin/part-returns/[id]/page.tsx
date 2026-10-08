@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_TONE, requestLabel } from "@/lib/part-returns";
 import { ItemsTable } from "@/components/part-returns/items-table";
+import { flagsFor, getPartFlags } from "@/lib/part-return-flags";
 import { DeductionButtons } from "../deduction-buttons";
 import { OfficerRequestActions } from "./officer-request-actions";
 
@@ -23,7 +24,12 @@ export default async function AdminPartReturnPage({ params }: { params: Promise<
     supabase.from("self_audit_part_return_items").select("*").eq("request_id", id).order("claim_number").order("part_no"),
   ]);
   if (!request) notFound();
-  const { data: branch } = await supabase.from("self_audit_branches").select("name").eq("id", request.branch_id).maybeSingle();
+  const [{ data: branch }, flagMap] = await Promise.all([
+    supabase.from("self_audit_branches").select("name").eq("id", request.branch_id).maybeSingle(),
+    getPartFlags([...new Set((items ?? []).map((i) => i.claim_id).filter((c): c is string => !!c))]),
+  ]);
+  const flags = Object.fromEntries((items ?? []).map((i) => [i.id, flagsFor(flagMap, i.claim_id, i.part_no)]));
+  const flaggedCount = Object.values(flags).filter((f) => f.length).length;
 
   return (
     <div className="space-y-6">
@@ -72,7 +78,14 @@ export default async function AdminPartReturnPage({ params }: { params: Promise<
         </div>
       </div>
 
+      {flaggedCount > 0 && request.status !== "closed" && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>{flaggedCount} part(s) need attention</strong> - scrapped, flagged to be scrapped or on the supplier list. Hover a badge for details.
+        </div>
+      )}
+
       <ItemsTable
+        flags={flags}
         items={items ?? []}
         renderAction={(i) => (i.status === "missing" ? <DeductionButtons itemId={i.id} status={i.deduction_status} deductedAt={i.deducted_at} /> : null)}
       />

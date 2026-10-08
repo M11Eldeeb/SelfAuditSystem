@@ -3,8 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { flagsFor, getPartFlags, type PartFlag } from "@/lib/part-return-flags";
 
-export type LookupPart = { claimPartId: string | null; partNo: string | null; partName: string | null; quantity: number | null };
+export type LookupPart = {
+  claimPartId: string | null;
+  partNo: string | null;
+  partName: string | null;
+  quantity: number | null;
+  /** Scrapped / flagged to scrap / on the supplier list. */
+  flags: PartFlag[];
+};
 
 export type LookupClaim = {
   claimId: string;
@@ -59,11 +67,12 @@ export async function lookupClaims(
   }[];
 
   const ids = rows.map((r) => r.id);
-  const [{ data: parts }, { data: branches }] = await Promise.all([
+  const [{ data: parts }, { data: branches }, flags] = await Promise.all([
     ids.length
       ? supabase.from("self_audit_claim_parts").select("id, claim_id, part_no, part_name, quantity").in("claim_id", ids)
       : Promise.resolve({ data: [] as { id: string; claim_id: string; part_no: string; part_name: string | null; quantity: number | null }[] }),
     supabase.from("self_audit_branches").select("id, name"),
+    getPartFlags(ids),
   ]);
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
 
@@ -81,9 +90,9 @@ export async function lookupClaims(
       claimAmount: r.claim_amount,
       repairEndDate: r.repair_end_date,
       parts: own.length
-        ? own.map((p) => ({ claimPartId: p.id, partNo: p.part_no, partName: p.part_name, quantity: p.quantity }))
+        ? own.map((p) => ({ claimPartId: p.id, partNo: p.part_no, partName: p.part_name, quantity: p.quantity, flags: flagsFor(flags, r.id, p.part_no) }))
         : r.main_part || r.main_part_name
-          ? [{ claimPartId: null, partNo: r.main_part, partName: r.main_part_name, quantity: 1 }]
+          ? [{ claimPartId: null, partNo: r.main_part, partName: r.main_part_name, quantity: 1, flags: flagsFor(flags, r.id, r.main_part) }]
           : [],
     };
   });
