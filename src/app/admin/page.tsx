@@ -102,7 +102,13 @@ export default async function AdminOverviewPage({
   const branchScopedInternalAudits = [...(internalAudits ?? []), ...(historicalInternalAudits ?? [])].filter((a) =>
     filteredBranchIds.has(a.branch_id)
   );
-  const openCycle = (cycles ?? []).find((c) => c.status === "open") ?? null;
+  // Cycles are never auto-closed, so an older cycle can still be open next to
+  // the new one - the podium must follow the newest open cycle, not whichever
+  // row the query happened to return first.
+  const openCycle =
+    (cycles ?? [])
+      .filter((c) => c.status === "open")
+      .sort((a, b) => b.cycle_month.localeCompare(a.cycle_month))[0] ?? null;
   const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, openCycle?.id ?? null);
   const overallStandings = computeOverallStandings(branchScopedResults, filteredBranches, branchScopedInternalAudits);
   const cycleLabel = openCycle
