@@ -475,6 +475,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_scrap_generations"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_task_reminders: {
+        Row: { id: string; task_key: string; branch_id: string; sent_by: string | null; sent_at: string };
+        Insert: { id?: string; task_key: string; branch_id: string; sent_by?: string | null; sent_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_task_reminders"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_reconciliation: {
         Row: {
           claim_id: string;

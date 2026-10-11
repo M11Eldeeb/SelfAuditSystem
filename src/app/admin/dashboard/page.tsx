@@ -6,12 +6,15 @@ import { displayFont } from "@/components/dashboard/font";
 import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
+import { getTasks } from "@/lib/tasks";
+import { requireRole } from "@/lib/auth";
 
 export default async function AdminDashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string }>;
 }) {
+  const user = await requireRole("officer");
   const params = await searchParams;
   const { from, to, clamped } = resolveMonthRange(params);
   const supabase = await createClient();
@@ -36,6 +39,7 @@ export default async function AdminDashboardPage({
   const trends = claimSide.then(() => getCachedTrends(scopeBranches, from, to));
   // Rejections surface in the trends tab (its error boundary), not here.
   trends.catch(() => {});
+  const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
   return (
@@ -52,6 +56,7 @@ export default async function AdminDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         trends={trends}
+        tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
     </div>

@@ -13,9 +13,12 @@ import { FinancialsSection } from "@/components/dashboard/sections/financials";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
 import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
+import { TaskTracker } from "@/components/tasks/task-list";
+import type { TaskData } from "@/lib/tasks";
 import { ReconciliationSection } from "@/components/dashboard/sections/reconciliation";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
+  tasks: Icon.check,
   overview: Icon.gauge,
   cycle: Icon.timer,
   financials: Icon.receipt,
@@ -70,6 +73,7 @@ export function KpiDashboard({
   rangeClamped,
   trends,
   settlementOrders = [],
+  tasks,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -85,6 +89,7 @@ export function KpiDashboard({
   trends?: Promise<TrendData>;
   /** Officer only - newest first. */
   settlementOrders?: string[];
+  tasks?: TaskData;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -224,7 +229,7 @@ export function KpiDashboard({
             </div>
           </div>
 
-          {tab !== "reconciliation" && (
+          {tab !== "reconciliation" && tab !== "tasks" && (
           <div className="relative mt-4 space-y-3 border-t border-[#e5eeff] pt-4">
             <div className="flex flex-wrap items-end gap-3">
               <label className="space-y-1">
@@ -311,6 +316,7 @@ export function KpiDashboard({
         </div>
 
         <div className={`space-y-5 transition-opacity duration-200 ${isPending ? "pointer-events-none opacity-50" : ""}`}>
+          {tab === "tasks" && (tasks ? <TaskTracker data={tasks} isOfficer={isOfficer} /> : null)}
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
           {tab === "financials" && (

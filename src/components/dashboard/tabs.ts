@@ -1,4 +1,5 @@
 export const DASHBOARD_TABS = [
+  { id: "tasks", label: "Tasks", title: "Task tracking", officerOnly: false },
   { id: "overview", label: "Overview", title: "Warranty KPI overview", officerOnly: false },
   { id: "cycle", label: "Cycle Times & SLA", title: "Cycle times & SLA", officerOnly: false },
   { id: "financials", label: "Claims & Financials", title: "Claims & financials", officerOnly: false },

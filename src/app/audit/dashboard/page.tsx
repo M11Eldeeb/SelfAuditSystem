@@ -6,6 +6,7 @@ import { displayFont } from "@/components/dashboard/font";
 import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
+import { getTasks } from "@/lib/tasks";
 
 export default async function BranchDashboardPage({
   searchParams,
@@ -25,6 +26,7 @@ export default async function BranchDashboardPage({
     .single();
   const scopeBranches = branch ? [branch] : [];
 
+  const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
   return (
@@ -40,6 +42,7 @@ export default async function BranchDashboardPage({
         selectedBranchIds={[]}
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
+        tasks={await tasksPromise}
       />
     </div>
   );

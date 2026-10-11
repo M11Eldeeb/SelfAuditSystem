@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { requireRole } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
+import { TaskNotifierServer } from "@/components/tasks/task-notifier-server";
 
 const ADMIN_LINKS = [
   { href: "/admin", label: "Overview" },
@@ -20,6 +21,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     <div className="app-shell-bg flex min-h-screen flex-col">
       <NavBar user={user} links={ADMIN_LINKS} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <Suspense fallback={null}>
+        <TaskNotifierServer user={user} />
+      </Suspense>
     </div>
   );
 }
