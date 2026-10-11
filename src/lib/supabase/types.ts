@@ -447,6 +447,34 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_part_return_items"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_scrap_generations: {
+        Row: {
+          id: string;
+          batch_id: string | null;
+          batch_name: string | null;
+          status: "queued" | "running" | "done" | "failed";
+          requested_by: string | null;
+          requested_at: string;
+          started_at: string | null;
+          finished_at: string | null;
+          created_count: number | null;
+          error: string | null;
+        };
+        Insert: {
+          id?: string;
+          batch_id?: string | null;
+          batch_name?: string | null;
+          status?: "queued" | "running" | "done" | "failed";
+          requested_by?: string | null;
+          requested_at?: string;
+          started_at?: string | null;
+          finished_at?: string | null;
+          created_count?: number | null;
+          error?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_scrap_generations"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_reconciliation: {
         Row: {
           claim_id: string;

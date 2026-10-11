@@ -44,16 +44,20 @@ export async function getPartFlags(claimIds: string[]): Promise<Map<string, Part
   const admin = createAdminClient();
   const [{ data: scrapped }, { data: requests }, { data: supplier }, { data: claims }] = await Promise.all([
     admin.from("self_audit_scrapped_parts").select("claim_id, part_no").in("claim_id", claimIds),
-    admin.from("self_audit_scrap_requests").select("id, claim_id, status, submitted_at, created_at, cycle_id").in("claim_id", claimIds),
+    admin.from("self_audit_scrap_requests").select("id, claim_id, status, submitted_at, created_at").in("claim_id", claimIds),
     admin.from("self_audit_supplier_collection_parts").select("claim_id, part_no, collection_id").in("claim_id", claimIds),
     admin.from("self_audit_claims").select("id, verification_date").in("id", claimIds),
   ]);
   const verification = new Map((claims ?? []).map((c) => [c.id, c.verification_date]));
-  const cycleIds = [...new Set((requests ?? []).map((r) => r.cycle_id).filter((c): c is string => !!c))];
-  const { data: cycles } = cycleIds.length
-    ? await admin.from("self_audit_warranty_room_cycles").select("id, created_at").in("id", cycleIds)
-    : { data: [] as { id: string; created_at: string }[] };
-  const generatedAt = new Map((cycles ?? []).map((c) => [c.id, c.created_at]));
+  // The officer's last scrap list generation is the reference point.
+  const { data: lastGen } = await admin
+    .from("self_audit_scrap_generations")
+    .select("finished_at, requested_at")
+    .eq("status", "done")
+    .order("finished_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const generatedAt = lastGen?.finished_at ?? lastGen?.requested_at ?? null;
 
   for (const s of scrapped ?? []) {
     if (s.claim_id) add(s.claim_id, s.part_no, { kind: "scrapped", detail: "On the already-scrapped list" });
@@ -69,10 +73,11 @@ export async function getPartFlags(claimIds: string[]): Promise<Map<string, Part
     if (r.status === "scrapped") {
       flag = { kind: "scrapped", detail: `Scrapped${r.submitted_at ? ` ${fmtDay(r.submitted_at)}` : ""}` };
     } else {
-      // Flagged only if the part had completed the 91-day hold by the time
-      // the warranty room scrap cycle was generated - not counting the days
-      // since (the daily check keeps adding requests until the next cycle).
-      const generated = (r.cycle_id && generatedAt.get(r.cycle_id)) || r.created_at;
+      // Flagged only if the request came from the officer's last scrap list
+      // generation and the part had completed the 91-day hold by that date -
+      // not counting the days since.
+      if (!generatedAt || Date.parse(r.created_at) > Date.parse(generatedAt) + 60 * 60_000) continue;
+      const generated = generatedAt;
       const vdate = verification.get(r.claim_id);
       const held = vdate ? daysBetween(vdate, generated) : null;
       if (held == null || held < SCRAP_HOLD_DAYS) continue;
