@@ -201,7 +201,8 @@ export async function startInternalAudit(
       date_from: criteria.dateFrom,
       date_to: criteria.dateTo,
       audit_date: auditDate,
-      sample_size: criteria.sampleSize,
+      // The number of claims actually sampled, not the number asked for - the pool can hold fewer.
+      sample_size: stillEligible.length,
       sample_mode: criteria.sampleMode,
       max_per_part: criteria.maxPerPart,
       auditor_id: officer.id,

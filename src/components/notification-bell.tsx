@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Item = {
   id: string;
-  kind: "feedback" | "reply" | "task";
+  kind: "feedback" | "reply" | "audit" | "task";
   title: string;
   detail: string;
   href: string;
@@ -149,9 +149,10 @@ export function NotificationBell({
   }, [open, refresh]);
 
   const label = data.count > 99 ? "99+" : String(data.count);
-  const messages = data.items.filter((i) => i.kind !== "task");
+  const audits = data.items.filter((i) => i.kind === "audit");
+  const messages = data.items.filter((i) => i.kind === "feedback" || i.kind === "reply");
   const tasks = data.items.filter((i) => i.kind === "task");
-  const hiddenTasks = Math.max(0, data.count - messages.length - tasks.length);
+  const hiddenTasks = Math.max(0, data.count - audits.length - messages.length - tasks.length);
 
   const renderItem = (n: Item) => (
     <li key={n.id}>
@@ -171,7 +172,7 @@ export function NotificationBell({
           </span>
           <span className="block truncate text-xs text-neutral-500">{n.detail}</span>
         </span>
-        {n.kind === "task" && n.ageDays != null ? (
+        {n.kind === "audit" ? null : n.kind === "task" && n.ageDays != null ? (
           <span
             className={`h-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${ageBadgeClass(n.ageDays)}`}
           >
@@ -235,6 +236,12 @@ export function NotificationBell({
           <p className="px-4 py-8 text-center text-sm text-neutral-500">You&apos;re all caught up.</p>
         ) : (
           <div className="max-h-[60vh] overflow-y-auto">
+            {audits.length > 0 && (
+              <section>
+                <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">Upcoming audit</p>
+                <ul className="divide-y divide-neutral-100">{audits.map(renderItem)}</ul>
+              </section>
+            )}
             {messages.length > 0 && (
               <section>
                 <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">Feedback</p>

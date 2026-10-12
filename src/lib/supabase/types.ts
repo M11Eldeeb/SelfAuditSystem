@@ -1140,6 +1140,26 @@ export interface Database {
           currency: string | null;
         }[];
       };
+      get_upcoming_internal_audits: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          name: string | null;
+          audit_date: string | null;
+          claim_count: number;
+        }[];
+      };
+      get_upcoming_internal_audit_claims: {
+        Args: { p_audit_id: string };
+        Returns: {
+          claim_number: string;
+          work_order_no: string | null;
+          vin: string | null;
+          main_part_name: string | null;
+          creation_date: string;
+          repair_end_date: string | null;
+        }[];
+      };
       get_historical_self_audit_scores: {
         Args: Record<string, never>;
         Returns: {

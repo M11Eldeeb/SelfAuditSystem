@@ -2,6 +2,15 @@
 export const AUDIT_CYCLE_DEADLINE_DAYS = 25;
 
 /**
+ * True once a cycle's submission deadline has passed. Its own function (not
+ * inlined) so the impure Date.now() stays out of component render bodies - see
+ * daysUntil below.
+ */
+export function isPastDeadline(deadlineAt: string | null): boolean {
+  return !!deadlineAt && new Date(deadlineAt).getTime() < Date.now();
+}
+
+/**
  * Whole days left until a deadline. Floors rather than ceils - deadline_at
  * carries the exact creation timestamp (e.g. 07:23:59), not midnight, so on
  * any given day there's almost always a partial day left over. Ceiling that

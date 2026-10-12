@@ -6,37 +6,59 @@ import { expireOverdueAssignments } from "@/lib/expire-assignments";
 import { Podium } from "@/components/podium";
 import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
-import { daysRemaining } from "@/lib/cycle";
+import { daysRemaining, daysUntil, isPastDeadline } from "@/lib/cycle";
+import { UpcomingInternalAudits, type UpcomingAudit } from "./upcoming-internal-audit";
 
 export default async function AuditDashboardPage() {
   const user = await requireRole("branch_admin");
   await expireOverdueAssignments();
   const supabase = await createClient();
 
-  const { data: cycles } = await supabase
-    .from("self_audit_audit_cycles")
-    .select("*")
-    .order("cycle_month", { ascending: false });
+  const [{ data: cycles }, { data: upcomingRows }] = await Promise.all([
+    supabase.from("self_audit_audit_cycles").select("*").order("cycle_month", { ascending: false }),
+    supabase.rpc("get_upcoming_internal_audits"),
+  ]);
+
+  // Internal audits coming to this branch: shown as a card and a once-per-session pop-up.
+  const upcomingAudits: UpcomingAudit[] = (upcomingRows ?? []).map((a) => {
+    const days = daysUntil(a.audit_date);
+    return {
+      id: a.id,
+      name: a.name ?? "Internal audit",
+      dateLabel: a.audit_date
+        ? new Date(`${a.audit_date}T00:00:00Z`).toLocaleDateString("en-GB", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          })
+        : null,
+      whenLabel: days == null ? null : days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`,
+      claimCount: Number(a.claim_count),
+    };
+  });
 
   if (!cycles || cycles.length === 0) {
     return (
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
-        <p className="text-sm text-neutral-600">
-          No audit cycle has been opened yet. Check back once your warranty officer starts this
-          month&apos;s audit.
-        </p>
+      <div className="space-y-8">
+        <UpcomingInternalAudits audits={upcomingAudits} />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
+          <p className="text-sm text-neutral-600">
+            No audit cycle has been opened yet. Check back once your warranty officer starts this
+            month&apos;s audit.
+          </p>
+        </div>
       </div>
     );
   }
 
   const cycleIds = cycles.map((c) => c.id);
-  const cycleMonthById = new Map(cycles.map((c) => [c.id, c.cycle_month]));
   const currentCycleId = cycles.find((c) => c.status === "open")?.id ?? null;
 
   const [
     { data: assignments },
-    { data: results },
     { data: opsProgress },
     { data: allBranches },
     { data: allResults },
@@ -45,11 +67,6 @@ export default async function AuditDashboardPage() {
     { data: allHistoricalSelfAudits },
   ] = await Promise.all([
     supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
-    supabase
-      .from("self_audit_audit_results")
-      .select("*")
-      .eq("branch_id", user.branch_id!)
-      .order("finalized_at", { ascending: true }),
     supabase
       .from("self_audit_branch_operation_progress")
       .select("*")
@@ -85,7 +102,11 @@ export default async function AuditDashboardPage() {
     assignmentsByCycle.set(a.cycle_id, list);
   });
 
-  const cyclesWithWork = cycles.filter((c) => (assignmentsByCycle.get(c.id) ?? []).length > 0);
+  // A cycle stops showing once it is closed or its submission deadline has passed:
+  // nothing can be submitted any more, and its scores live under Results.
+  const cyclesWithWork = cycles.filter(
+    (c) => c.status === "open" && !isPastDeadline(c.deadline_at) && (assignmentsByCycle.get(c.id) ?? []).length > 0
+  );
 
   const standingsSection = (podiumStandings.length > 0 || overallStandings.length > 0) && (
     <section className="space-y-5">
@@ -111,10 +132,12 @@ export default async function AuditDashboardPage() {
   if (cyclesWithWork.length === 0) {
     return (
       <div className="space-y-8">
+        <UpcomingInternalAudits audits={upcomingAudits} />
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
           <p className="text-sm text-neutral-600">
-            No claims have been assigned to your branch yet for the current cycle.
+            You have no self audit to complete right now. A new one appears here when your warranty officer opens the
+            next cycle.
           </p>
         </div>
         {standingsSection}
@@ -122,56 +145,12 @@ export default async function AuditDashboardPage() {
     );
   }
 
-  const trend = (results ?? []).slice(-6); // last 6 finalized cycles, oldest to newest
-  const latest = trend[trend.length - 1];
-  const previous = trend.length > 1 ? trend[trend.length - 2] : null;
-  const delta = latest && previous ? Math.round((latest.score_pct - previous.score_pct) * 10) / 10 : null;
-
   return (
     <div className="space-y-8">
+      <UpcomingInternalAudits audits={upcomingAudits} />
       <h1 className="text-2xl font-bold tracking-tight text-neutral-900">My Audits</h1>
 
       {standingsSection}
-
-      {trend.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold text-neutral-900">Overview</h2>
-          <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-            {delta !== null && (
-              <p className="mb-3 text-sm text-neutral-700">
-                {delta > 0 && (
-                  <span className="font-medium text-emerald-700">
-                    Up {delta} point{Math.abs(delta) === 1 ? "" : "s"}
-                  </span>
-                )}
-                {delta < 0 && (
-                  <span className="font-medium text-red-700">
-                    Down {Math.abs(delta)} point{Math.abs(delta) === 1 ? "" : "s"}
-                  </span>
-                )}
-                {delta === 0 && <span className="font-medium text-neutral-700">Unchanged</span>}{" "}
-                vs. the previous audit cycle.
-              </p>
-            )}
-            <div className="flex items-end gap-3">
-              {trend.map((r) => (
-                <div key={r.id} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{r.score_pct}%</span>
-                  <div className="flex h-24 w-full items-end rounded bg-neutral-100">
-                    <div
-                      className={`w-full rounded ${r.score_pct >= 90 ? "bg-emerald-500" : r.score_pct >= 75 ? "bg-amber-500" : "bg-red-500"}`}
-                      style={{ height: `${Math.max(r.score_pct, 4)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-neutral-500">
-                    {(cycleMonthById.get(r.cycle_id) ?? "").slice(0, 7)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {cyclesWithWork.map((cycle) => {
         const cycleAssignments = assignmentsByCycle.get(cycle.id) ?? [];

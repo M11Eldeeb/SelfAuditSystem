@@ -24,7 +24,7 @@ const COLUMNS: { header: string; key: keyof SampleExcelRow }[] = [
   { header: "Repair End Date", key: "repair_end_date" },
 ];
 
-export async function generateSamplePreviewExcel(rows: SampleExcelRow[]): Promise<void> {
+export async function generateSamplePreviewExcel(rows: SampleExcelRow[], fileName?: string): Promise<void> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sample");
 
@@ -46,7 +46,7 @@ export async function generateSamplePreviewExcel(rows: SampleExcelRow[]): Promis
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Internal_Audit_Sample_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = fileName ?? `Internal_Audit_Sample_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(a);
   a.click();
   a.remove();

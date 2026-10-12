@@ -48,9 +48,50 @@ export async function replyToFeedback(feedbackId: string, text: string): Promise
 }
 
 /**
- * Deletes a message, its replies and its attachments (to free storage). The
- * files go first and must all be removed: if storage fails, the rows stay so
- * the message can be retried instead of leaving orphan files nobody can find.
+ * Deletes a message's attachment files (to free storage) but keeps the message
+ * and its replies. The files go first and must all be removed: if storage
+ * fails, the rows stay so it can be retried instead of leaving orphan files
+ * nobody can find.
+ */
+export async function deleteFeedbackAttachments(feedbackId: string): Promise<{ error?: string }> {
+  await requireRole("officer");
+  if (!UUID.test(feedbackId)) return { error: "Message not found." };
+  const supabase = await createClient();
+
+  const { data: attachments, error: listError } = await supabase
+    .from("self_audit_feedback_attachments")
+    .select("id, storage_path")
+    .eq("feedback_id", feedbackId);
+  if (listError) return { error: "Could not read the attachments - please try again." };
+  if (!attachments || attachments.length === 0) return { error: "This message has no attachments." };
+
+  const paths = attachments.map((a) => a.storage_path);
+  const { data: removed, error: removeError } = await supabase.storage.from(FEEDBACK_BUCKET).remove(paths);
+  if (removeError) return { error: `Could not delete the attachments: ${removeError.message}` };
+  if ((removed ?? []).length < paths.length) {
+    return { error: `Only ${(removed ?? []).length} of ${paths.length} attachments were deleted - try again.` };
+  }
+
+  const { data: gone, error: rowsError } = await supabase
+    .from("self_audit_feedback_attachments")
+    .delete()
+    .in(
+      "id",
+      attachments.map((a) => a.id)
+    )
+    .select("id");
+  if (rowsError || (gone ?? []).length < attachments.length) {
+    return { error: "The files were deleted, but their records could not be cleared - please try again." };
+  }
+
+  revalidateFeedbackPages(feedbackId);
+  return {};
+}
+
+/**
+ * Deletes the whole message: its attachments (files first, as above), its
+ * replies and the message itself. Confirms the message row is really gone and
+ * says so if it is not.
  */
 export async function deleteFeedback(feedbackId: string): Promise<{ error?: string }> {
   await requireRole("officer");
@@ -72,8 +113,11 @@ export async function deleteFeedback(feedbackId: string): Promise<{ error?: stri
     }
   }
 
-  const { error } = await supabase.from("self_audit_feedback").delete().eq("id", feedbackId);
-  if (error) return { error: "Attachments were deleted, but the message could not be - please try again." };
+  // select() returns the deleted rows, so a delete that matched nothing (no error, 0 rows) is caught.
+  const { data: deleted, error } = await supabase.from("self_audit_feedback").delete().eq("id", feedbackId).select("id");
+  if (error || (deleted ?? []).length === 0) {
+    return { error: "The attachments were deleted, but the message itself could not be - please try again." };
+  }
 
   revalidateFeedbackPages(feedbackId);
   return {};

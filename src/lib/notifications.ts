@@ -5,7 +5,7 @@ import { getTasks } from "@/lib/tasks";
 
 export type NotificationItem = {
   id: string;
-  kind: "feedback" | "reply" | "task";
+  kind: "feedback" | "reply" | "audit" | "task";
   title: string;
   detail: string;
   href: string;
@@ -26,6 +26,7 @@ const MAX_TASK_ITEMS = 15;
  * What the bell shows.
  *  - Feedback: officers see messages nobody has opened yet; branch admins see
  *    unread replies to their own feedback.
+ *  - Branch admins also see an internal audit that is coming to their branch.
  *  - Tasks (includeTasks): the pending tasks the old floating "Tasks" pill
  *    listed - a branch admin's own, and for officers their own plus branch
  *    tasks that need a reminder today.
@@ -41,7 +42,7 @@ export async function getNotifications(
   if (user.role !== "officer" && user.role !== "branch_admin") return EMPTY;
 
   const [feedback, tasks] = await Promise.all([
-    user.role === "officer" ? getOfficerFeedback() : getBranchAdminReplies(),
+    user.role === "officer" ? getOfficerFeedback() : getBranchAdminMessages(),
     includeTasks ? getTaskItems(user) : Promise.resolve(EMPTY),
   ]);
 
@@ -108,6 +109,27 @@ async function getOfficerFeedback(): Promise<Notifications> {
       at: r.created_at,
     })),
   };
+}
+
+async function getBranchAdminMessages(): Promise<Notifications> {
+  const [replies, audits] = await Promise.all([getBranchAdminReplies(), getUpcomingAuditItems()]);
+  return { count: replies.count + audits.count, items: [...audits.items, ...replies.items] };
+}
+
+async function getUpcomingAuditItems(): Promise<Notifications> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("get_upcoming_internal_audits");
+  const items: NotificationItem[] = (data ?? []).map((a) => ({
+    id: `audit:${a.id}`,
+    kind: "audit" as const,
+    title: "Internal audit coming to your branch",
+    detail: a.audit_date
+      ? `${new Date(`${a.audit_date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} · ${Number(a.claim_count)} claims - download the list`
+      : `Date to be confirmed · ${Number(a.claim_count)} claims`,
+    href: "/audit",
+    at: new Date().toISOString(),
+  }));
+  return { count: items.length, items };
 }
 
 async function getBranchAdminReplies(): Promise<Notifications> {

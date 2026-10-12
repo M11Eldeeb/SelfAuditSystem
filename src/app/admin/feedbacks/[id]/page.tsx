@@ -7,7 +7,7 @@ import { FeedbackAttachments } from "@/components/feedback/attachments";
 import { MarkSeen } from "@/components/feedback/mark-seen";
 import { markFeedbackSeen } from "../actions";
 import { ReplyForm } from "./reply-form";
-import { DeleteFeedbackButton } from "./delete-feedback-button";
+import { DeleteFeedbackActions } from "./delete-feedback-button";
 
 export default async function FeedbackDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("officer");
@@ -56,7 +56,7 @@ export default async function FeedbackDetailPage({ params }: { params: Promise<{
           </p>
           <p className="text-xs text-neutral-500">{new Date(feedback.created_at).toLocaleString()}</p>
         </div>
-        <DeleteFeedbackButton feedbackId={id} attachmentCount={attachments.length} />
+        <DeleteFeedbackActions feedbackId={id} attachmentCount={attachments.length} />
       </div>
 
       <div className="space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">
