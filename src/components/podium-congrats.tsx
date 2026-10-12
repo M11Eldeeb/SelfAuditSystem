@@ -41,7 +41,16 @@ export function PodiumCongrats({
       // it throws on any computed color in a color space it doesn't
       // recognize). modern-screenshot handles oklch/color-mix natively.
       const { domToPng } = await import("modern-screenshot");
-      const dataUrl = await domToPng(podiumRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      // The e-mailed image is always light, whatever theme the officer is viewing in:
+      // force the light palette on the captured element for the duration of the capture.
+      const node = podiumRef.current;
+      node.classList.add("theme-light");
+      let dataUrl: string;
+      try {
+        dataUrl = await domToPng(node, { backgroundColor: "#ffffff", scale: 2 });
+      } finally {
+        node.classList.remove("theme-light");
+      }
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = `podium-${cycleLabel.toLowerCase().replace(/\s+/g, "-")}.png`;

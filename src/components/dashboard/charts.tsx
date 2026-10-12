@@ -13,8 +13,8 @@ export const C = {
   blueSoft: "#b4c5ff",
   slate: "#575e70",
   slateSoft: "#c0c6db",
-  track: "#e5eeff",
-  grid: "#e9eef8",
+  track: "var(--chart-track)",
+  grid: "var(--chart-grid)",
   green: "#059669",
   amber: "#d97706",
 };
@@ -121,7 +121,7 @@ export function LineChart({
               </text>
             ) : null
           )}
-          {hover != null && <line x1={x(hover)} x2={x(hover)} y1={pad.top} y2={pad.top + innerH} stroke="#0b1c30" strokeOpacity="0.15" />}
+          {hover != null && <line x1={x(hover)} x2={x(hover)} y1={pad.top} y2={pad.top + innerH} stroke="var(--chart-cursor)" strokeOpacity="0.15" />}
           {visible.map((s) => {
             const pts = s.points.map((p) => ({ i: months.indexOf(p.month), v: p.value })).sort((a, b) => a.i - b.i);
             const d = pts.map((p, k) => `${k === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
@@ -132,7 +132,7 @@ export function LineChart({
                 )}
                 <path d={d} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
                 {pts.map((p) => (
-                  <circle key={p.i} cx={x(p.i)} cy={y(p.v)} r={hover === p.i ? 5 : 3.5} fill={hover === p.i ? s.color : "white"} stroke={s.color} strokeWidth={2} />
+                  <circle key={p.i} cx={x(p.i)} cy={y(p.v)} r={hover === p.i ? 5 : 3.5} fill={hover === p.i ? s.color : "var(--surface)"} stroke={s.color} strokeWidth={2} />
                 ))}
               </g>
             );
@@ -287,7 +287,7 @@ export function Donut({ segments, center, caption }: { segments: Segment[]; cent
   return (
     <div className="relative mx-auto h-44 w-44">
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="12" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--chart-track)" strokeWidth="12" />
         {arcs.map((s) => (
           <circle
             key={s.label}

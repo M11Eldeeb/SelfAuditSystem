@@ -6,8 +6,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { logout } from "@/app/actions/auth";
 import type { CurrentUser } from "@/lib/auth";
+import { NotificationBell } from "@/components/notification-bell";
+import { SettingsMenu } from "@/components/settings-menu";
 
 type NavLink = { href: string; label: string };
+type NavNotifications = {
+  count: number;
+  items: { id: string; title: string; detail: string; href: string; at: string }[];
+};
 
 // Longest matching href wins, so a parent index route (e.g. "/admin") does
 // not stay highlighted once you're on a more specific nested route (e.g.
@@ -18,15 +24,23 @@ function activeHrefFor(pathname: string, links: NavLink[]) {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 }
 
+// Officers manage branches and users (and their own password, from their row
+// there); everyone else has just their own password.
+function settingsLinksFor(user: CurrentUser): NavLink[] {
+  return user.role === "officer"
+    ? [{ href: "/admin/branches", label: "Branches & Users" }]
+    : [{ href: "/account/password", label: "Change password" }];
+}
+
 export function NavBar({
   user,
   links,
-  settingsHref,
+  notifications,
 }: {
   user: CurrentUser;
   links: NavLink[];
-  /** Optional Settings link shown next to Sign out (officers: Branches & Users). */
-  settingsHref?: string;
+  /** Initial bell state from the server; omit for roles that have no notifications. */
+  notifications?: NavNotifications;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -55,11 +69,10 @@ export function NavBar({
 
   const activeHref = activeHrefFor(pathname, links);
   const activeLabel = links.find((l) => l.href === activeHref)?.label;
-  const onSettings = !!settingsHref && (pathname === settingsHref || pathname.startsWith(`${settingsHref}/`));
   const displayName = user.full_name?.trim() || user.email;
 
   return (
-    <header className="sticky top-0 z-20 print:hidden border-b border-black/40 bg-linear-to-b from-brand-ink-soft to-brand-ink shadow-lg shadow-black/10">
+    <header className="chrome-dark sticky top-0 z-20 print:hidden border-b border-black/40 bg-linear-to-b from-brand-ink-soft to-brand-ink shadow-lg shadow-black/10">
       <div className="h-[3px] bg-linear-to-r from-brand via-brand-light to-brand" />
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -77,8 +90,8 @@ export function NavBar({
           </button>
           <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
             <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-8 w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
-            <span className="hidden text-sm font-semibold tracking-wide text-white uppercase xl:inline">
-              MG Warranty Management
+            <span className="hidden text-sm font-semibold tracking-wide text-white uppercase lg:inline">
+              Warranty Management Portal
             </span>
           </span>
           {activeLabel && (
@@ -88,41 +101,18 @@ export function NavBar({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="hidden max-w-[9rem] truncate text-sm whitespace-nowrap text-neutral-400 sm:inline" title={user.email}>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <span className="mr-1 hidden max-w-[9rem] truncate text-sm whitespace-nowrap text-neutral-400 md:inline" title={user.email}>
             {displayName}
           </span>
-          {/* Officers can change their own password from their row in Settings
-              (Branches & Users) instead - branch admins have no other route
-              to it, so they keep this link. */}
-          {user.role !== "officer" && (
-            <Link
-              href="/account/password"
-              className="text-sm font-medium whitespace-nowrap text-neutral-300 transition hover:text-white"
-            >
-              Change password
-            </Link>
+          {notifications && (
+            <NotificationBell
+              initial={notifications}
+              viewAllHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
+              viewAllLabel={user.role === "officer" ? "View all feedback" : "Open feedback"}
+            />
           )}
-          {settingsHref && (
-            <Link
-              href={settingsHref}
-              aria-current={onSettings ? "page" : undefined}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium whitespace-nowrap transition ${
-                onSettings ? "bg-white/10 text-white ring-1 ring-white/10" : "text-neutral-300 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <circle cx="10" cy="10" r="2.75" stroke="currentColor" strokeWidth="1.5" />
-                <path
-                  d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              Settings
-            </Link>
-          )}
+          <SettingsMenu links={settingsLinksFor(user)} />
           <form action={logout}>
             <button
               type="submit"

@@ -370,6 +370,70 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_feedback: {
+        Row: {
+          id: string;
+          sender_id: string;
+          branch_id: string | null;
+          subject: string;
+          body: string;
+          created_at: string;
+          officer_seen_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          branch_id?: string | null;
+          subject: string;
+          body: string;
+          created_at?: string;
+          officer_seen_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_feedback"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_feedback_attachments: {
+        Row: {
+          id: string;
+          feedback_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          feedback_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_feedback_attachments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_feedback_replies: {
+        Row: {
+          id: string;
+          feedback_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+          sender_seen_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          feedback_id: string;
+          author_id?: string | null;
+          body: string;
+          created_at?: string;
+          sender_seen_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_feedback_replies"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_part_returns: {
         Row: {
           id: string;
@@ -989,6 +1053,18 @@ export interface Database {
           repair_end_date: string | null;
           submitted_at: string | null;
         }[];
+      };
+      submit_feedback: {
+        Args: { p_id: string; p_subject: string; p_body: string; p_attachments?: unknown };
+        Returns: string;
+      };
+      mark_feedback_seen_by_officer: {
+        Args: { p_feedback_id: string };
+        Returns: undefined;
+      };
+      mark_feedback_replies_seen: {
+        Args: { p_feedback_id: string };
+        Returns: undefined;
       };
       approve_destroy_evidence: {
         Args: {
