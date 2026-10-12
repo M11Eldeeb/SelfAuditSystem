@@ -39,21 +39,22 @@ export function computeCurrentCycleStandings(
 
 /**
  * Standings: each branch's average across every finalized self-audit cycle
- * on file, plus every finalized internal audit for that branch (each one
- * counted the same as a self-audit cycle's score, not just a recent
- * window) - the podium stays self-audit-only (computeCurrentCycleStandings),
- * this is the one place internal audit results feed in.
+ * on file, plus every other score for that branch passed in extraScores -
+ * finalized internal audits, historical (pre-website) internal audits and
+ * historical self audits. Each counts the same as one self-audit cycle's
+ * score, over all time, not just a recent window. The podium stays this
+ * cycle's self-audit only (computeCurrentCycleStandings).
  */
 export function computeOverallStandings(
   results: Result[],
   branches: { id: string; name: string }[],
-  internalAuditResults: ScoredRow[] = []
+  extraScores: ScoredRow[] = []
 ): StandingsEntry[] {
   const entries: StandingsEntry[] = [];
   for (const branch of branches) {
     const branchScores = [
       ...results.filter((r) => r.branch_id === branch.id).map((r) => r.score_pct),
-      ...internalAuditResults.filter((r) => r.branch_id === branch.id).map((r) => r.score_pct),
+      ...extraScores.filter((r) => r.branch_id === branch.id).map((r) => r.score_pct),
     ];
     if (branchScores.length === 0) continue;
     const avg = branchScores.reduce((sum, s) => sum + s, 0) / branchScores.length;

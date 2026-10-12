@@ -42,6 +42,7 @@ export default async function AuditDashboardPage() {
     { data: allResults },
     { data: allInternalAudits },
     { data: allHistoricalInternalAudits },
+    { data: allHistoricalSelfAudits },
   ] = await Promise.all([
     supabase.from("self_audit_audit_assignments").select("*").eq("branch_id", user.branch_id!).in("cycle_id", cycleIds),
     supabase
@@ -58,12 +59,14 @@ export default async function AuditDashboardPage() {
     supabase.from("self_audit_audit_results").select("*"),
     supabase.rpc("get_finalized_internal_audit_scores"),
     supabase.rpc("get_historical_internal_audit_scores"),
+    supabase.rpc("get_historical_self_audit_scores"),
   ]);
 
   const podiumStandings = computeCurrentCycleStandings(allResults ?? [], allBranches ?? [], currentCycleId);
   const overallStandings = computeOverallStandings(allResults ?? [], allBranches ?? [], [
     ...(allInternalAudits ?? []),
     ...(allHistoricalInternalAudits ?? []),
+    ...(allHistoricalSelfAudits ?? []),
   ]);
 
   const claimIds = (assignments ?? []).map((a) => a.claim_id);
@@ -97,7 +100,7 @@ export default async function AuditDashboardPage() {
         <div className="space-y-2">
           <h2 className="text-base font-semibold text-neutral-900">Branch Standings</h2>
           <p className="text-xs text-neutral-500">
-            Every branch&apos;s average across all finalized self-audit cycles and internal audits.
+            Every branch&apos;s average across all finalized self-audit cycles and internal audits, including historical results.
           </p>
           <StandingsList entries={overallStandings} hideScores />
         </div>

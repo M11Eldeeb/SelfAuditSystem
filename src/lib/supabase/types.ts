@@ -1140,6 +1140,13 @@ export interface Database {
           currency: string | null;
         }[];
       };
+      get_historical_self_audit_scores: {
+        Args: Record<string, never>;
+        Returns: {
+          branch_id: string;
+          score_pct: number;
+        }[];
+      };
       get_historical_internal_audit_scores: {
         Args: Record<string, never>;
         Returns: {
