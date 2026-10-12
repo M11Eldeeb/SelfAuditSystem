@@ -1,26 +1,27 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { destroyEvidenceState, getFlaggedClaimCountsByCycleBranch } from "@/lib/warranty-room/destroy-evidence-status";
 
 export default async function DestroyEvidenceCyclesPage() {
   await requireRole("officer");
   const supabase = await createClient();
 
-  const [{ data: cycles }, { data: evidence }] = await Promise.all([
+  const [{ data: cycles }, { data: evidence }, flaggedByCycle] = await Promise.all([
     supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }),
-    supabase.from("self_audit_destroy_evidence").select("cycle_id, status"),
+    supabase.from("self_audit_destroy_evidence").select("cycle_id, branch_id, status"),
+    getFlaggedClaimCountsByCycleBranch(supabase),
   ]);
 
-  const submittedCountByCycle = new Map<string, number>();
-  const sentCountByCycle = new Map<string, number>();
-  (evidence ?? []).forEach((e) => {
-    if (e.status === "submitted") submittedCountByCycle.set(e.cycle_id, (submittedCountByCycle.get(e.cycle_id) ?? 0) + 1);
-    if (e.status === "sent") sentCountByCycle.set(e.cycle_id, (sentCountByCycle.get(e.cycle_id) ?? 0) + 1);
-  });
-
-  const cyclesWithEvidence = (cycles ?? []).filter(
-    (c) => (submittedCountByCycle.get(c.id) ?? 0) > 0 || (sentCountByCycle.get(c.id) ?? 0) > 0
-  );
+  const summaryByCycle = (cycles ?? [])
+    .map((c) => {
+      const statusByBranch = new Map((evidence ?? []).filter((e) => e.cycle_id === c.id).map((e) => [e.branch_id, e.status]));
+      const branchIds = new Set([...(flaggedByCycle.get(c.id)?.keys() ?? []), ...statusByBranch.keys()]);
+      const summary = { not_submitted: 0, awaiting_approval: 0, approved: 0 };
+      branchIds.forEach((id) => (summary[destroyEvidenceState(statusByBranch.get(id))] += 1));
+      return { cycle: c, branches: branchIds.size, summary };
+    })
+    .filter((s) => s.branches > 0);
 
   return (
     <div className="space-y-6">
@@ -30,19 +31,19 @@ export default async function DestroyEvidenceCyclesPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Destroy evidence</h1>
         <p className="text-sm text-neutral-600">
-          One bulk destruction-video submission per branch per warranty room cycle. Downloading a branch&apos;s videos
-          removes them from storage and marks that branch sent for the cycle.
+          One bulk destruction-video submission per branch per warranty room cycle. Open a cycle to see which branches
+          have not submitted, which are awaiting your approval, and which are approved.
         </p>
       </div>
 
-      {cyclesWithEvidence.length === 0 && (
+      {summaryByCycle.length === 0 && (
         <p className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm text-neutral-400">
-          Nothing submitted yet.
+          No branch has claims flagged yet.
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {cyclesWithEvidence.map((c) => (
+        {summaryByCycle.map(({ cycle: c, summary }) => (
           <Link
             key={c.id}
             href={`/admin/warranty-room/destroy-evidence/${c.id}`}
@@ -50,7 +51,7 @@ export default async function DestroyEvidenceCyclesPage() {
           >
             <p className="text-sm font-semibold text-neutral-900">{c.cycle_month.slice(0, 7)}</p>
             <p className="text-xs text-neutral-500">
-              {submittedCountByCycle.get(c.id) ?? 0} awaiting collection, {sentCountByCycle.get(c.id) ?? 0} collected
+              {summary.not_submitted} not submitted, {summary.awaiting_approval} awaiting approval, {summary.approved} approved
             </p>
           </Link>
         ))}
