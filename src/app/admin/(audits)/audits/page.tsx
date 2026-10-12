@@ -108,15 +108,16 @@ export default async function AuditsPage({
       <AuditsHeader />
       <AuditFolders />
 
-      <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Overview</h2>
-        <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">Overview</h2>
+          <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
+        </div>
+        <AuditFilters
+          branches={(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
+          selected={[...selectedBranchIds]}
+        />
       </div>
-
-      <AuditFilters
-        branches={(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
-        selected={[...selectedBranchIds]}
-      />
 
       {(podiumStandings.length > 0 || overallStandings.length > 0) ? (
         <section className="space-y-6">

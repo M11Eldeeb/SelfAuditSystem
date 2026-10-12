@@ -33,7 +33,7 @@ const chipIdle = "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-
 const chipActive = "border-brand/30 bg-brand/10 text-brand";
 
 const popoverBase =
-  "absolute left-0 z-30 mt-2 origin-top-left rounded-xl border border-neutral-200 bg-white p-3 text-neutral-900 shadow-xl shadow-black/15 transition duration-150 ease-out motion-reduce:transition-none";
+  "absolute right-0 z-30 mt-2 origin-top-right rounded-xl border border-neutral-200 bg-white p-3 text-neutral-900 shadow-xl shadow-black/15 transition duration-150 ease-out motion-reduce:transition-none";
 
 function Chevron({ open }: { open: boolean }) {
   return (
