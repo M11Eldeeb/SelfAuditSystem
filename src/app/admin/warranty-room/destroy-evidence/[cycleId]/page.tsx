@@ -6,6 +6,7 @@ import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { ApproveButton } from "../approve-button";
 import { ReturnButton } from "../return-button";
 import { DownloadAllButton } from "../download-all-button";
+import { DeleteVideosButton } from "../delete-videos-button";
 
 export default async function DestroyEvidenceCyclePage({ params }: { params: Promise<{ cycleId: string }> }) {
   await requireRole("officer");
@@ -46,8 +47,8 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{cycle.cycle_month.slice(0, 7)}</h1>
         <p className="text-sm text-neutral-600">
-          Download each branch&apos;s videos, then Approve (moves their flagged parts to the Already Scrapped List) or Return
-          (sends it back for changes).
+          Download each branch&apos;s videos as a zip, then Approve (moves their flagged parts to the Already Scrapped List) or
+          Return (sends it back for changes). Delete videos frees the storage once you have downloaded them.
         </p>
       </div>
 
@@ -71,17 +72,27 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
                       : `Submitted ${e.submitted_at ? new Date(e.submitted_at).toLocaleString() : ""}`}
                   </p>
                 </div>
-                {e.status === "submitted" && (
+                {(e.status === "submitted" || branchVideos.length > 0) && (
                   <div className="flex items-start gap-3">
-                    <ReturnButton cycleId={cycleId} branchId={e.branch_id} />
-                    <ApproveButton cycleId={cycleId} branchId={e.branch_id} />
+                    {e.status === "submitted" && <ReturnButton cycleId={cycleId} branchId={e.branch_id} />}
+                    {branchVideos.length > 0 && (
+                      <DeleteVideosButton cycleId={cycleId} branchId={e.branch_id} count={branchVideos.length} />
+                    )}
+                    {e.status === "submitted" && <ApproveButton cycleId={cycleId} branchId={e.branch_id} />}
                   </div>
                 )}
               </div>
 
               {branchVideos.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <DownloadAllButton urls={branchVideos.map((v) => v.url).filter((u): u is string => !!u)} />
+                  <DownloadAllButton
+                    zipName={`Destroy evidence - ${branchNameById.get(e.branch_id) ?? "branch"} - ${cycle.cycle_month.slice(0, 7)}.zip`}
+                    files={branchVideos.flatMap((v, i) =>
+                      v.url
+                        ? [{ url: v.url, name: `Video ${i + 1}.${v.path.split(".").pop() || "mp4"}` }]
+                        : []
+                    )}
+                  />
                   {branchVideos.map((v, i) =>
                     v.url ? (
                       <a
