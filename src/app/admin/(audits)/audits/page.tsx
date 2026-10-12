@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PodiumCongrats } from "@/components/podium-congrats";
 import { AuditFolders } from "@/components/audits/audit-folders";
+import { AuditFilters } from "./audit-filters";
 import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
 
@@ -135,74 +136,15 @@ export default async function AuditsPage({
         <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
       </div>
 
-      <form method="get" className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <label htmlFor="from" className="text-xs font-medium text-neutral-700">
-              From
-            </label>
-            <input
-              id="from"
-              name="from"
-              type="month"
-              defaultValue={params.from}
-              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="to" className="text-xs font-medium text-neutral-700">
-              To
-            </label>
-            <input
-              id="to"
-              name="to"
-              type="month"
-              defaultValue={params.to}
-              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="sort" className="text-xs font-medium text-neutral-700">
-              Sort cycles
-            </label>
-            <select
-              id="sort"
-              name="sort"
-              defaultValue={params.sort ?? "newest"}
-              className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
-          >
-            Apply filters
-          </button>
-          <Link href="/admin/audits" className="text-sm text-neutral-500 hover:text-neutral-800">
-            Reset
-          </Link>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-neutral-700">Branches (none selected = all)</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {(branches ?? []).map((b) => (
-              <label key={b.id} className="flex items-center gap-1.5 text-sm text-neutral-700">
-                <input
-                  type="checkbox"
-                  name="branch"
-                  value={b.id}
-                  defaultChecked={selectedBranchIds.has(b.id)}
-                  className="accent-brand"
-                />
-                {b.name}
-              </label>
-            ))}
-          </div>
-        </div>
-      </form>
+      <AuditFilters
+        branches={(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
+        values={{
+          branches: [...selectedBranchIds],
+          from: params.from ?? "",
+          to: params.to ?? "",
+          sort: sortAsc ? "oldest" : "newest",
+        }}
+      />
 
       {(podiumStandings.length > 0 || overallStandings.length > 0) ? (
         <section className="space-y-6">
