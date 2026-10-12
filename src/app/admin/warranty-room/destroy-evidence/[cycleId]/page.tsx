@@ -32,15 +32,18 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
     supabase.from("self_audit_destroy_evidence").select("branch_id, status, submitted_at, sent_at").eq("cycle_id", cycleId),
     getFlaggedClaimCountsByCycleBranch(supabase, cycleId),
     supabase.from("self_audit_destroy_evidence_videos").select("branch_id, video_path").eq("cycle_id", cycleId),
-    supabase.from("self_audit_branches").select("id, name"),
+    supabase.from("self_audit_branches").select("id, name").eq("active", true),
   ]);
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const evidenceByBranchId = new Map((evidence ?? []).map((e) => [e.branch_id, e]));
   const flaggedCountByBranchId = flaggedByCycle.get(cycleId) ?? new Map<string, number>();
 
-  // Every branch with claims flagged in this cycle, plus any with an
-  // evidence row - so a branch that hasn't submitted still shows up.
-  const branchIds = [...new Set([...flaggedCountByBranchId.keys(), ...evidenceByBranchId.keys()])];
+  // Every active branch with claims flagged in this cycle, plus any with an
+  // evidence row - so a branch that hasn't submitted still shows up. Closed
+  // (inactive) branches are left out: branchNameById only holds active ones.
+  const branchIds = [...new Set([...flaggedCountByBranchId.keys(), ...evidenceByBranchId.keys()])].filter((id) =>
+    branchNameById.has(id)
+  );
   const rows = branchIds
     .map((branchId) => {
       const e = evidenceByBranchId.get(branchId);

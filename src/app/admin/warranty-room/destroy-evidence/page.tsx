@@ -7,16 +7,21 @@ export default async function DestroyEvidenceCyclesPage() {
   await requireRole("officer");
   const supabase = await createClient();
 
-  const [{ data: cycles }, { data: evidence }, flaggedByCycle] = await Promise.all([
+  const [{ data: cycles }, { data: evidence }, flaggedByCycle, { data: activeBranches }] = await Promise.all([
     supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }),
     supabase.from("self_audit_destroy_evidence").select("cycle_id, branch_id, status"),
     getFlaggedClaimCountsByCycleBranch(supabase),
+    supabase.from("self_audit_branches").select("id").eq("active", true),
   ]);
+  // Closed (inactive) branches are left out of every count.
+  const activeBranchIds = new Set((activeBranches ?? []).map((b) => b.id));
 
   const summaryByCycle = (cycles ?? [])
     .map((c) => {
       const statusByBranch = new Map((evidence ?? []).filter((e) => e.cycle_id === c.id).map((e) => [e.branch_id, e.status]));
-      const branchIds = new Set([...(flaggedByCycle.get(c.id)?.keys() ?? []), ...statusByBranch.keys()]);
+      const branchIds = new Set(
+        [...(flaggedByCycle.get(c.id)?.keys() ?? []), ...statusByBranch.keys()].filter((id) => activeBranchIds.has(id))
+      );
       const summary = { not_submitted: 0, awaiting_approval: 0, approved: 0 };
       branchIds.forEach((id) => (summary[destroyEvidenceState(statusByBranch.get(id))] += 1));
       return { cycle: c, branches: branchIds.size, summary };
