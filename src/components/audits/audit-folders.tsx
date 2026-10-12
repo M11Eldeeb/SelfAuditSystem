@@ -100,7 +100,7 @@ function Folder({
   resultsCount: number;
 }) {
   return (
-    <div className="group relative flex flex-col gap-4 rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-sm transition hover:border-brand/40 hover:shadow-md">
+    <div className="group relative flex flex-col gap-4 rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md has-[a:focus-visible]:border-brand/40">
       <div className="flex items-start gap-3.5">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/15">{icon}</span>
         <div className="min-w-0">
@@ -129,15 +129,16 @@ function Folder({
       </ul>
 
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-4">
+        {/* The ::after stretches this link over the whole card, so a click anywhere opens the folder. */}
         <Link
           href={openHref}
-          className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark hover:shadow-md"
+          className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition after:absolute after:inset-0 after:rounded-2xl hover:bg-brand-dark hover:shadow-md"
         >
           {openLabel}
         </Link>
         <Link
           href={resultsHref}
-          className="rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+          className="relative z-10 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
         >
           Results <span className="ml-1 text-neutral-500">({resultsCount})</span>
         </Link>

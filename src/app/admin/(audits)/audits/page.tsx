@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PodiumCongrats } from "@/components/podium-congrats";
 import { AuditFolders } from "@/components/audits/audit-folders";
-import { AuditFilters } from "./audit-filters";
 import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
 
@@ -19,12 +18,7 @@ const PODIUM_EMAIL_CC = [
   "rami.kamli@jiadmotors.com",
 ];
 
-export default async function AuditsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ branch?: string | string[] }>;
-}) {
-  const params = await searchParams;
+export default async function AuditsPage() {
   const supabase = await createClient();
 
   const [
@@ -63,26 +57,13 @@ export default async function AuditsPage({
     );
   }
 
+  const allBranches = branches ?? [];
   const safeResults = results ?? [];
 
-  const selectedBranchIds = new Set(
-    params.branch ? (Array.isArray(params.branch) ? params.branch : [params.branch]) : []
-  );
-  const filteredBranches = (branches ?? []).filter(
-    (b) => selectedBranchIds.size === 0 || selectedBranchIds.has(b.id)
-  );
-  const filteredBranchIds = new Set(filteredBranches.map((b) => b.id));
-
-  // The branch selection narrows the podium and the standings. The podium is
-  // always the current cycle only; the standings are always all-time.
-  const branchScopedResults = safeResults.filter((r) => filteredBranchIds.has(r.branch_id));
-  // Everything besides this system's own finalized self-audit cycles that counts toward
-  // the standings: internal audits (live and historical) and historical self audits.
-  const branchScopedExtraScores = [
-    ...(internalAudits ?? []),
-    ...(historicalInternalAudits ?? []),
-    ...(historicalSelfAudits ?? []),
-  ].filter((a) => filteredBranchIds.has(a.branch_id));
+  // The podium is always the current cycle only; the standings are always all-time.
+  // Besides this system's own finalized self-audit cycles, the standings count
+  // internal audits (live and historical) and historical self audits.
+  const extraScores = [...(internalAudits ?? []), ...(historicalInternalAudits ?? []), ...(historicalSelfAudits ?? [])];
   // Cycles are never auto-closed, so an older cycle can still be open next to
   // the new one - the podium must follow the newest open cycle, not whichever
   // row the query happened to return first.
@@ -90,10 +71,10 @@ export default async function AuditsPage({
     (cycles ?? [])
       .filter((c) => c.status === "open")
       .sort((a, b) => b.cycle_month.localeCompare(a.cycle_month))[0] ?? null;
-  const podiumStandings = computeCurrentCycleStandings(branchScopedResults, filteredBranches, openCycle?.id ?? null);
+  const podiumStandings = computeCurrentCycleStandings(safeResults, allBranches, openCycle?.id ?? null);
   // Closed (inactive) branches keep their history but are not ranked.
-  const rankedBranches = filteredBranches.filter((b) => b.active);
-  const overallStandings = computeOverallStandings(branchScopedResults, rankedBranches, branchScopedExtraScores);
+  const rankedBranches = allBranches.filter((b) => b.active);
+  const overallStandings = computeOverallStandings(safeResults, rankedBranches, extraScores);
   const cycleLabel = openCycle
     ? new Date(`${openCycle.cycle_month}T00:00:00Z`).toLocaleDateString("en-US", {
         month: "long",
@@ -108,15 +89,9 @@ export default async function AuditsPage({
       <AuditsHeader />
       <AuditFolders />
 
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Overview</h2>
-          <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
-        </div>
-        <AuditFilters
-          branches={(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
-          selected={[...selectedBranchIds]}
-        />
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900">Overview</h2>
+        <p className="text-sm text-neutral-600">Branch performance across finalized audit cycles.</p>
       </div>
 
       {(podiumStandings.length > 0 || overallStandings.length > 0) ? (
@@ -145,7 +120,7 @@ export default async function AuditsPage({
           </div>
         </section>
       ) : (
-        <p className="text-sm text-neutral-500">No finalized results match this selection.</p>
+        <p className="text-sm text-neutral-500">No finalized results yet.</p>
       )}
     </div>
   );
