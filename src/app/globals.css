@@ -553,3 +553,37 @@ html.is-scrolling * {
     animation: none;
   }
 }
+
+/* Bell icon: swings like a ringing bell when clicked (pivots at the top). */
+@keyframes bell-ring {
+  0% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(18deg);
+  }
+  30% {
+    transform: rotate(-15deg);
+  }
+  45% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-7deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+.bell-ring {
+  transform-origin: 50% 12%;
+  animation: bell-ring 700ms ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bell-ring {
+    animation: none;
+  }
+}

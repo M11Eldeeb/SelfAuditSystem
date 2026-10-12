@@ -31,11 +31,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return profile ?? null;
 });
 
-/** Each role's landing page. */
+/** Each role's landing page: the dashboard (finance has a single page). */
 export function homePathFor(role: UserRole | null | undefined): string {
-  if (role === "officer") return "/admin";
+  if (role === "officer") return "/admin/dashboard";
   if (role === "finance") return "/finance";
-  return "/audit";
+  return "/audit/dashboard";
 }
 
 /** Redirects to /login if not signed in, or to the user's own home if the role doesn't match. */

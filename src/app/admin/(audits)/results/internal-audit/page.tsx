@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { scoreBadgeClasses } from "@/lib/score-color";
-import { DeleteInternalAuditButton } from "@/app/admin/internal-audit/delete-internal-audit-button";
+import { DeleteInternalAuditButton } from "@/app/admin/(audits)/internal-audit/delete-internal-audit-button";
 import { HistoricalInternalAuditForm } from "./historical-audit-form";
 
 export default async function InternalAuditResultsPage() {
@@ -29,8 +29,8 @@ export default async function InternalAuditResultsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/results" className="text-sm text-neutral-500 hover:text-neutral-800">
-          &larr; Back to results
+        <Link href="/admin/audits" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Audits
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Internal Audits</h1>
         <p className="text-sm text-neutral-600">Pick a branch to see its finalized internal audit results.</p>

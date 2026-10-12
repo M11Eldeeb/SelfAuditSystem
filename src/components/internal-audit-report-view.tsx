@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { computeInternalAuditScores } from "@/lib/internal-audit-scoring";
 import { DEPARTMENT_LABELS } from "@/lib/departments";
 import { scoreBadgeClasses } from "@/lib/score-color";
-import { ReportActions } from "@/app/admin/internal-audit/[id]/report/download-report-button";
+import { ReportActions } from "@/app/admin/(audits)/internal-audit/[id]/report/download-report-button";
 import type { DepartmentId } from "@/lib/supabase/types";
 
 /**

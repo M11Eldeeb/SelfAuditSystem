@@ -69,6 +69,8 @@ export function NotificationBell({
   const pathname = usePathname();
   const [data, setData] = useState<Notifications>(initial);
   const [open, setOpen] = useState(false);
+  // Bumped on each click; used as the icon's key so the swing replays every time.
+  const [rings, setRings] = useState(0);
   const [lastPathname, setLastPathname] = useState(pathname);
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFetch = useRef(0);
@@ -186,7 +188,10 @@ export function NotificationBell({
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setRings((n) => n + 1);
+          setOpen((o) => !o);
+        }}
         aria-label={data.count > 0 ? `Notifications, ${data.count} unread` : "Notifications"}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -194,7 +199,7 @@ export function NotificationBell({
           open ? "bg-white/10 text-white" : "text-neutral-300 hover:bg-white/10 hover:text-white"
         }`}
       >
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg key={rings} width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className={rings > 0 ? "bell-ring" : undefined}>
           <path
             d="M6 9.5a6 6 0 1112 0c0 3.6.9 5.2 1.8 6.2.3.3.1.8-.4.8H4.6c-.5 0-.7-.5-.4-.8C5.1 14.7 6 13.1 6 9.5z"
             stroke="currentColor"

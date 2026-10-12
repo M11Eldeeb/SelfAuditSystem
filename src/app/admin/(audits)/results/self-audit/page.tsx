@@ -19,8 +19,8 @@ export default async function SelfAuditResultsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/results" className="text-sm text-neutral-500 hover:text-neutral-800">
-          &larr; Back to results
+        <Link href="/admin/audits" className="text-sm text-neutral-500 hover:text-neutral-800">
+          &larr; Back to Audits
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Self Audits</h1>
         <p className="text-sm text-neutral-600">

@@ -9,7 +9,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
 
-type NavLink = { href: string; label: string };
+type NavLink = { href: string; label: string; /** Other path prefixes that also belong to this tab. */ match?: string[] };
 type NavNotifications = {
   count: number;
   items: {
@@ -28,9 +28,12 @@ type NavNotifications = {
 // not stay highlighted once you're on a more specific nested route (e.g.
 // "/admin/cycles") that also starts with "/admin".
 function activeHrefFor(pathname: string, links: NavLink[]) {
-  return links
-    .filter((link) => pathname === link.href || pathname.startsWith(`${link.href}/`))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const matches = links.flatMap((link) =>
+    [link.href, ...(link.match ?? [])]
+      .filter((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+      .map((prefix) => ({ href: link.href, length: prefix.length }))
+  );
+  return matches.sort((a, b) => b.length - a.length)[0]?.href;
 }
 
 // Officers manage branches and users (and their own password, from their row
@@ -81,62 +84,67 @@ export function NavBar({
   const displayName = user.full_name?.trim() || user.email;
 
   return (
-    <header className="chrome-dark sticky top-0 z-20 print:hidden border-b border-black/40 bg-linear-to-b from-brand-ink-soft to-brand-ink shadow-lg shadow-black/10">
-      <div className="h-[3px] bg-linear-to-r from-brand via-brand-light to-brand" />
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={open}
-            aria-controls="app-drawer"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-            </svg>
-          </button>
-          <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
-            <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-8 w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
-            <span className="hidden text-sm font-semibold tracking-wide text-white uppercase lg:inline">
-              Warranty Management Portal
-            </span>
-          </span>
-          {activeLabel && (
-            <span className="hidden min-w-0 items-center gap-3 truncate text-sm font-medium text-neutral-300 sm:flex">
-              <span className="h-4 w-px bg-white/15" aria-hidden="true" />
-              {activeLabel}
-            </span>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <span className="mr-1 hidden max-w-[9rem] truncate text-sm whitespace-nowrap text-neutral-400 md:inline" title={user.email}>
-            {displayName}
-          </span>
-          {notifications && (
-            <NotificationBell
-              initial={notifications}
-              feedbackHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
-              feedbackLabel={user.role === "officer" ? "All feedback" : "My feedback"}
-              tasksHref={user.role === "officer" ? "/admin/dashboard?tab=tasks" : "/audit/dashboard?tab=tasks"}
-            />
-          )}
-          <SettingsMenu links={settingsLinksFor(user)} />
-          <form action={logout}>
+    <>
+      <header className="chrome-dark sticky top-0 z-20 print:hidden border-b border-white/10 bg-linear-to-b from-brand-ink-soft/92 to-brand-ink/90 shadow-lg shadow-black/10 backdrop-blur-md backdrop-saturate-150">
+        <div className="h-[3px] bg-linear-to-r from-brand via-brand-light to-brand" />
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              type="submit"
-              className="rounded-md px-2.5 py-1 text-sm font-medium whitespace-nowrap text-neutral-300 transition hover:bg-white/5 hover:text-white"
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={open}
+              aria-controls="app-drawer"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
-              Sign out
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+              </svg>
             </button>
-          </form>
+            <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
+              <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-8 w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
+              <span className="hidden text-sm font-semibold tracking-wide text-white uppercase lg:inline">
+                Warranty Management Portal
+              </span>
+            </span>
+            {activeLabel && (
+              <span className="hidden min-w-0 items-center gap-3 truncate text-sm font-medium text-neutral-300 sm:flex">
+                <span className="h-4 w-px bg-white/15" aria-hidden="true" />
+                {activeLabel}
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <span className="mr-1 hidden max-w-[9rem] truncate text-sm whitespace-nowrap text-neutral-400 md:inline" title={user.email}>
+              {displayName}
+            </span>
+            {notifications && (
+              <NotificationBell
+                initial={notifications}
+                feedbackHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
+                feedbackLabel={user.role === "officer" ? "All feedback" : "My feedback"}
+                tasksHref={user.role === "officer" ? "/admin/dashboard?tab=tasks" : "/audit/dashboard?tab=tasks"}
+              />
+            )}
+            <SettingsMenu links={settingsLinksFor(user)} />
+            <form action={logout}>
+              <button
+                type="submit"
+                className="rounded-md px-2.5 py-1 text-sm font-medium whitespace-nowrap text-neutral-300 transition hover:bg-white/5 hover:text-white"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
-      </div>
+
+      </header>
 
       {/* Drawer: always mounted so it can animate both in and out; inert while
-          closed keeps it out of tab order and from assistive tech. */}
-      <div className={`fixed inset-0 z-40 ${open ? "" : "pointer-events-none"}`} inert={!open}>
+          closed keeps it out of tab order and from assistive tech. It sits outside
+          <header> on purpose: the header's backdrop-filter would otherwise become
+          the containing block of this fixed overlay and shrink it to the bar. */}
+      <div className={`chrome-dark fixed inset-0 z-40 print:hidden ${open ? "" : "pointer-events-none"}`} inert={!open}>
         <button
           type="button"
           tabIndex={-1}
@@ -204,6 +212,6 @@ export function NavBar({
           </div>
         </aside>
       </div>
-    </header>
+    </>
   );
 }

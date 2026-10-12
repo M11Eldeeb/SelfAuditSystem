@@ -4,8 +4,8 @@ import { NavBar } from "@/components/nav-bar";
 import { getNotifications } from "@/lib/notifications";
 
 const BRANCH_ADMIN_LINKS = [
-  { href: "/audit", label: "My Audits" },
   { href: "/audit/dashboard", label: "Dashboard" },
+  { href: "/audit", label: "My Audits" },
   { href: "/audit/results", label: "Results" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
   { href: "/audit/part-returns", label: "Part Return" },

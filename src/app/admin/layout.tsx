@@ -4,13 +4,15 @@ import { NavBar } from "@/components/nav-bar";
 import { getNotifications } from "@/lib/notifications";
 
 const ADMIN_LINKS = [
-  { href: "/admin", label: "Overview" },
   { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/cycles", label: "Self Audit" },
-  { href: "/admin/internal-audit", label: "Internal Audit" },
+  {
+    // Overview, Self Audit, Internal Audit and their results are one tab.
+    href: "/admin/audits",
+    label: "Audits",
+    match: ["/admin/cycles", "/admin/internal-audit", "/admin/results", "/admin/review"],
+  },
   { href: "/admin/warranty-room", label: "Warranty Room" },
   { href: "/admin/part-returns", label: "Part Return" },
-  { href: "/admin/results", label: "Results" },
   { href: "/admin/feedbacks", label: "Feedbacks" },
 ];
 

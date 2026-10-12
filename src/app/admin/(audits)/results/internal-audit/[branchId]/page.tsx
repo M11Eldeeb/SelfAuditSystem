@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { scoreBadgeClasses } from "@/lib/score-color";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
-import { DeleteInternalAuditButton } from "@/app/admin/internal-audit/delete-internal-audit-button";
+import { DeleteInternalAuditButton } from "@/app/admin/(audits)/internal-audit/delete-internal-audit-button";
 import { DeleteHistoricalButton } from "./delete-historical-button";
 
 export default async function BranchInternalAuditResultsPage({
