@@ -11,7 +11,6 @@ const ADMIN_LINKS = [
   { href: "/admin/warranty-room", label: "Warranty Room" },
   { href: "/admin/part-returns", label: "Part Return" },
   { href: "/admin/results", label: "Results" },
-  { href: "/admin/branches", label: "Branches & Users" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -19,7 +18,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={ADMIN_LINKS} />
+      <NavBar user={user} links={ADMIN_LINKS} settingsHref="/admin/branches" />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       <Suspense fallback={null}>
         <TaskNotifierServer user={user} />
