@@ -12,7 +12,16 @@ import { SettingsMenu } from "@/components/settings-menu";
 type NavLink = { href: string; label: string };
 type NavNotifications = {
   count: number;
-  items: { id: string; title: string; detail: string; href: string; at: string }[];
+  items: {
+    id: string;
+    kind: "feedback" | "reply" | "task";
+    title: string;
+    detail: string;
+    href: string;
+    at: string;
+    ageDays?: number;
+    urgent?: boolean;
+  }[];
 };
 
 // Longest matching href wins, so a parent index route (e.g. "/admin") does
@@ -108,8 +117,9 @@ export function NavBar({
           {notifications && (
             <NotificationBell
               initial={notifications}
-              viewAllHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
-              viewAllLabel={user.role === "officer" ? "View all feedback" : "Open feedback"}
+              feedbackHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
+              feedbackLabel={user.role === "officer" ? "All feedback" : "My feedback"}
+              tasksHref={user.role === "officer" ? "/admin/dashboard?tab=tasks" : "/audit/dashboard?tab=tasks"}
             />
           )}
           <SettingsMenu links={settingsLinksFor(user)} />

@@ -1054,6 +1054,10 @@ export interface Database {
           submitted_at: string | null;
         }[];
       };
+      get_orphan_feedback_files: {
+        Args: { p_older_than?: string };
+        Returns: string[];
+      };
       submit_feedback: {
         Args: { p_id: string; p_subject: string; p_body: string; p_attachments?: unknown };
         Returns: string;

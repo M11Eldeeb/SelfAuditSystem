@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  return NextResponse.json(await getNotifications(user), { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(await getNotifications(user, { includeTasks: true }), { headers: { "Cache-Control": "no-store" } });
 }

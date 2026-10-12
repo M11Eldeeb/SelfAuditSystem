@@ -1,32 +1,81 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { CurrentUser } from "@/lib/auth";
+import { getTasks } from "@/lib/tasks";
 
 export type NotificationItem = {
   id: string;
+  kind: "feedback" | "reply" | "task";
   title: string;
   detail: string;
   href: string;
   at: string;
+  /** Tasks only: days pending. */
+  ageDays?: number;
+  /** Tasks only: an officer's follow-up reminder is due. */
+  urgent?: boolean;
 };
 
 export type Notifications = { count: number; items: NotificationItem[] };
 
 const EMPTY: Notifications = { count: 0, items: [] };
-const MAX_ITEMS = 8;
+const MAX_FEEDBACK_ITEMS = 8;
+const MAX_TASK_ITEMS = 15;
 
 /**
- * What the bell shows. Officers: feedback nobody on the team has opened yet.
- * Branch admins: replies to their own feedback they have not opened yet.
- * RLS already scopes both queries to what the signed-in user may see.
+ * What the bell shows.
+ *  - Feedback: officers see messages nobody has opened yet; branch admins see
+ *    unread replies to their own feedback.
+ *  - Tasks (includeTasks): the pending tasks the old floating "Tasks" pill
+ *    listed - a branch admin's own, and for officers their own plus branch
+ *    tasks that need a reminder today.
+ * Tasks cost many queries, so the layouts render without them and the bell
+ * fetches the full set from /api/notifications right after load - a slow task
+ * lookup can never hold up (or break) a page.
+ * RLS scopes every query to what the signed-in user may see.
  */
-export async function getNotifications(user: CurrentUser): Promise<Notifications> {
-  if (user.role === "officer") return getOfficerNotifications();
-  if (user.role === "branch_admin") return getBranchAdminNotifications();
-  return EMPTY;
+export async function getNotifications(
+  user: CurrentUser,
+  { includeTasks = false }: { includeTasks?: boolean } = {}
+): Promise<Notifications> {
+  if (user.role !== "officer" && user.role !== "branch_admin") return EMPTY;
+
+  const [feedback, tasks] = await Promise.all([
+    user.role === "officer" ? getOfficerFeedback() : getBranchAdminReplies(),
+    includeTasks ? getTaskItems(user) : Promise.resolve(EMPTY),
+  ]);
+
+  return { count: feedback.count + tasks.count, items: [...feedback.items, ...tasks.items] };
 }
 
-async function getOfficerNotifications(): Promise<Notifications> {
+async function getTaskItems(user: CurrentUser): Promise<Notifications> {
+  try {
+    const supabase = await createClient();
+    const { tasks } = await getTasks(supabase, user);
+    const isOfficer = user.role === "officer";
+    const relevant = (isOfficer ? tasks.filter((t) => t.owner === "officer" || t.reminder?.due) : tasks).sort(
+      (a, b) => b.ageDays - a.ageDays
+    );
+    return {
+      count: relevant.length,
+      items: relevant.slice(0, MAX_TASK_ITEMS).map((t) => ({
+        id: `task:${t.key}`,
+        kind: "task" as const,
+        title: t.title,
+        detail: `${t.branchName && isOfficer ? `${t.branchName} · ` : ""}${t.detail}`,
+        href: t.href,
+        at: t.startedAt,
+        ageDays: t.ageDays,
+        urgent: !!t.reminder?.due,
+      })),
+    };
+  } catch {
+    // A slow or failed task lookup must never break the bell.
+    return EMPTY;
+  }
+}
+
+async function getOfficerFeedback(): Promise<Notifications> {
   const supabase = await createClient();
   const [{ count }, { data: rows }] = await Promise.all([
     supabase.from("self_audit_feedback").select("id", { count: "exact", head: true }).is("officer_seen_at", null),
@@ -35,7 +84,7 @@ async function getOfficerNotifications(): Promise<Notifications> {
       .select("id, subject, sender_id, branch_id, created_at")
       .is("officer_seen_at", null)
       .order("created_at", { ascending: false })
-      .limit(MAX_ITEMS),
+      .limit(MAX_FEEDBACK_ITEMS),
   ]);
   if (!rows || rows.length === 0) return { count: count ?? 0, items: [] };
 
@@ -51,7 +100,8 @@ async function getOfficerNotifications(): Promise<Notifications> {
   return {
     count: count ?? rows.length,
     items: rows.map((r) => ({
-      id: r.id,
+      id: `feedback:${r.id}`,
+      kind: "feedback" as const,
       title: r.subject,
       detail: `${senderName.get(r.sender_id) ?? "Branch admin"}${r.branch_id ? ` · ${branchName.get(r.branch_id) ?? ""}` : ""}`,
       href: `/admin/feedbacks/${r.id}`,
@@ -60,7 +110,7 @@ async function getOfficerNotifications(): Promise<Notifications> {
   };
 }
 
-async function getBranchAdminNotifications(): Promise<Notifications> {
+async function getBranchAdminReplies(): Promise<Notifications> {
   const supabase = await createClient();
   const [{ count }, { data: replies }] = await Promise.all([
     supabase.from("self_audit_feedback_replies").select("id", { count: "exact", head: true }).is("sender_seen_at", null),
@@ -69,7 +119,7 @@ async function getBranchAdminNotifications(): Promise<Notifications> {
       .select("id, feedback_id, created_at")
       .is("sender_seen_at", null)
       .order("created_at", { ascending: false })
-      .limit(MAX_ITEMS),
+      .limit(MAX_FEEDBACK_ITEMS),
   ]);
   if (!replies || replies.length === 0) return { count: count ?? 0, items: [] };
 
@@ -80,7 +130,8 @@ async function getBranchAdminNotifications(): Promise<Notifications> {
   return {
     count: count ?? replies.length,
     items: replies.map((r) => ({
-      id: r.id,
+      id: `reply:${r.id}`,
+      kind: "reply" as const,
       title: subjectById.get(r.feedback_id) ?? "Your feedback",
       detail: "The warranty team replied",
       href: `/audit/feedback/${r.feedback_id}`,

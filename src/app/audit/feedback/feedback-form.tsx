@@ -33,6 +33,21 @@ export function FeedbackForm({ userId, senderLabel }: { userId: string; senderLa
   const [sending, setSending] = useState(false);
   const [thanks, setThanks] = useState(false);
 
+  // Files already uploaded but not sent (a failed send is retried with them).
+  // Leaving the page without sending takes them back out of storage; a closed
+  // tab can't, so a daily job also deletes unreferenced files after 24 hours.
+  const filesRef = useRef<Picked[]>([]);
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+  useEffect(
+    () => () => {
+      const paths = filesRef.current.flatMap((f) => (f.path ? [f.path] : []));
+      if (paths.length > 0) void createClient().storage.from(FEEDBACK_BUCKET).remove(paths);
+    },
+    []
+  );
+
   function addFiles(list: FileList | null) {
     if (!list) return;
     setError(null);
