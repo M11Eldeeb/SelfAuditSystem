@@ -9,7 +9,14 @@ import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
 
-type NavLink = { href: string; label: string; /** Other path prefixes that also belong to this tab. */ match?: string[] };
+type NavLink = {
+  href: string;
+  label: string;
+  /** Other path prefixes that also belong to this tab. */
+  match?: string[];
+  /** Small tag after the label, e.g. "Soon" for a tab that is not open yet. */
+  badge?: string;
+};
 type NavNotifications = {
   count: number;
   items: {
@@ -199,6 +206,11 @@ export function NavBar({
                     >
                       {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand" />}
                       {link.label}
+                      {link.badge && (
+                        <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-neutral-300 uppercase ring-1 ring-white/10">
+                          {link.badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

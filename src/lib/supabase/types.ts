@@ -434,6 +434,92 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_feedback_replies"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_feature_flags: {
+        Row: { key: string; enabled: boolean; updated_at: string };
+        Insert: { key: string; enabled?: boolean; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_feature_flags"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_rejected_claims: {
+        Row: {
+          id: string;
+          branch_id: string;
+          work_order_no: string;
+          claim_no: string | null;
+          rejection_date: string;
+          reason: string;
+          created_by: string | null;
+          created_by_name: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          branch_id: string;
+          work_order_no: string;
+          claim_no?: string | null;
+          rejection_date: string;
+          reason: string;
+          created_by?: string | null;
+          created_by_name?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claims"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_rejected_claim_comments: {
+        Row: {
+          id: string;
+          entry_id: string;
+          author_id: string | null;
+          author_name: string | null;
+          author_role: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entry_id: string;
+          author_id?: string | null;
+          author_name?: string | null;
+          author_role?: string | null;
+          body: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claim_comments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_rejected_claim_attachments: {
+        Row: {
+          id: string;
+          entry_id: string;
+          comment_id: string | null;
+          storage: "supabase" | "drive";
+          storage_path: string | null;
+          drive_file_id: string | null;
+          drive_url: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entry_id: string;
+          comment_id?: string | null;
+          storage?: "supabase" | "drive";
+          storage_path?: string | null;
+          drive_file_id?: string | null;
+          drive_url?: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claim_attachments"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_part_returns: {
         Row: {
           id: string;
@@ -1053,6 +1139,30 @@ export interface Database {
           repair_end_date: string | null;
           submitted_at: string | null;
         }[];
+      };
+      feature_enabled: {
+        Args: { p_key: string };
+        Returns: boolean;
+      };
+      add_rejected_claim: {
+        Args: {
+          p_id: string;
+          p_branch_id: string;
+          p_work_order: string;
+          p_claim_no: string | null;
+          p_date: string;
+          p_reason: string;
+          p_attachments?: unknown;
+        };
+        Returns: string;
+      };
+      add_rejected_claim_comment: {
+        Args: { p_id: string; p_entry_id: string; p_body: string; p_attachments?: unknown };
+        Returns: string;
+      };
+      get_orphan_rejected_claim_files: {
+        Args: { p_older_than?: string };
+        Returns: string[];
       };
       get_orphan_feedback_files: {
         Args: { p_older_than?: string };
