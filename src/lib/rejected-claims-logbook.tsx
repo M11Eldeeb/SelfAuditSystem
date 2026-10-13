@@ -189,7 +189,6 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
   const dir = rtl ? "row-reverse" : "row";
   // An Arabic page is right-aligned throughout; the English page follows each paragraph's own script.
   const alignOf = (text: string): "left" | "right" => (rtl ? "right" : align(text));
-  const edge: "flex-start" | "flex-end" = rtl ? "flex-end" : "flex-start";
   const generatedAt = stamp(new Date().toISOString(), lang);
 
   const row = (label: string, value: string, sub?: string) =>
