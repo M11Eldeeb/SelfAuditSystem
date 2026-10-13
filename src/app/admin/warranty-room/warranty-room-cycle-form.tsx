@@ -4,24 +4,17 @@ import { useActionState } from "react";
 import { generateWarrantyRoomCycle } from "./cycle-actions";
 import { currentYearMonth } from "@/lib/month";
 
-export function WarrantyRoomCycleForm({ branchAdminEmails }: { branchAdminEmails: string[] }) {
+export function WarrantyRoomCycleForm() {
   const [state, formAction, pending] = useActionState(generateWarrantyRoomCycle, undefined);
-
-  function handleSendEmail() {
-    const appUrl = window.location.origin;
-    const subject = "Warranty Room - flagged parts ready for destroy evidence submission";
-    const body = `Hello,\n\nYour branch's flagged-to-scrap list is now live in the Warranty Room. Please submit destroy evidence for approval.\n\nSign in: ${appUrl}/audit/warranty-room\n\nWarranty Department`;
-    const mailto = `mailto:?bcc=${encodeURIComponent(branchAdminEmails.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-  }
 
   return (
     <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
       <div>
-        <h2 className="text-sm font-semibold text-neutral-900">Warranty room cycle</h2>
+        <h2 className="text-sm font-semibold text-neutral-900">2. Warranty room cycle</h2>
         <p className="text-xs text-neutral-500">
-          Starts this month&apos;s destroy-evidence submission window - independent of the self-audit cycle. No
-          deadline: unsubmitted parts just stay off the Already Scrapped List until submitted.
+          Starts this month&apos;s destroy-evidence submission window - independent of the self-audit cycle. Do this{" "}
+          <span className="font-medium text-neutral-700">before</span> generating the scrap list: newly flagged parts join the newest cycle.
+          No deadline: unsubmitted parts just stay off the Already Scrapped List until submitted.
         </p>
       </div>
       <form action={formAction} className="flex flex-wrap items-end gap-3">
@@ -45,20 +38,42 @@ export function WarrantyRoomCycleForm({ branchAdminEmails }: { branchAdminEmails
         >
           {pending ? "Generating..." : "Generate cycle"}
         </button>
-        <button
-          type="button"
-          onClick={handleSendEmail}
-          disabled={branchAdminEmails.length === 0}
-          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-        >
-          Send an email
-        </button>
       </form>
+      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
+    </div>
+  );
+}
+
+/** Step 4: opens an e-mail to every branch admin (bcc) saying the flagged list is live. Sent after the scrap list exists. */
+export function NotifyBranchesCard({ branchAdminEmails }: { branchAdminEmails: string[] }) {
+  function handleSendEmail() {
+    const appUrl = window.location.origin;
+    const subject = "Warranty Room - flagged parts ready for destroy evidence submission";
+    const body = `Hello,\n\nYour branch's flagged-to-scrap list is now live in the Warranty Room. Please submit destroy evidence for approval.\n\nSign in: ${appUrl}/audit/warranty-room\n\nWarranty Department`;
+    const mailto = `mailto:?bcc=${encodeURIComponent(branchAdminEmails.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-neutral-900">4. Notify the branches</h2>
+        <p className="text-xs text-neutral-500">
+          Once the cycle exists and the scrap list is generated, tell the branch admins their flagged list is live.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={handleSendEmail}
+        disabled={branchAdminEmails.length === 0}
+        className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+      >
+        Send an email
+      </button>
       {branchAdminEmails.length === 0 && (
         <p className="text-xs text-neutral-400">No branch admin accounts found to notify.</p>
       )}
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {state?.success && <p className="text-sm text-emerald-600">{state.success}</p>}
     </div>
   );
 }

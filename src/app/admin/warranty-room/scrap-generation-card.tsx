@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestScrapGeneration } from "./scrap-generation-actions";
+import { currentYearMonth } from "@/lib/month";
 
 type Generation = {
   batch_name: string | null;
@@ -23,9 +24,12 @@ const fmt = (iso: string | null) =>
 export function ScrapGenerationCard({
   last,
   latestBatchName,
+  cycleMonth,
 }: {
   last: Generation | null;
   latestBatchName: string | null;
+  /** The newest warranty room cycle's month ("2026-10"), which newly flagged parts will join. Null if no cycle exists. */
+  cycleMonth: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -41,7 +45,8 @@ export function ScrapGenerationCard({
 
   const generate = () => {
     if (!latestBatchName) return;
-    if (!window.confirm(`Generate the scrap list from "${latestBatchName}"? Claims past the 90-day hold will be flagged to scrap and branches will see them.`)) return;
+    const cycleNote = cycleMonth ? ` Newly flagged parts will join the ${cycleMonth} cycle.` : " There is no warranty room cycle yet.";
+    if (!window.confirm(`Generate the scrap list from "${latestBatchName}"? Claims past the 90-day hold will be flagged to scrap and branches will see them.${cycleNote}`)) return;
     setError(null);
     startTransition(async () => {
       const res = await requestScrapGeneration();
@@ -54,7 +59,7 @@ export function ScrapGenerationCard({
     <section className="space-y-3 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-neutral-900">Scrap list generation</h2>
+          <h2 className="font-semibold text-neutral-900">3. Scrap list generation</h2>
           <p className="text-sm text-neutral-600">
             Runs only when you press the button - uploading a claims batch doesn&apos;t change the scrap list by itself.
           </p>
@@ -90,6 +95,16 @@ export function ScrapGenerationCard({
           <div className="font-medium text-neutral-900">{latestBatchName ?? "No claims batch uploaded"}</div>
         </div>
       </div>
+      <p className={`rounded-lg px-3 py-2 text-sm ${cycleMonth && cycleMonth >= currentYearMonth() ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
+        {cycleMonth ? (
+          <>
+            Newly flagged parts will join the <span className="font-semibold">{cycleMonth}</span> cycle.
+            {cycleMonth < currentYearMonth() && " That is not the current month - generate the new cycle first (step 2) if this run belongs to the current month."}
+          </>
+        ) : (
+          "There is no warranty room cycle yet - generate one first (step 2)."
+        )}
+      </p>
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
     </section>
   );

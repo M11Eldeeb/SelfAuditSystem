@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
-import { WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
+import { NotifyBranchesCard, WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
 import { ScrapGenerationCard } from "./scrap-generation-card";
 
 export default async function WarrantyRoomPage() {
@@ -32,6 +32,7 @@ export default async function WarrantyRoomPage() {
     { data: branchAdmins },
     { data: lastGeneration },
     { data: latestClaimsBatch },
+    { data: newestCycle },
   ] = await Promise.all([
     supabase.from("self_audit_branches").select("id, name, code").order("name"),
     supabase.from("self_audit_claims").select("id", { count: "exact", head: true }),
@@ -72,6 +73,7 @@ export default async function WarrantyRoomPage() {
       .order("uploaded_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.from("self_audit_warranty_room_cycles").select("cycle_month").order("cycle_month", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const claimsDataLastSynced = [latestBatch(claimsBatch), latestBatch(claimsPartsBatch)]
@@ -84,9 +86,10 @@ export default async function WarrantyRoomPage() {
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">
-          Upload claims data, then generate the scrap list to work out what happens to each claim&apos;s
-          removed parts after settlement: flagged to scrap once 90 days past Verification Date,
-          reserved for the manufacturer&apos;s supplier to collect, or kept (not scrapped).
+          Each month, in this order: 1) upload the claims data, 2) generate the warranty room cycle, 3) generate the
+          scrap list, 4) notify the branches. The scrap list works out what happens to each claim&apos;s removed parts after
+          settlement: flagged to scrap once 90 days past Verification Date, reserved for the manufacturer&apos;s supplier to
+          collect, or kept (not scrapped).
         </p>
       </section>
 
@@ -105,9 +108,15 @@ export default async function WarrantyRoomPage() {
         }}
       />
 
-      <ScrapGenerationCard last={lastGeneration ?? null} latestBatchName={latestClaimsBatch?.source_filename ?? null} />
+      <WarrantyRoomCycleForm />
 
-      <WarrantyRoomCycleForm branchAdminEmails={[...new Set((branchAdmins ?? []).map((a) => a.email))]} />
+      <ScrapGenerationCard
+        last={lastGeneration ?? null}
+        latestBatchName={latestClaimsBatch?.source_filename ?? null}
+        cycleMonth={newestCycle?.cycle_month.slice(0, 7) ?? null}
+      />
+
+      <NotifyBranchesCard branchAdminEmails={[...new Set((branchAdmins ?? []).map((a) => a.email))]} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>
