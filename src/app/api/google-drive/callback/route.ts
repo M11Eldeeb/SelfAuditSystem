@@ -8,6 +8,7 @@ import {
   accountEmailFor,
   createFolderWithToken,
   exchangeCode,
+  findFolderWithToken,
   saveDriveConnection,
   syncDriveSharing,
 } from "@/lib/google-drive";
@@ -57,7 +58,10 @@ export async function GET(request: Request) {
     if (!email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
 
     step = "creating the folder in the Rejected Claims Diary Shared Drive";
-    const rootFolderId = await createFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME, DRIVE_SHARED_DRIVE_ID);
+    // Reuse the folder if it is already there (a reconnect must not start a second one).
+    const rootFolderId =
+      (await findFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME, DRIVE_SHARED_DRIVE_ID)) ??
+      (await createFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME, DRIVE_SHARED_DRIVE_ID));
 
     step = "saving the connection";
     await saveDriveConnection({ refreshToken: tokens.refresh_token, accountEmail: email, rootFolderId, connectedBy: user.id });

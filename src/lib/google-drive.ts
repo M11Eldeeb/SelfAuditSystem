@@ -109,6 +109,7 @@ export async function saveDriveConnection(input: {
   connectedBy: string;
 }) {
   const admin = createAdminClient();
+  const { data: previous } = await admin.from("self_audit_google_drive_connection").select("root_folder_id").eq("id", 1).maybeSingle();
   const { error } = await admin.from("self_audit_google_drive_connection").upsert({
     id: 1,
     refresh_token: input.refreshToken,
@@ -118,8 +119,12 @@ export async function saveDriveConnection(input: {
     connected_at: new Date().toISOString(),
   });
   if (error) throw new DriveError(`Could not save the connection: ${error.message}`);
-  // A different account has different folders: forget the old ids.
-  await admin.from("self_audit_drive_folders").delete().neq("key", "");
+  // Reconnecting keeps every saved folder (the Scrap evidence ones and, when the root folder
+  // is the same, the diary's too). Only if the diary's root folder itself changed are its
+  // branch / work order ids dropped - they are found again by name under the new root.
+  if (previous?.root_folder_id && previous.root_folder_id !== input.rootFolderId) {
+    await admin.from("self_audit_drive_folders").delete().not("key", "like", "scrap:%");
+  }
 }
 
 // ---- access token ---------------------------------------------------------------------
@@ -180,6 +185,20 @@ export async function createFolderWithToken(accessTokenValue: string, name: stri
   return json.id;
 }
 
+/** An existing, not-trashed folder called `name` directly inside `parentId` (a Shared Drive's id works as a parent too), the oldest if several. */
+export async function findFolderWithToken(accessTokenValue: string, name: string, parentId: string): Promise<string | null> {
+  const q = `'${parentId}' in parents and name = '${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const params = new URLSearchParams({ q, fields: "files(id)", orderBy: "createdTime", pageSize: "1", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
+  if (parentId === DRIVE_SHARED_DRIVE_ID) {
+    params.set("corpora", "drive");
+    params.set("driveId", DRIVE_SHARED_DRIVE_ID);
+  }
+  const res = await fetch(`${API}/files?${params.toString()}`, { headers: { Authorization: `Bearer ${accessTokenValue}` }, cache: "no-store" });
+  if (!res.ok) return null; // not found is fine - the caller then creates it
+  const json = (await res.json().catch(() => ({}))) as { files?: { id: string }[] };
+  return json.files?.[0]?.id ?? null;
+}
+
 async function folderUsable(id: string): Promise<boolean> {
   const res = await driveFetch(`${API}/files/${encodeURIComponent(id)}?fields=id,trashed&supportsAllDrives=true`);
   if (!res.ok) return false;
@@ -188,8 +207,9 @@ async function folderUsable(id: string): Promise<boolean> {
 }
 
 /**
- * The Drive folder for `key` (e.g. "branch:<id>"), creating it under `parentId`
- * on first use. If someone deleted or trashed it in Drive, a fresh one is made.
+ * The Drive folder for `key` (e.g. "branch:<id>"): the saved one, else an existing
+ * folder of that name under `parentId` (so the folders are never doubled up, even
+ * after the saved ids were lost), else a new one.
  */
 export async function ensureFolder(key: string, name: string, parentId: string): Promise<string> {
   const admin = createAdminClient();
@@ -197,7 +217,7 @@ export async function ensureFolder(key: string, name: string, parentId: string):
   if (known && (await folderUsable(known.drive_id))) return known.drive_id;
 
   const token = await accessToken();
-  const id = await createFolderWithToken(token, name, parentId);
+  const id = (await findFolderWithToken(token, name, parentId)) ?? (await createFolderWithToken(token, name, parentId));
   await admin.from("self_audit_drive_folders").upsert({ key, drive_id: id });
   return id;
 }
