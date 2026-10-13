@@ -1,4 +1,5 @@
 import type { DriveConnection } from "@/lib/google-drive";
+import { ShareButton } from "./share-button";
 
 const MESSAGES: Record<string, { tone: "good" | "bad"; text: string }> = {
   connected: { tone: "good", text: "Google Drive is connected. Attachments will now be saved to the company Drive." },
@@ -38,8 +39,9 @@ export function DriveStatus({ connection, flag, detail }: { connection: DriveCon
           {connection ? (
             <>
               <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500 align-middle" aria-hidden="true" />
-              Attachments are saved to Google Drive as <span className="font-medium text-neutral-900">{connection.accountEmail}</span>, in{" "}
-              <span className="font-medium text-neutral-900">Rejected Claims From Workshop</span>.
+              Attachments are saved to Google Drive in{" "}
+              <span className="font-medium text-neutral-900">Rejected Claims From Workshop</span>, owned by{" "}
+              <span className="font-medium text-neutral-900">{connection.accountEmail}</span> and shared with the officers (view only).
             </>
           ) : (
             <>
@@ -47,15 +49,30 @@ export function DriveStatus({ connection, flag, detail }: { connection: DriveCon
             </>
           )}
         </p>
-        {/* A plain link on purpose: this starts a full-page redirect to Google. */}
-        <a
-          href="/api/google-drive/connect"
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
-            connection ? "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50" : "bg-brand text-white hover:bg-brand-dark"
-          }`}
-        >
-          {connection ? "Reconnect" : "Connect Google Drive"}
-        </a>
+        <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+          {connection && (
+            <>
+              <a
+                href={`https://drive.google.com/drive/folders/${connection.rootFolderId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+              >
+                Open folder in Drive
+              </a>
+              <ShareButton />
+            </>
+          )}
+          {/* A plain link on purpose: this starts a full-page redirect to Google. */}
+          <a
+            href="/api/google-drive/connect"
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+              connection ? "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50" : "bg-brand text-white hover:bg-brand-dark"
+            }`}
+          >
+            {connection ? "Reconnect" : "Connect Google Drive"}
+          </a>
+        </div>
       </div>
     </div>
   );

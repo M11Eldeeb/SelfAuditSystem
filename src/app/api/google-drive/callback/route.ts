@@ -8,6 +8,7 @@ import {
   createFolderWithToken,
   exchangeCode,
   saveDriveConnection,
+  shareRootWithOfficers,
 } from "@/lib/google-drive";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +59,14 @@ export async function GET(request: Request) {
 
     step = "saving the connection";
     await saveDriveConnection({ refreshToken: tokens.refresh_token, accountEmail: email, rootFolderId, connectedBy: user.id });
-    return done("connected");
+
+    // Best effort: the connection is already saved, so a sharing hiccup must not undo it.
+    step = "sharing the folder with the officers";
+    const sharing = await shareRootWithOfficers().catch(() => null);
+    const note = sharing
+      ? `Folder shared with ${sharing.shared.length} officer(s)${sharing.failed.length ? `; could not share with ${sharing.failed.map((f) => f.email).join(", ")}` : ""}.`
+      : "Press Share with officers to give them access to the folder.";
+    return done("connected", note);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error(`Google Drive connect failed while ${step}:`, message);

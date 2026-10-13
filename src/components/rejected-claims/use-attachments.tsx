@@ -11,11 +11,11 @@ type Picked = { key: string; file: File; driveFileId: string | null };
 export type UploadContext = { entryId: string; branchId?: string; workOrder?: string };
 
 /**
- * Picks files, validates them (photo / PDF / video, 10 MB, at most 5) and, on
+ * Picks files, validates them (photo / PDF / video, 20 MB, at most 20) and, on
  * save, uploads them to the company's Google Drive: the server opens an upload
  * session per file inside Rejected Claims From Workshop / <branch> / <work
  * order>, and the browser sends the bytes straight to Google (a server action
- * body is far too small for 10 MB). A file that already uploaded is remembered,
+ * body is far too small for 20 MB). A file that already uploaded is remembered,
  * so retrying a failed save never uploads it twice.
  */
 export function useAttachments() {
@@ -38,7 +38,7 @@ export function useAttachments() {
         continue;
       }
       if (file.size > REJECTED_MAX_FILE_BYTES) {
-        setError(`"${file.name}" is ${formatBytes(file.size)} - the maximum is 10 MB per file.`);
+        setError(`"${file.name}" is ${formatBytes(file.size)} - the maximum is ${formatBytes(REJECTED_MAX_FILE_BYTES)} per file.`);
         continue;
       }
       if (file.size === 0) {
@@ -132,7 +132,7 @@ export function AttachmentPicker({
           Attach photo, PDF or video
         </button>
         <span className="text-xs text-neutral-500">
-          {driveReady ? `Saved to the company Google Drive · up to ${REJECTED_MAX_FILES} files, 10 MB each` : "Attachments are unavailable until Google Drive is connected"}
+          {driveReady ? `Saved to the company Google Drive · up to ${REJECTED_MAX_FILES} files, ${formatBytes(REJECTED_MAX_FILE_BYTES)} each` : "Attachments are unavailable until Google Drive is connected"}
         </span>
       </div>
       {files.length > 0 && (

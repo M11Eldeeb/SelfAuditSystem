@@ -3,8 +3,8 @@
 /** Feature flag (self_audit_feature_flags) that unlocks the diary for branch admins. */
 export const REJECTED_CLAIMS_FLAG = "rejected_claims_branch_admins";
 export const REJECTED_BUCKET = "rejected-claims-files";
-export const REJECTED_MAX_FILES = 5;
-export const REJECTED_MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const REJECTED_MAX_FILES = 20;
+export const REJECTED_MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const REJECTED_REASON_MAX = 2000;
 export const REJECTED_COMMENT_MAX = 2000;
 export const REJECTED_PAGE_SIZE = 50;

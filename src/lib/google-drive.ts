@@ -196,7 +196,7 @@ export async function ensureFolder(key: string, name: string, parentId: string):
 /**
  * Opens a resumable upload session and returns its URL. The browser then PUTs
  * the file straight to Google (a serverless request body is capped far below
- * 10 MB). `origin` must be the page's origin so Google answers the browser's
+ * 20 MB). `origin` must be the page's origin so Google answers the browser's
  * cross-origin upload.
  */
 export async function startResumableUpload(input: {
@@ -247,6 +247,54 @@ export async function getFileMeta(fileId: string): Promise<DriveFileMeta | null>
     trashed: j.trashed === true,
     webViewLink: j.webViewLink ?? null,
   };
+}
+
+export type ShareResult = { shared: string[]; already: string[]; failed: { email: string; reason: string }[] };
+
+/**
+ * Gives each e-mail view access to a folder (and so everything inside it). Skips
+ * people who already have access, so it is safe to run again whenever a new
+ * officer joins. Google e-mails each newly shared person once.
+ */
+export async function shareFolderWithEmails(folderId: string, emails: string[]): Promise<ShareResult> {
+  const result: ShareResult = { shared: [], already: [], failed: [] };
+  const listRes = await driveFetch(`${API}/files/${encodeURIComponent(folderId)}/permissions?fields=permissions(emailAddress)&supportsAllDrives=true`);
+  const listed = listRes.ok ? ((await listRes.json().catch(() => ({}))) as { permissions?: { emailAddress?: string }[] }) : {};
+  const existing = new Set((listed.permissions ?? []).flatMap((p) => (p.emailAddress ? [p.emailAddress.toLowerCase()] : [])));
+
+  for (const email of emails) {
+    if (existing.has(email)) {
+      result.already.push(email);
+      continue;
+    }
+    const res = await driveFetch(`${API}/files/${encodeURIComponent(folderId)}/permissions?supportsAllDrives=true`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "user", role: "reader", emailAddress: email }),
+    });
+    if (res.ok) {
+      result.shared.push(email);
+    } else {
+      const j = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+      result.failed.push({ email, reason: j.error?.message ?? `Google replied ${res.status}` });
+    }
+  }
+  return result;
+}
+
+/** Shares the diary's Drive folder with every officer's company e-mail (view only). */
+export async function shareRootWithOfficers(): Promise<ShareResult | null> {
+  const drive = await getDriveStatus();
+  if (!drive) return null;
+  const { data: officers } = await createAdminClient().from("self_audit_users").select("email").eq("role", "officer");
+  const emails = [
+    ...new Set(
+      (officers ?? [])
+        .map((o) => o.email?.trim().toLowerCase())
+        .filter((e): e is string => !!e && e.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`) && e !== drive.accountEmail.toLowerCase())
+    ),
+  ];
+  return shareFolderWithEmails(drive.rootFolderId, emails);
 }
 
 /** The file's bytes (honouring a Range header so videos can seek). */

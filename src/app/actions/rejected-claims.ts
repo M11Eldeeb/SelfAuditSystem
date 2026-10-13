@@ -6,13 +6,15 @@ import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
-import { isAllowedFeedbackMime } from "@/lib/feedback-constants";
+import { formatBytes, isAllowedFeedbackMime } from "@/lib/feedback-constants";
 import {
   DriveError,
   ensureFolder,
   getDriveStatus,
   getFileMeta,
+  shareRootWithOfficers,
   startResumableUpload,
+  type ShareResult,
 } from "@/lib/google-drive";
 import {
   REJECTED_COMMENT_MAX,
@@ -56,7 +58,7 @@ function checkFiles(files: { name: string; type: string; size: number }[]): stri
   if (files.length > REJECTED_MAX_FILES) return `You can attach at most ${REJECTED_MAX_FILES} files.`;
   for (const f of files) {
     if (!isAllowedFeedbackMime(f.type)) return `"${f.name}" is not a photo, PDF or video.`;
-    if (!(f.size >= 1) || f.size > REJECTED_MAX_FILE_BYTES) return `"${f.name}" must be between 1 byte and 10 MB.`;
+    if (!(f.size >= 1) || f.size > REJECTED_MAX_FILE_BYTES) return `"${f.name}" must be between 1 byte and ${formatBytes(REJECTED_MAX_FILE_BYTES)}.`;
   }
   return null;
 }
@@ -65,7 +67,7 @@ function checkFiles(files: { name: string; type: string; size: number }[]): stri
  * Step 1 of attaching files: makes sure the Drive folders exist
  * (Rejected Claims From Workshop / <branch> / <work order>) and opens one upload
  * session per file. The browser then sends each file straight to Google - a
- * server action body is far too small for 10 MB. For a new entry pass the branch
+ * server action body is far too small for 20 MB. For a new entry pass the branch
  * and work order typed; for an existing entry only its id.
  */
 export async function prepareDriveUploads(input: {
@@ -116,18 +118,12 @@ export async function prepareDriveUploads(input: {
   try {
     const branchFolder = await ensureFolder(`branch:${branchId}`, branchRow?.name ?? "Branch", drive.rootFolderId);
     const entryFolder = await ensureFolder(`wo:${branchId}:${workOrder}`, workOrder, branchFolder);
-    const uploads = [];
-    for (const f of input.files) {
-      uploads.push({
-        sessionUrl: await startResumableUpload({
-          parentId: entryFolder,
-          name: safeDriveName(f.name),
-          mimeType: f.type,
-          size: f.size,
-          origin,
-        }),
-      });
-    }
+    // One session per file, all at once (20 sequential round trips would be slow).
+    const uploads = await Promise.all(
+      input.files.map(async (f) => ({
+        sessionUrl: await startResumableUpload({ parentId: entryFolder, name: safeDriveName(f.name), mimeType: f.type, size: f.size, origin }),
+      }))
+    );
     return { uploads };
   } catch (e) {
     return { error: driveMessage(e) };
@@ -148,15 +144,16 @@ async function verifyDriveAttachments(branchId: string, workOrder: string, files
   if (!folder) return { error: "The upload folder was not found - please attach the files again." };
 
   const rows = [];
-  const seen = new Set<string>();
+  const unique = files.filter((f, i) => files.findIndex((g) => g.driveFileId === f.driveFileId) === i);
   try {
-    for (const f of files) {
-      if (seen.has(f.driveFileId)) continue;
-      seen.add(f.driveFileId);
-      const meta = await getFileMeta(f.driveFileId);
+    // Ask Google about all the files at once.
+    const metas = await Promise.all(unique.map((f) => getFileMeta(f.driveFileId)));
+    for (let i = 0; i < unique.length; i++) {
+      const f = unique[i];
+      const meta = metas[i];
       if (!meta || meta.trashed || !meta.parents.includes(folder.drive_id)) return { error: `"${f.name}" did not finish uploading - please attach it again.` };
       if (!isAllowedFeedbackMime(meta.mimeType)) return { error: `"${meta.name}" is not a photo, PDF or video.` };
-      if (meta.size < 1 || meta.size > REJECTED_MAX_FILE_BYTES) return { error: `"${meta.name}" is larger than 10 MB.` };
+      if (meta.size < 1 || meta.size > REJECTED_MAX_FILE_BYTES) return { error: `"${meta.name}" is larger than ${formatBytes(REJECTED_MAX_FILE_BYTES)}.` };
       rows.push({ driveFileId: meta.id, driveUrl: meta.webViewLink, name: meta.name, type: meta.mimeType, size: meta.size });
     }
   } catch (e) {
@@ -271,4 +268,20 @@ export async function addRejectedClaimComment(input: {
 
   revalidateDiary(input.entryId);
   return { id: input.id };
+}
+
+/**
+ * Gives every officer view access to the Drive folder (and so every branch's
+ * files), skipping anyone who already has it. Run it whenever a new officer joins.
+ */
+export async function shareDriveWithOfficers(): Promise<{ error?: string; result?: ShareResult }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "officer") return { error: "Only an officer can do this." };
+  try {
+    const result = await shareRootWithOfficers();
+    if (!result) return { error: NOT_CONNECTED };
+    return { result };
+  } catch (e) {
+    return { error: driveMessage(e) };
+  }
 }
