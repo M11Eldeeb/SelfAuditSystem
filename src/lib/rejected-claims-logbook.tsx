@@ -135,6 +135,9 @@ async function loadSnapshot(entryId: string): Promise<Snapshot | null> {
  * A QR code as vector shapes (sharp at any zoom or print size) inside a white card
  * with a thin border, and a caption. Scanning it opens the work order's Drive folder.
  */
+/** Height of the QR code's bordered square: 56 of code, 3 of padding and 1 of border each side. */
+const QR_BOX = 56 + 2 * 3 + 2 * 1;
+
 function qrBlock(url: string, caption: readonly [string, string]) {
   const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
   const n = qr.modules.size;
@@ -164,11 +167,11 @@ function qrBlock(url: string, caption: readonly [string, string]) {
  * English with the group line underneath. Typeset (not a screenshot) so it stays
  * sharp however far the PDF is zoomed or printed.
  */
-function brandLockup() {
+function brandLockup(height: number) {
   const logoWidth = 27;
   return h(
     View,
-    { style: { flexDirection: "row", alignItems: "center" } },
+    { style: { flexDirection: "row", alignItems: "center", height } },
     h(Image, { src: MG_LOGO, style: { width: logoWidth, height: (logoWidth * MG_LOGO_HEIGHT) / MG_LOGO_WIDTH } }),
     h(View, { style: { width: 1, height: 26, backgroundColor: LINE, marginHorizontal: 7 } }),
     h(
@@ -239,11 +242,11 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
       View,
       { style: { borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 14, marginBottom: 16 } },
       // Letterhead: the company mark at one edge, the QR code at the other.
-      h(View, { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "flex-start", marginHorizontal: -14 } }, brandLockup(), qrBlock(folderUrl, L.scan)),
+      h(View, { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "flex-start", marginHorizontal: -14 } }, brandLockup(QR_BOX), qrBlock(folderUrl, L.scan)),
       // The title block sits centred underneath.
       h(
         View,
-        { style: { alignItems: "center", marginTop: 8 } },
+        { style: { alignItems: "center", marginTop: -24 } },
         h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: rtl ? 0 : 1.5, textAlign: "center" } }, L.diary),
         h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: rtl ? 0 : 2, marginTop: 2, textAlign: "center" } }, L.title),
         h(View, { style: { width: 36, height: 2, backgroundColor: BRAND, marginTop: 8, marginBottom: 8 } }),
