@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   DRIVE_ALLOWED_DOMAIN,
   DRIVE_ROOT_FOLDER_NAME,
+  DRIVE_SHARED_DRIVE_ID,
   accountEmailFor,
   createFolderWithToken,
   exchangeCode,
@@ -22,7 +23,8 @@ function sameState(a: string, b: string): boolean {
 /**
  * Where Google sends the officer back after they press Allow. Checks the state,
  * trades the code for a refresh token, makes sure the account is a company one,
- * creates the "Rejected Claims From Workshop" folder and saves the connection.
+ * creates the "Rejected Claims From Workshop" folder inside the company Shared
+ * Drive and saves the connection.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -54,8 +56,8 @@ export async function GET(request: Request) {
     const email = await accountEmailFor(tokens.access_token);
     if (!email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
 
-    step = "creating the Drive folder";
-    const rootFolderId = await createFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME);
+    step = "creating the folder in the Rejected Claims Diary Shared Drive";
+    const rootFolderId = await createFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME, DRIVE_SHARED_DRIVE_ID);
 
     step = "saving the connection";
     await saveDriveConnection({ refreshToken: tokens.refresh_token, accountEmail: email, rootFolderId, connectedBy: user.id });

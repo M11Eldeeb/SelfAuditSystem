@@ -21,6 +21,13 @@ export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 /** Only an account on this Google Workspace domain may be connected. */
 export const DRIVE_ALLOWED_DOMAIN = "jiadmotors.com";
 export const DRIVE_ROOT_FOLDER_NAME = "Rejected Claims From Workshop";
+/**
+ * The company's "Rejected Claims Diary" Shared Drive. Everything the diary saves
+ * lives inside it, so the files belong to the company and survive any person's
+ * Google account being deleted (including the connected one). Not a secret - it
+ * is only an id; GOOGLE_DRIVE_SHARED_DRIVE_ID overrides it.
+ */
+export const DRIVE_SHARED_DRIVE_ID = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || "0AMGzTNddVT5yUk9PVA";
 
 export class DriveError extends Error {
   constructor(
