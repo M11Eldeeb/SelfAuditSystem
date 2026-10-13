@@ -4,9 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
 import { NotifyBranchesCard, WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
 import { ScrapGenerationCard } from "./scrap-generation-card";
+import { EmailSenderCard } from "./email-sender-card";
+import { getMailStatus } from "@/lib/gmail";
 
-export default async function WarrantyRoomPage() {
+export default async function WarrantyRoomPage({ searchParams }: { searchParams: Promise<{ mail?: string; detail?: string }> }) {
   await requireRole("officer");
+  const { mail, detail } = await searchParams;
+  const mailConnection = await getMailStatus();
   const supabase = await createClient();
 
   // Warranty Room's own upload kinds are tagged onto self_audit_upload_batches'
@@ -117,6 +121,8 @@ export default async function WarrantyRoomPage() {
       />
 
       <NotifyBranchesCard branchAdminEmails={[...new Set((branchAdmins ?? []).map((a) => a.email))]} />
+
+      <EmailSenderCard connection={mailConnection} flag={mail} detail={detail} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>

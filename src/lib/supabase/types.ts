@@ -460,6 +460,38 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_google_drive_connection"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_email_connection: {
+        Row: { id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string };
+        Insert: { id?: number; refresh_token: string; account_email: string; connected_by?: string | null; connected_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_email_connection"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_email_log: {
+        Row: {
+          id: string;
+          kind: string;
+          recipients: string[];
+          subject: string;
+          status: "sent" | "failed";
+          error: string | null;
+          gmail_message_id: string | null;
+          sent_by: string | null;
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          kind: string;
+          recipients: string[];
+          subject: string;
+          status: "sent" | "failed";
+          error?: string | null;
+          gmail_message_id?: string | null;
+          sent_by?: string | null;
+          sent_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_email_log"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_drive_folders: {
         Row: { key: string; drive_id: string; created_at: string };
         Insert: { key: string; drive_id: string; created_at?: string };
