@@ -7,7 +7,7 @@ import { EntryForm } from "./entry-form";
 import { DriveStatus } from "./drive-status";
 
 type Role = "officer" | "branch_admin";
-export type ListParams = { q?: string; branch?: string; page?: string; drive?: string };
+export type ListParams = { q?: string; branch?: string; page?: string; drive?: string; detail?: string };
 
 const dateLabel = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -82,7 +82,7 @@ export async function RejectedClaimsList({ user, role, params }: { user: Current
         </p>
       </div>
 
-      {isOfficer && <DriveStatus connection={drive} flag={params.drive} />}
+      {isOfficer && <DriveStatus connection={drive} flag={params.drive} detail={params.detail} />}
 
       <EntryForm
         branches={formBranches}

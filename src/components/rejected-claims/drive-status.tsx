@@ -14,7 +14,7 @@ const MESSAGES: Record<string, { tone: "good" | "bad"; text: string }> = {
  * Officer-only strip on the diary: whether Google Drive is connected (and as
  * whom), a Connect / Reconnect button, and the outcome of the last attempt.
  */
-export function DriveStatus({ connection, flag }: { connection: DriveConnection | null; flag?: string }) {
+export function DriveStatus({ connection, flag, detail }: { connection: DriveConnection | null; flag?: string; detail?: string }) {
   const note = flag ? MESSAGES[flag] : undefined;
   return (
     <div className="space-y-2">
@@ -26,6 +26,7 @@ export function DriveStatus({ connection, flag }: { connection: DriveConnection 
           }`}
         >
           {note.text}
+          {detail && <span className="mt-1 block font-mono text-xs break-words opacity-90">{detail}</span>}
         </p>
       )}
       <div

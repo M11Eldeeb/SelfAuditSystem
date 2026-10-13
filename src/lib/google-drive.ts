@@ -108,7 +108,7 @@ export async function saveDriveConnection(input: {
     connected_by: input.connectedBy,
     connected_at: new Date().toISOString(),
   });
-  if (error) throw new DriveError("Could not save the connection.");
+  if (error) throw new DriveError(`Could not save the connection: ${error.message}`);
   // A different account has different folders: forget the old ids.
   await admin.from("self_audit_drive_folders").delete().neq("key", "");
 }
@@ -149,9 +149,11 @@ export async function accountEmailFor(accessTokenValue: string): Promise<string>
     headers: { Authorization: `Bearer ${accessTokenValue}` },
     cache: "no-store",
   });
-  const json = (await res.json().catch(() => ({}))) as { user?: { emailAddress?: string } };
+  const json = (await res.json().catch(() => ({}))) as { user?: { emailAddress?: string }; error?: { message?: string } };
   const email = json.user?.emailAddress;
-  if (!res.ok || !email) throw new DriveError("Could not read which Google account was connected.");
+  if (!res.ok || !email) {
+    throw new DriveError(`Could not read which Google account was connected (${res.status}): ${json.error?.message ?? "no details from Google"}`, res.status);
+  }
   return email.toLowerCase();
 }
 
@@ -162,8 +164,10 @@ export async function createFolderWithToken(accessTokenValue: string, name: stri
     body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", ...(parentId ? { parents: [parentId] } : {}) }),
     cache: "no-store",
   });
-  const json = (await res.json().catch(() => ({}))) as { id?: string };
-  if (!res.ok || !json.id) throw new DriveError(`Could not create the "${name}" folder in Drive.`, res.status);
+  const json = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+  if (!res.ok || !json.id) {
+    throw new DriveError(`Could not create the "${name}" folder in Drive (${res.status}): ${json.error?.message ?? "no details from Google"}`, res.status);
+  }
   return json.id;
 }
 
