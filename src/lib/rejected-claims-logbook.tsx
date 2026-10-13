@@ -1,6 +1,7 @@
 import "server-only";
 import React from "react";
-import { Document, Font, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Link, Page, Path, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import QRCode from "qrcode";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TAJAWAL_BOLD, TAJAWAL_REGULAR } from "@/assets/fonts/tajawal-data";
 import { createFileWithBytes, ensureFolder, getDriveStatus, replaceFileBytes } from "@/lib/google-drive";
@@ -67,11 +68,39 @@ async function loadSnapshot(entryId: string): Promise<Snapshot | null> {
   return { entry, branchName: branch?.name ?? "Branch", comments: comments ?? [], files: files ?? [] };
 }
 
+/**
+ * A QR code as vector shapes (sharp at any zoom or print size) inside a white card
+ * with a thin border, and a caption. Scanning it opens the work order's Drive folder.
+ */
+function qrBlock(url: string) {
+  const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  const quiet = 2; // modules of white around the code, so scanners find its edge
+  let d = "";
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      if (qr.modules.get(x, y)) d += `M${x + quiet} ${y + quiet}h1v1h-1z`;
+    }
+  }
+  const total = n + quiet * 2;
+  return h(
+    Link,
+    { src: url, style: { textDecoration: "none", alignItems: "center", width: 84 } },
+    h(
+      View,
+      { style: { padding: 4, borderWidth: 1, borderColor: LINE, borderRadius: 6, backgroundColor: "#ffffff" } },
+      h(Svg, { width: 74, height: 74, viewBox: `0 0 ${total} ${total}` }, h(Path, { d, fill: INK }))
+    ),
+    h(Text, { style: { fontSize: 7, color: MUTED, marginTop: 4, textAlign: "center", letterSpacing: 0.4 } }, "SCAN TO OPEN THE"),
+    h(Text, { style: { fontSize: 7, color: MUTED, textAlign: "center", letterSpacing: 0.4 } }, "DRIVE FOLDER")
+  );
+}
+
 function row(label: string, value: string) {
   return h(View, { style: { flexDirection: "row", marginBottom: 4 } }, h(Text, { style: { width: 110, color: MUTED, fontSize: 9 } }, label), h(Text, { style: { flex: 1, fontWeight: 700, fontSize: 10 } }, value));
 }
 
-function logbookDocument(s: Snapshot, generatedAt: string) {
+function logbookDocument(s: Snapshot, generatedAt: string, folderUrl: string) {
   const { entry } = s;
   return h(
     Document,
@@ -79,11 +108,14 @@ function logbookDocument(s: Snapshot, generatedAt: string) {
     h(
       Page,
       { size: "A4", style: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
-      h(View, { style: { borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 8, marginBottom: 14 } },
-        h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: 1 } }, "REJECTED CLAIMS DIARY"),
-        h(Text, { style: { fontSize: 22, color: BRAND, fontWeight: 700, letterSpacing: 1.5, marginTop: 1 } }, "LOGBOOK REPORT"),
-        h(Text, { style: { fontSize: 14, fontWeight: 700, marginTop: 6 } }, entry.work_order_no),
-        h(Text, { style: { fontSize: 10, color: MUTED } }, s.branchName)
+      h(View, { style: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 } },
+        h(View, { style: { flex: 1, paddingRight: 16 } },
+          h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: 1 } }, "REJECTED CLAIMS DIARY"),
+          h(Text, { style: { fontSize: 22, color: BRAND, fontWeight: 700, letterSpacing: 1.5, marginTop: 1 } }, "LOGBOOK REPORT"),
+          h(Text, { style: { fontSize: 14, fontWeight: 700, marginTop: 6 } }, entry.work_order_no),
+          h(Text, { style: { fontSize: 10, color: MUTED } }, s.branchName)
+        ),
+        qrBlock(folderUrl)
       ),
       h(View, { style: { marginBottom: 12 } },
         row("Rejection date", day(entry.rejection_date)),
@@ -120,13 +152,11 @@ function logbookDocument(s: Snapshot, generatedAt: string) {
   );
 }
 
-export async function buildLogbookPdf(entryId: string): Promise<{ bytes: Uint8Array; snapshot: Snapshot } | null> {
-  const snapshot = await loadSnapshot(entryId);
-  if (!snapshot) return null;
+async function renderLogbook(snapshot: Snapshot, folderUrl: string): Promise<Uint8Array> {
   const generatedAt = stamp(new Date().toISOString());
   // react-pdf's element types are narrower than React's generic element; the document is valid.
-  const buffer = await renderToBuffer(logbookDocument(snapshot, generatedAt) as Parameters<typeof renderToBuffer>[0]);
-  return { bytes: new Uint8Array(buffer), snapshot };
+  const buffer = await renderToBuffer(logbookDocument(snapshot, generatedAt, folderUrl) as Parameters<typeof renderToBuffer>[0]);
+  return new Uint8Array(buffer);
 }
 
 const logbookKey = (branchId: string, workOrder: string) => `logbook:${branchId}:${workOrder}`;
@@ -152,18 +182,20 @@ export async function syncLogbook(entryId: string): Promise<{ ok: true } | { ok:
     const admin = createAdminClient();
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const built = await buildLogbookPdf(entryId);
-      if (!built) return { ok: false, error: "Entry not found." };
-      const { entry, branchName, comments, files } = built.snapshot;
+      const snapshot = await loadSnapshot(entryId);
+      if (!snapshot) return { ok: false, error: "Entry not found." };
+      const { entry, branchName, comments, files } = snapshot;
 
       const branchFolder = await ensureFolder(`branch:${entry.branch_id}`, branchName, drive.rootFolderId);
       const entryFolder = await ensureFolder(`wo:${entry.branch_id}:${entry.work_order_no}`, entry.work_order_no, branchFolder);
+      // The folder is known before the PDF is drawn, so its QR code can point there.
+      const bytes = await renderLogbook(snapshot, `https://drive.google.com/drive/folders/${entryFolder}`);
       const key = logbookKey(entry.branch_id, entry.work_order_no);
       const existing = await getLogbookFileId(entry.branch_id, entry.work_order_no);
 
       let fileId = existing;
-      if (!existing || !(await replaceFileBytes(existing, "application/pdf", built.bytes))) {
-        fileId = await createFileWithBytes({ parentId: entryFolder, name: `Logbook Report - ${entry.work_order_no}.pdf`, mimeType: "application/pdf", bytes: built.bytes });
+      if (!existing || !(await replaceFileBytes(existing, "application/pdf", bytes))) {
+        fileId = await createFileWithBytes({ parentId: entryFolder, name: `Logbook Report - ${entry.work_order_no}.pdf`, mimeType: "application/pdf", bytes });
         await admin.from("self_audit_drive_folders").upsert({ key, drive_id: fileId });
       }
 
