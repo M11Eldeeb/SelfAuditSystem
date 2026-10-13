@@ -2,11 +2,42 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { addDestroyEvidenceVideo, deleteDestroyEvidenceVideo, submitDestroyEvidence } from "./destroy-evidence-actions";
+import { formatBytes } from "@/lib/feedback-constants";
+import { EVIDENCE_MAX_VIDEOS, EVIDENCE_MAX_VIDEO_BYTES } from "@/lib/warranty-room/evidence-limits";
+import {
+  addDestroyEvidenceVideos,
+  deleteDestroyEvidenceVideo,
+  prepareEvidenceUploads,
+  submitDestroyEvidence,
+  type EvidenceVideoInput,
+} from "./destroy-evidence-actions";
 
 type Status = "pending" | "submitted" | "sent";
-type Video = { id: string; path: string; url: string | null };
+type Video = { id: string; name: string; size: number; url: string | null };
+
+/** Sends one video straight to Google Drive (an upload session the server opened) and reports progress as 0-1. Resolves to the Drive file id. */
+function putToDrive(sessionUrl: string, file: File, onProgress: (fraction: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", sessionUrl);
+    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    xhr.onerror = () => reject(new Error(`"${file.name}" could not be sent to Google Drive - check your connection and try again.`));
+    xhr.onload = () => {
+      let id: string | undefined;
+      try {
+        id = (JSON.parse(xhr.responseText) as { id?: string }).id;
+      } catch {
+        // handled below
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && id) resolve(id);
+      else reject(new Error(`Google Drive did not accept "${file.name}" (${xhr.status}) - please try again.`));
+    };
+    xhr.send(file);
+  });
+}
 
 /**
  * No deadline - a branch that never submits just keeps its flagged parts
@@ -16,13 +47,11 @@ type Video = { id: string; path: string; url: string | null };
  */
 export function SubmitDestroyEvidence({
   cycleId,
-  branchId,
   cycleMonthLabel,
   status,
   videos,
 }: {
   cycleId: string;
-  branchId: string;
   cycleMonthLabel: string;
   status: Status;
   videos: Video[];
@@ -65,41 +94,50 @@ export function SubmitDestroyEvidence({
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (files.length === 0) return;
+    setError(null);
+    if (videos.length + files.length > EVIDENCE_MAX_VIDEOS) return setError(`You can add at most ${EVIDENCE_MAX_VIDEOS} videos per cycle.`);
+    for (const f of files) {
+      if (!f.type.startsWith("video/")) return setError(`"${f.name}" is not a video.`);
+      if (f.size > EVIDENCE_MAX_VIDEO_BYTES) return setError(`"${f.name}" is ${formatBytes(f.size)} - the maximum is ${formatBytes(EVIDENCE_MAX_VIDEO_BYTES)} per video.`);
+    }
 
     setUploading(true);
-    setError(null);
+    const uploaded: EvidenceVideoInput[] = [];
+    let failure: string | null = null;
     try {
-      const supabase = createClient();
+      setProgress("Preparing the Drive folder...");
+      const prepared = await prepareEvidenceUploads({ cycleId, files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })) });
+      if (prepared.error || !prepared.uploads) throw new Error(prepared.error ?? "Could not prepare the upload.");
+
       for (let i = 0; i < files.length; i++) {
-        setProgress(`Uploading video ${i + 1} of ${files.length}...`);
-        const file = files[i];
-        const ext = file.name.split(".").pop() || "bin";
-        const path = `destroy-evidence/${branchId}/${cycleId}/video-${Date.now()}-${i}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("warranty-room-files")
-          .upload(path, file, { upsert: true, contentType: file.type || undefined });
-        if (uploadError) {
-          setError(`Upload failed on video ${i + 1}: ${uploadError.message}`);
-          return;
-        }
-        const result = await addDestroyEvidenceVideo(cycleId, path);
-        if (result?.error) {
-          setError(result.error);
-          return;
-        }
+        const label = `Uploading video ${i + 1} of ${files.length} to Google Drive`;
+        setProgress(`${label}...`);
+        const driveFileId = await putToDrive(prepared.uploads[i].sessionUrl, files[i], (fraction) =>
+          setProgress(`${label} - ${Math.round(fraction * 100)}%`)
+        );
+        uploaded.push({ driveFileId, name: files[i].name, type: files[i].type, size: files[i].size });
       }
-      router.refresh();
-    } finally {
-      setUploading(false);
-      setProgress(null);
+    } catch (err) {
+      failure = err instanceof Error ? err.message : "The upload failed - please try again.";
     }
+
+    // Keep whatever did reach Drive, even if a later video failed.
+    if (uploaded.length > 0) {
+      setProgress("Saving...");
+      const saved = await addDestroyEvidenceVideos(cycleId, uploaded);
+      if (saved.error) failure = saved.error;
+    }
+    setUploading(false);
+    setProgress(null);
+    if (failure) setError(failure);
+    router.refresh();
   }
 
   function handleDelete(video: Video) {
     if (!window.confirm("Delete this video?")) return;
     setError(null);
     startTransition(async () => {
-      const result = await deleteDestroyEvidenceVideo(video.id, video.path);
+      const result = await deleteDestroyEvidenceVideo(video.id);
       if (result?.error) setError(result.error);
       else router.refresh();
     });
@@ -137,13 +175,14 @@ export function SubmitDestroyEvidence({
         <ul className="space-y-1">
           {videos.map((v, i) => (
             <li key={v.id} className="flex items-center justify-between gap-2 text-sm">
-              {v.url ? (
-                <a href={v.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                  Video {videos.length > 1 ? i + 1 : ""} →
-                </a>
-              ) : (
-                <span className="text-neutral-400">Video {i + 1} unavailable</span>
-              )}
+              <span className="min-w-0 truncate text-neutral-800">
+                {v.name || `Video ${i + 1}`} <span className="text-neutral-500">· {formatBytes(v.size)}</span>
+                {v.url && (
+                  <a href={v.url} target="_blank" rel="noreferrer" className="ml-2 font-medium text-brand hover:underline">
+                    Open on Google Drive
+                  </a>
+                )}
+              </span>
               {!locked && (
                 <button
                   type="button"
@@ -163,7 +202,8 @@ export function SubmitDestroyEvidence({
         <>
           <div className="space-y-1">
             <p className="text-xs text-neutral-500">
-              One or more videos covering everything scrapped this month - one submission per branch, not per claim.
+              One or more videos covering everything scrapped this month - one submission per branch, not per claim. They are saved
+              in the company Google Drive (up to {EVIDENCE_MAX_VIDEOS} videos, {formatBytes(EVIDENCE_MAX_VIDEO_BYTES)} each).
             </p>
             <input
               type="file"

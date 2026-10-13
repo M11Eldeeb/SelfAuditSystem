@@ -11,7 +11,7 @@ export function ApproveButton({ cycleId, branchId }: { cycleId: string; branchId
   const router = useRouter();
 
   const handleClick = () => {
-    if (!window.confirm("Approve? This moves this branch's flagged parts for this cycle to the Already Scrapped List. The videos are kept until you press Delete videos.")) return;
+    if (!window.confirm("Approve? This moves this branch's flagged parts for this cycle to the Already Scrapped List. The videos stay in Google Drive.")) return;
     setError(null);
     setSuccess(null);
     startTransition(async () => {

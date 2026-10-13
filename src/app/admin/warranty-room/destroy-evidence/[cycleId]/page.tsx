@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { evidenceMonthLabel } from "@/lib/warranty-room/evidence-limits";
 import {
   destroyEvidenceState,
   getFlaggedClaimCountsByCycleBranch,
@@ -10,8 +11,6 @@ import {
 } from "@/lib/warranty-room/destroy-evidence-status";
 import { ApproveButton } from "../approve-button";
 import { ReturnButton } from "../return-button";
-import { DownloadAllButton } from "../download-all-button";
-import { DeleteVideosButton } from "../delete-videos-button";
 
 const STATE_ORDER: Record<DestroyEvidenceState, number> = { awaiting_approval: 0, not_submitted: 1, approved: 2 };
 const STATE_BADGE: Record<DestroyEvidenceState, { label: string; className: string }> = {
@@ -31,7 +30,7 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
   const [{ data: evidence }, flaggedByCycle, { data: videos }, { data: branches }] = await Promise.all([
     supabase.from("self_audit_destroy_evidence").select("branch_id, status, submitted_at, sent_at").eq("cycle_id", cycleId),
     getFlaggedClaimCountsByCycleBranch(supabase, cycleId),
-    supabase.from("self_audit_destroy_evidence_videos").select("branch_id, video_path").eq("cycle_id", cycleId),
+    supabase.from("self_audit_destroy_evidence_videos").select("branch_id, file_name, drive_url").eq("cycle_id", cycleId).order("created_at"),
     supabase.from("self_audit_branches").select("id, name").eq("active", true),
   ]);
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -61,12 +60,19 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
   const countByState = { not_submitted: 0, awaiting_approval: 0, approved: 0 };
   rows.forEach((r) => (countByState[r.state] += 1));
 
-  const videoPathsByBranchId = new Map<string, { path: string; url: string | null }[]>();
+  const videosByBranchId = new Map<string, { name: string; url: string | null }[]>();
   for (const v of videos ?? []) {
-    const list = videoPathsByBranchId.get(v.branch_id) ?? [];
-    list.push({ path: v.video_path, url: await getWarrantyRoomFileUrl(supabase, v.video_path) });
-    videoPathsByBranchId.set(v.branch_id, list);
+    const list = videosByBranchId.get(v.branch_id) ?? [];
+    list.push({ name: v.file_name, url: v.drive_url });
+    videosByBranchId.set(v.branch_id, list);
   }
+
+  // Each branch's Drive folder for this month: Scrap evidence / <MM-YYYY> / <branch>.
+  const monthLabel = evidenceMonthLabel(cycle.cycle_month);
+  const { data: folderRows } = await createAdminClient().from("self_audit_drive_folders").select("key, drive_id").like("key", `scrap:branch:${monthLabel}:%`);
+  const folderUrlByBranchId = new Map(
+    (folderRows ?? []).map((f) => [f.key.slice(f.key.lastIndexOf(":") + 1), `https://drive.google.com/drive/folders/${f.drive_id}`])
+  );
 
   return (
     <div className="space-y-6">
@@ -76,8 +82,8 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">{cycle.cycle_month.slice(0, 7)}</h1>
         <p className="text-sm text-neutral-600">
-          Download each branch&apos;s videos as a zip, then Approve (moves their flagged parts to the Already Scrapped List) or
-          Return (sends it back for changes). Delete videos frees the storage once you have downloaded them.
+          Each branch&apos;s videos are saved in the company Google Drive (Scrap evidence / {monthLabel} / the branch). Open them
+          there, then Approve (moves their flagged parts to the Already Scrapped List) or Return (sends it back for changes).
         </p>
         <p className="mt-2 text-sm text-neutral-700">
           <span className="font-medium">{countByState.not_submitted}</span> not submitted ·{" "}
@@ -94,7 +100,8 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
 
       <div className="space-y-3">
         {rows.map((r) => {
-          const branchVideos = videoPathsByBranchId.get(r.branchId) ?? [];
+          const branchVideos = videosByBranchId.get(r.branchId) ?? [];
+          const folderUrl = folderUrlByBranchId.get(r.branchId) ?? null;
           const badge = STATE_BADGE[r.state];
           return (
             <div key={r.branchId} className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 space-y-2">
@@ -113,46 +120,47 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
                     {r.state === "not_submitted" ? " · Waiting for the branch to submit" : ""}
                   </p>
                 </div>
-                {(r.state === "awaiting_approval" || branchVideos.length > 0) && (
+                {r.state === "awaiting_approval" && (
                   <div className="flex items-start gap-3">
-                    {r.state === "awaiting_approval" && <ReturnButton cycleId={cycleId} branchId={r.branchId} />}
-                    {branchVideos.length > 0 && (
-                      <DeleteVideosButton cycleId={cycleId} branchId={r.branchId} count={branchVideos.length} />
-                    )}
-                    {r.state === "awaiting_approval" && <ApproveButton cycleId={cycleId} branchId={r.branchId} />}
+                    <ReturnButton cycleId={cycleId} branchId={r.branchId} />
+                    <ApproveButton cycleId={cycleId} branchId={r.branchId} />
                   </div>
                 )}
               </div>
 
               {branchVideos.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <DownloadAllButton
-                    zipName={`Destroy evidence - ${r.name} - ${cycle.cycle_month.slice(0, 7)}.zip`}
-                    files={branchVideos.flatMap((v, i) =>
-                      v.url ? [{ url: v.url, name: `Video ${i + 1}.${v.path.split(".").pop() || "mp4"}` }] : []
-                    )}
-                  />
-                  {branchVideos.map((v, i) =>
-                    v.url ? (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {folderUrl && (
                       <a
-                        key={v.path}
-                        href={v.url}
+                        href={folderUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm font-medium text-brand hover:underline"
+                        className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
                       >
-                        Video {branchVideos.length > 1 ? i + 1 : ""} →
+                        Open on Google Drive
                       </a>
-                    ) : (
-                      <span key={v.path} className="text-sm text-neutral-400">
-                        Video {i + 1} unavailable
-                      </span>
-                    )
-                  )}
+                    )}
+                    <span className="text-xs text-neutral-500">
+                      {branchVideos.length} video{branchVideos.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <ul className="space-y-0.5 text-sm">
+                    {branchVideos.map((v, i) => (
+                      <li key={i} className="flex flex-wrap items-center gap-2 text-neutral-700">
+                        <span className="truncate">{v.name}</span>
+                        {v.url && (
+                          <a href={v.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+                            Watch on Drive →
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {branchVideos.length === 0 && r.state === "awaiting_approval" && (
-                <p className="text-sm text-neutral-400">No videos (deleted).</p>
+                <p className="text-sm text-neutral-400">No videos were uploaded.</p>
               )}
             </div>
           );

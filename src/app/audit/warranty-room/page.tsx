@@ -2,7 +2,6 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { daysUntil } from "@/lib/cycle";
-import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
 import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
 import { ReportDownloadButton } from "@/components/report-download-button";
@@ -66,13 +65,13 @@ export default async function BranchWarrantyRoomPage() {
   // November's), or that submission becomes permanently inaccessible.
   const [{ data: allDestroyEvidence }, { data: allDestroyEvidenceVideosRaw }] = await Promise.all([
     supabase.from("self_audit_destroy_evidence").select("cycle_id, status").eq("branch_id", branchId),
-    supabase.from("self_audit_destroy_evidence_videos").select("id, cycle_id, video_path").eq("branch_id", branchId),
+    supabase.from("self_audit_destroy_evidence_videos").select("id, cycle_id, file_name, size_bytes, drive_url").eq("branch_id", branchId).order("created_at"),
   ]);
   const destroyEvidenceByCycleId = new Map((allDestroyEvidence ?? []).map((e) => [e.cycle_id, e]));
-  const destroyEvidenceVideosByCycleId = new Map<string, { id: string; path: string; url: string | null }[]>();
+  const destroyEvidenceVideosByCycleId = new Map<string, { id: string; name: string; size: number; url: string | null }[]>();
   for (const v of allDestroyEvidenceVideosRaw ?? []) {
     const list = destroyEvidenceVideosByCycleId.get(v.cycle_id) ?? [];
-    list.push({ id: v.id, path: v.video_path, url: await getWarrantyRoomFileUrl(supabase, v.video_path) });
+    list.push({ id: v.id, name: v.file_name, size: Number(v.size_bytes), url: v.drive_url });
     destroyEvidenceVideosByCycleId.set(v.cycle_id, list);
   }
 
@@ -149,7 +148,6 @@ export default async function BranchWarrantyRoomPage() {
             <SubmitDestroyEvidence
               key={c.id}
               cycleId={c.id}
-              branchId={branchId}
               cycleMonthLabel={c.cycle_month.slice(0, 7)}
               status={(destroyEvidenceByCycleId.get(c.id)?.status as "pending" | "submitted" | "sent" | undefined) ?? "pending"}
               videos={destroyEvidenceVideosByCycleId.get(c.id) ?? []}

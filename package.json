@@ -13,7 +13,6 @@
     "@react-pdf/renderer": "^4.9.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "client-zip": "^2.5.1",
     "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "modern-screenshot": "^4.7.0",

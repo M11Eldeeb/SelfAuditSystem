@@ -27,6 +27,8 @@ export const DRIVE_ROOT_FOLDER_NAME = "Rejected Claims From Workshop";
  * Google account being deleted (including the connected one). Not a secret - it
  * is only an id; GOOGLE_DRIVE_SHARED_DRIVE_ID overrides it.
  */
+/** Top-level folder of the Shared Drive that holds the destroy-evidence videos: Scrap evidence / <MM-YYYY> / <branch>. */
+export const DRIVE_SCRAP_ROOT_NAME = "Scrap evidence";
 export const DRIVE_SHARED_DRIVE_ID = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || "0AMGzTNddVT5yUk9PVA";
 
 export class DriveError extends Error {
@@ -292,7 +294,8 @@ export async function shareFolderWithEmails(folderId: string, emails: string[]):
 
 /**
  * Keeps Drive access in step with the website's accounts, view only:
- *  - every officer can open the whole "Rejected Claims From Workshop" folder;
+ *  - every officer can open the whole "Rejected Claims From Workshop" folder and the "Scrap evidence" folder;
+ *  - each branch's admins can open that branch's monthly Scrap evidence folders;
  *  - each branch's admins can open that branch's folder (and so its work orders)
  *    and nobody else's - the branches are deliberately not shown to each other.
  * Everyone's e-mail comes from the website's own user list, only company
@@ -318,7 +321,20 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
     summary.failed.push(...r.failed);
   };
 
-  add(await shareFolderWithEmails(drive.rootFolderId, unique((users ?? []).filter((u) => u.role === "officer").map(company))));
+  const officers = unique((users ?? []).filter((u) => u.role === "officer").map(company));
+  add(await shareFolderWithEmails(drive.rootFolderId, officers));
+
+  // Scrap evidence: officers see all of it, a branch's admins only that branch's monthly folders.
+  const { data: scrapRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "scrap:root").maybeSingle();
+  if (scrapRoot && !opts.branchId) add(await shareFolderWithEmails(scrapRoot.drive_id, officers));
+  let scrapQuery = admin.from("self_audit_drive_folders").select("key, drive_id").like("key", "scrap:branch:%");
+  if (opts.branchId) scrapQuery = scrapQuery.like("key", `%:${opts.branchId}`);
+  const { data: scrapBranchFolders } = await scrapQuery;
+  for (const folder of scrapBranchFolders ?? []) {
+    const branchId = folder.key.slice(folder.key.lastIndexOf(":") + 1);
+    const admins = unique((users ?? []).filter((u) => u.role === "branch_admin" && u.branch_id === branchId).map(company));
+    if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
+  }
 
   let query = admin.from("self_audit_drive_folders").select("key, drive_id").like("key", "branch:%");
   if (opts.branchId) query = query.eq("key", `branch:${opts.branchId}`);
@@ -329,6 +345,29 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
     if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
   }
   return summary;
+}
+
+/**
+ * The Drive folder a branch's destroy-evidence videos for one month go into:
+ * Scrap evidence / <MM-YYYY> / <branch name>, created on first use. `monthLabel`
+ * is "10-2026" (see evidenceMonthLabel).
+ */
+export async function ensureScrapBranchFolder(monthLabel: string, branchId: string, branchName: string): Promise<string> {
+  const root = await ensureFolder("scrap:root", DRIVE_SCRAP_ROOT_NAME, DRIVE_SHARED_DRIVE_ID);
+  const month = await ensureFolder(`scrap:month:${monthLabel}`, monthLabel, root);
+  return ensureFolder(`scrap:branch:${monthLabel}:${branchId}`, branchName, month);
+}
+
+/** Moves a file to the Drive trash (recoverable for 30 days from there). False if it is already gone. */
+export async function trashFile(fileId: string): Promise<boolean> {
+  const res = await driveFetch(`${API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: true }),
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new DriveError(`Could not remove the file from Drive (${res.status}).`, res.status);
+  return true;
 }
 
 /** Creates a small file (the logbook PDF) from bytes the server already has. Returns its id. */

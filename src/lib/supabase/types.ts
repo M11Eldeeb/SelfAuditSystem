@@ -698,14 +698,22 @@ export interface Database {
           id: string;
           cycle_id: string;
           branch_id: string;
-          video_path: string;
+          drive_file_id: string;
+          drive_url: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
           created_at: string;
         };
         Insert: {
           id?: string;
           cycle_id: string;
           branch_id: string;
-          video_path: string;
+          drive_file_id: string;
+          drive_url?: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_destroy_evidence_videos"]["Insert"]>;
