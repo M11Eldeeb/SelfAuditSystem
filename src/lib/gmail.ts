@@ -30,7 +30,7 @@ export function buildMailAuthUrl(redirectUri: string, state: string): string {
     response_type: "code",
     scope: `openid email ${MAIL_SCOPE}`, // openid + email only to learn which mailbox signed in
     access_type: "offline",
-    prompt: "consent",
+    prompt: "select_account consent", // always show the account chooser: the sender can be a different mailbox from the one signed in
     hd: DRIVE_ALLOWED_DOMAIN,
     state,
   });
