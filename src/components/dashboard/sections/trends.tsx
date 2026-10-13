@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, use, useMemo, useState } from "react";
+import { Hover, TipCard } from "@/components/dashboard/hover";
 import type { RepeatRow, TrendData, TrendItem } from "@/lib/dashboard/trends";
 import type { DashboardData } from "@/lib/dashboard/kpis";
 import { C, monthShort } from "@/components/dashboard/charts";
@@ -29,11 +30,20 @@ function Spark({ item, currentMonths }: { item: TrendItem; currentMonths: string
   return (
     <div className="flex h-8 w-36 items-end gap-0.5">
       {item.monthly.map((m) => (
-        <div
+        <Hover
           key={m.month}
-          className="min-w-1 flex-1 rounded-t-sm"
+          className="min-w-1 flex-1 cursor-default rounded-t-sm hover:brightness-110"
           style={{ height: `${Math.max((m.count / max) * 100, m.count ? 8 : 3)}%`, backgroundColor: cur.has(m.month) ? C.red : m.count ? C.slateSoft : "#e5eeff" }}
-          title={`${monthShort(m.month)}: ${m.count} claims`}
+          tip={
+            <TipCard
+              title={monthShort(m.month)}
+              rows={[
+                { label: "Claims", value: String(m.count), strong: true },
+                { label: "Period", value: cur.has(m.month) ? "Selected period" : "Baseline" },
+                { label: "Baseline avg / month", value: item.baselinePerMonth.toFixed(1) },
+              ]}
+            />
+          }
         />
       ))}
     </div>

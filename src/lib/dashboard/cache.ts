@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClaimSide, type ClaimSide } from "@/lib/dashboard/kpis";
 import { getTrendData, type TrendData } from "@/lib/dashboard/trends";
+import { getSettlementForecast, type SettlementForecast } from "@/lib/dashboard/forecast";
 
 export const DASHBOARD_CLAIMS_TAG = "dashboard-claims";
 
@@ -38,3 +39,13 @@ export function getCachedTrends(branches: { id: string; name: string }[], from: 
   const key = JSON.stringify([...branches].sort((a, b) => a.id.localeCompare(b.id)).map(({ id, name }) => ({ id, name })));
   return cachedTrends(key, from, to);
 }
+
+/**
+ * Officer-only settlement history + forecast. Settlement orders only change
+ * with a claims upload (which expires the tag), so it keeps for a day.
+ */
+export const getCachedForecast = unstable_cache(
+  async (): Promise<SettlementForecast> => getSettlementForecast(createAdminClient()),
+  ["dashboard-settlement-forecast-v1"],
+  { revalidate: 86_400, tags: [DASHBOARD_CLAIMS_TAG] }
+);

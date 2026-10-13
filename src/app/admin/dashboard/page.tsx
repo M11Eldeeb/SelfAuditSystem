@@ -1,7 +1,7 @@
 import { isOnOrAfterReconStart } from "@/lib/dashboard/recon-constants";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/kpis";
-import { getCachedClaimSide, getCachedTrends } from "@/lib/dashboard/cache";
+import { getCachedClaimSide, getCachedForecast, getCachedTrends } from "@/lib/dashboard/cache";
 import { displayFont } from "@/components/dashboard/font";
 import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
@@ -39,6 +39,9 @@ export default async function AdminDashboardPage({
   const trends = claimSide.then(() => getCachedTrends(scopeBranches, from, to));
   // Rejections surface in the trends tab (its error boundary), not here.
   trends.catch(() => {});
+  // Same idea for the settlement forecast (Claims & Financials), after trends.
+  const forecast = trends.then(() => getCachedForecast(), () => getCachedForecast());
+  forecast.catch(() => {});
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
@@ -56,6 +59,7 @@ export default async function AdminDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         trends={trends}
+        forecast={forecast}
         tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />

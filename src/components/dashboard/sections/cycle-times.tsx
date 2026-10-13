@@ -1,4 +1,5 @@
 import type { CycleMetric } from "@/lib/dashboard/kpis";
+import { Hover, TipCard } from "@/components/dashboard/hover";
 import { C, GroupedColumns, Meter, StackedBar } from "@/components/dashboard/charts";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtDate, fmtDays, fmtInt } from "@/components/dashboard/ui";
 import type { SectionProps } from "./overview";
@@ -94,14 +95,27 @@ export function CycleTimesSection({ data }: SectionProps) {
                   </div>
                 </div>
                 <div className="col-span-10 sm:col-span-7">
-                  <div className="relative h-7 overflow-hidden rounded-lg bg-[#eff4ff]">
+                  <Hover
+                    className="relative h-7 cursor-default overflow-hidden rounded-lg bg-[#eff4ff]"
+                    tip={
+                      <TipCard
+                        title={s.stage}
+                        rows={[
+                          { label: "Average", value: `${fmtDays(s.avg)} days`, strong: true },
+                          { label: "Share of lifecycle", value: lifecycleTotal ? `${(((s.avg ?? 0) / lifecycleTotal) * 100).toFixed(0)}%` : "—" },
+                          { label: "Claims measured", value: fmtInt(s.claims) },
+                        ]}
+                        note={s.detail}
+                      />
+                    }
+                  >
                     <div
                       className="flex h-full items-center rounded px-3 text-[11px] font-bold whitespace-nowrap text-white"
                       style={{ width: `${Math.max(((s.avg ?? 0) / lifecycleMax) * 100, 8)}%`, backgroundColor: longest ? C.primary : C.blue }}
                     >
                       {fmtDays(s.avg)} days
                     </div>
-                  </div>
+                  </Hover>
                 </div>
                 <div className="col-span-2 text-right sm:col-span-1">
                   <span className="text-[11px] font-semibold text-[#575e70]">{fmtInt(s.claims)}</span>
@@ -159,7 +173,21 @@ export function CycleTimesSection({ data }: SectionProps) {
                       <Pill tone="muted">{fmtInt(s.count)} claims</Pill>
                     </span>
                   </div>
-                  <Meter pct={((s.avgRepairDays ?? 0) / seriesMax) * 100} color={slow ? C.red : C.blue} />
+                  <Meter
+                    pct={((s.avgRepairDays ?? 0) / seriesMax) * 100}
+                    color={slow ? C.red : C.blue}
+                    tip={
+                      <TipCard
+                        title={s.series}
+                        rows={[
+                          { label: "Avg repair days", value: fmtDays(s.avgRepairDays), strong: true },
+                          { label: "Avg submission days", value: fmtDays(s.avgSubmitDays) },
+                          { label: "Claims", value: fmtInt(s.count) },
+                          { label: "vs all models", value: overall != null && s.avgRepairDays != null ? `${s.avgRepairDays >= overall ? "+" : ""}${(s.avgRepairDays - overall).toFixed(1)}d` : "—" },
+                        ]}
+                      />
+                    }
+                  />
                 </div>
               );
             })}

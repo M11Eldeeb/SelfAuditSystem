@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { loadReconciliation, saveReconciliation, type ReconciliationRow } from "@/app/admin/dashboard/reconciliation-actions";
 import { C, StackedBar } from "@/components/dashboard/charts";
 import { settlementDate } from "@/lib/dashboard/recon-constants";
 import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
 
-type Filter = "all" | "open" | "reinvoiced" | "overdue";
+type Filter = "pending" | "all" | "reinvoiced" | "overdue";
+
+/** Answered = has a "deducted by" choice or an outcome. */
+const isAnswered = (r: { deductionType: unknown; outcome: unknown }) => !!(r.deductionType || r.outcome);
+
+/** An answered row stays on the pending list this long after the last click, so both choices can be made. */
+const LINGER_MS = 2500;
 
 const selectClass =
   "rounded-lg border-0 bg-[#eff4ff] px-2.5 py-1.5 text-xs font-semibold text-[#0b1c30] ring-1 ring-[#dce9ff] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
@@ -136,7 +142,26 @@ export function ReconciliationSection({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, startLoading] = useTransition();
   const [lossOnly, setLossOnly] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("pending");
+  // Rows answered moments ago: kept on the pending list until LINGER_MS
+  // after their last change, then they drop off.
+  const [lingering, setLingering] = useState<Set<string>>(new Set());
+  const lingerTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const linger = (id: string) => {
+    clearTimeout(lingerTimers.current.get(id));
+    setLingering((s) => new Set(s).add(id));
+    lingerTimers.current.set(
+      id,
+      setTimeout(() => {
+        lingerTimers.current.delete(id);
+        setLingering((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+      }, LINGER_MS)
+    );
+  };
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<ReconciliationRow | null>(null);
   const [saving, setSaving] = useState<Set<string>>(new Set());
@@ -165,6 +190,7 @@ export function ReconciliationSection({
       ...(patch.notes !== undefined && { notes: patch.notes?.trim() || null }),
     };
     setRows((rs) => rs?.map((r) => (r.claimId === row.claimId ? { ...r, ...fields } : r)) ?? rs);
+    if (patch.deductionType !== undefined || patch.outcome !== undefined) linger(row.claimId);
     setSaving((s) => new Set(s).add(row.claimId));
     const res = await saveReconciliation(row.claimId, patch);
     setSaving((s) => {
@@ -183,7 +209,7 @@ export function ReconciliationSection({
   const q = query.trim().toLowerCase();
   const visible = base
     .filter((r) =>
-      filter === "all" ? true : filter === "open" ? !r.outcome : r.outcome === filter
+      filter === "all" ? true : filter === "pending" ? !isAnswered(r) || lingering.has(r.claimId) : r.outcome === filter
     )
     .filter(
       (r) =>
@@ -310,8 +336,8 @@ export function ReconciliationSection({
               <div className="flex rounded-lg bg-[#eff4ff] p-0.5">
                 {(
                   [
-                    ["all", "All"],
-                    ["open", "No outcome"],
+                    ["pending", `Pending (${base.filter((x) => !isAnswered(x)).length})`],
+                    ["all", "Show all"],
                     ["reinvoiced", "Reinvoiced"],
                     ["overdue", "Overdue"],
                   ] as const
@@ -360,7 +386,7 @@ export function ReconciliationSection({
               </thead>
               <tbody className="divide-y divide-[#e5eeff]">
                 {visible.map((r) => (
-                  <tr key={r.claimId} className={`align-middle ${saving.has(r.claimId) ? "opacity-60" : ""} hover:bg-[#eff4ff]/50`}>
+                  <tr key={r.claimId} className={`align-middle transition-colors duration-500 ${saving.has(r.claimId) ? "opacity-60" : ""} ${filter === "pending" && lingering.has(r.claimId) ? "bg-emerald-50" : "hover:bg-[#eff4ff]/50"}`}>
                     <td className="truncate px-2 py-2 font-mono text-[11px]">{r.vin ?? "—"}</td>
                     <td className="px-2 py-2">
                       <CopyText text={r.claimNumber} copy={r.claimNumber} className="font-semibold" />
@@ -424,7 +450,7 @@ export function ReconciliationSection({
                 {visible.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-3 py-10 text-center text-sm text-[#575e70]">
-                      No claims match.
+                      {filter === "pending" && !q ? "Everything here is reviewed. Use “Show all” to see them." : "No claims match."}
                     </td>
                   </tr>
                 )}

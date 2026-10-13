@@ -1,7 +1,12 @@
 import { BarList, C, Donut, GroupedColumns, Meter, Ring, StackedBar, dayShort, monthShort } from "@/components/dashboard/charts";
+import { TipCard } from "@/components/dashboard/hover";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
 import type { SectionProps } from "./overview";
 import { ReconProgress } from "./recon-progress";
+import { Suspense } from "react";
+import type { SettlementForecast } from "@/lib/dashboard/forecast";
+import { ForecastPanel, ForecastSkeleton } from "./forecast";
+import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 
 const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = {
   Settled: "good",
@@ -11,7 +16,11 @@ const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = 
   Rejected: "bad",
 };
 
-export function FinancialsSection({ data, onOpenReconciliation }: SectionProps & { onOpenReconciliation?: () => void }) {
+export function FinancialsSection({
+  data,
+  onOpenReconciliation,
+  forecast,
+}: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast> }) {
   const t = data.totals;
   const cur = data.currency;
   const cost = data.costSplit;
@@ -196,7 +205,7 @@ export function FinancialsSection({ data, onOpenReconciliation }: SectionProps &
                   </span>
                   <span>{fmtMoney(s.value)}</span>
                 </div>
-                <Meter pct={costTotal ? (s.value / costTotal) * 100 : 0} color={s.color} height="h-1.5" />
+                <Meter pct={costTotal ? (s.value / costTotal) * 100 : 0} color={s.color} height="h-1.5" tip={<TipCard title={s.label} rows={[{ label: "Claimed", value: fmtMoney(s.value), strong: true }, { label: "Share of cost", value: costTotal ? `${((s.value / costTotal) * 100).toFixed(1)}%` : "—" }]} />} />
               </div>
             ))}
           </div>
@@ -214,7 +223,7 @@ export function FinancialsSection({ data, onOpenReconciliation }: SectionProps &
                     <strong className="text-[#0b1c30]">{fmtInt(s.count)}</strong> · {fmtCompact(s.amount)}
                   </span>
                 </div>
-                <Meter pct={(s.count / statusTotal) * 100} color={STATUS_TONE[s.label] === "good" ? C.green : STATUS_TONE[s.label] === "bad" ? C.red : C.blue} height="h-1.5" />
+                <Meter pct={(s.count / statusTotal) * 100} color={STATUS_TONE[s.label] === "good" ? C.green : STATUS_TONE[s.label] === "bad" ? C.red : C.blue} height="h-1.5" tip={<TipCard title={s.label} rows={[{ label: "Claims", value: fmtInt(s.count), strong: true }, { label: "Share", value: `${((s.count / statusTotal) * 100).toFixed(1)}%` }, { label: "Claim amount", value: fmtMoney(s.amount) }]} />} />
               </div>
             ))}
           </div>
@@ -282,6 +291,14 @@ export function FinancialsSection({ data, onOpenReconciliation }: SectionProps &
           </table>
         </div>
       </Panel>
+
+      {forecast && (
+        <SectionErrorBoundary onRetry={() => window.location.reload()}>
+          <Suspense fallback={<ForecastSkeleton />}>
+            <ForecastPanel forecast={forecast} currency={data.currency} />
+          </Suspense>
+        </SectionErrorBoundary>
+      )}
 
       <ReconProgress data={data} onOpen={onOpenReconciliation} />
     </div>

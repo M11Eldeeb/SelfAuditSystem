@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Hover, TipCard } from "@/components/dashboard/hover";
 import type { DashboardData, ScorePoint } from "@/lib/dashboard/kpis";
 import { BarList, C, LineChart, Meter, Ring, SERIES_COLORS, StackedBar, type LineSeries } from "@/components/dashboard/charts";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtDays, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
@@ -186,7 +187,22 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
               const thu = d.dow === 4;
               const diff = avg - (thu ? fullDayAvg / 2 : fullDayAvg);
               return (
-                <div key={d.dow} className="group flex h-full flex-col items-center justify-end gap-1.5">
+                <Hover
+                  key={d.dow}
+                  className="group flex h-full cursor-default flex-col items-center justify-end gap-1.5"
+                  tip={
+                    <TipCard
+                      title={`${d.label}${thu ? " (half day)" : ""}`}
+                      rows={[
+                        { label: "Avg claims / day", value: fmtNum(avg), strong: true },
+                        { label: "Claims repaired", value: fmtInt(d.repaired) },
+                        { label: `${d.label}s in period`, value: String(d.days) },
+                        { label: "Claims submitted", value: fmtInt(d.submitted) },
+                        { label: thu ? "vs half-day avg" : "vs full-day avg", value: `${diff >= 0 ? "+" : ""}${fmtNum(diff)}` },
+                      ]}
+                    />
+                  }
+                >
                   <Pill tone={diff >= 0 ? "good" : "warn"}>{fmtNum(avg)}</Pill>
                   <div className="relative flex h-full w-full items-end overflow-hidden rounded-t-lg bg-[#eff4ff] p-1">
                     <div
@@ -195,11 +211,10 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                         height: `${(avg / max) * 100}%`,
                         background: thu ? `repeating-linear-gradient(45deg, ${C.red}, ${C.red} 6px, ${C.primary} 6px, ${C.primary} 12px)` : C.red,
                       }}
-                      title={`${d.label}: ${d.repaired} claims over ${d.days} days`}
                     />
                   </div>
                   <span className={`text-xs font-bold ${thu ? "text-[#9a000d]" : "text-[#0b1c30]"}`}>{d.label.toUpperCase()}</span>
-                </div>
+                </Hover>
               );
             })}
           </div>
@@ -224,7 +239,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                     {fmtDays(r.v)} <span className="text-[11px] font-medium text-[#575e70]">days</span>
                   </div>
                 </div>
-                <Meter pct={((r.v ?? 0) / cycleMax) * 100} color={r.color} />
+                <Meter pct={((r.v ?? 0) / cycleMax) * 100} color={r.color} tip={<TipCard title={r.label} rows={[{ label: "Average", value: `${fmtDays(r.v)} days`, strong: true }]} note={r.formula} />} />
               </div>
             ))}
           </div>
@@ -362,7 +377,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                     </span>
                     <span className="font-bold text-[#9a000d]">{((m.count / modelTotal) * 100).toFixed(1)}%</span>
                   </div>
-                  <Meter pct={(m.count / modelTotal) * 100} color={i === 0 ? C.red : i === 1 ? C.blueLight : C.slate} />
+                  <Meter pct={(m.count / modelTotal) * 100} color={i === 0 ? C.red : i === 1 ? C.blueLight : C.slate} tip={<TipCard title={m.label} rows={[{ label: "Claims", value: fmtInt(m.count), strong: true }, { label: "Share", value: `${((m.count / modelTotal) * 100).toFixed(1)}%` }, { label: "Claim amount", value: fmtMoney(m.amount) }, { label: "Avg per claim", value: fmtMoney(m.count ? m.amount / m.count : 0) }]} />} />
                 </div>
               ))}
             </div>

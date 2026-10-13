@@ -1237,6 +1237,14 @@ export interface Database {
           gw_amount: number;
         }[];
       };
+      get_settlement_order_totals: {
+        Args: { p_order: string };
+        Returns: { settlement_order: string; claim_count: number; gross_amount: number; adjusted_amount: number }[];
+      };
+      list_settlement_orders: {
+        Args: Record<string, never>;
+        Returns: { settlement_order: string }[];
+      };
       get_settlement_orders: {
         Args: Record<string, never>;
         Returns: { settlement_order: string }[];

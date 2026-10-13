@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { TipCard, useHoverCard } from "@/components/dashboard/hover";
 
 // Dependency-free SVG/CSS charts for the KPI dashboard. Server-rendered;
 // hover details come from native <title> tooltips.
@@ -196,6 +197,7 @@ export function Ring({
   color = C.red,
   center,
   caption,
+  tip,
 }: {
   pct: number | null;
   size?: number;
@@ -203,12 +205,20 @@ export function Ring({
   color?: string;
   center: string;
   caption?: string;
+  /** Hover details; defaults to the value and caption. */
+  tip?: ReactNode;
 }) {
   const r = 50 - stroke / 2 - 1;
   const circ = 2 * Math.PI * r;
   const p = pct == null ? 0 : Math.min(Math.max(pct, 0), 100);
+  const { bind, layer } = useHoverCard();
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div
+      className="relative shrink-0 cursor-default"
+      style={{ width: size, height: size }}
+      {...bind(tip ?? <TipCard title={caption ? caption[0].toUpperCase() + caption.slice(1) : "Value"} rows={[{ label: "Value", value: center, strong: true }, { label: "Remaining", value: pct == null ? "—" : `${(100 - p).toFixed(1)}%` }]} />)}
+    >
+      {layer}
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
         <circle cx="50" cy="50" r={r} fill="none" stroke={C.track} strokeWidth={stroke} />
         <circle
@@ -235,17 +245,29 @@ export type Segment = { label: string; value: number; color: string };
 /** One horizontal bar split into proportional segments, with an optional legend. */
 export function StackedBar({ segments, height = "h-2.5", legend = true, format }: { segments: Segment[]; height?: string; legend?: boolean; format?: (v: number) => string }) {
   const total = segments.reduce((s, x) => s + Math.max(x.value, 0), 0);
+  const { bind, layer } = useHoverCard();
+  const fmt = (v: number) => (format ? format(v) : v.toLocaleString("en-US"));
   return (
     <div className="space-y-1.5">
+      {layer}
       <div className={`flex w-full gap-0.5 overflow-hidden rounded-full bg-[#e5eeff] ${height}`}>
         {total > 0 &&
           segments.map((s) =>
             s.value > 0 ? (
               <div
                 key={s.label}
-                className="h-full first:rounded-l-full last:rounded-r-full"
+                className="h-full cursor-default transition-[filter] first:rounded-l-full last:rounded-r-full hover:brightness-110"
                 style={{ width: `${(s.value / total) * 100}%`, backgroundColor: s.color }}
-                title={`${s.label}: ${format ? format(s.value) : s.value.toLocaleString("en-US")} (${((s.value / total) * 100).toFixed(1)}%)`}
+                {...bind(
+                  <TipCard
+                    title={s.label}
+                    rows={[
+                      { label: "Value", value: fmt(s.value), color: s.color, strong: true },
+                      { label: "Share", value: `${((s.value / total) * 100).toFixed(1)}%` },
+                      { label: "Of total", value: fmt(total) },
+                    ]}
+                  />
+                )}
               />
             ) : null
           )}
@@ -266,9 +288,11 @@ export function StackedBar({ segments, height = "h-2.5", legend = true, format }
 }
 
 /** Simple progress track. */
-export function Meter({ pct, color = C.red, height = "h-2" }: { pct: number; color?: string; height?: string }) {
+export function Meter({ pct, color = C.red, height = "h-2", tip }: { pct: number; color?: string; height?: string; tip?: ReactNode }) {
+  const { bind, layer } = useHoverCard();
   return (
-    <div className={`w-full overflow-hidden rounded-full bg-[#e5eeff] ${height}`}>
+    <div className={`w-full overflow-hidden rounded-full bg-[#e5eeff] ${height}`} {...(tip ? bind(tip) : {})}>
+      {layer}
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, backgroundColor: color }} />
     </div>
   );
@@ -284,8 +308,10 @@ export function Donut({ segments, center, caption }: { segments: Segment[]; cent
     len: (Math.max(s.value, 0) / total) * circ,
     start: segments.slice(0, i).reduce((acc, x) => acc + (Math.max(x.value, 0) / total) * circ, 0),
   }));
+  const { bind, layer } = useHoverCard();
   return (
     <div className="relative mx-auto h-44 w-44">
+      {layer}
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
         <circle cx="50" cy="50" r={r} fill="none" stroke="var(--chart-track)" strokeWidth="12" />
         {arcs.map((s) => (
@@ -299,9 +325,17 @@ export function Donut({ segments, center, caption }: { segments: Segment[]; cent
             strokeWidth="12"
             strokeDasharray={`${s.len} ${circ}`}
             strokeDashoffset={-s.start}
-          >
-            <title>{`${s.label}: ${((s.value / total) * 100).toFixed(1)}%`}</title>
-          </circle>
+            className="cursor-default transition-[stroke-width] hover:[stroke-width:14]"
+            {...bind(
+              <TipCard
+                title={s.label}
+                rows={[
+                  { label: "Amount", value: s.value.toLocaleString("en-US", { maximumFractionDigits: 0 }), color: s.color, strong: true },
+                  { label: "Share", value: `${((s.value / total) * 100).toFixed(1)}%` },
+                ]}
+              />
+            )}
+          />
         ))}
       </svg>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -333,8 +367,10 @@ export function GroupedColumns({
 }) {
   const max = Math.max(...groups.flatMap((g) => g.values), 1);
   const lineMax = line ? Math.max(...line.values.map(Math.abs), 1) : 1;
+  const { bind, layer } = useHoverCard();
   return (
     <div className="space-y-3">
+      {layer}
       <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600">
         {seriesNames.map((n, i) => (
           <span key={n} className="flex items-center gap-1.5">
@@ -354,7 +390,22 @@ export function GroupedColumns({
           {groups.map((g, i) => (
             <div
               key={g.label}
-              className={`group flex h-full min-w-0 flex-1 flex-col items-center justify-end rounded-t-lg pt-5 ${highlight?.(i) ? "bg-[#ffdad6]/30" : ""}`}
+              className={`group flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end rounded-t-lg pt-5 transition-colors hover:bg-[#eff4ff] ${highlight?.(i) ? "bg-[#ffdad6]/30" : ""}`}
+              {...bind(
+                <TipCard
+                  title={`${g.label}${g.sub ? ` · ${g.sub}` : ""}`}
+                  rows={[
+                    { label: seriesNames[0], value: format(g.values[0]), color: colors[0] },
+                    { label: seriesNames[1], value: format(g.values[1]), color: colors[1] },
+                    {
+                      label: "Difference",
+                      value: `${format(g.values[1] - g.values[0])}${g.values[0] ? ` (${(((g.values[1] - g.values[0]) / g.values[0]) * 100).toFixed(1)}%)` : ""}`,
+                      strong: true,
+                    },
+                    ...(line ? [{ label: line.name, value: line.format(line.values[i]), color: line.color }] : []),
+                  ]}
+                />
+              )}
             >
               <div className="mb-1 text-[10px] font-semibold whitespace-nowrap text-neutral-500 opacity-0 transition-opacity group-hover:opacity-100">
                 {format(g.values[0])} / {format(g.values[1])}
@@ -365,7 +416,6 @@ export function GroupedColumns({
                     key={k}
                     className="w-1/2 rounded-t transition-[filter] group-hover:brightness-110"
                     style={{ height: `${Math.max((v / max) * 100, v > 0 ? 1.5 : 0)}%`, backgroundColor: colors[k] }}
-                    title={`${g.label} · ${seriesNames[k]}: ${format(v)}`}
                   />
                 ))}
               </div>
@@ -406,10 +456,29 @@ export function ColumnChart({
   format: (v: number) => string;
 }) {
   const max = Math.max(...points.map((p) => p.value), 1);
+  const avg = points.reduce((s, p) => s + p.value, 0) / Math.max(points.length, 1);
+  const { bind, layer } = useHoverCard();
   return (
     <div className="flex h-48 items-end gap-2">
-      {points.map((p) => (
-        <div key={p.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={p.tooltip}>
+      {layer}
+      {points.map((p, i) => (
+        <div
+          key={p.label}
+          className="flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end gap-1 rounded-t-md transition-colors hover:bg-[#eff4ff]"
+          {...bind(
+            <TipCard
+              title={monthShort(p.label)}
+              rows={[
+                { label: "Value", value: format(p.value), strong: true },
+                ...(i > 0 && points[i - 1].value
+                  ? [{ label: "vs previous", value: `${p.value >= points[i - 1].value ? "+" : ""}${(((p.value - points[i - 1].value) / points[i - 1].value) * 100).toFixed(1)}%` }]
+                  : []),
+                { label: "vs average", value: avg ? `${p.value >= avg ? "+" : ""}${(((p.value - avg) / avg) * 100).toFixed(1)}%` : "—" },
+              ]}
+              note={p.tooltip}
+            />
+          )}
+        >
           <span className="text-[10px] font-semibold text-neutral-600 tabular-nums">{format(p.value)}</span>
           <div className="w-full max-w-12 rounded-t-md" style={{ height: `${Math.max((p.value / max) * 100, 1.5)}%`, background: `linear-gradient(to top, ${C.primary}, ${C.red})` }} />
           <span className="truncate text-[10px] text-neutral-500">{monthShort(p.label)}</span>
@@ -428,13 +497,31 @@ export function BarList({
   valueLabel?: string;
   color?: string;
 }) {
+  const { bind, layer } = useHoverCard();
   if (items.length === 0) return <p className="py-6 text-center text-sm text-neutral-500">Nothing in this period.</p>;
   const max = Math.max(...items.map((i) => i.value), 1);
+  const sum = items.reduce((s, i) => s + i.value, 0) || 1;
   return (
     <div className="space-y-1.5">
+      {layer}
       {valueLabel && <div className="flex justify-end text-[10px] font-bold tracking-wider text-neutral-400 uppercase">{valueLabel}</div>}
       {items.map((item, idx) => (
-        <div key={`${item.label}|${item.sublabel ?? ""}|${idx}`} className="group flex items-center gap-3 text-sm" title={item.sublabel}>
+        <div
+          key={`${item.label}|${item.sublabel ?? ""}|${idx}`}
+          className="group flex cursor-default items-center gap-3 rounded-md text-sm"
+          {...bind(
+            <TipCard
+              title={item.label}
+              rows={[
+                ...(item.sublabel ? [{ label: "Code / detail", value: item.sublabel }] : []),
+                { label: "Rank", value: `${idx + 1} of ${items.length}` },
+                { label: valueLabel?.split("·")[0]?.trim() || "Value", value: item.display, strong: true },
+                ...(item.secondary ? [{ label: valueLabel?.split("·")[1]?.trim() || "Detail", value: item.secondary }] : []),
+                { label: "Share of list", value: `${((item.value / sum) * 100).toFixed(1)}%` },
+              ]}
+            />
+          )}
+        >
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold ${
               idx === 0 ? "bg-[#9a000d] text-white" : "bg-[#dce9ff] text-neutral-800"

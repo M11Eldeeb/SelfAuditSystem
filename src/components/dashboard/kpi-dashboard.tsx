@@ -10,6 +10,7 @@ import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
 import { OverviewSection } from "@/components/dashboard/sections/overview";
 import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
 import { FinancialsSection } from "@/components/dashboard/sections/financials";
+import type { SettlementForecast } from "@/lib/dashboard/forecast";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
 import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
@@ -72,6 +73,7 @@ export function KpiDashboard({
   scopeBranches,
   rangeClamped,
   trends,
+  forecast,
   settlementOrders = [],
   tasks,
 }: {
@@ -87,6 +89,8 @@ export function KpiDashboard({
   rangeClamped: boolean;
   /** Officer only - streamed in after the rest of the page. */
   trends?: Promise<TrendData>;
+  /** Officer only - settlement history + 3-month forecast, streamed in. */
+  forecast?: Promise<SettlementForecast>;
   /** Officer only - newest first. */
   settlementOrders?: string[];
   tasks?: TaskData;
@@ -320,7 +324,11 @@ export function KpiDashboard({
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
           {tab === "financials" && (
-            <FinancialsSection {...sectionProps} onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined} />
+            <FinancialsSection
+              {...sectionProps}
+              forecast={isOfficer ? forecast : undefined}
+              onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined}
+            />
           )}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
           {tab === "trends" && trends && (
