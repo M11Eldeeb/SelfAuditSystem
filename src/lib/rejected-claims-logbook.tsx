@@ -168,7 +168,7 @@ function brandLockup() {
   const logoWidth = 34;
   return h(
     View,
-    { style: { flexDirection: "row", alignItems: "center", marginBottom: 12 } },
+    { style: { flexDirection: "row", alignItems: "center" } },
     h(Image, { src: MG_LOGO, style: { width: logoWidth, height: (logoWidth * MG_LOGO_HEIGHT) / MG_LOGO_WIDTH } }),
     h(View, { style: { width: 1, height: 32, backgroundColor: LINE, marginHorizontal: 9 } }),
     h(
@@ -238,17 +238,19 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
     { key: lang, size: "A4", style: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
     h(
       View,
-      { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "flex-start", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 } },
+      { style: { borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 14, marginBottom: 16 } },
+      // Letterhead: the company mark at one edge, the QR code at the other.
+      h(View, { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "center" } }, brandLockup(), qrBlock(folderUrl, L.scan)),
+      // The title block sits centred underneath.
       h(
         View,
-        { style: { flex: 1, alignItems: edge, ...(rtl ? { paddingLeft: 16 } : { paddingRight: 16 }) } },
-        brandLockup(),
-        h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: rtl ? 0 : 1 } }, L.diary),
-        h(Text, { style: { fontSize: 22, color: BRAND, fontWeight: 700, letterSpacing: rtl ? 0 : 1.5, marginTop: 1 } }, L.title),
-        h(Text, { style: { fontSize: 14, fontWeight: 700, marginTop: 6 } }, entry.work_order_no),
-        h(Text, { style: { fontSize: 10, color: MUTED } }, s.branchName)
-      ),
-      qrBlock(folderUrl, L.scan)
+        { style: { alignItems: "center", marginTop: 4 } },
+        h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: rtl ? 0 : 1.5, textAlign: "center" } }, L.diary),
+        h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: rtl ? 0 : 2, marginTop: 2, textAlign: "center" } }, L.title),
+        h(View, { style: { width: 36, height: 2, backgroundColor: BRAND, marginTop: 8, marginBottom: 8 } }),
+        h(Text, { style: { fontSize: 17, fontWeight: 700, letterSpacing: 0.5, textAlign: "center" } }, entry.work_order_no),
+        h(Text, { style: { fontSize: 10, color: MUTED, marginTop: 2, textAlign: "center" } }, s.branchName)
+      )
     ),
     h(
       View,
