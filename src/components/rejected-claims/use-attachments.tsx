@@ -3,15 +3,16 @@
 import { useRef, useState } from "react";
 import { prepareDriveUploads, type DriveAttachmentInput } from "@/app/actions/rejected-claims";
 import { FEEDBACK_ACCEPT, formatBytes, isAllowedFeedbackMime } from "@/lib/feedback-constants";
-import { REJECTED_MAX_FILES, REJECTED_MAX_FILE_BYTES } from "@/lib/rejected-claims";
+import { REJECTED_MAX_FILES, REJECTED_MAX_FILE_BYTES, type AttachmentKind } from "@/lib/rejected-claims";
 
-type Picked = { key: string; file: File; driveFileId: string | null };
+type Picked = { key: string; file: File; driveFileId: string | null; kind: AttachmentKind };
 
 /** Where the files go: a new entry names its branch and work order; an existing entry just its id. */
 export type UploadContext = { entryId: string; branchId?: string; workOrder?: string };
 
 /**
- * Picks files, validates them (photo / PDF / video, 20 MB, at most 20) and, on
+ * Picks files (ordinary ones, and optionally service-history ones - the 20-file limit
+ * is shared), validates them (photo / PDF / video, 20 MB, at most 20) and, on
  * save, uploads them to the company's Google Drive: the server opens an upload
  * session per file inside Rejected Claims From Workshop / <branch> / <work
  * order>, and the browser sends the bytes straight to Google (a server action
@@ -22,9 +23,8 @@ export function useAttachments() {
   const [files, setFiles] = useState<Picked[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement>(null);
 
-  function add(list: FileList | null) {
+  function add(list: FileList | null, kind: AttachmentKind = "file") {
     if (!list) return;
     setError(null);
     const next = [...files];
@@ -45,10 +45,9 @@ export function useAttachments() {
         setError(`"${file.name}" is empty.`);
         continue;
       }
-      next.push({ key: crypto.randomUUID(), file, driveFileId: null });
+      next.push({ key: crypto.randomUUID(), file, driveFileId: null, kind });
     }
     setFiles(next);
-    if (input.current) input.current.value = "";
   }
 
   function remove(key: string) {
@@ -93,31 +92,49 @@ export function useAttachments() {
       setFiles((current) => current.map((f) => (done.has(f.key) ? { ...f, driveFileId: done.get(f.key)! } : f)));
       setStatus(null);
     }
-    return files.map((f) => ({ driveFileId: done.get(f.key)!, name: f.file.name, type: f.file.type, size: f.file.size }));
+    return files.map((f) => ({ driveFileId: done.get(f.key)!, name: f.file.name, type: f.file.type, size: f.file.size, kind: f.kind }));
   }
 
-  return { files, error, status, input, add, remove, reset, upload, setError, count: files.length };
+  return { files, error, status, add, remove, reset, upload, setError, count: files.length };
 }
 
 export function AttachmentPicker({
   state,
   disabled,
   driveReady,
+  kind = "file",
+  label = "Attach photo, PDF or video",
 }: {
   state: ReturnType<typeof useAttachments>;
   disabled?: boolean;
   /** False until an officer has connected Google Drive - attaching is switched off meanwhile. */
   driveReady: boolean;
+  /** Which list this picker adds to; it shows only its own files. */
+  kind?: AttachmentKind;
+  label?: string;
 }) {
-  const { files, input, add, remove } = state;
+  const { add, remove } = state;
+  const input = useRef<HTMLInputElement>(null);
+  const files = state.files.filter((f) => f.kind === kind);
+  const total = state.files.length;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
-        <input ref={input} type="file" accept={FEEDBACK_ACCEPT} multiple hidden onChange={(e) => add(e.target.files)} />
+        <input
+          ref={input}
+          type="file"
+          accept={FEEDBACK_ACCEPT}
+          multiple
+          hidden
+          onChange={(e) => {
+            add(e.target.files, kind);
+            e.target.value = "";
+          }}
+        />
         <button
           type="button"
           onClick={() => input.current?.click()}
-          disabled={disabled || !driveReady || files.length >= REJECTED_MAX_FILES}
+          disabled={disabled || !driveReady || total >= REJECTED_MAX_FILES}
           className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
         >
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -129,7 +146,7 @@ export function AttachmentPicker({
               strokeLinejoin="round"
             />
           </svg>
-          Attach photo, PDF or video
+          {label}
         </button>
         <span className="text-xs text-neutral-500">
           {driveReady ? `Saved to the company Google Drive · up to ${REJECTED_MAX_FILES} files, ${formatBytes(REJECTED_MAX_FILE_BYTES)} each` : "Attachments are unavailable until Google Drive is connected"}

@@ -34,6 +34,14 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
   const { data: folderRow } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `wo:${entry.branch_id}:${entry.work_order_no}`).maybeSingle();
   const folderUrl = folderRow ? `https://drive.google.com/drive/folders/${folderRow.drive_id}` : null;
   const entryFileCount = attachments.filter((a) => a.comment_id === null).length;
+  const historyCount = attachments.filter((a) => a.kind === "service_history").length;
+  const details = [
+    ["Customer", entry.customer_name],
+    ["Vehicle model", entry.vehicle_model],
+    ["Service advisor", entry.service_advisor],
+    ["Team leader", entry.team_leader],
+  ].filter((d): d is [string, string] => !!d[1]);
+  const hasInfo = details.length > 0 || entry.labours.length > 0 || entry.parts.length > 0;
 
   return (
     <div className="space-y-6">
@@ -80,13 +88,49 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
         </div>
       </section>
 
+      {hasInfo && (
+        <section className="space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-neutral-700">Additional information</h2>
+          {details.length > 0 && (
+            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+              {details.map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs font-medium text-neutral-500">{label}</dt>
+                  <dd className="font-medium text-neutral-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {entry.labours.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-neutral-500">Labour description</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-900">
+                {entry.labours.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {entry.parts.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-neutral-500">Parts needed for the repair</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-900">
+                {entry.parts.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-neutral-900">Photos, videos and documents</p>
           <p className="text-xs text-neutral-500">
             {attachments.length === 0
               ? "Nothing has been attached yet."
-              : `${attachments.length} file${attachments.length === 1 ? "" : "s"} (${entryFileCount} with the entry, ${attachments.length - entryFileCount} with comments) in this work order's Google Drive folder.`}
+              : `${attachments.length} file${attachments.length === 1 ? "" : "s"} (${entryFileCount} with the entry${historyCount > 0 ? `, ${historyCount} of them service history` : ""}, ${attachments.length - entryFileCount} with comments) in this work order's Google Drive folder.`}
           </p>
         </div>
         {folderUrl ? (

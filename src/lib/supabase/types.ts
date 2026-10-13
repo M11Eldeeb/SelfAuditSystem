@@ -477,6 +477,12 @@ export interface Database {
           created_by: string | null;
           created_by_name: string | null;
           duplicate_of: string | null;
+          customer_name: string | null;
+          vehicle_model: string | null;
+          service_advisor: string | null;
+          team_leader: string | null;
+          labours: string[];
+          parts: string[];
           created_at: string;
         };
         Insert: {
@@ -489,6 +495,12 @@ export interface Database {
           created_by?: string | null;
           created_by_name?: string | null;
           duplicate_of?: string | null;
+          customer_name?: string | null;
+          vehicle_model?: string | null;
+          service_advisor?: string | null;
+          team_leader?: string | null;
+          labours?: string[];
+          parts?: string[];
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claims"]["Insert"]>;
@@ -529,6 +541,7 @@ export interface Database {
           mime_type: string;
           size_bytes: number;
           uploaded_by: string | null;
+          kind: "file" | "service_history";
           created_at: string;
         };
         Insert: {
@@ -543,6 +556,7 @@ export interface Database {
           mime_type: string;
           size_bytes: number;
           uploaded_by?: string | null;
+          kind?: "file" | "service_history";
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claim_attachments"]["Insert"]>;
@@ -1182,6 +1196,12 @@ export interface Database {
           p_reason: string;
           p_attachments?: unknown;
           p_duplicate_of?: string | null;
+          p_customer_name?: string | null;
+          p_vehicle_model?: string | null;
+          p_service_advisor?: string | null;
+          p_team_leader?: string | null;
+          p_labours?: string[];
+          p_parts?: string[];
         };
         Returns: string;
       };

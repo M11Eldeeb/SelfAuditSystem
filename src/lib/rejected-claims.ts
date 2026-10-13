@@ -8,6 +8,13 @@ export const REJECTED_MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const REJECTED_REASON_MAX = 2000;
 export const REJECTED_COMMENT_MAX = 2000;
 export const REJECTED_PAGE_SIZE = 50;
+/** Optional "additional information": a name/model field, and how many labours / parts, each how long. */
+export const REJECTED_INFO_MAX = 120;
+export const REJECTED_LIST_MAX_ITEMS = 20;
+export const REJECTED_LIST_ITEM_MAX = 300;
+
+/** 'file' is an ordinary attachment; 'service_history' a service-history document of the vehicle. */
+export type AttachmentKind = "file" | "service_history";
 
 /**
  * The name a repeated work order is saved under: <work order>-1, -2, -3 ... the

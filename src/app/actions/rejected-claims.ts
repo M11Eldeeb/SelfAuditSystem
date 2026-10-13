@@ -19,15 +19,19 @@ import {
 } from "@/lib/google-drive";
 import {
   REJECTED_COMMENT_MAX,
+  REJECTED_INFO_MAX,
+  REJECTED_LIST_ITEM_MAX,
+  REJECTED_LIST_MAX_ITEMS,
   REJECTED_MAX_FILES,
   REJECTED_MAX_FILE_BYTES,
   REJECTED_REASON_MAX,
   nextDuplicateName,
   normalizeWorkOrder,
+  type AttachmentKind,
 } from "@/lib/rejected-claims";
 
 /** A file the browser has already uploaded to Google Drive. */
-export type DriveAttachmentInput = { driveFileId: string; name: string; type: string; size: number };
+export type DriveAttachmentInput = { driveFileId: string; name: string; type: string; size: number; kind?: AttachmentKind };
 type Result = { id?: string; error?: string; existingId?: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -139,7 +143,7 @@ export async function prepareDriveUploads(input: {
  * folder and is a sane size and type - so an invented id cannot get in.
  */
 async function verifyDriveAttachments(branchId: string, workOrder: string, files: DriveAttachmentInput[]) {
-  if (files.length === 0) return { rows: [] as { driveFileId: string; driveUrl: string | null; name: string; type: string; size: number }[] };
+  if (files.length === 0) return { rows: [] as { driveFileId: string; driveUrl: string | null; name: string; type: string; size: number; kind: AttachmentKind }[] };
   if (files.length > REJECTED_MAX_FILES) return { error: `You can attach at most ${REJECTED_MAX_FILES} files.` };
   if (!(await getDriveStatus())) return { error: NOT_CONNECTED };
 
@@ -157,7 +161,7 @@ async function verifyDriveAttachments(branchId: string, workOrder: string, files
       if (!meta || meta.trashed || !meta.parents.includes(folder.drive_id)) return { error: `"${f.name}" did not finish uploading - please attach it again.` };
       if (!isAllowedFeedbackMime(meta.mimeType)) return { error: `"${meta.name}" is not a photo, PDF or video.` };
       if (meta.size < 1 || meta.size > REJECTED_MAX_FILE_BYTES) return { error: `"${meta.name}" is larger than ${formatBytes(REJECTED_MAX_FILE_BYTES)}.` };
-      rows.push({ driveFileId: meta.id, driveUrl: meta.webViewLink, name: meta.name, type: meta.mimeType, size: meta.size });
+      rows.push({ driveFileId: meta.id, driveUrl: meta.webViewLink, name: meta.name, type: meta.mimeType, size: meta.size, kind: (f.kind === "service_history" ? "service_history" : "file") as AttachmentKind });
     }
   } catch (e) {
     return { error: driveMessage(e) };
@@ -180,6 +184,13 @@ export async function createRejectedClaim(input: {
   claimNo?: string;
   date: string;
   reason: string;
+  /** Optional additional information; blank values are simply not stored. */
+  customerName?: string;
+  vehicleModel?: string;
+  serviceAdvisor?: string;
+  teamLeader?: string;
+  labours?: string[];
+  parts?: string[];
   attachments: DriveAttachmentInput[];
 }): Promise<Result> {
   const who = await diaryUser();
@@ -217,6 +228,30 @@ export async function createRejectedClaim(input: {
   if (!reason) return { error: "Write the reason for the rejection." };
   if (reason.length > REJECTED_REASON_MAX) return { error: `The reason can be at most ${REJECTED_REASON_MAX} characters.` };
 
+  const info = {
+    customerName: input.customerName?.trim() ?? "",
+    vehicleModel: input.vehicleModel?.trim() ?? "",
+    serviceAdvisor: input.serviceAdvisor?.trim() ?? "",
+    teamLeader: input.teamLeader?.trim() ?? "",
+  };
+  for (const [label, value] of [
+    ["customer name", info.customerName],
+    ["vehicle model", info.vehicleModel],
+    ["service advisor name", info.serviceAdvisor],
+    ["team leader name", info.teamLeader],
+  ]) {
+    if (value.length > REJECTED_INFO_MAX) return { error: `The ${label} can be at most ${REJECTED_INFO_MAX} characters.` };
+  }
+  const cleanList = (list: string[] | undefined) => (list ?? []).map((x) => String(x).trim()).filter(Boolean);
+  const labours = cleanList(input.labours);
+  const parts = cleanList(input.parts);
+  if (labours.length > REJECTED_LIST_MAX_ITEMS || parts.length > REJECTED_LIST_MAX_ITEMS) {
+    return { error: `You can list at most ${REJECTED_LIST_MAX_ITEMS} labours and ${REJECTED_LIST_MAX_ITEMS} parts.` };
+  }
+  if ([...labours, ...parts].some((x) => x.length > REJECTED_LIST_ITEM_MAX)) {
+    return { error: `Each labour or part can be at most ${REJECTED_LIST_ITEM_MAX} characters.` };
+  }
+
   const verified = await verifyDriveAttachments(branchId, workOrder, input.attachments);
   if ("error" in verified) return { error: verified.error };
 
@@ -229,6 +264,12 @@ export async function createRejectedClaim(input: {
     p_reason: reason,
     p_attachments: verified.rows,
     p_duplicate_of: duplicateOf,
+    p_customer_name: info.customerName || null,
+    p_vehicle_model: info.vehicleModel || null,
+    p_service_advisor: info.serviceAdvisor || null,
+    p_team_leader: info.teamLeader || null,
+    p_labours: labours,
+    p_parts: parts,
   });
 
   if (error) {

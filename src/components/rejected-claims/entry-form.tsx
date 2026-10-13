@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { checkWorkOrder, createRejectedClaim, type WorkOrderCheck } from "@/app/actions/rejected-claims";
-import { REJECTED_REASON_MAX, normalizeWorkOrder } from "@/lib/rejected-claims";
+import { REJECTED_INFO_MAX, REJECTED_LIST_ITEM_MAX, REJECTED_LIST_MAX_ITEMS, REJECTED_REASON_MAX, normalizeWorkOrder } from "@/lib/rejected-claims";
 import { AttachmentPicker, useAttachments } from "./use-attachments";
 
 type BranchOption = { id: string; name: string; code: string };
@@ -47,6 +47,14 @@ export function EntryForm({
   const [error, setError] = useState<string | null>(null);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // The optional "additional information" section.
+  const [showInfo, setShowInfo] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [serviceAdvisor, setServiceAdvisor] = useState("");
+  const [teamLeader, setTeamLeader] = useState("");
+  const [labours, setLabours] = useState<string[]>([""]);
+  const [parts, setParts] = useState<string[]>([""]);
   // Set when the work order typed is already in the diary: the warning pop-up is showing.
   const [duplicate, setDuplicate] = useState<NonNullable<WorkOrderCheck["duplicate"]> | null>(null);
 
@@ -72,6 +80,12 @@ export function EntryForm({
         claimNo,
         date,
         reason,
+        customerName,
+        vehicleModel,
+        serviceAdvisor,
+        teamLeader,
+        labours,
+        parts,
         attachments: uploaded,
       });
       if (result.id) {
@@ -237,6 +251,63 @@ export function EntryForm({
 
           <AttachmentPicker state={attachments} disabled={saving} driveReady={driveReady} />
 
+          <div className="rounded-lg border border-neutral-200">
+            <button
+              type="button"
+              onClick={() => setShowInfo((v) => !v)}
+              aria-expanded={showInfo}
+              aria-controls="rc-extra"
+              className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+            >
+              <span className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded bg-brand/10 text-brand">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d={showInfo ? "M4 10h12" : "M10 4v12M4 10h12"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                  </svg>
+                </span>
+                {showInfo ? "Hide additional information" : "Add additional information"}
+                <span className="text-xs font-normal text-neutral-500">(optional)</span>
+              </span>
+            </button>
+
+            {showInfo && (
+              <div id="rc-extra" className="space-y-4 border-t border-neutral-100 p-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextField id="rc-customer" label="Customer name" value={customerName} onChange={setCustomerName} disabled={saving} />
+                  <TextField id="rc-model" label="Vehicle model" value={vehicleModel} onChange={setVehicleModel} disabled={saving} />
+                  <TextField id="rc-advisor" label="Service advisor name" value={serviceAdvisor} onChange={setServiceAdvisor} disabled={saving} />
+                  <TextField id="rc-leader" label="Team leader name" value={teamLeader} onChange={setTeamLeader} disabled={saving} />
+                </div>
+                <ListField
+                  label="Labour description"
+                  addLabel="Add another labour"
+                  placeholder="What work was done"
+                  values={labours}
+                  onChange={setLabours}
+                  disabled={saving}
+                />
+                <ListField
+                  label="Parts needed for the repair"
+                  addLabel="Add another part"
+                  placeholder="Part name or number"
+                  values={parts}
+                  onChange={setParts}
+                  disabled={saving}
+                />
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-neutral-700">Service history</p>
+                  <AttachmentPicker
+                    state={attachments}
+                    kind="service_history"
+                    label="Attach service history"
+                    disabled={saving}
+                    driveReady={driveReady}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           {attachments.error && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {attachments.error}
@@ -282,6 +353,91 @@ export function EntryForm({
         />
       )}
     </section>
+  );
+}
+
+function TextField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-xs font-medium text-neutral-700">
+        {label}
+      </label>
+      <input id={id} value={value} onChange={(e) => onChange(e.target.value)} maxLength={REJECTED_INFO_MAX} disabled={disabled} className={inputClass} />
+    </div>
+  );
+}
+
+/** A list of one-line entries (labours, parts) with a plus button to add another row. */
+function ListField({
+  label,
+  addLabel,
+  placeholder,
+  values,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  addLabel: string;
+  placeholder: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-neutral-700">{label}</p>
+      <ul className="space-y-2">
+        {values.map((value, i) => (
+          <li key={i} className="flex items-center gap-2">
+            <input
+              value={value}
+              onChange={(e) => onChange(values.map((v, j) => (j === i ? e.target.value : v)))}
+              maxLength={REJECTED_LIST_ITEM_MAX}
+              placeholder={placeholder}
+              aria-label={`${label} ${i + 1}`}
+              disabled={disabled}
+              className={inputClass}
+            />
+            {values.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onChange(values.filter((_, j) => j !== i))}
+                disabled={disabled}
+                aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-red-600 disabled:opacity-50"
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={() => onChange([...values, ""])}
+        disabled={disabled || values.length >= REJECTED_LIST_MAX_ITEMS}
+        className="flex items-center gap-1.5 rounded-lg border border-dashed border-neutral-300 px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
+      >
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+        {addLabel}
+      </button>
+    </div>
   );
 }
 
