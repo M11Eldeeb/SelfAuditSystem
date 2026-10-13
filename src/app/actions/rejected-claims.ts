@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { syncLogbook } from "@/lib/rejected-claims-logbook";
 import { headers } from "next/headers";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -233,6 +235,11 @@ export async function createRejectedClaim(input: {
   }
 
   revalidateDiary(input.id);
+  // Write the logbook PDF to the work order's Drive folder once the response is out.
+  after(async () => {
+    await syncLogbook(input.id);
+    revalidateDiary(input.id);
+  });
   return { id: input.id };
 }
 
@@ -267,7 +274,22 @@ export async function addRejectedClaimComment(input: {
   if (error && error.code !== "23505") return { error: "Could not save your comment - please try again." };
 
   revalidateDiary(input.entryId);
+  after(async () => {
+    await syncLogbook(input.entryId);
+    revalidateDiary(input.entryId);
+  });
   return { id: input.id };
+}
+
+/** Officer-only: writes an entry's logbook PDF to Drive again (missing, or out of date). */
+export async function rebuildLogbook(entryId: string): Promise<{ error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "officer") return { error: "Only an officer can do this." };
+  if (!UUID.test(entryId)) return { error: "Entry not found." };
+  const result = await syncLogbook(entryId);
+  if (!result.ok) return { error: result.error };
+  revalidateDiary(entryId);
+  return {};
 }
 
 /**

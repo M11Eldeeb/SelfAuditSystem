@@ -297,6 +297,38 @@ export async function shareRootWithOfficers(): Promise<ShareResult | null> {
   return shareFolderWithEmails(drive.rootFolderId, emails);
 }
 
+/** Creates a small file (the logbook PDF) from bytes the server already has. Returns its id. */
+export async function createFileWithBytes(input: { parentId: string; name: string; mimeType: string; bytes: Uint8Array }): Promise<string> {
+  const boundary = `logbook${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  const metadata = JSON.stringify({ name: input.name, parents: [input.parentId] });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${input.mimeType}\r\n\r\n`),
+    Buffer.from(input.bytes),
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+  const res = await driveFetch(`${UPLOAD_API}/files?uploadType=multipart&supportsAllDrives=true&fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  const json = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+  if (!res.ok || !json.id) throw new DriveError(`Could not save "${input.name}" to Drive (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
+  return json.id;
+}
+
+/** Replaces a file's content in place (same link, Drive keeps the earlier version in its history). False if the file is gone. */
+export async function replaceFileBytes(fileId: string, mimeType: string, bytes: Uint8Array): Promise<boolean> {
+  const res = await driveFetch(`${UPLOAD_API}/files/${encodeURIComponent(fileId)}?uploadType=media&supportsAllDrives=true&fields=id,trashed`, {
+    method: "PATCH",
+    headers: { "Content-Type": mimeType },
+    body: Buffer.from(bytes),
+  });
+  if (res.status === 404) return false;
+  const json = (await res.json().catch(() => ({}))) as { trashed?: boolean; error?: { message?: string } };
+  if (!res.ok) throw new DriveError(`Could not update the file in Drive (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
+  return json.trashed !== true;
+}
+
 /** The file's bytes (honouring a Range header so videos can seek). */
 export async function downloadFile(fileId: string, range?: string | null): Promise<Response> {
   return driveFetch(`${API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
