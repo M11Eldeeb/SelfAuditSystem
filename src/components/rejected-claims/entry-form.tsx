@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createRejectedClaim } from "@/app/actions/rejected-claims";
+import { checkWorkOrder, createRejectedClaim, type WorkOrderCheck } from "@/app/actions/rejected-claims";
 import { REJECTED_REASON_MAX, normalizeWorkOrder } from "@/lib/rejected-claims";
 import { AttachmentPicker, useAttachments } from "./use-attachments";
 
@@ -47,26 +47,28 @@ export function EntryForm({
   const [error, setError] = useState<string | null>(null);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Set when the work order typed is already in the diary: the warning pop-up is showing.
+  const [duplicate, setDuplicate] = useState<NonNullable<WorkOrderCheck["duplicate"]> | null>(null);
 
   const branch = branches.find((b) => b.id === (fixedBranchId ?? branchId));
   const preview = branch && workOrder.trim() ? normalizeWorkOrder(workOrder, branch.code) : null;
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (saving) return;
+  /**
+   * Uploads the files and saves. `finalWorkOrder` is what gets stored: the number as
+   * typed, or - for a repeat the person confirmed - <number>-1, -2, -3 ...
+   */
+  async function save(finalWorkOrder: string, duplicateOf?: string) {
+    if (!branch) return;
+    setSaving(true);
     setError(null);
     setExistingId(null);
-    if (!branch) return setError("Choose the branch.");
-    if (!preview || preview.value === undefined) return setError(preview?.error ?? "Enter the work order number.");
-    if (!reason.trim()) return setError("Write the reason for the rejection.");
-
-    setSaving(true);
     try {
-      const uploaded = await attachments.upload({ entryId, branchId: branch.id, workOrder });
+      const uploaded = await attachments.upload({ entryId, branchId: branch.id, workOrder: finalWorkOrder });
       const result = await createRejectedClaim({
         id: entryId,
         branchId: branch.id,
-        workOrder,
+        workOrder: finalWorkOrder,
+        duplicateOf,
         claimNo,
         date,
         reason,
@@ -83,6 +85,30 @@ export function EntryForm({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (saving) return;
+    setError(null);
+    setExistingId(null);
+    if (!branch) return setError("Choose the branch.");
+    if (!preview || preview.value === undefined) return setError(preview?.error ?? "Enter the work order number.");
+    if (!reason.trim()) return setError("Write the reason for the rejection.");
+
+    // Ask first whether this work order is already in the diary - before any file is uploaded.
+    setSaving(true);
+    let check: WorkOrderCheck;
+    try {
+      check = await checkWorkOrder({ branchId: branch.id, workOrder });
+    } catch {
+      setSaving(false);
+      return setError("Could not check the work order - please try again.");
+    }
+    setSaving(false);
+    if (check.error || !check.workOrder) return setError(check.error ?? "Could not check the work order.");
+    if (check.duplicate) return setDuplicate(check.duplicate);
+    await save(check.workOrder);
   }
 
   return (
@@ -242,6 +268,99 @@ export function EntryForm({
           </div>
         </form>
       )}
+
+      {duplicate && (
+        <DuplicateDialog
+          duplicate={duplicate}
+          basePath={basePath}
+          onCancel={() => setDuplicate(null)}
+          onConfirm={() => {
+            const d = duplicate;
+            setDuplicate(null);
+            void save(d.suggested, d.base);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+const dateLabel = (d: string) =>
+  new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/** Pop-up shown when the work order is already in the diary: open the original, cancel, or save a numbered repeat. */
+function DuplicateDialog({
+  duplicate,
+  basePath,
+  onCancel,
+  onConfirm,
+}: {
+  duplicate: NonNullable<WorkOrderCheck["duplicate"]>;
+  basePath: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    cancelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="modal-backdrop absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onCancel} aria-hidden="true" />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="dup-title"
+        aria-describedby="dup-text"
+        className="modal-card relative w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl"
+      >
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700 ring-8 ring-amber-50/60">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 4.5l9 15.5H3L12 4.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+            <path d="M12 10v4.2M12 17.2v.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h2 id="dup-title" className="text-lg font-bold text-neutral-900">
+          This work order is already in the diary
+        </h2>
+        <p id="dup-text" className="mt-2 text-sm text-neutral-700">
+          <span className="font-semibold text-neutral-900">{duplicate.base}</span> was logged
+          {duplicate.existingDate ? ` on ${dateLabel(duplicate.existingDate)}` : ""}
+          {duplicate.existingBy ? ` by ${duplicate.existingBy}` : ""}. If you continue, this one will be saved as a repeat:{" "}
+          <span className="font-semibold text-neutral-900">{duplicate.suggested}</span>.
+        </p>
+        <p className="mt-2 text-xs text-neutral-500">Just adding a note to the first one? Open it and add a comment instead.</p>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
+          >
+            Save as {duplicate.suggested}
+          </button>
+          <Link
+            href={`${basePath}/${duplicate.existingId}`}
+            className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-center text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+          >
+            Open {duplicate.base}
+          </Link>
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

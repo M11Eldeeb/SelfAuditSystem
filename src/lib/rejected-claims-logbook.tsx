@@ -4,7 +4,6 @@ import { Document, Font, Page, Text, View, renderToBuffer } from "@react-pdf/ren
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TAJAWAL_BOLD, TAJAWAL_REGULAR } from "@/assets/fonts/tajawal-data";
 import { createFileWithBytes, ensureFolder, getDriveStatus, replaceFileBytes } from "@/lib/google-drive";
-import { formatBytes } from "@/lib/feedback-constants";
 
 /**
  * The logbook: one PDF per work order, kept in that work order's Drive folder
@@ -48,6 +47,7 @@ type Snapshot = {
     rejection_date: string;
     reason: string;
     created_by_name: string | null;
+    duplicate_of: string | null;
     created_at: string;
   };
   branchName: string;
@@ -71,39 +71,29 @@ function row(label: string, value: string) {
   return h(View, { style: { flexDirection: "row", marginBottom: 4 } }, h(Text, { style: { width: 110, color: MUTED, fontSize: 9 } }, label), h(Text, { style: { flex: 1, fontWeight: 700, fontSize: 10 } }, value));
 }
 
-function fileList(files: Snapshot["files"]) {
-  if (files.length === 0) return null;
-  return h(
-    View,
-    { style: { marginTop: 6 } },
-    ...files.map((f, i) => h(Text, { key: i, style: { fontSize: 9, color: MUTED, marginBottom: 2 } }, `Attached: ${f.file_name} (${formatBytes(f.size_bytes)})`))
-  );
-}
-
 function logbookDocument(s: Snapshot, generatedAt: string) {
   const { entry } = s;
-  const entryFiles = s.files.filter((f) => f.comment_id === null);
-
   return h(
     Document,
-    { title: `Logbook - ${entry.work_order_no}`, author: "Warranty Management Portal", subject: "Rejected Claims Diary" },
+    { title: `Logbook Report - ${entry.work_order_no}`, author: "Warranty Management Portal", subject: "Rejected Claims Diary" },
     h(
       Page,
       { size: "A4", style: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
       h(View, { style: { borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 8, marginBottom: 14 } },
-        h(Text, { style: { fontSize: 9, color: BRAND, fontWeight: 700, letterSpacing: 1 } }, "REJECTED CLAIMS DIARY - LOGBOOK"),
-        h(Text, { style: { fontSize: 20, fontWeight: 700, marginTop: 2 } }, entry.work_order_no),
+        h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: 1 } }, "REJECTED CLAIMS DIARY"),
+        h(Text, { style: { fontSize: 22, color: BRAND, fontWeight: 700, letterSpacing: 1.5, marginTop: 1 } }, "LOGBOOK REPORT"),
+        h(Text, { style: { fontSize: 14, fontWeight: 700, marginTop: 6 } }, entry.work_order_no),
         h(Text, { style: { fontSize: 10, color: MUTED } }, s.branchName)
       ),
       h(View, { style: { marginBottom: 12 } },
         row("Rejection date", day(entry.rejection_date)),
         row("Claim number", entry.claim_no ?? "-"),
+        entry.duplicate_of ? row("Repeat of", `${entry.duplicate_of} (this work order was logged again)`) : null,
         row("Logged by", `${entry.created_by_name ?? "Unknown"} - ${stamp(entry.created_at)}`)
       ),
       h(View, { style: { borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10, marginBottom: 16 } },
         h(Text, { style: { fontSize: 9, color: MUTED, marginBottom: 3 } }, "Reason for the rejection"),
-        h(Text, { style: { fontSize: 11, lineHeight: 1.5, textAlign: align(entry.reason) } }, entry.reason),
-        fileList(entryFiles)
+        h(Text, { style: { fontSize: 11, lineHeight: 1.5, textAlign: align(entry.reason) } }, entry.reason)
       ),
       h(Text, { style: { fontSize: 12, fontWeight: 700, marginBottom: 8 } }, `Comments (${s.comments.length})`),
       s.comments.length === 0
@@ -116,15 +106,14 @@ function logbookDocument(s: Snapshot, generatedAt: string) {
                 View,
                 { key: c.id, wrap: false, style: { borderBottomWidth: i === s.comments.length - 1 ? 0 : 1, borderBottomColor: LINE, paddingBottom: 8, marginBottom: 8 } },
                 h(Text, { style: { fontSize: 9, color: MUTED, marginBottom: 3 } }, `${i + 1}. ${c.author_name ?? "Unknown"}${c.author_role === "officer" ? " (Warranty team)" : ""} - ${stamp(c.created_at)}`),
-                h(Text, { style: { fontSize: 10.5, lineHeight: 1.5, textAlign: align(c.body) } }, c.body),
-                fileList(s.files.filter((f) => f.comment_id === c.id))
+                h(Text, { style: { fontSize: 10.5, lineHeight: 1.5, textAlign: align(c.body) } }, c.body)
               )
             )
           ),
       h(
         View,
         { fixed: true, style: { position: "absolute", bottom: 24, left: 40, right: 40, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: LINE, paddingTop: 6 } },
-        h(Text, { style: { fontSize: 8, color: MUTED } }, `${entry.work_order_no} - generated ${generatedAt}. Files are in the same Drive folder.`),
+        h(Text, { style: { fontSize: 8, color: MUTED } }, `${entry.work_order_no} - generated ${generatedAt}.`),
         h(Text, { style: { fontSize: 8, color: MUTED }, render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `Page ${pageNumber} of ${totalPages}` })
       )
     )
@@ -174,7 +163,7 @@ export async function syncLogbook(entryId: string): Promise<{ ok: true } | { ok:
 
       let fileId = existing;
       if (!existing || !(await replaceFileBytes(existing, "application/pdf", built.bytes))) {
-        fileId = await createFileWithBytes({ parentId: entryFolder, name: `Logbook - ${entry.work_order_no}.pdf`, mimeType: "application/pdf", bytes: built.bytes });
+        fileId = await createFileWithBytes({ parentId: entryFolder, name: `Logbook Report - ${entry.work_order_no}.pdf`, mimeType: "application/pdf", bytes: built.bytes });
         await admin.from("self_audit_drive_folders").upsert({ key, drive_id: fileId });
       }
 

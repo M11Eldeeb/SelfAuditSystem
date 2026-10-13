@@ -476,6 +476,7 @@ export interface Database {
           reason: string;
           created_by: string | null;
           created_by_name: string | null;
+          duplicate_of: string | null;
           created_at: string;
         };
         Insert: {
@@ -487,6 +488,7 @@ export interface Database {
           reason: string;
           created_by?: string | null;
           created_by_name?: string | null;
+          duplicate_of?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claims"]["Insert"]>;
@@ -1179,6 +1181,7 @@ export interface Database {
           p_date: string;
           p_reason: string;
           p_attachments?: unknown;
+          p_duplicate_of?: string | null;
         };
         Returns: string;
       };

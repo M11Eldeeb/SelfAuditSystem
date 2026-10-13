@@ -9,6 +9,18 @@ export const REJECTED_REASON_MAX = 2000;
 export const REJECTED_COMMENT_MAX = 2000;
 export const REJECTED_PAGE_SIZE = 50;
 
+/**
+ * The name a repeated work order is saved under: <work order>-1, -2, -3 ... the
+ * lowest number not used yet by an entry of that work order.
+ */
+export function nextDuplicateName(workOrder: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  for (let n = 1; ; n++) {
+    const candidate = `${workOrder}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 export type WorkOrderResult = { value: string; error?: undefined } | { value?: undefined; error: string };
 
 /**

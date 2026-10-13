@@ -1,5 +1,4 @@
 import type { DriveConnection } from "@/lib/google-drive";
-import { ShareButton } from "./share-button";
 
 const MESSAGES: Record<string, { tone: "good" | "bad"; text: string }> = {
   connected: { tone: "good", text: "Google Drive is connected. Attachments will now be saved to the company Drive." },
@@ -41,7 +40,8 @@ export function DriveStatus({ connection, flag, detail }: { connection: DriveCon
               <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500 align-middle" aria-hidden="true" />
               Attachments are saved to Google Drive in{" "}
               <span className="font-medium text-neutral-900">Rejected Claims From Workshop</span>, owned by{" "}
-              <span className="font-medium text-neutral-900">{connection.accountEmail}</span> and shared with the officers (view only).
+              <span className="font-medium text-neutral-900">{connection.accountEmail}</span>. Officers can open all of it, and each branch&apos;s admins open their own
+              branch&apos;s folder - shared automatically, view only.
             </>
           ) : (
             <>
@@ -60,7 +60,6 @@ export function DriveStatus({ connection, flag, detail }: { connection: DriveCon
               >
                 Open folder in Drive
               </a>
-              <ShareButton />
             </>
           )}
           {/* A plain link on purpose: this starts a full-page redirect to Google. */}

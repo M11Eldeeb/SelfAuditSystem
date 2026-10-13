@@ -14,15 +14,15 @@ import {
   ensureFolder,
   getDriveStatus,
   getFileMeta,
-  shareRootWithOfficers,
   startResumableUpload,
-  type ShareResult,
+  syncDriveSharing,
 } from "@/lib/google-drive";
 import {
   REJECTED_COMMENT_MAX,
   REJECTED_MAX_FILES,
   REJECTED_MAX_FILE_BYTES,
   REJECTED_REASON_MAX,
+  nextDuplicateName,
   normalizeWorkOrder,
 } from "@/lib/rejected-claims";
 
@@ -43,6 +43,7 @@ async function diaryUser(): Promise<{ user: CurrentUser } | { error: string }> {
   return { user };
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 const driveMessage = (e: unknown) => (e instanceof DriveError ? e.message : "Could not reach Google Drive - please try again.");
 const safeDriveName = (name: string) => name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(0, 180) || "file";
 
@@ -174,6 +175,8 @@ export async function createRejectedClaim(input: {
   id: string;
   branchId?: string;
   workOrder: string;
+  /** Set when this is a repeat of an existing work order (the original's number); workOrder is then <original>-1, -2 ... */
+  duplicateOf?: string;
   claimNo?: string;
   date: string;
   reason: string;
@@ -195,6 +198,18 @@ export async function createRejectedClaim(input: {
   if (wo.value === undefined) return { error: wo.error };
   const workOrder = wo.value;
 
+  // A repeat must be exactly <original>-<n>, and the original must exist in this branch.
+  let duplicateOf: string | null = null;
+  if (input.duplicateOf) {
+    const base = normalizeWorkOrder(input.duplicateOf, branch.code);
+    if (base.value === undefined) return { error: base.error };
+    const shape = new RegExp("^" + escapeRegExp(base.value) + "-[1-9][0-9]*$");
+    if (!shape.test(workOrder)) return { error: "Something went wrong with the repeat number - please try again." };
+    const { data: original } = await supabase.from("self_audit_rejected_claims").select("id").eq("branch_id", branchId).eq("work_order_no", base.value).maybeSingle();
+    if (!original) return { error: `${base.value} was not found in the diary.` };
+    duplicateOf = base.value;
+  }
+
   const claimNo = input.claimNo?.trim() ?? "";
   if (claimNo.length > 40) return { error: "The claim number is too long." };
   if (!DATE.test(input.date)) return { error: "Choose the rejection date." };
@@ -213,9 +228,19 @@ export async function createRejectedClaim(input: {
     p_date: input.date,
     p_reason: reason,
     p_attachments: verified.rows,
+    p_duplicate_of: duplicateOf,
   });
 
   if (error) {
+    if (error.code === "23505" && duplicateOf) {
+      // Someone logged another repeat at the same moment and took this number.
+      const { data: same } = await supabase.from("self_audit_rejected_claims").select("id").eq("id", input.id).maybeSingle();
+      if (same) {
+        revalidateDiary(input.id);
+        return { id: input.id };
+      }
+      return { error: `Another repeat of ${duplicateOf} was just logged - please save again to get the next number.` };
+    }
     if (error.code === "23505") {
       // Same id re-sent (the first attempt went through) or the work order is already logged.
       const { data: existing } = await supabase
@@ -235,9 +260,11 @@ export async function createRejectedClaim(input: {
   }
 
   revalidateDiary(input.id);
-  // Write the logbook PDF to the work order's Drive folder once the response is out.
+  // Once the response is out: write the logbook PDF to the work order's Drive folder,
+  // and make sure the branch's folder is shared with its admins.
   after(async () => {
     await syncLogbook(input.id);
+    await syncDriveSharing({ branchId }).catch(() => null);
     revalidateDiary(input.id);
   });
   return { id: input.id };
@@ -276,6 +303,7 @@ export async function addRejectedClaimComment(input: {
   revalidateDiary(input.entryId);
   after(async () => {
     await syncLogbook(input.entryId);
+    await syncDriveSharing({ branchId: entry.branch_id }).catch(() => null);
     revalidateDiary(input.entryId);
   });
   return { id: input.id };
@@ -292,18 +320,48 @@ export async function rebuildLogbook(entryId: string): Promise<{ error?: string 
   return {};
 }
 
+export type WorkOrderCheck = {
+  workOrder?: string;
+  error?: string;
+  /** Present when this work order is already in the diary. */
+  duplicate?: { base: string; suggested: string; existingId: string; existingDate: string | null; existingBy: string | null };
+};
+
 /**
- * Gives every officer view access to the Drive folder (and so every branch's
- * files), skipping anyone who already has it. Run it whenever a new officer joins.
+ * Asks whether a work order is already in the diary, before anything is
+ * uploaded. If it is, returns what a repeat would be saved as (-1, -2, -3 ...) so
+ * the screen can warn first and then use that name for the files and the entry.
  */
-export async function shareDriveWithOfficers(): Promise<{ error?: string; result?: ShareResult }> {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "officer") return { error: "Only an officer can do this." };
-  try {
-    const result = await shareRootWithOfficers();
-    if (!result) return { error: NOT_CONNECTED };
-    return { result };
-  } catch (e) {
-    return { error: driveMessage(e) };
-  }
+export async function checkWorkOrder(input: { branchId?: string; workOrder: string }): Promise<WorkOrderCheck> {
+  const who = await diaryUser();
+  if ("error" in who) return { error: who.error };
+  const { user } = who;
+  const supabase = await createClient();
+
+  const branchId = user.role === "branch_admin" ? user.branch_id : input.branchId;
+  if (!branchId || !UUID.test(branchId)) return { error: "Choose the branch." };
+  const { data: branch } = await supabase.from("self_audit_branches").select("code").eq("id", branchId).maybeSingle();
+  if (!branch) return { error: "Branch not found." };
+  const wo = normalizeWorkOrder(input.workOrder, branch.code);
+  if (wo.value === undefined) return { error: wo.error };
+
+  const { data: existing } = await supabase
+    .from("self_audit_rejected_claims")
+    .select("id, rejection_date, created_by_name")
+    .eq("branch_id", branchId)
+    .eq("work_order_no", wo.value)
+    .maybeSingle();
+  if (!existing) return { workOrder: wo.value };
+
+  const { data: repeats } = await supabase.from("self_audit_rejected_claims").select("work_order_no").eq("branch_id", branchId).like("work_order_no", `${wo.value}-%`);
+  return {
+    workOrder: wo.value,
+    duplicate: {
+      base: wo.value,
+      suggested: nextDuplicateName(wo.value, (repeats ?? []).map((r) => r.work_order_no)),
+      existingId: existing.id,
+      existingDate: existing.rejection_date,
+      existingBy: existing.created_by_name,
+    },
+  };
 }

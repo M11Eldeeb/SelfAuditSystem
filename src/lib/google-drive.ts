@@ -267,7 +267,8 @@ export async function shareFolderWithEmails(folderId: string, emails: string[]):
       result.already.push(email);
       continue;
     }
-    const res = await driveFetch(`${API}/files/${encodeURIComponent(folderId)}/permissions?supportsAllDrives=true`, {
+    // sendNotificationEmail=false: no e-mail per person; the website's "Open on Google Drive" button is the way in.
+    const res = await driveFetch(`${API}/files/${encodeURIComponent(folderId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "user", role: "reader", emailAddress: email }),
@@ -282,19 +283,45 @@ export async function shareFolderWithEmails(folderId: string, emails: string[]):
   return result;
 }
 
-/** Shares the diary's Drive folder with every officer's company e-mail (view only). */
-export async function shareRootWithOfficers(): Promise<ShareResult | null> {
+/**
+ * Keeps Drive access in step with the website's accounts, view only:
+ *  - every officer can open the whole "Rejected Claims From Workshop" folder;
+ *  - each branch's admins can open that branch's folder (and so its work orders)
+ *    and nobody else's - the branches are deliberately not shown to each other.
+ * Everyone's e-mail comes from the website's own user list, only company
+ * addresses are used, and anyone who already has access is skipped, so it is safe
+ * to run again and again (after each save, after connecting, and daily).
+ * Access is only ever added here; removing a leaver is done in Drive.
+ */
+export async function syncDriveSharing(opts: { branchId?: string } = {}): Promise<{ shared: number; failed: { email: string; reason: string }[] } | null> {
   const drive = await getDriveStatus();
   if (!drive) return null;
-  const { data: officers } = await createAdminClient().from("self_audit_users").select("email").eq("role", "officer");
-  const emails = [
-    ...new Set(
-      (officers ?? [])
-        .map((o) => o.email?.trim().toLowerCase())
-        .filter((e): e is string => !!e && e.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`) && e !== drive.accountEmail.toLowerCase())
-    ),
-  ];
-  return shareFolderWithEmails(drive.rootFolderId, emails);
+  const admin = createAdminClient();
+  const owner = drive.accountEmail.toLowerCase();
+  const { data: users } = await admin.from("self_audit_users").select("email, role, branch_id");
+  const company = (u: { email: string | null }) => {
+    const email = u.email?.trim().toLowerCase();
+    return email && email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`) && email !== owner ? email : null;
+  };
+  const unique = (list: (string | null)[]) => [...new Set(list.filter((e): e is string => !!e))];
+
+  const summary = { shared: 0, failed: [] as { email: string; reason: string }[] };
+  const add = (r: ShareResult) => {
+    summary.shared += r.shared.length;
+    summary.failed.push(...r.failed);
+  };
+
+  add(await shareFolderWithEmails(drive.rootFolderId, unique((users ?? []).filter((u) => u.role === "officer").map(company))));
+
+  let query = admin.from("self_audit_drive_folders").select("key, drive_id").like("key", "branch:%");
+  if (opts.branchId) query = query.eq("key", `branch:${opts.branchId}`);
+  const { data: branchFolders } = await query;
+  for (const folder of branchFolders ?? []) {
+    const branchId = folder.key.slice("branch:".length);
+    const admins = unique((users ?? []).filter((u) => u.role === "branch_admin" && u.branch_id === branchId).map(company));
+    if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
+  }
+  return summary;
 }
 
 /** Creates a small file (the logbook PDF) from bytes the server already has. Returns its id. */

@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { signRejectedAttachments } from "@/lib/rejected-claims-server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getDriveStatus } from "@/lib/google-drive";
 import { getLogbookFileId } from "@/lib/rejected-claims-logbook";
 import { RebuildLogbookButton } from "./rebuild-logbook-button";
-import { FeedbackAttachments } from "@/components/feedback/attachments";
 import { CommentForm } from "./comment-form";
 
 type Role = "officer" | "branch_admin";
@@ -28,10 +27,13 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
     supabase.from("self_audit_rejected_claim_comments").select("*").eq("entry_id", id).order("created_at"),
     supabase.from("self_audit_rejected_claim_attachments").select("*").eq("entry_id", id).order("created_at"),
   ]);
-  const attachments = await signRejectedAttachments(supabase, attachmentRows ?? []);
+  const attachments = attachmentRows ?? [];
   const driveReady = (await getDriveStatus()) !== null;
   const hasLogbook = (await getLogbookFileId(entry.branch_id, entry.work_order_no)) !== null;
-  const entryFiles = attachments.filter((a) => a.commentId === null);
+  // The work order's own Drive folder (it holds the files and the logbook PDF).
+  const { data: folderRow } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `wo:${entry.branch_id}:${entry.work_order_no}`).maybeSingle();
+  const folderUrl = folderRow ? `https://drive.google.com/drive/folders/${folderRow.drive_id}` : null;
+  const entryFileCount = attachments.filter((a) => a.comment_id === null).length;
 
   return (
     <div className="space-y-6">
@@ -41,6 +43,11 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
         </Link>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">{entry.work_order_no}</h1>
+          {entry.duplicate_of && (
+            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 ring-inset">
+              Repeat of {entry.duplicate_of}
+            </span>
+          )}
           {role === "officer" && branch?.name && (
             <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">
               {branch.name}
@@ -71,7 +78,29 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
           <p className="text-xs font-medium text-neutral-500">Reason for the rejection</p>
           <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{entry.reason}</p>
         </div>
-        {entryFiles.length > 0 && <FeedbackAttachments attachments={entryFiles} />}
+      </section>
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-neutral-900">Photos, videos and documents</p>
+          <p className="text-xs text-neutral-500">
+            {attachments.length === 0
+              ? "Nothing has been attached yet."
+              : `${attachments.length} file${attachments.length === 1 ? "" : "s"} (${entryFileCount} with the entry, ${attachments.length - entryFileCount} with comments) in this work order's Google Drive folder.`}
+          </p>
+        </div>
+        {folderUrl ? (
+          <a
+            href={folderUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
+          >
+            Open on Google Drive
+          </a>
+        ) : (
+          <span className="text-xs text-neutral-500">{driveReady ? "The folder is created when the first file or the logbook is saved." : "Google Drive is not connected yet."}</span>
+        )}
       </section>
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
@@ -79,7 +108,7 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
           <p className="text-sm font-semibold text-neutral-900">Logbook PDF</p>
           <p className="text-xs text-neutral-500">
             {hasLogbook
-              ? "This entry, every comment and the file list, kept in Google Drive with the attachments. It updates when a comment is added."
+              ? "This entry and every comment, kept in Google Drive with the attachments. It updates when a comment is added."
               : driveReady
                 ? "Being prepared - it appears here within a moment of saving."
                 : "It will be written to Google Drive once Drive is connected."}
@@ -117,11 +146,15 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
         ) : (
           <ul className="space-y-3">
             {(comments ?? []).map((c) => {
-              const files = attachments.filter((a) => a.commentId === c.id);
+              const fileCount = attachments.filter((a) => a.comment_id === c.id).length;
               return (
                 <li key={c.id} className="space-y-3 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
                   <p className="text-sm whitespace-pre-wrap text-neutral-900">{c.body}</p>
-                  {files.length > 0 && <FeedbackAttachments attachments={files} />}
+                  {fileCount > 0 && (
+                    <p className="text-xs text-neutral-500">
+                      {fileCount} file{fileCount === 1 ? "" : "s"} attached - in the Drive folder.
+                    </p>
+                  )}
                   <p className="text-xs text-neutral-500">
                     {c.author_name ?? "Unknown"}
                     {c.author_role === "officer" ? " · Warranty team" : ""} · {stamp(c.created_at)}

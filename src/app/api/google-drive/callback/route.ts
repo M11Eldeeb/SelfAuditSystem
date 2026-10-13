@@ -8,7 +8,7 @@ import {
   createFolderWithToken,
   exchangeCode,
   saveDriveConnection,
-  shareRootWithOfficers,
+  syncDriveSharing,
 } from "@/lib/google-drive";
 
 export const dynamic = "force-dynamic";
@@ -62,10 +62,10 @@ export async function GET(request: Request) {
 
     // Best effort: the connection is already saved, so a sharing hiccup must not undo it.
     step = "sharing the folder with the officers";
-    const sharing = await shareRootWithOfficers().catch(() => null);
+    const sharing = await syncDriveSharing().catch(() => null);
     const note = sharing
-      ? `Folder shared with ${sharing.shared.length} officer(s)${sharing.failed.length ? `; could not share with ${sharing.failed.map((f) => f.email).join(", ")}` : ""}.`
-      : "Press Share with officers to give them access to the folder.";
+      ? `Shared with ${sharing.shared} person(s)${sharing.failed.length ? `; could not share with ${sharing.failed.map((f) => f.email).join(", ")}` : ""}. Branch folders are shared with their branch admins automatically.`
+      : "Sharing will be retried automatically.";
     return done("connected", note);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
