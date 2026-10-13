@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signRejectedAttachments } from "@/lib/rejected-claims-server";
+import { getDriveStatus } from "@/lib/google-drive";
 import { FeedbackAttachments } from "@/components/feedback/attachments";
 import { CommentForm } from "./comment-form";
 
@@ -26,6 +27,7 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
     supabase.from("self_audit_rejected_claim_attachments").select("*").eq("entry_id", id).order("created_at"),
   ]);
   const attachments = await signRejectedAttachments(supabase, attachmentRows ?? []);
+  const driveReady = (await getDriveStatus()) !== null;
   const entryFiles = attachments.filter((a) => a.commentId === null);
 
   return (
@@ -94,7 +96,7 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
         )}
       </section>
 
-      <CommentForm entryId={entry.id} branchId={entry.branch_id} />
+      <CommentForm entryId={entry.id} driveReady={driveReady} />
     </div>
   );
 }

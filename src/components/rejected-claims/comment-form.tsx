@@ -7,7 +7,7 @@ import { REJECTED_COMMENT_MAX } from "@/lib/rejected-claims";
 import { AttachmentPicker, useAttachments } from "./use-attachments";
 
 /** Add a comment (and files) to an entry, any time. Comments cannot be edited or deleted afterwards. */
-export function CommentForm({ entryId, branchId }: { entryId: string; branchId: string }) {
+export function CommentForm({ entryId, driveReady }: { entryId: string; driveReady: boolean }) {
   const router = useRouter();
   const attachments = useAttachments();
   const [commentId, setCommentId] = useState(() => crypto.randomUUID());
@@ -22,7 +22,7 @@ export function CommentForm({ entryId, branchId }: { entryId: string; branchId: 
     if (!body.trim()) return setError("Write your comment.");
     setSaving(true);
     try {
-      const uploaded = await attachments.upload(`${branchId}/${entryId}`);
+      const uploaded = await attachments.upload({ entryId });
       const result = await addRejectedClaimComment({ id: commentId, entryId, body, attachments: uploaded });
       if (result.error) throw new Error(result.error);
       setBody("");
@@ -51,7 +51,7 @@ export function CommentForm({ entryId, branchId }: { entryId: string; branchId: 
         placeholder="Add an update, a customer call, new evidence..."
         className="w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition-colors placeholder:text-neutral-500 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60"
       />
-      <AttachmentPicker state={attachments} disabled={saving} />
+      <AttachmentPicker state={attachments} disabled={saving} driveReady={driveReady} />
       {attachments.error && (
         <p role="alert" className="text-sm text-red-600">
           {attachments.error}

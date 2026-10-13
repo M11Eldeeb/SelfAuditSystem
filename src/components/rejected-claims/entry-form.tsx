@@ -26,11 +26,14 @@ export function EntryForm({
   branches,
   fixedBranchId,
   basePath,
+  driveReady,
 }: {
   branches: BranchOption[];
   /** Set for a branch admin: the only branch they can log for. */
   fixedBranchId?: string;
   basePath: string;
+  /** Whether Google Drive is connected (attachments need it). */
+  driveReady: boolean;
 }) {
   const router = useRouter();
   const attachments = useAttachments();
@@ -59,7 +62,7 @@ export function EntryForm({
 
     setSaving(true);
     try {
-      const uploaded = await attachments.upload(`${branch.id}/${entryId}`);
+      const uploaded = await attachments.upload({ entryId, branchId: branch.id, workOrder });
       const result = await createRejectedClaim({
         id: entryId,
         branchId: branch.id,
@@ -206,7 +209,7 @@ export function EntryForm({
             </p>
           </div>
 
-          <AttachmentPicker state={attachments} disabled={saving} />
+          <AttachmentPicker state={attachments} disabled={saving} driveReady={driveReady} />
 
           {attachments.error && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

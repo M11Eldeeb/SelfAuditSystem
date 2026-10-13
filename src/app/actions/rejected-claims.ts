@@ -1,12 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 import { isAllowedFeedbackMime } from "@/lib/feedback-constants";
 import {
-  REJECTED_BUCKET,
+  DriveError,
+  ensureFolder,
+  getDriveStatus,
+  getFileMeta,
+  startResumableUpload,
+} from "@/lib/google-drive";
+import {
   REJECTED_COMMENT_MAX,
   REJECTED_MAX_FILES,
   REJECTED_MAX_FILE_BYTES,
@@ -14,11 +22,13 @@ import {
   normalizeWorkOrder,
 } from "@/lib/rejected-claims";
 
-export type RejectedAttachmentInput = { path: string; name: string; type: string; size: number };
+/** A file the browser has already uploaded to Google Drive. */
+export type DriveAttachmentInput = { driveFileId: string; name: string; type: string; size: number };
 type Result = { id?: string; error?: string; existingId?: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NOT_CONNECTED = "Google Drive is not connected yet - ask an officer to connect it.";
 
 async function diaryUser(): Promise<{ user: CurrentUser } | { error: string }> {
   const user = await getCurrentUser();
@@ -29,31 +39,8 @@ async function diaryUser(): Promise<{ user: CurrentUser } | { error: string }> {
   return { user };
 }
 
-/**
- * Re-checks the files the browser says it uploaded against what is really in
- * storage (existence and size), so a made-up path or size cannot get through.
- */
-async function verifyAttachments(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  folder: string,
-  attachments: RejectedAttachmentInput[]
-): Promise<string | null> {
-  if (attachments.length > REJECTED_MAX_FILES) return `You can attach at most ${REJECTED_MAX_FILES} files.`;
-  if (attachments.length === 0) return null;
-  const { data: stored, error } = await supabase.storage.from(REJECTED_BUCKET).list(folder);
-  if (error) return "Could not check your attachments - please try again.";
-  const byName = new Map((stored ?? []).map((f) => [f.name, f]));
-  for (const a of attachments) {
-    const name = a.path.startsWith(`${folder}/`) ? a.path.slice(folder.length + 1) : null;
-    const file = name && !name.includes("/") ? byName.get(name) : undefined;
-    if (!file) return `"${a.name}" did not finish uploading - please attach it again.`;
-    const size = Number(file.metadata?.size ?? 0);
-    if (!isAllowedFeedbackMime(a.type)) return `"${a.name}" is not a photo, PDF or video.`;
-    if (size < 1 || size > REJECTED_MAX_FILE_BYTES) return `"${a.name}" is larger than 10 MB.`;
-    a.size = size;
-  }
-  return null;
-}
+const driveMessage = (e: unknown) => (e instanceof DriveError ? e.message : "Could not reach Google Drive - please try again.");
+const safeDriveName = (name: string) => name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(0, 180) || "file";
 
 function revalidateDiary(entryId?: string) {
   revalidatePath("/admin/rejected-claims");
@@ -62,6 +49,120 @@ function revalidateDiary(entryId?: string) {
     revalidatePath(`/admin/rejected-claims/${entryId}`);
     revalidatePath(`/audit/rejected-claims/${entryId}`);
   }
+}
+
+function checkFiles(files: { name: string; type: string; size: number }[]): string | null {
+  if (files.length === 0) return "Choose a file first.";
+  if (files.length > REJECTED_MAX_FILES) return `You can attach at most ${REJECTED_MAX_FILES} files.`;
+  for (const f of files) {
+    if (!isAllowedFeedbackMime(f.type)) return `"${f.name}" is not a photo, PDF or video.`;
+    if (!(f.size >= 1) || f.size > REJECTED_MAX_FILE_BYTES) return `"${f.name}" must be between 1 byte and 10 MB.`;
+  }
+  return null;
+}
+
+/**
+ * Step 1 of attaching files: makes sure the Drive folders exist
+ * (Rejected Claims From Workshop / <branch> / <work order>) and opens one upload
+ * session per file. The browser then sends each file straight to Google - a
+ * server action body is far too small for 10 MB. For a new entry pass the branch
+ * and work order typed; for an existing entry only its id.
+ */
+export async function prepareDriveUploads(input: {
+  entryId: string;
+  branchId?: string;
+  workOrder?: string;
+  files: { name: string; type: string; size: number }[];
+}): Promise<{ uploads?: { sessionUrl: string }[]; error?: string }> {
+  const who = await diaryUser();
+  if ("error" in who) return { error: who.error };
+  const { user } = who;
+  if (!UUID.test(input.entryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const fileError = checkFiles(input.files);
+  if (fileError) return { error: fileError };
+
+  const drive = await getDriveStatus();
+  if (!drive) return { error: NOT_CONNECTED };
+
+  const supabase = await createClient();
+  let branchId: string;
+  let workOrder: string;
+  if (input.workOrder !== undefined) {
+    // A new entry: the branch and work order come from the form.
+    const candidate = user.role === "branch_admin" ? user.branch_id : input.branchId;
+    if (!candidate || !UUID.test(candidate)) return { error: "Choose the branch first." };
+    const { data: branch } = await supabase.from("self_audit_branches").select("id, code").eq("id", candidate).maybeSingle();
+    if (!branch) return { error: "Branch not found." };
+    const wo = normalizeWorkOrder(input.workOrder, branch.code);
+    if (wo.value === undefined) return { error: `${wo.error} Enter the work order before attaching files.` };
+    branchId = branch.id;
+    workOrder = wo.value;
+  } else {
+    // An existing entry (adding a comment): read it as the caller, so access is checked.
+    const { data: entry } = await supabase
+      .from("self_audit_rejected_claims")
+      .select("branch_id, work_order_no")
+      .eq("id", input.entryId)
+      .maybeSingle();
+    if (!entry) return { error: "This entry was not found." };
+    branchId = entry.branch_id;
+    workOrder = entry.work_order_no;
+  }
+
+  const { data: branchRow } = await supabase.from("self_audit_branches").select("name").eq("id", branchId).maybeSingle();
+  const origin = (await headers()).get("origin");
+  if (!origin) return { error: "Something went wrong - please reload the page and try again." };
+
+  try {
+    const branchFolder = await ensureFolder(`branch:${branchId}`, branchRow?.name ?? "Branch", drive.rootFolderId);
+    const entryFolder = await ensureFolder(`wo:${branchId}:${workOrder}`, workOrder, branchFolder);
+    const uploads = [];
+    for (const f of input.files) {
+      uploads.push({
+        sessionUrl: await startResumableUpload({
+          parentId: entryFolder,
+          name: safeDriveName(f.name),
+          mimeType: f.type,
+          size: f.size,
+          origin,
+        }),
+      });
+    }
+    return { uploads };
+  } catch (e) {
+    return { error: driveMessage(e) };
+  }
+}
+
+/**
+ * Step 3: before saving, re-checks every file the browser says it uploaded
+ * against Google itself - it exists, is not trashed, sits in this work order's
+ * folder and is a sane size and type - so an invented id cannot get in.
+ */
+async function verifyDriveAttachments(branchId: string, workOrder: string, files: DriveAttachmentInput[]) {
+  if (files.length === 0) return { rows: [] as { driveFileId: string; driveUrl: string | null; name: string; type: string; size: number }[] };
+  if (files.length > REJECTED_MAX_FILES) return { error: `You can attach at most ${REJECTED_MAX_FILES} files.` };
+  if (!(await getDriveStatus())) return { error: NOT_CONNECTED };
+
+  const { data: folder } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `wo:${branchId}:${workOrder}`).maybeSingle();
+  if (!folder) return { error: "The upload folder was not found - please attach the files again." };
+
+  const rows = [];
+  const seen = new Set<string>();
+  try {
+    for (const f of files) {
+      if (seen.has(f.driveFileId)) continue;
+      seen.add(f.driveFileId);
+      const meta = await getFileMeta(f.driveFileId);
+      if (!meta || meta.trashed || !meta.parents.includes(folder.drive_id)) return { error: `"${f.name}" did not finish uploading - please attach it again.` };
+      if (!isAllowedFeedbackMime(meta.mimeType)) return { error: `"${meta.name}" is not a photo, PDF or video.` };
+      if (meta.size < 1 || meta.size > REJECTED_MAX_FILE_BYTES) return { error: `"${meta.name}" is larger than 10 MB.` };
+      rows.push({ driveFileId: meta.id, driveUrl: meta.webViewLink, name: meta.name, type: meta.mimeType, size: meta.size });
+    }
+  } catch (e) {
+    return { error: driveMessage(e) };
+  }
+  return { rows };
 }
 
 /**
@@ -77,7 +178,7 @@ export async function createRejectedClaim(input: {
   claimNo?: string;
   date: string;
   reason: string;
-  attachments: RejectedAttachmentInput[];
+  attachments: DriveAttachmentInput[];
 }): Promise<Result> {
   const who = await diaryUser();
   if ("error" in who) return { error: who.error };
@@ -102,8 +203,8 @@ export async function createRejectedClaim(input: {
   if (!reason) return { error: "Write the reason for the rejection." };
   if (reason.length > REJECTED_REASON_MAX) return { error: `The reason can be at most ${REJECTED_REASON_MAX} characters.` };
 
-  const fileError = await verifyAttachments(supabase, `${branchId}/${input.id}`, input.attachments);
-  if (fileError) return { error: fileError };
+  const verified = await verifyDriveAttachments(branchId, workOrder, input.attachments);
+  if ("error" in verified) return { error: verified.error };
 
   const { error } = await supabase.rpc("add_rejected_claim", {
     p_id: input.id,
@@ -112,7 +213,7 @@ export async function createRejectedClaim(input: {
     p_claim_no: claimNo || null,
     p_date: input.date,
     p_reason: reason,
-    p_attachments: input.attachments,
+    p_attachments: verified.rows,
   });
 
   if (error) {
@@ -143,7 +244,7 @@ export async function addRejectedClaimComment(input: {
   id: string;
   entryId: string;
   body: string;
-  attachments: RejectedAttachmentInput[];
+  attachments: DriveAttachmentInput[];
 }): Promise<Result> {
   const who = await diaryUser();
   if ("error" in who) return { error: who.error };
@@ -154,17 +255,17 @@ export async function addRejectedClaimComment(input: {
   if (!body) return { error: "Write your comment." };
   if (body.length > REJECTED_COMMENT_MAX) return { error: `A comment can be at most ${REJECTED_COMMENT_MAX} characters.` };
 
-  const { data: entry } = await supabase.from("self_audit_rejected_claims").select("id, branch_id").eq("id", input.entryId).maybeSingle();
+  const { data: entry } = await supabase.from("self_audit_rejected_claims").select("id, branch_id, work_order_no").eq("id", input.entryId).maybeSingle();
   if (!entry) return { error: "This entry was not found." };
 
-  const fileError = await verifyAttachments(supabase, `${entry.branch_id}/${entry.id}`, input.attachments);
-  if (fileError) return { error: fileError };
+  const verified = await verifyDriveAttachments(entry.branch_id, entry.work_order_no, input.attachments);
+  if ("error" in verified) return { error: verified.error };
 
   const { error } = await supabase.rpc("add_rejected_claim_comment", {
     p_id: input.id,
     p_entry_id: input.entryId,
     p_body: body,
-    p_attachments: input.attachments,
+    p_attachments: verified.rows,
   });
   if (error && error.code !== "23505") return { error: "Could not save your comment - please try again." };
 

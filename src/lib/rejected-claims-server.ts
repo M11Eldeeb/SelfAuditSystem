@@ -40,6 +40,7 @@ export async function signRejectedAttachments(
     fileName: r.file_name,
     mimeType: r.mime_type,
     sizeBytes: r.size_bytes,
-    url: r.storage === "drive" ? r.drive_url : (urlByPath.get(r.storage_path ?? "") ?? null),
+    // Drive files are served through the site (which checks access); older Supabase files via a signed link.
+    url: r.storage === "drive" ? `/api/rejected-claims/files/${r.id}` : (urlByPath.get(r.storage_path ?? "") ?? null),
   }));
 }

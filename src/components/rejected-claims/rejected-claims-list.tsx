@@ -2,10 +2,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { REJECTED_PAGE_SIZE } from "@/lib/rejected-claims";
 import type { CurrentUser } from "@/lib/auth";
+import { getDriveStatus } from "@/lib/google-drive";
 import { EntryForm } from "./entry-form";
+import { DriveStatus } from "./drive-status";
 
 type Role = "officer" | "branch_admin";
-export type ListParams = { q?: string; branch?: string; page?: string };
+export type ListParams = { q?: string; branch?: string; page?: string; drive?: string };
 
 const dateLabel = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -22,6 +24,8 @@ export async function RejectedClaimsList({ user, role, params }: { user: Current
   const supabase = await createClient();
   const basePath = role === "officer" ? "/admin/rejected-claims" : "/audit/rejected-claims";
   const isOfficer = role === "officer";
+
+  const drive = await getDriveStatus();
 
   const { data: branchRows } = await supabase.from("self_audit_branches").select("id, name, code, active").order("name");
   const allBranches = branchRows ?? [];
@@ -78,10 +82,13 @@ export async function RejectedClaimsList({ user, role, params }: { user: Current
         </p>
       </div>
 
+      {isOfficer && <DriveStatus connection={drive} flag={params.drive} />}
+
       <EntryForm
         branches={formBranches}
         fixedBranchId={isOfficer ? undefined : (user.branch_id ?? undefined)}
         basePath={basePath}
+        driveReady={drive !== null}
       />
 
       <form method="get" className="flex flex-wrap items-center gap-2" role="search">

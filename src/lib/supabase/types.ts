@@ -440,6 +440,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_feature_flags"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_google_drive_connection: {
+        Row: {
+          id: number;
+          refresh_token: string;
+          account_email: string;
+          root_folder_id: string;
+          connected_by: string | null;
+          connected_at: string;
+        };
+        Insert: {
+          id?: number;
+          refresh_token: string;
+          account_email: string;
+          root_folder_id: string;
+          connected_by?: string | null;
+          connected_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_google_drive_connection"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_drive_folders: {
+        Row: { key: string; drive_id: string; created_at: string };
+        Insert: { key: string; drive_id: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_drive_folders"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_rejected_claims: {
         Row: {
           id: string;
