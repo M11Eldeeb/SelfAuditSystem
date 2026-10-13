@@ -148,14 +148,14 @@ function qrBlock(url: string, caption: readonly [string, string]) {
   const total = n + quiet * 2;
   return h(
     Link,
-    { src: url, style: { textDecoration: "none", alignItems: "center", width: 84 } },
+    { src: url, style: { textDecoration: "none", alignItems: "center", width: 70 } },
     h(
       View,
-      { style: { padding: 4, borderWidth: 1, borderColor: LINE, borderRadius: 6, backgroundColor: "#ffffff" } },
-      h(Svg, { width: 74, height: 74, viewBox: `0 0 ${total} ${total}` }, h(Path, { d, fill: INK }))
+      { style: { padding: 3, borderWidth: 1, borderColor: LINE, borderRadius: 5, backgroundColor: "#ffffff" } },
+      h(Svg, { width: 56, height: 56, viewBox: `0 0 ${total} ${total}` }, h(Path, { d, fill: INK }))
     ),
-    h(Text, { style: { fontSize: 7, color: MUTED, marginTop: 4, textAlign: "center", letterSpacing: 0.4 } }, caption[0]),
-    h(Text, { style: { fontSize: 7, color: MUTED, textAlign: "center", letterSpacing: 0.4 } }, caption[1])
+    h(Text, { style: { fontSize: 5.5, color: MUTED, marginTop: 3, textAlign: "center", letterSpacing: 0.3 } }, caption[0]),
+    h(Text, { style: { fontSize: 5.5, color: MUTED, textAlign: "center", letterSpacing: 0.3 } }, caption[1])
   );
 }
 
@@ -165,18 +165,18 @@ function qrBlock(url: string, caption: readonly [string, string]) {
  * sharp however far the PDF is zoomed or printed.
  */
 function brandLockup() {
-  const logoWidth = 34;
+  const logoWidth = 27;
   return h(
     View,
     { style: { flexDirection: "row", alignItems: "center" } },
     h(Image, { src: MG_LOGO, style: { width: logoWidth, height: (logoWidth * MG_LOGO_HEIGHT) / MG_LOGO_WIDTH } }),
-    h(View, { style: { width: 1, height: 32, backgroundColor: LINE, marginHorizontal: 9 } }),
+    h(View, { style: { width: 1, height: 26, backgroundColor: LINE, marginHorizontal: 7 } }),
     h(
       View,
       null,
-      h(Text, { style: { fontSize: 12.5, fontWeight: 700, color: INK, textAlign: "right" } }, "جياد الحديثة للسيارات"),
-      h(Text, { style: { fontSize: 11.5, fontWeight: 700, color: INK, letterSpacing: 0.2, textAlign: "right" } }, "Jiad Modern Motors"),
-      h(Text, { style: { fontSize: 6.5, color: MUTED, marginTop: 1.5, textAlign: "right" } }, "A Mohamed Yousuf Naghi Company")
+      h(Text, { style: { fontSize: 10, fontWeight: 700, color: INK, textAlign: "right" } }, "جياد الحديثة للسيارات"),
+      h(Text, { style: { fontSize: 9.5, fontWeight: 700, color: INK, letterSpacing: 0.2, textAlign: "right" } }, "Jiad Modern Motors"),
+      h(Text, { style: { fontSize: 5.5, color: MUTED, marginTop: 1, textAlign: "right" } }, "A Mohamed Yousuf Naghi Company")
     )
   );
 }
@@ -234,16 +234,16 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
 
   return h(
     Page,
-    { key: lang, size: "A4", style: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
+    { key: lang, size: "A4", style: { paddingTop: 26, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
     h(
       View,
       { style: { borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 14, marginBottom: 16 } },
       // Letterhead: the company mark at one edge, the QR code at the other.
-      h(View, { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "center" } }, brandLockup(), qrBlock(folderUrl, L.scan)),
+      h(View, { style: { flexDirection: dir, justifyContent: "space-between", alignItems: "flex-start", marginHorizontal: -14 } }, brandLockup(), qrBlock(folderUrl, L.scan)),
       // The title block sits centred underneath.
       h(
         View,
-        { style: { alignItems: "center", marginTop: 4 } },
+        { style: { alignItems: "center", marginTop: 8 } },
         h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: rtl ? 0 : 1.5, textAlign: "center" } }, L.diary),
         h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: rtl ? 0 : 2, marginTop: 2, textAlign: "center" } }, L.title),
         h(View, { style: { width: 36, height: 2, backgroundColor: BRAND, marginTop: 8, marginBottom: 8 } }),

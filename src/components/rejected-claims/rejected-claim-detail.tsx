@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDriveStatus } from "@/lib/google-drive";
-import { getLogbookFileId } from "@/lib/rejected-claims-logbook";
 import { RebuildLogbookButton } from "./rebuild-logbook-button";
 import { CommentForm } from "./comment-form";
 
@@ -29,7 +28,6 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
   ]);
   const attachments = attachmentRows ?? [];
   const driveReady = (await getDriveStatus()) !== null;
-  const hasLogbook = (await getLogbookFileId(entry.branch_id, entry.work_order_no)) !== null;
   // The work order's own Drive folder (it holds the files and the logbook PDF).
   const { data: folderRow } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `wo:${entry.branch_id}:${entry.work_order_no}`).maybeSingle();
   const folderUrl = folderRow ? `https://drive.google.com/drive/folders/${folderRow.drive_id}` : null;
@@ -145,40 +143,7 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
         ) : (
           <span className="text-xs text-neutral-500">{driveReady ? "The folder is created when the first file or the logbook is saved." : "Google Drive is not connected yet."}</span>
         )}
-      </section>
-
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-neutral-900">Logbook PDF</p>
-          <p className="text-xs text-neutral-500">
-            {hasLogbook
-              ? "This entry and every comment, kept in Google Drive with the attachments. It updates when a comment is added."
-              : driveReady
-                ? "Being prepared - it appears here within a moment of saving."
-                : "It will be written to Google Drive once Drive is connected."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-start gap-2">
-          {hasLogbook && (
-            <>
-              <a
-                href={`/api/rejected-claims/logbook/${entry.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
-              >
-                Open PDF
-              </a>
-              <a
-                href={`/api/rejected-claims/logbook/${entry.id}?download=1`}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
-              >
-                Download
-              </a>
-            </>
-          )}
-          {role === "officer" && driveReady && <RebuildLogbookButton entryId={entry.id} />}
-        </div>
+        {role === "officer" && driveReady && <RebuildLogbookButton entryId={entry.id} />}
       </section>
 
       <section className="space-y-3">
