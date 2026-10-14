@@ -16,5 +16,7 @@ const EXCLUDED_CLAIM_STATUSES = new Set(["Draft saved", "Rejected", "Closed"]);
  * without needing another hardcoded string added by hand.
  */
 export function isExcludedClaimStatus(status: string): boolean {
-  return EXCLUDED_CLAIM_STATUSES.has(status) || status.toLowerCase().includes("returned");
+  const lower = status.toLowerCase();
+  // "Rejected from chief agent" is as dead as "Rejected": any status containing "reject" is a cancelled claim.
+  return EXCLUDED_CLAIM_STATUSES.has(status) || lower.includes("returned") || lower.includes("reject");
 }
