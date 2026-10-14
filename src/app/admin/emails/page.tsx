@@ -124,7 +124,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Standing contacts</h2>
         <p className="text-sm text-neutral-600">The people the &quot;copy&quot; options refer to. Change an address here and every mail that copies them follows.</p>
-        <ContactLists head={people.head} standing={people.standing} />
+        <ContactLists head={people.head} aftersales={people.aftersales} standing={people.standing} />
       </section>
 
       <section className="space-y-3">

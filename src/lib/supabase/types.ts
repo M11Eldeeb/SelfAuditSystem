@@ -531,8 +531,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_mail_lists: {
-        Row: { key: "warranty_head" | "standing_managers"; emails: string[]; updated_by: string | null; updated_at: string };
-        Insert: { key: "warranty_head" | "standing_managers"; emails?: string[]; updated_by?: string | null; updated_at?: string };
+        Row: { key: "warranty_head" | "aftersales_head" | "standing_managers"; emails: string[]; updated_by: string | null; updated_at: string };
+        Insert: { key: "warranty_head" | "aftersales_head" | "standing_managers"; emails?: string[]; updated_by?: string | null; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_mail_lists"]["Insert"]>;
         Relationships: [];
       };

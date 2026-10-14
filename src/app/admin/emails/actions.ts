@@ -123,7 +123,7 @@ export async function saveMailTemplate(input: SaveTemplateInput): Promise<{ erro
   const extraCc = cleanList(input.extraCc);
   const badAddress = [...extraTo, ...extraCc].find((e) => !VALID_EMAIL.test(e));
   if (badAddress) return { error: `"${badAddress}" is not a valid e-mail address.` };
-  const groups = [...new Set(input.ccGroups)].filter((g): g is CcGroup => g in { head: 1, officers: 1, service_managers: 1, standing: 1 });
+  const groups = [...new Set(input.ccGroups)].filter((g): g is CcGroup => g in { head: 1, aftersales_head: 1, officers: 1, service_managers: 1, standing: 1 });
 
   const settings: { milestones?: number[]; deadline_days?: number } = {};
   if (def.milestones && input.milestones) {
@@ -165,10 +165,10 @@ export async function resetMailTemplate(key: MailKey): Promise<{ error?: string 
   return {};
 }
 
-/** The standing lists: the warranty head, and the managers copied on the podium mail. */
-export async function saveMailList(key: "warranty_head" | "standing_managers", emails: string[]): Promise<{ error?: string }> {
+/** The standing lists: the warranty head, the aftersales head, and the managers copied on the podium mail. */
+export async function saveMailList(key: "warranty_head" | "aftersales_head" | "standing_managers", emails: string[]): Promise<{ error?: string }> {
   const officer = await requireRole("officer");
-  if (key !== "warranty_head" && key !== "standing_managers") return { error: "Unknown list." };
+  if (key !== "warranty_head" && key !== "aftersales_head" && key !== "standing_managers") return { error: "Unknown list." };
   const clean = [...new Set(cleanList(emails))];
   const bad = clean.find((e) => !VALID_EMAIL.test(e));
   if (bad) return { error: `"${bad}" is not a valid e-mail address.` };

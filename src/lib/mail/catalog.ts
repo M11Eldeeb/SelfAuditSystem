@@ -6,11 +6,12 @@
 import { fillPlaceholders, placeholdersIn, renderMailText, type PodiumEntry } from "@/lib/mail/template";
 
 export type MailKey = "ready" | "reminder" | "flagged" | "flagged_reminder" | "podium" | "notice" | "results";
-export type CcGroup = "head" | "officers" | "service_managers" | "standing";
+export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
 export const CC_GROUP_LABELS: Record<CcGroup, string> = {
   head: "The warranty head",
+  aftersales_head: "The aftersales head",
   service_managers: "The branch's service manager(s)",
   officers: "All officers",
   standing: "The standing managers list",

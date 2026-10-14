@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { saveMailList } from "./actions";
 
-type ListKey = "warranty_head" | "standing_managers";
+type ListKey = "warranty_head" | "aftersales_head" | "standing_managers";
 
 const field =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 font-mono text-[13px] leading-relaxed text-neutral-900 shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60";
@@ -42,11 +42,12 @@ function ListEditor({ listKey, title, help, initial }: { listKey: ListKey; title
   );
 }
 
-/** The two standing contact lists the mails can copy: the warranty head, and the managers copied on the podium mail. One address per line. */
-export function ContactLists({ head, standing }: { head: string[]; standing: string[] }) {
+/** The standing contact lists the mails can copy: the warranty head, the aftersales head, and the managers copied on the podium mail. One address per line. */
+export function ContactLists({ head, aftersales, standing }: { head: string[]; aftersales: string[]; standing: string[] }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3 lg:grid-cols-3">
       <ListEditor listKey="warranty_head" title="The warranty head" help='Used by the "The warranty head" copy option of every mail. One address per line.' initial={head} />
+      <ListEditor listKey="aftersales_head" title="The aftersales head" help='Used by the "The aftersales head" copy option (Ahmed Mahmod). Always second in the Cc line. One address per line.' initial={aftersales} />
       <ListEditor listKey="standing_managers" title="The standing managers" help='Used by the "The standing managers list" copy option (the podium mail). One address per line.' initial={standing} />
     </div>
   );
