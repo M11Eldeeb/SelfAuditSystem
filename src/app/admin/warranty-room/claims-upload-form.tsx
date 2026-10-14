@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readSpreadsheet } from "@/lib/read-spreadsheet";
 import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbook";
-import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
+import { parseClaimRows, type ParsedClaimRow, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
-import { addManifest, splitClaims, type HashedClaim, type StoredClaims } from "@/lib/warranty-room/claims-diff";
+import { loadStoredClaims, splitClaims, MANIFEST_PAGE_SIZE, type ManifestEntry } from "@/lib/warranty-room/claims-diff";
 import { currentYearMonth } from "@/lib/month";
 import {
   postJsonWithRetry,
@@ -52,7 +52,6 @@ type UploadState =
 // always safe.
 const NETWORK_CHUNK_SIZE = 300;
 const KEPT_CHUNK_SIZE = 3000;
-const MANIFEST_PAGE_SIZE = 4000;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
 
@@ -192,40 +191,46 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       const supabase = createClient();
       timer.mark("Create batch");
 
-      // Only send what is new or different. The stored copy of every claim carries a hash of its content
-      // (source_hash); a claim whose hash matches the file is left alone and just remembered as part of this
-      // batch (add_kept_claims). If the comparison itself fails, everything is sent - slower, never wrong.
+      // Only send what is new or different. The database keeps a fingerprint of every stored claim
+      // (self_audit_claim_hashes, updated by a trigger on every write); a claim identical to the file is left
+      // alone and just remembered as part of this batch (add_kept_claims). Writing is the slow, risky part on this
+      // project, so if the comparison itself fails the upload stops here instead of falling back to sending
+      // every claim.
       setProgress("Comparing with the claims already stored...");
       setProgressPercent(null);
-      let toWrite: HashedClaim[];
-      let keptIds: string[] = [];
-      let compareNote = "";
+      let toWrite: ParsedClaimRow[];
+      let keptIds: string[];
       try {
-        const stored: StoredClaims = new Map();
-        for (const branchId of new Set(claims.map((c) => c.branch_id))) {
-          // One page at a time (ordered by claim number): a whole branch in one request can outlast the 8 s limit.
-          let after: string | undefined;
-          for (;;) {
+        const stored = await loadStoredClaims(
+          async (after) => {
             const page = await supabaseWithRetry(
-              async (signal) => await supabase.rpc("claims_upload_manifest", { p_branch_id: branchId, p_after: after, p_limit: MANIFEST_PAGE_SIZE }).abortSignal(signal),
+              async (signal) =>
+                await supabase
+                  .rpc("claims_hash_manifest", { p_after_branch: after?.branch, p_after_number: after?.number, p_limit: MANIFEST_PAGE_SIZE })
+                  .abortSignal(signal),
               (controller) => (abortControllerRef.current = controller)
             );
             if (page.error) throw new Error(page.error);
-            addManifest(branchId, page.data, stored);
-            const entries = page.data as unknown[][];
-            if (entries.length < MANIFEST_PAGE_SIZE) break;
-            after = entries[entries.length - 1][1] as string;
-          }
-        }
-        ({ changed: toWrite, keptIds } = await splitClaims(claims, stored));
-      } catch (err) {
-        if (cancelledRef.current) {
+            return page.data as ManifestEntry[];
+          },
+          (loaded) => setProgress(`Comparing with the claims already stored - ${loaded} read`)
+        );
+        const split = await splitClaims(claims, stored, undefined, () => cancelledRef.current);
+        if (split.cancelled) {
           setState({ error: "Upload cancelled before any claim was written.", skipped, timing: timer.summary() });
           return;
         }
-        ({ changed: toWrite } = await splitClaims(claims, new Map()));
-        keptIds = [];
-        compareNote = ` Could not compare with the stored claims (${err instanceof Error ? err.message : "unknown error"}), so every claim was sent.`;
+        toWrite = split.changed;
+        keptIds = split.keptIds;
+      } catch (err) {
+        setState({
+          error: cancelledRef.current
+            ? "Upload cancelled before any claim was written."
+            : `Could not compare the file with the stored claims: ${err instanceof Error ? err.message : "unknown error"}. Nothing was written - try the upload again.`,
+          skipped,
+          timing: timer.summary(),
+        });
+        return;
       }
       timer.mark("Compare");
       if (cancelledRef.current) {
@@ -233,7 +238,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         return;
       }
 
-      const claimChunks: HashedClaim[][] = [];
+      const claimChunks: ParsedClaimRow[][] = [];
       for (let i = 0; i < toWrite.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(toWrite.slice(i, i + NETWORK_CHUNK_SIZE));
 
       const { error: chunkError, cancelled } = await runChunksWithConcurrency(
@@ -383,7 +388,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
 
       setState({
-        success: `${finishResult.success as string} Wrote ${toWrite.length} new or changed claim(s); ${keptIds.length} were identical and left untouched.${compareNote}`,
+        success: `${finishResult.success as string} Wrote ${toWrite.length} new or changed claim(s); ${keptIds.length} were identical and left untouched.`,
         skipped,
         partsUploaded,
         unmatchedParts,

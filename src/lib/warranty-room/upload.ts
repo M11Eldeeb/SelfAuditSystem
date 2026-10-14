@@ -50,9 +50,7 @@ export async function startWarrantyRoomBatch(
 export async function upsertClaimsChunk(batchId: string, claims: ParsedClaimRow[]): Promise<{ error?: string }> {
   const supabase = await createClient();
   for (let i = 0; i < claims.length; i += DB_CHUNK_SIZE) {
-    // source_hash is cleared: the content just changed behind the incremental upload's back, so the next claims
-    // upload must treat these rows as changed instead of trusting an outdated hash.
-    const chunk = claims.slice(i, i + DB_CHUNK_SIZE).map((c) => ({ ...c, upload_batch_id: batchId, source_hash: null }));
+    const chunk = claims.slice(i, i + DB_CHUNK_SIZE).map((c) => ({ ...c, upload_batch_id: batchId }));
     const { error } = await supabase.from("self_audit_claims").upsert(chunk, { onConflict: "branch_id,claim_number" });
     if (error) return { error: error.message };
   }
