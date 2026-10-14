@@ -8,10 +8,11 @@ import { fillPlaceholders, placeholdersIn, renderMailText, type PodiumEntry } fr
 export type MailKey = "ready" | "reminder" | "flagged" | "flagged_reminder" | "podium" | "notice" | "results";
 export type CcGroup = "head" | "officers" | "service_managers" | "standing";
 
+/** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
 export const CC_GROUP_LABELS: Record<CcGroup, string> = {
-  head: "The warranty head (Mustafa Nasr)",
+  head: "The warranty head",
+  service_managers: "The branch's service manager(s)",
   officers: "All officers",
-  service_managers: "The branch's service managers",
   standing: "The standing managers list",
 };
 
@@ -44,7 +45,7 @@ export const MAIL_DEFS: Record<MailKey, MailDef> = {
   ready: {
     key: "ready",
     title: "Self audit is ready",
-    to: "Each branch's admins, one mail per branch that was assigned claims",
+    to: "All the branch admins of the branches that were assigned claims, together in ONE mail",
     switchKey: null,
     defaultSubject: "{month} self audit is ready",
     defaultBody: `Dear team,
@@ -61,7 +62,7 @@ ${SIGN_OFF}`,
     defaultCc: ["head", "officers", "service_managers"],
     placeholders: [
       { name: "month", help: "The cycle's month.", sample: "October 2026" },
-      { name: "claims", help: "How many claims the branch was assigned, with the word.", sample: "10 claims" },
+      { name: "claims", help: "How many claims each branch was assigned, with the word - \"up to 10 claims\" if the branches got different numbers.", sample: "10 claims" },
       { name: "have", help: '"have" or "has" to match the number of claims.', sample: "have" },
       { name: "deadline", help: "The submission deadline.", sample: "8 November 2026" },
       { name: "cycle_days", help: "The length of the self-audit window in days.", sample: "25" },
@@ -103,7 +104,7 @@ ${SIGN_OFF}`,
   flagged: {
     key: "flagged",
     title: "Flagged parts (first mail)",
-    to: "Admins of the branches that have parts flagged to scrap and have not submitted evidence yet",
+    to: "Each admin of a branch that has parts flagged and no submitted evidence - a separate mail for every admin",
     switchKey: "flagged_parts",
     defaultSubject: "Action needed: {parts} flagged to scrap - {branch}",
     defaultBody: `Dear {branch} team,
@@ -133,7 +134,7 @@ ${SIGN_OFF}`,
   flagged_reminder: {
     key: "flagged_reminder",
     title: "Flagged parts (reminders)",
-    to: "Admins of the branches that still have flagged parts and no submitted evidence",
+    to: "Each admin of a branch that still has flagged parts and no submitted evidence - a separate mail for every admin",
     switchKey: "flagged_parts",
     defaultSubject: "Reminder: {days_left} {days_word} left to submit destroy evidence - {branch}",
     defaultBody: `Dear {branch} team,

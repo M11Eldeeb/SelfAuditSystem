@@ -58,28 +58,34 @@ export async function planSelfAuditReady(cycleId: string, origin: string): Promi
   ]);
   const counts = new Map<string, number>();
   for (const a of assignments ?? []) counts.set(a.branch_id, (counts.get(a.branch_id) ?? 0) + 1);
+  if (counts.size === 0) return [];
   const t = templates.ready;
 
-  return [...counts.entries()].map(([branchId, n]) => {
-    const mail = composeMail(t, {
-      month: monthLabel(cycle.cycle_month),
-      claims: `${n} ${plural(n, "claim", "claims")}`,
-      have: plural(n, "has", "have"),
-      deadline: cycle.deadline_at ? dateLabel(cycle.deadline_at) : "the deadline",
-      cycle_days: String(AUDIT_CYCLE_DEADLINE_DAYS),
-      link: `${origin}/audit`,
-    });
-    const who = recipientsFor(t, people, { to: people.adminsByBranch.get(branchId) ?? [], branchId });
-    return {
+  // One mail for everybody: all the admins of the branches that were assigned claims, in To. Branches can be
+  // assigned different numbers (some have fewer claims to pick from), so the text says "up to N" in that case.
+  const branchIds = [...counts.keys()];
+  const max = Math.max(...counts.values());
+  const allSame = [...counts.values()].every((n) => n === max);
+  const mail = composeMail(t, {
+    month: monthLabel(cycle.cycle_month),
+    claims: `${allSame ? "" : "up to "}${max} ${plural(max, "claim", "claims")}`,
+    have: allSame ? plural(max, "has", "have") : "have",
+    deadline: cycle.deadline_at ? dateLabel(cycle.deadline_at) : "the deadline",
+    cycle_days: String(AUDIT_CYCLE_DEADLINE_DAYS),
+    link: `${origin}/audit`,
+  });
+  const to = [...new Set(branchIds.flatMap((id) => people.adminsByBranch.get(id) ?? []))];
+  return [
+    {
       kind: "self-audit-ready",
-      key: `self-audit-ready:${cycleId}:${branchId}`,
-      branchId,
-      branchName: people.branchName.get(branchId) ?? "Branch",
-      ...who,
+      key: `self-audit-ready:${cycleId}`,
+      branchId: "all",
+      branchName: `All branches (${branchIds.length})`,
+      ...recipientsFor(t, people, { to, branchIds }),
       ...mail,
       label: "Self audit is ready",
-    };
-  });
+    },
+  ];
 }
 
 // ---- 2. self-audit reminders (7, 3 and 1 day before the deadline, or the days set in the template) ------------
@@ -115,7 +121,7 @@ export async function planSelfAuditReminders(origin: string, now = new Date()): 
       const checklistOpen = !progress || progress.status === "not_started";
       if (s.open === 0 && !checklistOpen) continue; // finished: gets nothing
 
-      const readyKey = `self-audit-ready:${cycle.id}:${branchId}`;
+      const readyKey = `self-audit-ready:${cycle.id}`;
       const original = await findSentMail(readyKey);
       const branch = people.branchName.get(branchId) ?? "Branch";
       const mail = composeMail(t, {
@@ -174,12 +180,10 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
 
   for (const c of counts ?? []) {
     const parts = Number(c.parts);
-    if (parts < 1) continue;
+    if (parts < 1 || !people.activeBranches.has(c.branch_id)) continue; // closed branches are left out
     const status = evidenceStatus.get(c.branch_id);
     if (status === "submitted" || status === "sent") continue; // already handed in: nothing to ask for
     const branch = people.branchName.get(c.branch_id) ?? "Branch";
-    const initialKey = `flagged-parts:${cycle.id}:${c.branch_id}`;
-    const original = await findSentMail(initialKey);
     const vars = {
       branch,
       month,
@@ -192,37 +196,56 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
       days_word: plural(daysLeft, "day", "days"),
       link: `${origin}/audit/warranty-room`,
     };
-    const to = people.adminsByBranch.get(c.branch_id) ?? [];
-
-    if (!original) {
-      // Only while the deadline is still ahead: an old cycle never gets a first mail now.
-      if (daysLeft < 1) continue;
+    // A separate mail for every admin of the branch (not one mail with all of them in To).
+    const admins = people.adminsByBranch.get(c.branch_id) ?? [];
+    if (admins.length === 0) {
       plans.push({
         kind: "flagged-parts",
-        key: initialKey,
+        key: `flagged-parts:${cycle.id}:${c.branch_id}:none`,
         branchId: c.branch_id,
         branchName: branch,
-        ...recipientsFor(first, people, { to, branchId: c.branch_id }),
+        to: [],
+        cc: [],
         ...composeMail(first, vars),
         label: "Parts flagged to scrap",
       });
       continue;
     }
 
-    if (opts.only === "initial") continue;
-    const milestone = reminderMilestone(daysLeft, reminder.milestones);
-    if (!milestone) continue;
-    plans.push({
-      kind: "flagged-parts-reminder",
-      key: `flagged-parts-reminder:${cycle.id}:${c.branch_id}:${milestone}`,
-      branchId: c.branch_id,
-      branchName: branch,
-      ...recipientsFor(reminder, people, { to, branchId: c.branch_id }),
-      ...composeMail(reminder, vars),
-      subject: `Re: ${original.subject}`,
-      replyToKey: initialKey,
-      label: `Reminder - ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
-    });
+    for (const admin of admins) {
+      const initialKey = `flagged-parts:${cycle.id}:${c.branch_id}:${admin}`;
+      const original = await findSentMail(initialKey);
+
+      if (!original) {
+        // Only while the deadline is still ahead: an old cycle never gets a first mail now.
+        if (daysLeft < 1) continue;
+        plans.push({
+          kind: "flagged-parts",
+          key: initialKey,
+          branchId: c.branch_id,
+          branchName: branch,
+          ...recipientsFor(first, people, { to: [admin], branchId: c.branch_id }),
+          ...composeMail(first, vars),
+          label: `Parts flagged to scrap - ${admin}`,
+        });
+        continue;
+      }
+
+      if (opts.only === "initial") continue;
+      const milestone = reminderMilestone(daysLeft, reminder.milestones);
+      if (!milestone) continue;
+      plans.push({
+        kind: "flagged-parts-reminder",
+        key: `flagged-parts-reminder:${cycle.id}:${c.branch_id}:${admin}:${milestone}`,
+        branchId: c.branch_id,
+        branchName: branch,
+        ...recipientsFor(reminder, people, { to: [admin], branchId: c.branch_id }),
+        ...composeMail(reminder, vars),
+        subject: `Re: ${original.subject}`,
+        replyToKey: initialKey,
+        label: `Reminder - ${daysLeft} day${daysLeft === 1 ? "" : "s"} left - ${admin}`,
+      });
+    }
   }
   return plans;
 }
@@ -255,7 +278,7 @@ export async function planPodium(origin: string, now = new Date()): Promise<Plan
     if (since < 1 || since > 10) continue; // not before the next working morning; nothing old
 
     const top = results
-      .filter((r) => people.branchName.has(r.branch_id))
+      .filter((r) => people.activeBranches.has(r.branch_id))
       .map((r) => ({ name: people.branchName.get(r.branch_id)!, avg: Math.round(Number(r.score_pct) * 10) / 10 }))
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 3);

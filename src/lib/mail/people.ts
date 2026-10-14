@@ -13,6 +13,8 @@ export type People = {
   adminsByBranch: Map<string, string[]>;
   managersByBranch: Map<string, string[]>;
   branchName: Map<string, string>;
+  /** Branches that are still open - a closed branch gets no mail. */
+  activeBranches: Set<string>;
   /** The standing lists an officer can edit under Email settings. */
   head: string[];
   standing: string[];
@@ -22,7 +24,7 @@ export async function loadPeople(): Promise<People> {
   const [{ data: users }, { data: contacts }, { data: branches }, { data: lists }] = await Promise.all([
     admin().from("self_audit_users").select("email, role, branch_id"),
     admin().from("self_audit_branch_contacts").select("branch_id, email"),
-    admin().from("self_audit_branches").select("id, name"),
+    admin().from("self_audit_branches").select("id, name, active"),
     admin().from("self_audit_mail_lists").select("key, emails"),
   ]);
   const adminsByBranch = new Map<string, string[]>();
@@ -37,6 +39,7 @@ export async function loadPeople(): Promise<People> {
     adminsByBranch,
     managersByBranch,
     branchName: new Map((branches ?? []).map((b) => [b.id, b.name])),
+    activeBranches: new Set((branches ?? []).filter((b) => b.active).map((b) => b.id)),
     head: list("warranty_head", [WARRANTY_HEAD_EMAIL]).map((e) => e.toLowerCase()),
     standing: list("standing_managers", PODIUM_STANDING_CC).map((e) => e.toLowerCase()),
   };
@@ -59,16 +62,27 @@ export async function loadTemplates(): Promise<Record<MailKey, ResolvedTemplate>
 
 const unique = (list: string[]) => [...new Set(list.map((e) => e.trim().toLowerCase()).filter((e) => VALID_EMAIL.test(e)))];
 
-/** The To and Cc of one mail: the people the mail is for, plus what the template adds (copy groups and extra addresses). */
-export function recipientsFor(t: ResolvedTemplate, people: People, opts: { to: string[]; branchId?: string }): { to: string[]; cc: string[] } {
-  const groups: Record<string, string[]> = {
-    head: people.head,
-    officers: people.officers,
-    service_managers: opts.branchId ? (people.managersByBranch.get(opts.branchId) ?? []) : [...new Set([...people.managersByBranch.values()].flat())],
-    standing: people.standing,
-  };
+/**
+ * The To and Cc of one mail: the people the mail is for, plus what the template adds.
+ * The Cc always comes in this order, and a group that is not ticked is simply skipped (the next one moves up):
+ *   1. the warranty head   2. the extra addresses (named people such as Ahmed Mahmod)
+ *   3. the service manager(s)   4. the officers   5. the standing managers.
+ * Someone who is in two groups appears once, at the earliest place.
+ * Service managers are the branch's own (branchId), or those of several branches (branchIds), or of every branch.
+ */
+export function recipientsFor(t: ResolvedTemplate, people: People, opts: { to: string[]; branchId?: string; branchIds?: string[] }): { to: string[]; cc: string[] } {
+  const managers = opts.branchId
+    ? (people.managersByBranch.get(opts.branchId) ?? [])
+    : [...new Set((opts.branchIds ?? [...people.managersByBranch.keys()]).flatMap((id) => people.managersByBranch.get(id) ?? []))];
+  const has = (g: string) => (t.ccGroups as string[]).includes(g);
   return {
     to: unique([...opts.to, ...t.extraTo]),
-    cc: unique([...t.ccGroups.flatMap((g) => groups[g] ?? []), ...t.extraCc]),
+    cc: unique([
+      ...(has("head") ? people.head : []),
+      ...t.extraCc,
+      ...(has("service_managers") ? managers : []),
+      ...(has("officers") ? people.officers : []),
+      ...(has("standing") ? people.standing : []),
+    ]),
   };
 }

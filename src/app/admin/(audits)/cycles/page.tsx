@@ -18,15 +18,15 @@ export default async function CyclesPage() {
 
   // The "self audit is ready" mail for the open cycle: how many branches it has already reached.
   const openCycle = (cycles ?? []).find((c) => c.status === "open");
-  let readyMail: { branchesTotal: number; branchesSent: number } | null = null;
+  let readyMail: { branchesTotal: number; sent: boolean } | null = null;
   if (openCycle) {
     const branchIds = new Set((assignments ?? []).filter((a) => a.cycle_id === openCycle.id).map((a) => a.branch_id));
     const { count } = await supabase
       .from("self_audit_email_log")
       .select("id", { count: "exact", head: true })
       .eq("status", "sent")
-      .like("dedupe_key", `self-audit-ready:${openCycle.id}:%`);
-    readyMail = { branchesTotal: branchIds.size, branchesSent: count ?? 0 };
+      .like("dedupe_key", `self-audit-ready:${openCycle.id}%`);
+    readyMail = { branchesTotal: branchIds.size, sent: (count ?? 0) > 0 };
   }
 
   const statsByCycle = new Map<string, { total: number; submitted: number; reviewed: number }>();
@@ -77,7 +77,7 @@ export default async function CyclesPage() {
             cycleId={openCycle.id}
             cycleLabel={openCycle.cycle_month.slice(0, 7)}
             branchesTotal={readyMail.branchesTotal}
-            branchesSent={readyMail.branchesSent}
+            sent={readyMail.sent}
           />
         </section>
       )}

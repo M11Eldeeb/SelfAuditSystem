@@ -10,17 +10,17 @@ export function SendReadyMailCard({
   cycleId,
   cycleLabel,
   branchesTotal,
-  branchesSent,
+  sent,
 }: {
   cycleId: string;
   cycleLabel: string;
   branchesTotal: number;
-  branchesSent: number;
+  sent: boolean;
 }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState<{ good: boolean; text: string } | null>(null);
-  const allSent = branchesTotal > 0 && branchesSent >= branchesTotal;
+  const allSent = sent;
 
   async function send() {
     setNote(null);
@@ -28,14 +28,11 @@ export function SendReadyMailCard({
     const res = await sendSelfAuditReadyMails(cycleId);
     setSending(false);
     if (res.error) return setNote({ good: false, text: res.error });
-    const outcomes = res.outcomes ?? [];
-    const ok = outcomes.filter((o) => o.status === "sent" || o.status === "already-sent").length;
-    const problems = outcomes.filter((o) => o.status === "failed" || o.status === "no-recipients");
+    const outcome = (res.outcomes ?? [])[0];
+    const good = outcome?.status === "sent" || outcome?.status === "already-sent";
     setNote({
-      good: problems.length === 0,
-      text:
-        `Sent to ${ok} of ${outcomes.length} branch${outcomes.length === 1 ? "" : "es"}.` +
-        (problems.length ? ` Not sent: ${problems.map((o) => `${o.branchName} (${o.error ?? o.status})`).join("; ")}.` : ""),
+      good,
+      text: good ? `Sent in one mail to the admins of all ${branchesTotal} branches.` : `Not sent: ${outcome?.error ?? outcome?.status ?? "unknown problem"}.`,
     });
     router.refresh();
   }
@@ -47,8 +44,8 @@ export function SendReadyMailCard({
           <p className="text-sm font-medium text-neutral-900">{cycleLabel} self audit - &quot;ready&quot; mail</p>
           <p className="text-xs text-neutral-500">
             {allSent
-              ? `Sent to all ${branchesTotal} branches.`
-              : `Sent to ${branchesSent} of ${branchesTotal} branches. Each branch's admins get their own mail, with the warranty team and service managers in copy.`}{" "}
+              ? `Sent in one mail to the admins of all ${branchesTotal} branches.`
+              : `One mail to the admins of all ${branchesTotal} branches, with the warranty head, the service managers and the officers in copy.`}{" "}
             Reminders go out by themselves (7, 3 and 1 day before the deadline) once switched on in{" "}
             <Link href="/admin/emails" className="text-brand hover:underline">
               Email settings

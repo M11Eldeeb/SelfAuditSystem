@@ -60,14 +60,11 @@ export function CycleForm() {
                 void sendSelfAuditReadyMails(state.cycleId!).then((res) => {
                   setSending(false);
                   if (res.error) return setSendResult({ sent: false, text: res.error });
-                  const outcomes = res.outcomes ?? [];
-                  const ok = outcomes.filter((o) => o.status === "sent" || o.status === "already-sent").length;
-                  const problems = outcomes.filter((o) => o.status === "failed" || o.status === "no-recipients");
+                  const outcome = (res.outcomes ?? [])[0];
+                  const good = outcome?.status === "sent" || outcome?.status === "already-sent";
                   setSendResult({
-                    sent: ok > 0 && problems.length === 0,
-                    text:
-                      `Sent to ${ok} of ${outcomes.length} branch${outcomes.length === 1 ? "" : "es"}.` +
-                      (problems.length ? ` Not sent: ${problems.map((o) => `${o.branchName} (${o.error ?? o.status})`).join("; ")}.` : ""),
+                    sent: good,
+                    text: good ? "Sent in one mail to the admins of all the branches." : `Not sent: ${outcome?.error ?? outcome?.status ?? "unknown problem"}.`,
                   });
                 });
               }}

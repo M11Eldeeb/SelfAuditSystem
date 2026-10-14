@@ -129,6 +129,9 @@ export function MailEditor({ def, saved, customized }: { def: MailDef; saved: Re
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-neutral-700">Copied on this mail (Cc)</legend>
         <p className="text-xs text-neutral-500">To: {def.to}.</p>
+        <p className="text-xs text-neutral-500">
+          The Cc line always follows this order: the warranty head, then the extra addresses you type below (named people such as Ahmed Mahmod), then the service manager(s), then the officers, then the standing managers. A group that is not ticked is skipped and the next one moves up.
+        </p>
         <div className="flex flex-wrap gap-x-5 gap-y-1.5">
           {(Object.keys(CC_GROUP_LABELS) as CcGroup[]).map((g) => (
             <label key={g} className="flex items-center gap-2 text-sm text-neutral-800">
@@ -154,7 +157,7 @@ export function MailEditor({ def, saved, customized }: { def: MailDef; saved: Re
         </div>
         <div className="space-y-1.5">
           <label htmlFor={`xcc-${def.key}`} className="text-xs font-medium text-neutral-700">
-            Extra addresses in Cc <span className="font-normal text-neutral-500">(optional, separate with commas)</span>
+            Extra addresses in Cc <span className="font-normal text-neutral-500">(go right after the warranty head; separate with commas)</span>
           </label>
           <input id={`xcc-${def.key}`} value={extraCc} onChange={(e) => setExtraCc(e.target.value)} className={field} disabled={pending} placeholder="name@jiadmotors.com" />
         </div>

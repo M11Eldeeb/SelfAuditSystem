@@ -21,9 +21,9 @@ function daysPhrase(days: number[]): string {
 }
 
 const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
-  ready: () => "When you press Send mail on Audits → Cycles right after generating the cycle (the button is also there later for a branch that missed it).",
+  ready: () => "When you press Send mail on Audits → Cycles right after generating the cycle - one mail for all the branches.",
   reminder: (t) => `Every working day (Sun-Thu) at about 8:30, on ${daysPhrase(t.milestones)} before the deadline - as a reply in the same thread as the "ready" mail. A branch that has finished gets nothing.`,
-  flagged: (t) => `Once, as soon as a scrap list generation finishes. The deadline is ${t.deadlineDays} days from the start of the warranty room cycle (evidence can still be uploaded later).`,
+  flagged: (t) => `Once per admin, as soon as a scrap list generation finishes. The deadline is ${t.deadlineDays} days from the start of the warranty room cycle (evidence can still be uploaded later).`,
   flagged_reminder: (t) => `${daysPhrase(t.milestones)} before that deadline, in the same thread as the first mail (follows the switch of the first mail).`,
   podium: () => "At about 9:00 on the working morning after the last branch result of a self-audit cycle is finalized. The podium is drawn inside the mail.",
   notice: () => "Right after you create an internal audit for a branch. There is also a Send notice button on the Internal Audit list.",
