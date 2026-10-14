@@ -50,10 +50,12 @@ export async function generateCycle(
 
   // Only the most recently uploaded claims sheet is used for generation -
   // older claims are cleaned up on upload, but this filter is a defensive
-  // second layer in case any linger.
+  // second layer in case any linger. Warranty Room batches (supplier parts,
+  // part details...) carry no claims, so they never count as "the latest".
   const { data: latestBatch } = await supabase
     .from("self_audit_upload_batches")
     .select("id")
+    .not("source_filename", "like", "[warranty-room:%")
     .order("uploaded_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -103,14 +105,14 @@ export async function generateCycle(
   const notifiedBranchIds = new Set<string>();
 
   for (const branch of branches) {
-    const { data: claims } = await supabase
-      .from("self_audit_claims")
-      .select("id, raw_row")
-      .eq("branch_id", branch.id)
-      .eq("upload_batch_id", latestBatch.id)
-      .eq("has_parts", true)
-      .gte("creation_date", claimsMonth)
-      .lt("creation_date", cycleMonth);
+    // Claims of the latest upload: written by it, or left untouched by it because they were identical
+    // (see 0100_incremental_claims_upload.sql).
+    const { data: claims } = await supabase.rpc("cycle_claim_pool", {
+      p_branch_id: branch.id,
+      p_batch_id: latestBatch.id,
+      p_from: claimsMonth,
+      p_to: cycleMonth,
+    });
 
     const available = (claims ?? []).filter(
       (c) =>

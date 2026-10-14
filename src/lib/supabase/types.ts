@@ -97,6 +97,7 @@ export interface Database {
           labor_code: string | null;
           main_part_name: string | null;
           verification_date: string | null;
+          source_hash: string | null;
           created_at: string;
         };
         Insert: {
@@ -122,6 +123,7 @@ export interface Database {
           labor_code?: string | null;
           main_part_name?: string | null;
           verification_date?: string | null;
+          source_hash?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_claims"]["Insert"]>;
@@ -1464,6 +1466,18 @@ export interface Database {
           p_batch_id: string;
         };
         Returns: number;
+      };
+      claims_upload_manifest: {
+        Args: { p_branch_id: string; p_after?: string; p_limit?: number };
+        Returns: unknown;
+      };
+      add_kept_claims: {
+        Args: { p_batch_id: string; p_ids: string[] };
+        Returns: undefined;
+      };
+      cycle_claim_pool: {
+        Args: { p_branch_id: string; p_batch_id: string; p_from: string; p_to: string };
+        Returns: { id: string; raw_row: Record<string, unknown> }[];
       };
       get_reconciliation_summary: {
         Args: { p_branch_ids: string[]; p_from_order?: string };

@@ -6,6 +6,7 @@ import { readSpreadsheet } from "@/lib/read-spreadsheet";
 import { readWorkbookFirstAndNamedSheets } from "@/lib/warranty-room/read-workbook";
 import { parseClaimRows, type SkippedRow } from "@/lib/parse-claims";
 import { parseClaimParts } from "@/lib/warranty-room/parse-claim-parts";
+import { addManifest, splitClaims, type HashedClaim, type StoredClaims } from "@/lib/warranty-room/claims-diff";
 import { currentYearMonth } from "@/lib/month";
 import {
   postJsonWithRetry,
@@ -50,6 +51,8 @@ type UploadState =
 // (upsert on a natural key), so re-sending one after a transient failure is
 // always safe.
 const NETWORK_CHUNK_SIZE = 300;
+const KEPT_CHUNK_SIZE = 3000;
+const MANIFEST_PAGE_SIZE = 4000;
 const CONCURRENCY = 1;
 const PART_DETAILS_SHEET = "Part Details";
 
@@ -189,8 +192,49 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       const supabase = createClient();
       timer.mark("Create batch");
 
-      const claimChunks: typeof claims[] = [];
-      for (let i = 0; i < claims.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(claims.slice(i, i + NETWORK_CHUNK_SIZE));
+      // Only send what is new or different. The stored copy of every claim carries a hash of its content
+      // (source_hash); a claim whose hash matches the file is left alone and just remembered as part of this
+      // batch (add_kept_claims). If the comparison itself fails, everything is sent - slower, never wrong.
+      setProgress("Comparing with the claims already stored...");
+      setProgressPercent(null);
+      let toWrite: HashedClaim[];
+      let keptIds: string[] = [];
+      let compareNote = "";
+      try {
+        const stored: StoredClaims = new Map();
+        for (const branchId of new Set(claims.map((c) => c.branch_id))) {
+          // One page at a time (ordered by claim number): a whole branch in one request can outlast the 8 s limit.
+          let after: string | undefined;
+          for (;;) {
+            const page = await supabaseWithRetry(
+              async (signal) => await supabase.rpc("claims_upload_manifest", { p_branch_id: branchId, p_after: after, p_limit: MANIFEST_PAGE_SIZE }).abortSignal(signal),
+              (controller) => (abortControllerRef.current = controller)
+            );
+            if (page.error) throw new Error(page.error);
+            addManifest(branchId, page.data, stored);
+            const entries = page.data as unknown[][];
+            if (entries.length < MANIFEST_PAGE_SIZE) break;
+            after = entries[entries.length - 1][1] as string;
+          }
+        }
+        ({ changed: toWrite, keptIds } = await splitClaims(claims, stored));
+      } catch (err) {
+        if (cancelledRef.current) {
+          setState({ error: "Upload cancelled before any claim was written.", skipped, timing: timer.summary() });
+          return;
+        }
+        ({ changed: toWrite } = await splitClaims(claims, new Map()));
+        keptIds = [];
+        compareNote = ` Could not compare with the stored claims (${err instanceof Error ? err.message : "unknown error"}), so every claim was sent.`;
+      }
+      timer.mark("Compare");
+      if (cancelledRef.current) {
+        setState({ error: "Upload cancelled before any claim was written.", skipped, timing: timer.summary() });
+        return;
+      }
+
+      const claimChunks: HashedClaim[][] = [];
+      for (let i = 0; i < toWrite.length; i += NETWORK_CHUNK_SIZE) claimChunks.push(toWrite.slice(i, i + NETWORK_CHUNK_SIZE));
 
       const { error: chunkError, cancelled } = await runChunksWithConcurrency(
         claimChunks,
@@ -208,7 +252,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
           ),
         CONCURRENCY,
         (done, total) => {
-          setProgress(`Uploading claims - ${Math.min(done * NETWORK_CHUNK_SIZE, claims.length)} of ${claims.length}`);
+          setProgress(`Uploading new and changed claims - ${Math.min(done * NETWORK_CHUNK_SIZE, toWrite.length)} of ${toWrite.length}`);
           setProgressPercent((done / total) * 100);
         },
         () => cancelledRef.current
@@ -230,6 +274,35 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
           timing: timer.summary(),
         });
         return;
+      }
+
+      // The unchanged claims must be recorded on this batch BEFORE finishing: finishing removes every claim of
+      // the covered branches that is neither written by nor recorded on the batch. If this step fails, stop here
+      // without finishing - nothing is removed and uploading the same file again picks up where this left off.
+      if (keptIds.length > 0) {
+        setProgress("Recording the unchanged claims...");
+        const keptChunks: string[][] = [];
+        for (let i = 0; i < keptIds.length; i += KEPT_CHUNK_SIZE) keptChunks.push(keptIds.slice(i, i + KEPT_CHUNK_SIZE));
+        const { error: keptError, cancelled: keptCancelled } = await runChunksWithConcurrency(
+          keptChunks,
+          (ids) =>
+            supabaseWithRetry(
+              async (signal) => await supabase.rpc("add_kept_claims", { p_batch_id: batchId, p_ids: ids }).abortSignal(signal),
+              (controller) => (abortControllerRef.current = controller)
+            ),
+          CONCURRENCY,
+          (done, total) => setProgressPercent((done / total) * 100),
+          () => cancelledRef.current
+        );
+        timer.mark("Record unchanged");
+        if (keptError || keptCancelled) {
+          setState({
+            error: `${keptError ? `Could not record the unchanged claims: ${keptError}.` : "Upload cancelled."} Nothing was removed. Upload the same file again to finish - it will only send what is still missing.`,
+            skipped,
+            timing: timer.summary(),
+          });
+          return;
+        }
       }
 
       setProgress("Finishing up...");
@@ -310,7 +383,7 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
       }
 
       setState({
-        success: finishResult.success as string,
+        success: `${finishResult.success as string} Wrote ${toWrite.length} new or changed claim(s); ${keptIds.length} were identical and left untouched.${compareNote}`,
         skipped,
         partsUploaded,
         unmatchedParts,
