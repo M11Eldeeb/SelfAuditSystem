@@ -2,13 +2,33 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMailStatus } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
-import { FLAGGED_DEADLINE_DAYS, MAIL_KEYS, WARRANTY_HEAD_EMAIL, planFlaggedParts, planPodium, planSelfAuditReminders } from "@/lib/mail/plans";
+import { MAIL_DEFS, MAIL_KEYS_IN_ORDER, CC_GROUP_LABELS, type MailKey, type ResolvedTemplate } from "@/lib/mail/catalog";
+import { loadPeople, loadTemplates } from "@/lib/mail/people";
+import { planFlaggedParts, planPodium, planSelfAuditReminders } from "@/lib/mail/plans";
 import { EmailSenderCard } from "./email-sender-card";
-import { AutomaticMails, type AutomaticMail } from "./automatic-mails";
+import { MailCards, type MailCard } from "./automatic-mails";
+import { ContactLists } from "./contact-lists";
 import { ServiceManagers, type BranchManagers } from "./service-managers";
 
 const stamp = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
+
+/** "7, 3 and 1 days" */
+function daysPhrase(days: number[]): string {
+  const sorted = [...days].sort((a, b) => b - a).map(String);
+  const list = sorted.length > 1 ? `${sorted.slice(0, -1).join(", ")} and ${sorted[sorted.length - 1]}` : sorted[0];
+  return `${list} day${sorted.length === 1 && sorted[0] === "1" ? "" : "s"}`;
+}
+
+const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
+  ready: () => "When you press Send mail on Audits → Cycles right after generating the cycle (the button is also there later for a branch that missed it).",
+  reminder: (t) => `Every working day (Sun-Thu) at about 8:30, on ${daysPhrase(t.milestones)} before the deadline - as a reply in the same thread as the "ready" mail. A branch that has finished gets nothing.`,
+  flagged: (t) => `Once, as soon as a scrap list generation finishes. The deadline is ${t.deadlineDays} days from the start of the warranty room cycle (evidence can still be uploaded later).`,
+  flagged_reminder: (t) => `${daysPhrase(t.milestones)} before that deadline, in the same thread as the first mail (follows the switch of the first mail).`,
+  podium: () => "At about 9:00 on the working morning after the last branch result of a self-audit cycle is finalized. The podium is drawn inside the mail.",
+  notice: () => "Right after you create an internal audit for a branch. There is also a Send notice button on the Internal Audit list.",
+  results: () => "When you press Send results email on a finalized audit's report page - so you choose the day.",
+};
 
 export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ mail?: string; detail?: string }> }) {
   await requireRole("officer");
@@ -16,16 +36,20 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
   const admin = createAdminClient();
   const [connection, origin] = await Promise.all([getMailStatus(), siteOrigin()]);
 
-  const [{ data: settings }, { data: branches }, { data: contacts }, { data: log }, reminderPlans, flaggedPlans, podiumPlans] = await Promise.all([
+  const [{ data: settings }, { data: branches }, { data: contacts }, { data: log }, { data: savedRows }, reminderPlans, flaggedPlans, podiumPlans, templates, people] = await Promise.all([
     admin.from("self_audit_mail_settings").select("key, enabled"),
     admin.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
     admin.from("self_audit_branch_contacts").select("id, branch_id, email").order("email"),
     admin.from("self_audit_email_log").select("id, kind, recipients, subject, status, error, sent_at").order("sent_at", { ascending: false }).limit(25),
+    admin.from("self_audit_mail_templates").select("key"),
     planSelfAuditReminders(origin),
     planFlaggedParts(origin),
     planPodium(origin),
+    loadTemplates(),
+    loadPeople(),
   ]);
   const enabled = new Map((settings ?? []).map((s) => [s.key, s.enabled]));
+  const customized = new Set((savedRows ?? []).map((r) => r.key));
 
   const plans = [...reminderPlans, ...flaggedPlans, ...podiumPlans];
   const { data: sentRows } = plans.length
@@ -34,61 +58,21 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
   const alreadySent = new Set((sentRows ?? []).map((r) => r.dedupe_key));
   const waiting = plans.filter((p) => !alreadySent.has(p.key));
 
-  const mails: AutomaticMail[] = [
-    {
-      key: "manual-ready",
-      manual: true,
-      title: "Self audit is ready",
-      when: "When you press Send mail on Audits → Cycles right after generating the cycle.",
-      recipients: `Each branch's admins (To), one mail per branch. Copy: Mustafa Nasr (${WARRANTY_HEAD_EMAIL}), all officers, and the branch's service managers.`,
-      enabled: true,
-      samples: [{ kind: "self-audit-ready", label: "ready" }],
-    },
-    {
-      key: MAIL_KEYS.selfAuditReminder,
-      title: "Self-audit reminders",
-      when: "Every working day (Sun-Thu) at about 8:30, on 7, 3 and 1 day before the deadline - as a reply in the same thread as the \"ready\" mail. A branch that has finished gets nothing.",
-      recipients: "Admins of branches with unsubmitted claims or an unsubmitted checklist (To). Same copies as the \"ready\" mail.",
-      enabled: enabled.get(MAIL_KEYS.selfAuditReminder) === true,
-      samples: [{ kind: "self-audit-reminder", label: "reminder" }],
-    },
-    {
-      key: MAIL_KEYS.flaggedParts,
-      title: "Flagged parts (scrap evidence)",
-      when: `Once, as soon as a scrap list generation finishes. Deadline: ${FLAGGED_DEADLINE_DAYS} days from the start of the warranty room cycle (evidence can still be uploaded later). Then reminders on 7, 3 and 1 day before the deadline, in the same thread.`,
-      recipients: "Admins of only the branches that have parts flagged and have not submitted yet (To). Copy: the officers.",
-      enabled: enabled.get(MAIL_KEYS.flaggedParts) === true,
-      samples: [
-        { kind: "flagged-parts", label: "first mail" },
-        { kind: "flagged-reminder", label: "reminder" },
-      ],
-    },
-    {
-      key: MAIL_KEYS.podium,
-      title: "Podium congratulations",
-      when: "At about 9:00 on the working morning after the last branch result of a self-audit cycle is finalized. The podium is drawn inside the mail.",
-      recipients: "Every branch admin (To). Copy: Mustafa Nasr, the officers and the standing managers.",
-      enabled: enabled.get(MAIL_KEYS.podium) === true,
-      samples: [{ kind: "podium", label: "podium" }],
-    },
-    {
-      key: MAIL_KEYS.internalAuditNotice,
-      title: "Internal audit notice",
-      when: "Right after you create an internal audit for a branch, with the Excel sheet of the selected claims attached. There is also a Send notice button on the Internal Audit list.",
-      recipients: "The branch's admins (To). Copy: Mustafa Nasr, the branch's service managers and the officers.",
-      enabled: enabled.get(MAIL_KEYS.internalAuditNotice) === true,
-      samples: [{ kind: "internal-audit-notice", label: "notice" }],
-    },
-    {
-      key: "manual-results",
-      manual: true,
-      title: "Internal audit results",
-      when: "When you press Send results email on a finalized audit's report page - so you choose the day. The results PDF is attached.",
-      recipients: "The branch's admins (To). Copy: Mustafa Nasr, the branch's service managers and the officers.",
-      enabled: true,
-      samples: [{ kind: "internal-audit-results", label: "results" }],
-    },
-  ];
+  const cards: MailCard[] = MAIL_KEYS_IN_ORDER.map((key) => {
+    const def = MAIL_DEFS[key];
+    const t = templates[key];
+    const copyParts = [...t.ccGroups.map((g) => CC_GROUP_LABELS[g]), ...t.extraCc];
+    return {
+      def,
+      when: WHEN[key](t),
+      copies: copyParts.length ? copyParts.join("; ") : "nobody",
+      switchKey: def.switchKey,
+      enabled: def.switchKey ? enabled.get(def.switchKey) === true : false,
+      sharedSwitch: key === "flagged_reminder",
+      saved: t,
+      customized: customized.has(key),
+    };
+  });
 
   const managersByBranch = new Map<string, { id: string; email: string }[]>();
   for (const c of contacts ?? []) managersByBranch.set(c.branch_id, [...(managersByBranch.get(c.branch_id) ?? []), { id: c.id, email: c.email }]);
@@ -99,7 +83,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       <section className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Email settings</h1>
         <p className="text-sm text-neutral-600">
-          The portal sends these mails itself, from the connected mailbox. Each automatic mail is switched off until you turn it on, and a mail is never sent twice.
+          The portal sends these mails itself, from the connected mailbox. Every mail below can be edited - the wording, who is copied, extra addresses and the reminder days. Each automatic mail is switched off until you turn it on, and a mail is never sent twice.
         </p>
       </section>
 
@@ -107,7 +91,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-neutral-900">Mails</h2>
-        <AutomaticMails mails={mails} connected={!!connection} />
+        <MailCards cards={cards} connected={!!connection} />
       </section>
 
       <section className="space-y-3">
@@ -135,6 +119,12 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-neutral-900">Standing contacts</h2>
+        <p className="text-sm text-neutral-600">The people the &quot;copy&quot; options refer to. Change an address here and every mail that copies them follows.</p>
+        <ContactLists head={people.head} standing={people.standing} />
       </section>
 
       <section className="space-y-3">

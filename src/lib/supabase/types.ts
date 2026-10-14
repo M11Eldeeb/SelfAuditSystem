@@ -504,6 +504,38 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_mail_settings"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_mail_templates: {
+        Row: {
+          key: string;
+          subject: string | null;
+          body: string | null;
+          cc_groups: string[] | null;
+          extra_to: string[];
+          extra_cc: string[];
+          settings: Record<string, unknown>;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          subject?: string | null;
+          body?: string | null;
+          cc_groups?: string[] | null;
+          extra_to?: string[];
+          extra_cc?: string[];
+          settings?: Record<string, unknown>;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_mail_templates"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_mail_lists: {
+        Row: { key: "warranty_head" | "standing_managers"; emails: string[]; updated_by: string | null; updated_at: string };
+        Insert: { key: "warranty_head" | "standing_managers"; emails?: string[]; updated_by?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_mail_lists"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_branch_contacts: {
         Row: { id: string; branch_id: string; email: string; role: "service_manager"; created_at: string };
         Insert: { id?: string; branch_id: string; email: string; role?: "service_manager"; created_at?: string };

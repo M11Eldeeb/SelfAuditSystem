@@ -3,29 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadInternalAuditReport } from "@/lib/internal-audit-report-data";
 import { buildInternalAuditPdf, internalAuditPdfName } from "@/lib/internal-audit-pdf";
 import { buildSampleWorkbook, type SampleExcelRow } from "@/lib/internal-audit-sample-excel";
-import { dateLabel, renderMail } from "@/lib/mail/template";
-import { loadPeople, selfAuditCc, type PlannedMail } from "@/lib/mail/plans";
-
-/** The wording of the two internal-audit mails (shared by real sends and the sample sends). */
-export const internalAuditContent = {
-  notice(v: { branch: string; claims: number; auditDate: string | null }) {
-    return renderMail(
-      [
-        {
-          type: "p",
-          text: `The Warranty department will conduct an internal audit${v.auditDate ? ` on ${v.auditDate}` : ""}. The ${v.claims} claim${v.claims === 1 ? "" : "s"} selected ${v.claims === 1 ? "is" : "are"} in the attached Excel sheet. Please have the original job cards in order, parts and documentation ready for review.`,
-        },
-      ],
-      { greeting: `Dear ${v.branch} team,` }
-    );
-  },
-  results(v: { branch: string; score: number }) {
-    return renderMail(
-      [{ type: "p", text: `The internal audit for your branch is complete, with an overall score of ${v.score}%. The full report is attached.` }],
-      { greeting: `Dear ${v.branch} team,` }
-    );
-  },
-};
+import { composeMail } from "@/lib/mail/catalog";
+import { dateLabel } from "@/lib/mail/template";
+import { loadPeople, loadTemplates, recipientsFor } from "@/lib/mail/people";
+import type { PlannedMail } from "@/lib/mail/plans";
 
 const safeFile = (s: string) => s.replace(/[^\w.-]+/g, "_");
 
@@ -37,9 +18,10 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
 
   const { data: internalClaims } = await admin.from("self_audit_internal_audit_claims").select("claim_id, sort_order").eq("internal_audit_id", auditId).order("sort_order");
   const claimIds = (internalClaims ?? []).map((c) => c.claim_id);
-  const [{ data: claims }, people, { data: branch }] = await Promise.all([
+  const [{ data: claims }, people, templates, { data: branch }] = await Promise.all([
     claimIds.length ? admin.from("self_audit_claims").select("id, claim_number, work_order_no, vin, main_part_name, creation_date, repair_end_date").in("id", claimIds) : Promise.resolve({ data: [] }),
     loadPeople(),
+    loadTemplates(),
     admin.from("self_audit_branches").select("name").eq("id", audit.branch_id).maybeSingle(),
   ]);
   const byId = new Map((claims ?? []).map((c) => [c.id, c]));
@@ -50,17 +32,21 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
   if (rows.length === 0) return null;
 
   const branchName = branch?.name ?? "Branch";
-  const { text, html } = internalAuditContent.notice({ branch: branchName, claims: rows.length, auditDate: audit.audit_date ? dateLabel(`${audit.audit_date}T00:00:00Z`) : null });
+  const t = templates.notice;
+  const n = rows.length;
+  const mail = composeMail(t, {
+    branch: branchName,
+    claims: `${n} ${n === 1 ? "claim" : "claims"}`,
+    is: n === 1 ? "is" : "are",
+    on_date: audit.audit_date ? ` on ${dateLabel(`${audit.audit_date}T00:00:00Z`)}` : "",
+  });
   return {
     kind: "internal-audit-notice",
     key: `internal-audit-notice:${auditId}`,
     branchId: audit.branch_id,
     branchName,
-    to: people.adminsByBranch.get(audit.branch_id) ?? [],
-    cc: selfAuditCc(people, audit.branch_id),
-    subject: `Internal Audit Notice - ${branchName}`,
-    text,
-    html,
+    ...recipientsFor(t, people, { to: people.adminsByBranch.get(audit.branch_id) ?? [], branchId: audit.branch_id }),
+    ...mail,
     label: "Internal audit notice",
     attachments: [
       {
@@ -78,19 +64,17 @@ export async function planInternalAuditResults(auditId: string): Promise<Planned
   const report = await loadInternalAuditReport(admin, auditId);
   if (!report?.audit.branch_id) return null;
   const branchId = report.audit.branch_id;
-  const people = await loadPeople();
+  const [people, templates] = await Promise.all([loadPeople(), loadTemplates()]);
+  const t = templates.results;
 
-  const { text, html } = internalAuditContent.results({ branch: report.branchName, score: report.overallScore });
+  const mail = composeMail(t, { branch: report.branchName, score: String(report.overallScore) });
   return {
     kind: "internal-audit-results",
     key: `internal-audit-results:${auditId}`,
     branchId,
     branchName: report.branchName,
-    to: people.adminsByBranch.get(branchId) ?? [],
-    cc: selfAuditCc(people, branchId),
-    subject: `Internal Audit Results - ${report.branchName}`,
-    text,
-    html,
+    ...recipientsFor(t, people, { to: people.adminsByBranch.get(branchId) ?? [], branchId }),
+    ...mail,
     label: "Internal audit results",
     attachments: [{ filename: internalAuditPdfName(report.pdf), mimeType: "application/pdf", data: Buffer.from(buildInternalAuditPdf(report.pdf).output("arraybuffer")) }],
   };
