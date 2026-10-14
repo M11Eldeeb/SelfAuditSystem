@@ -10,6 +10,16 @@ type Picked = { key: string; file: File; driveFileId: string | null; kind: Attac
 /** Where the files go: a new entry names its branch and work order; an existing entry just its id. */
 export type UploadContext = { entryId: string; branchId?: string; workOrder?: string };
 
+/** Opens one Google Drive upload session per file (a server action); the diary's and the technical inquiries' differ in which folder. */
+export type PrepareUploads = (input: { files: { name: string; type: string; size: number }[] } & Record<string, unknown>) => Promise<{ uploads?: { sessionUrl: string }[]; error?: string }>;
+
+export type AttachmentOptions = {
+  /** Which server action opens the upload sessions (default: the Rejected Claims Diary's folder). */
+  prepare?: PrepareUploads;
+  maxFiles?: number;
+  maxFileBytes?: number;
+};
+
 /**
  * Picks files (ordinary ones, and optionally service-history ones - the 20-file limit
  * is shared), validates them (photo / PDF / video, 20 MB, at most 20) and, on
@@ -19,7 +29,10 @@ export type UploadContext = { entryId: string; branchId?: string; workOrder?: st
  * body is far too small for 20 MB). A file that already uploaded is remembered,
  * so retrying a failed save never uploads it twice.
  */
-export function useAttachments() {
+export function useAttachments(options: AttachmentOptions = {}) {
+  const prepare = options.prepare ?? (prepareDriveUploads as unknown as PrepareUploads);
+  const maxFiles = options.maxFiles ?? REJECTED_MAX_FILES;
+  const maxFileBytes = options.maxFileBytes ?? REJECTED_MAX_FILE_BYTES;
   const [files, setFiles] = useState<Picked[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -29,16 +42,16 @@ export function useAttachments() {
     setError(null);
     const next = [...files];
     for (const file of Array.from(list)) {
-      if (next.length >= REJECTED_MAX_FILES) {
-        setError(`You can attach at most ${REJECTED_MAX_FILES} files.`);
+      if (next.length >= maxFiles) {
+        setError(`You can attach at most ${maxFiles} files.`);
         break;
       }
       if (!isAllowedFeedbackMime(file.type)) {
         setError(`"${file.name}" is not a photo, PDF or video.`);
         continue;
       }
-      if (file.size > REJECTED_MAX_FILE_BYTES) {
-        setError(`"${file.name}" is ${formatBytes(file.size)} - the maximum is ${formatBytes(REJECTED_MAX_FILE_BYTES)} per file.`);
+      if (file.size > maxFileBytes) {
+        setError(`"${file.name}" is ${formatBytes(file.size)} - the maximum is ${formatBytes(maxFileBytes)} per file.`);
         continue;
       }
       if (file.size === 0) {
@@ -61,13 +74,13 @@ export function useAttachments() {
   }
 
   /** Uploads what is not in Drive yet and returns every file's details for saving. */
-  async function upload(context: UploadContext): Promise<DriveAttachmentInput[]> {
+  async function upload(context: Record<string, unknown>): Promise<DriveAttachmentInput[]> {
     const done = new Map<string, string>(files.flatMap((f) => (f.driveFileId ? [[f.key, f.driveFileId] as [string, string]] : [])));
     const pending = files.filter((f) => !f.driveFileId);
     try {
       if (pending.length > 0) {
         setStatus("Preparing the Drive folder...");
-        const prepared = await prepareDriveUploads({
+        const prepared = await prepare({
           ...context,
           files: pending.map((p) => ({ name: p.file.name, type: p.file.type, size: p.file.size })),
         });
@@ -95,7 +108,7 @@ export function useAttachments() {
     return files.map((f) => ({ driveFileId: done.get(f.key)!, name: f.file.name, type: f.file.type, size: f.file.size, kind: f.kind }));
   }
 
-  return { files, error, status, add, remove, reset, upload, setError, count: files.length };
+  return { files, error, status, add, remove, reset, upload, setError, count: files.length, limits: { maxFiles, maxFileBytes } };
 }
 
 export function AttachmentPicker({
@@ -134,7 +147,7 @@ export function AttachmentPicker({
         <button
           type="button"
           onClick={() => input.current?.click()}
-          disabled={disabled || !driveReady || total >= REJECTED_MAX_FILES}
+          disabled={disabled || !driveReady || total >= state.limits.maxFiles}
           className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
         >
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -149,7 +162,7 @@ export function AttachmentPicker({
           {label}
         </button>
         <span className="text-xs text-neutral-500">
-          {driveReady ? `Saved to the company Google Drive · up to ${REJECTED_MAX_FILES} files, ${formatBytes(REJECTED_MAX_FILE_BYTES)} each` : "Attachments are unavailable until Google Drive is connected"}
+          {driveReady ? `Saved to the company Google Drive · up to ${state.limits.maxFiles} files, ${formatBytes(state.limits.maxFileBytes)} each` : "Attachments are unavailable until Google Drive is connected"}
         </span>
       </div>
       {files.length > 0 && (

@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -502,6 +502,80 @@ export interface Database {
         Row: { key: string; enabled: boolean; updated_by: string | null; updated_at: string };
         Insert: { key: string; enabled?: boolean; updated_by?: string | null; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_mail_settings"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_inquiry_term_sets: {
+        Row: { id: string; terms: string[]; created_by: string | null; created_at: string };
+        Insert: { id?: string; terms: string[]; created_by?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_inquiry_term_sets"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_technical_inquiries: {
+        Row: {
+          id: string;
+          inquiry_no: number;
+          branch_id: string;
+          work_order_no: string;
+          vin: string;
+          vehicle_model: string;
+          fault_complaint: string;
+          actions_taken: string;
+          workshop_comments: string | null;
+          status: "open" | "awaiting_workshop" | "closed";
+          resolution: string | null;
+          terms_set_id: string;
+          created_by: string | null;
+          created_by_name: string | null;
+          closed_by: string | null;
+          closed_by_name: string | null;
+          closed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          branch_id: string;
+          work_order_no: string;
+          vin: string;
+          vehicle_model: string;
+          fault_complaint: string;
+          actions_taken: string;
+          workshop_comments?: string | null;
+          status?: "open" | "awaiting_workshop" | "closed";
+          terms_set_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiries"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_technical_inquiry_comments: {
+        Row: {
+          id: string;
+          inquiry_id: string;
+          kind: "comment" | "closed" | "reopened";
+          author_id: string | null;
+          author_name: string | null;
+          author_role: string | null;
+          body: string | null;
+          created_at: string;
+        };
+        Insert: { id?: string; inquiry_id: string; kind?: "comment" | "closed" | "reopened"; author_id?: string | null; author_name?: string | null; author_role?: string | null; body?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_comments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_technical_inquiry_attachments: {
+        Row: {
+          id: string;
+          inquiry_id: string;
+          comment_id: string | null;
+          drive_file_id: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: { id?: string; inquiry_id: string; comment_id?: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_attachments"]["Insert"]>;
         Relationships: [];
       };
       self_audit_mail_templates: {
@@ -1294,6 +1368,33 @@ export interface Database {
           p_parts?: string[];
         };
         Returns: string;
+      };
+      create_technical_inquiry: {
+        Args: {
+          p_id: string;
+          p_branch_id: string;
+          p_work_order: string;
+          p_vin: string;
+          p_model: string;
+          p_fault: string;
+          p_actions: string;
+          p_comments: string | null;
+          p_terms_confirmed: boolean;
+          p_attachments?: unknown;
+        };
+        Returns: number;
+      };
+      technical_inquiry_comment: {
+        Args: { p_id: string; p_inquiry_id: string; p_body: string; p_attachments?: unknown };
+        Returns: string;
+      };
+      close_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_resolution: string };
+        Returns: void;
+      };
+      reopen_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_comment?: string | null };
+        Returns: void;
       };
       get_flagged_part_counts: {
         Args: { p_cycle_id: string };

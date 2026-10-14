@@ -35,6 +35,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 export function homePathFor(role: UserRole | null | undefined): string {
   if (role === "officer") return "/admin/dashboard";
   if (role === "finance") return "/finance";
+  if (role === "technical") return "/technical/technical-inquiries";
   return "/audit/dashboard";
 }
 

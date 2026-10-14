@@ -29,6 +29,8 @@ export const DRIVE_ROOT_FOLDER_NAME = "Rejected Claims From Workshop";
  */
 /** Top-level folder of the Shared Drive that holds the destroy-evidence videos: Scrap evidence / <MM-YYYY> / <branch>. */
 export const DRIVE_SCRAP_ROOT_NAME = "Scrap evidence";
+/** Top-level folder of the Shared Drive for the technical inquiries: Technical Inquiries / <branch> / <TI-0001 - work order>. */
+export const DRIVE_INQUIRY_ROOT_NAME = "Technical Inquiries";
 export const DRIVE_SHARED_DRIVE_ID = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || "0AMGzTNddVT5yUk9PVA";
 
 export class DriveError extends Error {
@@ -356,6 +358,19 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
     if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
   }
 
+  // Technical Inquiries: officers and the technical team open all of it, a branch's admins only their own branch's cases.
+  const technicalTeam = unique((users ?? []).filter((u) => (u.role as string) === "technical").map(company));
+  const { data: inquiryRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "inquiry:root").maybeSingle();
+  if (inquiryRoot && !opts.branchId) add(await shareFolderWithEmails(inquiryRoot.drive_id, [...new Set([...officers, ...technicalTeam])]));
+  let inquiryQuery = admin.from("self_audit_drive_folders").select("key, drive_id").like("key", "inquiry:branch:%");
+  if (opts.branchId) inquiryQuery = inquiryQuery.eq("key", `inquiry:branch:${opts.branchId}`);
+  const { data: inquiryBranchFolders } = await inquiryQuery;
+  for (const folder of inquiryBranchFolders ?? []) {
+    const branchId = folder.key.slice("inquiry:branch:".length);
+    const admins = unique((users ?? []).filter((u) => u.role === "branch_admin" && u.branch_id === branchId).map(company));
+    if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
+  }
+
   let query = admin.from("self_audit_drive_folders").select("key, drive_id").like("key", "branch:%");
   if (opts.branchId) query = query.eq("key", `branch:${opts.branchId}`);
   const { data: branchFolders } = await query;
@@ -376,6 +391,29 @@ export async function ensureScrapBranchFolder(monthLabel: string, branchId: stri
   const root = await ensureFolder("scrap:root", DRIVE_SCRAP_ROOT_NAME, DRIVE_SHARED_DRIVE_ID);
   const month = await ensureFolder(`scrap:month:${monthLabel}`, monthLabel, root);
   return ensureFolder(`scrap:branch:${monthLabel}:${branchId}`, branchName, month);
+}
+
+/** Renames a file or folder. False if it is gone. */
+export async function renameFile(fileId: string, name: string): Promise<boolean> {
+  const res = await driveFetch(`${API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new DriveError(`Could not rename the folder in Drive (${res.status}).`, res.status);
+  return true;
+}
+
+/**
+ * The Drive folder for one technical inquiry: Technical Inquiries / <branch> / <label>. While the case is still being
+ * written the label is "<work order> - new <id>" (unique, so two cases never share a folder); renameFile() gives it the
+ * final "TI-0007 - <work order>" name once the case has its number.
+ */
+export async function ensureInquiryFolder(input: { inquiryId: string; branchId: string; branchName: string; label: string }): Promise<string> {
+  const root = await ensureFolder("inquiry:root", DRIVE_INQUIRY_ROOT_NAME, DRIVE_SHARED_DRIVE_ID);
+  const branch = await ensureFolder(`inquiry:branch:${input.branchId}`, input.branchName, root);
+  return ensureFolder(`inquiry:case:${input.inquiryId}`, input.label, branch);
 }
 
 /** Moves a file to the Drive trash (recoverable for 30 days from there). False if it is already gone. */

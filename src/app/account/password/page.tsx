@@ -9,7 +9,7 @@ export default async function AccountPasswordPage() {
   if (!user) redirect("/login");
 
   const homeHref = homePathFor(user.role);
-  const notifications = user.role === "finance" ? undefined : await getNotifications(user);
+  const notifications = user.role === "finance" || user.role === "technical" ? undefined : await getNotifications(user);
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-50">
