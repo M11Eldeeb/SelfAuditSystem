@@ -1,4 +1,4 @@
-import { extractBranchCodeFromDealerField, extractBranchCodeFromWorkOrder } from "@/lib/parse-claims";
+import { branchIdFromWorkOrderPrefix, extractBranchCodeFromDealerField, extractBranchCodeFromWorkOrder } from "@/lib/parse-claims";
 
 export interface ParsedSupplierPartRow {
   branch_id: string;
@@ -96,8 +96,9 @@ export function parseSupplierParts(
     const dealerRaw = str(cols.dealer, row) ?? "";
     const workOrderNo = str(cols.work_order_no, row);
     const branchRaw = extractBranchCodeFromDealerField(dealerRaw) || dealerRaw || extractBranchCodeFromWorkOrder(workOrderNo) || "";
-    const branchId = branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined;
-    if (!branchRaw || !branchId) {
+    // Same rule as the claims upload: the work order prefix names the branch that holds the parts.
+    const branchId = branchIdFromWorkOrderPrefix(workOrderNo, branchLookup) ?? (branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined);
+    if (!branchId) {
       skipped.push({ row: rowNum, reason: `Unrecognized branch "${branchRaw}"` });
       return;
     }

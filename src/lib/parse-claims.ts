@@ -167,6 +167,17 @@ export function extractBranchCodeFromWorkOrder(value: unknown): string | null {
   return match ? match[1].toUpperCase() : null;
 }
 
+/**
+ * The branch a job card was opened at, from its work order prefix ("ABH-1234" -> Abha), when the prefix is exactly a
+ * branch code. It wins over the Dealer column: after a branch closes, other branches' dealer codes submit its job
+ * cards (Abha work orders came in under Madina Rd's code), but the parts are still at the branch named by the work
+ * order, and each branch must only see its own parts.
+ */
+export function branchIdFromWorkOrderPrefix(workOrderNo: unknown, branchLookup: Map<string, string>): string | undefined {
+  const code = extractBranchCodeFromWorkOrder(workOrderNo);
+  return code ? branchLookup.get(code.toLowerCase()) : undefined;
+}
+
 /** Maps a JIAD dealer code like "220309A7" -> "HER" via the trailing letter+digit suffix. */
 export function extractBranchCodeFromDealerField(value: unknown): string | null {
   if (value == null) return null;
@@ -220,7 +231,7 @@ export function parseClaimRows(
       branchFieldRaw ||
       extractBranchCodeFromWorkOrder(get(row, "work_order_no")) ||
       "";
-    const branchId = branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined;
+    const branchId = branchIdFromWorkOrderPrefix(get(row, "work_order_no"), branchLookup) ?? (branchRaw ? branchLookup.get(branchRaw.toLowerCase()) : undefined);
     const claimNumber = str(get(row, "claim_number"));
     const creationDate = parseDateValue(get(row, "creation_date"));
 
