@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendTestEmail } from "./email-actions";
+import { sendTestEmail } from "./sender-actions";
 
 const MESSAGES: Record<string, { tone: "good" | "bad"; text: string }> = {
   connected: { tone: "good", text: "The e-mail sender is connected." },

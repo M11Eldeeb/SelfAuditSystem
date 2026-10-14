@@ -2,15 +2,11 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
-import { NotifyBranchesCard, WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
+import { WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
 import { ScrapGenerationCard } from "./scrap-generation-card";
-import { EmailSenderCard } from "./email-sender-card";
-import { getMailStatus } from "@/lib/gmail";
 
-export default async function WarrantyRoomPage({ searchParams }: { searchParams: Promise<{ mail?: string; detail?: string }> }) {
+export default async function WarrantyRoomPage() {
   await requireRole("officer");
-  const { mail, detail } = await searchParams;
-  const mailConnection = await getMailStatus();
   const supabase = await createClient();
 
   // Warranty Room's own upload kinds are tagged onto self_audit_upload_batches'
@@ -33,7 +29,6 @@ export default async function WarrantyRoomPage({ searchParams }: { searchParams:
     { data: claimsBatch },
     { data: claimsPartsBatch },
     { data: supplierPartsBatch },
-    { data: branchAdmins },
     { data: lastGeneration },
     { data: latestClaimsBatch },
     { data: newestCycle },
@@ -63,7 +58,6 @@ export default async function WarrantyRoomPage({ searchParams }: { searchParams:
       .like("source_filename", "[warranty-room:supplier_parts]%")
       .order("uploaded_at", { ascending: false })
       .limit(1),
-    supabase.from("self_audit_users").select("email").eq("role", "branch_admin"),
     supabase
       .from("self_audit_scrap_generations")
       .select("batch_name, status, requested_at, finished_at, created_count, error")
@@ -91,7 +85,7 @@ export default async function WarrantyRoomPage({ searchParams }: { searchParams:
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">
           Each month, in this order: 1) upload the claims data, 2) generate the warranty room cycle, 3) generate the
-          scrap list, 4) notify the branches. The scrap list works out what happens to each claim&apos;s removed parts after
+          scrap list - the branches are then e-mailed automatically (see the Emails page). The scrap list works out what happens to each claim&apos;s removed parts after
           settlement: flagged to scrap once 90 days past Verification Date, reserved for the manufacturer&apos;s supplier to
           collect, or kept (not scrapped).
         </p>
@@ -120,9 +114,6 @@ export default async function WarrantyRoomPage({ searchParams }: { searchParams:
         cycleMonth={newestCycle?.cycle_month.slice(0, 7) ?? null}
       />
 
-      <NotifyBranchesCard branchAdminEmails={[...new Set((branchAdmins ?? []).map((a) => a.email))]} />
-
-      <EmailSenderCard connection={mailConnection} flag={mail} detail={detail} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">Upload history (last 5)</h2>

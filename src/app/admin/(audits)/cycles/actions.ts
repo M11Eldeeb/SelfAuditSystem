@@ -19,6 +19,7 @@ export type GenerateCycleState =
       perBranch?: { branchName: string; available: number; assigned: number }[];
       cycleMonthLabel?: string;
       notifyEmails?: string[];
+      cycleId?: string;
     }
   | undefined;
 
@@ -157,6 +158,7 @@ export async function generateCycle(
     perBranch,
     cycleMonthLabel: cycleMonthInput,
     notifyEmails,
+    cycleId: cycle.id,
   };
 }
 

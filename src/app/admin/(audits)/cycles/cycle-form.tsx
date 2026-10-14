@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { generateCycle } from "./actions";
+import { sendSelfAuditReadyMails } from "@/app/admin/emails/actions";
 import { currentYearMonth } from "@/lib/month";
-import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 
 export function CycleForm() {
   const [state, formAction, pending] = useActionState(generateCycle, undefined);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: boolean; text: string } | null>(null);
 
   return (
     <div className="space-y-3">
@@ -45,28 +47,42 @@ export function CycleForm() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-800">
             {state.notifyEmails && state.notifyEmails.length > 0
-              ? "Branch admins haven't been told yet - send them the notification email."
+              ? "Branch admins haven't been told yet - send them the notification email (sent by the portal, with the copies set on the Emails page)."
               : "No branch admin accounts found for the branches assigned claims this cycle - nothing to notify."}
           </p>
-          {state.notifyEmails && state.notifyEmails.length > 0 && (
+          {state.cycleId && state.notifyEmails && state.notifyEmails.length > 0 && (
             <button
               type="button"
+              disabled={sending || sendResult?.sent}
               onClick={() => {
-                const monthLabel = state.cycleMonthLabel ?? "";
-                const appUrl = window.location.origin;
-                const subject = `${monthLabel} self audit is ready`;
-                const body = `Hello,\n\nThe self audit for ${monthLabel} has been set up. Please sign in to check your branch's assigned claims and complete the self audit within ${AUDIT_CYCLE_DEADLINE_DAYS} days.\n\nSign in: ${appUrl}/audit\n\nWarranty Department`;
-                const mailto = `mailto:?bcc=${encodeURIComponent(
-                  state.notifyEmails!.join(",")
-                )}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                window.location.href = mailto;
+                setSendResult(null);
+                setSending(true);
+                void sendSelfAuditReadyMails(state.cycleId!).then((res) => {
+                  setSending(false);
+                  if (res.error) return setSendResult({ sent: false, text: res.error });
+                  const outcomes = res.outcomes ?? [];
+                  const ok = outcomes.filter((o) => o.status === "sent" || o.status === "already-sent").length;
+                  const problems = outcomes.filter((o) => o.status === "failed" || o.status === "no-recipients");
+                  setSendResult({
+                    sent: ok > 0 && problems.length === 0,
+                    text:
+                      `Sent to ${ok} of ${outcomes.length} branch${outcomes.length === 1 ? "" : "es"}.` +
+                      (problems.length ? ` Not sent: ${problems.map((o) => `${o.branchName} (${o.error ?? o.status})`).join("; ")}.` : ""),
+                  });
+                });
               }}
-              className="shrink-0 rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+              className="shrink-0 rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
             >
-              Send mail
+              {sending ? "Sending..." : "Send mail"}
             </button>
           )}
         </div>
+      )}
+
+      {sendResult && (
+        <p role="status" className={`rounded-lg border px-3 py-2 text-sm ${sendResult.sent ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700"}`}>
+          {sendResult.text}
+        </p>
       )}
 
       {state?.perBranch && (

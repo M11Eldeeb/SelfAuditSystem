@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const origin = url.origin;
   const done = (flag: string, detail?: string) => {
     const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
-    const res = NextResponse.redirect(`${origin}/admin/warranty-room?mail=${flag}${extra}`);
+    const res = NextResponse.redirect(`${origin}/admin/emails?mail=${flag}${extra}`);
     res.cookies.delete({ name: "gm_state", path: "/api/google-mail" });
     return res;
   };

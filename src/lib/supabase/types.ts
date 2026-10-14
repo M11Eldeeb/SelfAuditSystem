@@ -475,6 +475,9 @@ export interface Database {
           status: "sent" | "failed";
           error: string | null;
           gmail_message_id: string | null;
+          dedupe_key: string | null;
+          rfc_message_id: string | null;
+          thread_id: string | null;
           sent_by: string | null;
           sent_at: string;
         };
@@ -486,10 +489,25 @@ export interface Database {
           status: "sent" | "failed";
           error?: string | null;
           gmail_message_id?: string | null;
+          dedupe_key?: string | null;
+          rfc_message_id?: string | null;
+          thread_id?: string | null;
           sent_by?: string | null;
           sent_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_email_log"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_mail_settings: {
+        Row: { key: string; enabled: boolean; updated_by: string | null; updated_at: string };
+        Insert: { key: string; enabled?: boolean; updated_by?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_mail_settings"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_branch_contacts: {
+        Row: { id: string; branch_id: string; email: string; role: "service_manager"; created_at: string };
+        Insert: { id?: string; branch_id: string; email: string; role?: "service_manager"; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_branch_contacts"]["Insert"]>;
         Relationships: [];
       };
       self_audit_drive_folders: {
@@ -1244,6 +1262,10 @@ export interface Database {
           p_parts?: string[];
         };
         Returns: string;
+      };
+      get_flagged_part_counts: {
+        Args: { p_cycle_id: string };
+        Returns: { branch_id: string; claims: number; parts: number }[];
       };
       add_rejected_claim_comment: {
         Args: { p_id: string; p_entry_id: string; p_body: string; p_attachments?: unknown };

@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DRIVE_ALLOWED_DOMAIN, driveConfig } from "@/lib/google-drive";
 
@@ -114,14 +115,29 @@ const oneLine = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
 const encodeWord = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 const wrap76 = (b64: string) => b64.replace(/(.{76})/g, "$1\r\n");
 
-function buildMime(input: { from: string; to: string[]; bcc: string[]; subject: string; text: string; html?: string; replyTo?: string }): string {
+function buildMime(input: {
+  from: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  text: string;
+  html?: string;
+  replyTo?: string;
+  messageId: string;
+  inReplyTo?: string;
+}): string {
   const boundary = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
   const lines = [
     `From: ${encodeWord(MAIL_FROM_NAME)} <${input.from}>`,
     input.to.length ? `To: ${input.to.join(", ")}` : null,
+    input.cc.length ? `Cc: ${input.cc.join(", ")}` : null,
     input.bcc.length ? `Bcc: ${input.bcc.join(", ")}` : null,
     input.replyTo ? `Reply-To: ${input.replyTo}` : null,
     `Subject: ${encodeWord(oneLine(input.subject))}`,
+    `Message-ID: ${input.messageId}`,
+    input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
+    input.inReplyTo ? `References: ${input.inReplyTo}` : null,
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ].filter((l): l is string => l !== null);
@@ -132,44 +148,95 @@ function buildMime(input: { from: string; to: string[]; bcc: string[]; subject: 
 }
 
 export type SendMailInput = {
-  kind: string; // e.g. "test", "cycle-reminder" - what the log files it under
+  kind: string; // e.g. "test", "self-audit-ready" - what the log files it under
   to?: string[];
-  bcc?: string[]; // for a mail to many branches at once: nobody sees the others
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   text: string;
   html?: string;
   sentBy?: string | null;
+  /** An e-mail with this key that was already sent is never sent again (returns skipped). */
+  dedupeKey?: string;
+  /** Send as a reply in an earlier mail's thread. */
+  reply?: { threadId: string; messageId: string };
 };
 
+export type SendMailResult =
+  | { ok: true; id: string; threadId: string | null; messageId: string; skipped?: false }
+  | { ok: true; skipped: true }
+  | { ok: false; error: string };
+
+/** What an earlier mail with this dedupe key looked like when it went out - for sending a reply into its thread. */
+export async function findSentMail(dedupeKey: string): Promise<{ threadId: string; messageId: string; subject: string } | null> {
+  const { data } = await createAdminClient()
+    .from("self_audit_email_log")
+    .select("thread_id, rfc_message_id, subject")
+    .eq("dedupe_key", dedupeKey)
+    .eq("status", "sent")
+    .maybeSingle();
+  return data?.thread_id && data.rfc_message_id ? { threadId: data.thread_id, messageId: data.rfc_message_id, subject: data.subject } : null;
+}
+
 /** Sends one e-mail and logs the attempt. Never throws: the result says what happened. */
-export async function sendMail(input: SendMailInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
   const clean = (list: string[] | undefined) => [...new Set((list ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean))];
   const to = clean(input.to);
-  const bcc = clean(input.bcc);
-  const recipients = [...to, ...bcc];
-  const log = async (status: "sent" | "failed", extra: { error?: string; id?: string }) => {
+  // Someone already in To is not repeated in Cc, and Cc/Bcc do not repeat each other.
+  const cc = clean(input.cc).filter((e) => !to.includes(e));
+  const bcc = clean(input.bcc).filter((e) => !to.includes(e) && !cc.includes(e));
+  const recipients = [...to, ...cc, ...bcc];
+  const log = async (status: "sent" | "failed", extra: { error?: string; id?: string; threadId?: string | null; messageId?: string }) => {
     await createAdminClient()
       .from("self_audit_email_log")
-      .insert({ kind: input.kind, recipients, subject: oneLine(input.subject), status, error: extra.error ?? null, gmail_message_id: extra.id ?? null, sent_by: input.sentBy ?? null });
+      .insert({
+        kind: input.kind,
+        recipients,
+        subject: oneLine(input.subject),
+        status,
+        error: extra.error ?? null,
+        gmail_message_id: extra.id ?? null,
+        thread_id: extra.threadId ?? null,
+        rfc_message_id: extra.messageId ?? null,
+        dedupe_key: status === "sent" ? (input.dedupeKey ?? null) : null,
+        sent_by: input.sentBy ?? null,
+      });
   };
 
   try {
+    if (input.dedupeKey) {
+      const { data: already } = await createAdminClient().from("self_audit_email_log").select("id").eq("dedupe_key", input.dedupeKey).eq("status", "sent").maybeSingle();
+      if (already) return { ok: true, skipped: true };
+    }
     if (recipients.length === 0) throw new MailError("There is nobody to send this to.");
     const bad = recipients.find((e) => !EMAIL.test(e));
     if (bad) throw new MailError(`"${bad}" is not a valid e-mail address.`);
 
     const { token, from } = await accessToken();
-    const raw = Buffer.from(buildMime({ from, to: to.length ? to : [from], bcc, subject: input.subject, text: input.text, html: input.html })).toString("base64url");
+    const messageId = `<${randomUUID()}@${from.split("@")[1]}>`;
+    const raw = Buffer.from(
+      buildMime({
+        from,
+        to: to.length ? to : [from],
+        cc,
+        bcc,
+        subject: input.subject,
+        text: input.text,
+        html: input.html,
+        messageId,
+        inReplyTo: input.reply?.messageId,
+      })
+    ).toString("base64url");
     const res = await fetch(SEND_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ raw }),
+      body: JSON.stringify({ raw, ...(input.reply ? { threadId: input.reply.threadId } : {}) }),
       cache: "no-store",
     });
-    const json = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+    const json = (await res.json().catch(() => ({}))) as { id?: string; threadId?: string; error?: { message?: string } };
     if (!res.ok || !json.id) throw new MailError(`Gmail refused the message (${res.status}): ${json.error?.message ?? "no details"}`);
-    await log("sent", { id: json.id });
-    return { ok: true, id: json.id };
+    await log("sent", { id: json.id, threadId: json.threadId ?? null, messageId });
+    return { ok: true, id: json.id, threadId: json.threadId ?? null, messageId };
   } catch (e) {
     const error = e instanceof Error ? e.message : "The e-mail could not be sent.";
     console.error(`E-mail "${input.kind}" failed:`, error);

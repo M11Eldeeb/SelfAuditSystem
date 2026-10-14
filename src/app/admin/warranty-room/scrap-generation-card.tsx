@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestScrapGeneration } from "./scrap-generation-actions";
+import { sendFlaggedPartsMailsNow } from "@/app/admin/emails/actions";
 import { currentYearMonth } from "@/lib/month";
 
 type Generation = {
@@ -35,6 +36,23 @@ export function ScrapGenerationCard({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const inProgress = last?.status === "queued" || last?.status === "running";
+
+  // A generation that finishes while this page is open triggers the "parts flagged" mails right away
+  // (if that automatic mail is switched on). The daily job would send them anyway, and nothing goes out twice.
+  const wasInProgress = useRef(false);
+  const [mailNote, setMailNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (inProgress) {
+      wasInProgress.current = true;
+      return;
+    }
+    if (wasInProgress.current && last?.status === "done") {
+      wasInProgress.current = false;
+      void sendFlaggedPartsMailsNow().then((r) => {
+        if (r.sent > 0) setMailNote(`E-mailed ${r.sent} branch${r.sent === 1 ? "" : "es"} about their flagged parts.`);
+      });
+    }
+  }, [inProgress, last?.status]);
 
   // While the database job is working, check back every few seconds.
   useEffect(() => {
@@ -106,6 +124,7 @@ export function ScrapGenerationCard({
         )}
       </p>
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {mailNote && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{mailNote}</p>}
     </section>
   );
 }

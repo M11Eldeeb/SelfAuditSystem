@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** Starts connecting the mailbox the portal sends e-mail from. Officers only. */
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
-  const back = (flag: string) => NextResponse.redirect(`${origin}/admin/warranty-room?mail=${flag}`);
+  const back = (flag: string) => NextResponse.redirect(`${origin}/admin/emails?mail=${flag}`);
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.redirect(`${origin}/login`);
