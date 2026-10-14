@@ -51,7 +51,7 @@ export function SendReadyMailCard({
               : `Sent to ${branchesSent} of ${branchesTotal} branches. Each branch's admins get their own mail, with the warranty team and service managers in copy.`}{" "}
             Reminders go out by themselves (7, 3 and 1 day before the deadline) once switched on in{" "}
             <Link href="/admin/emails" className="text-brand hover:underline">
-              Emails
+              Email settings
             </Link>
             .
           </p>

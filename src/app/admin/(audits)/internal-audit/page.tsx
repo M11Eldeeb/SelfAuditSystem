@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { InternalAuditForm } from "./internal-audit-form";
 import { DeleteInternalAuditButton } from "./delete-internal-audit-button";
 import { scoreBadgeClasses } from "@/lib/score-color";
+import { SendNoticeButton } from "./send-notice-button";
 
 export default async function InternalAuditPage() {
   const officer = await requireRole("officer");
@@ -15,6 +16,10 @@ export default async function InternalAuditPage() {
     supabase.from("self_audit_users").select("id, full_name, email").eq("role", "officer"),
   ]);
 
+  const { data: noticeRows } = (audits ?? []).length
+    ? await supabase.from("self_audit_email_log").select("dedupe_key").eq("status", "sent").in("dedupe_key", (audits ?? []).map((a) => `internal-audit-notice:${a.id}`))
+    : { data: [] as { dedupe_key: string | null }[] };
+  const noticeSent = new Set((noticeRows ?? []).map((r) => r.dedupe_key));
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const officerNameById = new Map((officers ?? []).map((o) => [o.id, o.full_name || o.email]));
 
@@ -87,6 +92,7 @@ export default async function InternalAuditPage() {
                           In progress ({officerNameById.get(a.auditor_id ?? "") ?? "another officer"})
                         </span>
                       )}
+                      {a.branch_id && <SendNoticeButton auditId={a.id} sent={noticeSent.has(`internal-audit-notice:${a.id}`)} />}
                       {a.status !== "finalized" && a.auditor_id === officer.id && (
                         <DeleteInternalAuditButton auditId={a.id} />
                       )}

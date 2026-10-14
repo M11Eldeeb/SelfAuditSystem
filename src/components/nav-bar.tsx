@@ -47,7 +47,10 @@ function activeHrefFor(pathname: string, links: NavLink[]) {
 // there); everyone else has just their own password.
 function settingsLinksFor(user: CurrentUser): NavLink[] {
   return user.role === "officer"
-    ? [{ href: "/admin/branches", label: "Branches & Users" }]
+    ? [
+        { href: "/admin/branches", label: "Branches & Users" },
+        { href: "/admin/emails", label: "Email settings" },
+      ]
     : [{ href: "/account/password", label: "Change password" }];
 }
 

@@ -1,6 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { getMailStatus } from "@/lib/gmail";
+import { MAIL_KEYS, isMailEnabled, sendPlans } from "@/lib/mail/plans";
+import { planInternalAuditNotice } from "@/lib/mail/internal-audit";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -228,6 +232,18 @@ export async function startInternalAudit(
     await supabase.from("self_audit_internal_audits").delete().eq("id", audit.id);
     return { error: claimsError.message };
   }
+
+  // The notice goes to the branch's admins if that automatic mail is switched on - after the response, so a
+  // slow or failing e-mail never holds up (or undoes) creating the audit. The list's "Send notice" button is the fallback.
+  after(async () => {
+    try {
+      if (!(await getMailStatus()) || !(await isMailEnabled(MAIL_KEYS.internalAuditNotice))) return;
+      const plan = await planInternalAuditNotice(audit.id);
+      if (plan && plan.to.length > 0) await sendPlans([plan], officer.id);
+    } catch (e) {
+      console.error("Internal audit notice failed:", e instanceof Error ? e.message : e);
+    }
+  });
 
   revalidatePath("/admin/internal-audit");
   redirect(`/admin/internal-audit/${audit.id}?claim=0`);

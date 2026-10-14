@@ -85,7 +85,7 @@ export default async function WarrantyRoomPage() {
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">
           Each month, in this order: 1) upload the claims data, 2) generate the warranty room cycle, 3) generate the
-          scrap list - the branches are then e-mailed automatically (see the Emails page). The scrap list works out what happens to each claim&apos;s removed parts after
+          scrap list - the branches are then e-mailed automatically (see Settings → Email settings). The scrap list works out what happens to each claim&apos;s removed parts after
           settlement: flagged to scrap once 90 days past Verification Date, reserved for the manufacturer&apos;s supplier to
           collect, or kept (not scrapped).
         </p>

@@ -24,7 +24,8 @@ const COLUMNS: { header: string; key: keyof SampleExcelRow }[] = [
   { header: "Repair End Date", key: "repair_end_date" },
 ];
 
-export async function generateSamplePreviewExcel(rows: SampleExcelRow[], fileName?: string): Promise<void> {
+/** The sample as an .xlsx file's bytes - used by the browser download and by the notice e-mail's attachment. */
+export async function buildSampleWorkbook(rows: SampleExcelRow[]): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sample");
 
@@ -39,7 +40,11 @@ export async function generateSamplePreviewExcel(rows: SampleExcelRow[], fileNam
     sheet.addRow(row);
   });
 
-  const buffer = await workbook.xlsx.writeBuffer();
+  return (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+}
+
+export async function generateSamplePreviewExcel(rows: SampleExcelRow[], fileName?: string): Promise<void> {
+  const buffer = await buildSampleWorkbook(rows);
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });

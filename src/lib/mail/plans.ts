@@ -1,18 +1,24 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findSentMail, sendMail } from "@/lib/gmail";
+import { findSentMail, sendMail, type MailAttachment } from "@/lib/gmail";
+import { PODIUM_STANDING_CC, WARRANTY_HEAD_EMAIL } from "@/lib/mail/contacts";
 import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 import { calendarDaysBetween, dateLabel, monthLabel, reminderMilestone, renderMail } from "@/lib/mail/template";
 
 /**
  * The portal's automatic e-mails, as plans: who each mail goes to, what it says and under which
- * "never twice" key. A plan is only a description - sendPlans() sends it, and the Emails page shows
+ * "never twice" key. A plan is only a description - sendPlans() sends it, and the Email settings page shows
  * plans as a preview before anything is switched on.
  */
 
-export const WARRANTY_HEAD_EMAIL = "mustafa.nasr@jiadmotors.com"; // Mustafa Nasr, copied on the self-audit mails
+export { WARRANTY_HEAD_EMAIL };
 export const FLAGGED_DEADLINE_DAYS = 15; // from the warranty room cycle's creation; evidence can still be uploaded later
-export const MAIL_KEYS = { selfAuditReminder: "self_audit_reminder", flaggedParts: "flagged_parts" } as const;
+export const MAIL_KEYS = {
+  selfAuditReminder: "self_audit_reminder",
+  flaggedParts: "flagged_parts",
+  podium: "podium_congrats",
+  internalAuditNotice: "internal_audit_notice",
+} as const;
 
 export type PlannedMail = {
   kind: string;
@@ -29,6 +35,7 @@ export type PlannedMail = {
   replyToKey?: string;
   /** Short line for the preview: which reminder / which mail. */
   label: string;
+  attachments?: MailAttachment[];
 };
 
 const admin = () => createAdminClient();
@@ -69,6 +76,15 @@ export const mailContent = {
       { greeting: `Dear ${v.branch} team,` }
     );
   },
+  podium(v: { month: string; top: { name: string; avg: number }[]; origin: string }) {
+    return renderMail([
+      { type: "p", text: `Congratulations to this month’s top-performing branches in the ${v.month} self audit:` },
+      { type: "podium", entries: v.top.map((t, i) => ({ place: (i + 1) as 1 | 2 | 3, name: t.name, pct: `${t.avg}%` })) },
+      { type: "p", text: "Great work maintaining such high standards in claims documentation and compliance." },
+      { type: "p", text: "To every other branch: thank you for your effort this cycle. We encourage you to keep pushing and aim for a podium finish next month." },
+      { type: "link", label: "Full results", url: `${v.origin}/audit/results/self-audit` },
+    ]);
+  },
   flaggedReminder(v: { branch: string; month: string; parts: number; daysLeft: number; deadline: string; origin: string }) {
     return renderMail(
       [
@@ -89,14 +105,14 @@ export async function isMailEnabled(key: string): Promise<boolean> {
 // A real-looking address only: a test account such as "c@c" is left out instead of making the whole mail fail.
 const VALID_EMAIL = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
 
-type People = {
+export type People = {
   officers: string[];
   adminsByBranch: Map<string, string[]>;
   managersByBranch: Map<string, string[]>;
   branchName: Map<string, string>;
 };
 
-async function loadPeople(): Promise<People> {
+export async function loadPeople(): Promise<People> {
   const [{ data: users }, { data: contacts }, { data: branches }] = await Promise.all([
     admin().from("self_audit_users").select("email, role, branch_id"),
     admin().from("self_audit_branch_contacts").select("branch_id, email"),
@@ -116,8 +132,8 @@ async function loadPeople(): Promise<People> {
   };
 }
 
-/** Copied on the self-audit mails: the warranty head, every officer and the branch's service managers. */
-const selfAuditCc = (people: People, branchId: string) => [WARRANTY_HEAD_EMAIL, ...people.officers, ...(people.managersByBranch.get(branchId) ?? [])];
+/** Copied on the self-audit and internal-audit mails: the warranty head, every officer and the branch's service managers. */
+export const selfAuditCc = (people: People, branchId: string) => [WARRANTY_HEAD_EMAIL, ...people.officers, ...(people.managersByBranch.get(branchId) ?? [])];
 
 // ---- 1. self audit ready (sent by the "Send mail" button after a cycle is generated) ------------------
 
@@ -246,7 +262,7 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
         branchId: c.branch_id,
         branchName,
         to: people.adminsByBranch.get(c.branch_id) ?? [],
-        cc: [],
+        cc: people.officers,
         subject: `Action needed: ${parts} part${parts === 1 ? "" : "s"} flagged to scrap - ${branchName}`,
         text,
         html,
@@ -265,7 +281,7 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
       branchId: c.branch_id,
       branchName,
       to: people.adminsByBranch.get(c.branch_id) ?? [],
-      cc: [],
+      cc: people.officers,
       subject: `Re: ${original.subject}`,
       text,
       html,
@@ -297,6 +313,7 @@ export async function sendPlans(plans: PlannedMail[], sentBy: string | null): Pr
       subject: p.subject,
       text: p.text,
       html: p.html,
+      attachments: p.attachments,
       sentBy,
       dedupeKey: p.key,
       reply: reply ? { threadId: reply.threadId, messageId: reply.messageId } : undefined,
@@ -305,4 +322,55 @@ export async function sendPlans(plans: PlannedMail[], sentBy: string | null): Pr
     else outcomes.push({ ...base, status: result.skipped ? "already-sent" : "sent" });
   }
   return outcomes;
+}
+
+// ---- 4. the podium congratulations ------------------------------------------------------------------------------
+
+/**
+ * Sent the working morning after the LAST branch result of a self-audit cycle is finalized (the daily job
+ * runs at about 09:00, Sunday to Thursday). Goes to every branch admin, copying the warranty head, the
+ * officers and the standing managers. Only a cycle finalized in the last 10 days is considered, so switching
+ * the mail on never congratulates an old cycle.
+ */
+export async function planPodium(origin: string, now = new Date()): Promise<PlannedMail[]> {
+  const { data: cycles } = await admin().from("self_audit_audit_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }).limit(2);
+  const plans: PlannedMail[] = [];
+  const people = await loadPeople();
+
+  for (const cycle of cycles ?? []) {
+    const [{ data: assignments }, { data: results }] = await Promise.all([
+      admin().from("self_audit_audit_assignments").select("branch_id").eq("cycle_id", cycle.id),
+      admin().from("self_audit_audit_results").select("branch_id, score_pct, finalized_at").eq("cycle_id", cycle.id),
+    ]);
+    const assigned = new Set((assignments ?? []).map((a) => a.branch_id));
+    if (assigned.size === 0 || !results?.length) continue;
+    const finalized = new Set(results.map((r) => r.branch_id));
+    if (![...assigned].every((id) => finalized.has(id))) continue; // someone is still to be finalized
+
+    const last = new Date(Math.max(...results.map((r) => new Date(r.finalized_at).getTime())));
+    if (calendarDaysBetween(last, now) < 1 || calendarDaysBetween(last, now) > 10) continue; // not before the next working morning; nothing old
+
+    const top = results
+      .filter((r) => people.branchName.has(r.branch_id))
+      .map((r) => ({ name: people.branchName.get(r.branch_id)!, avg: Math.round(Number(r.score_pct) * 10) / 10 }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 3);
+    if (top.length === 0) continue;
+
+    const month = monthLabel(cycle.cycle_month);
+    const { text, html } = mailContent.podium({ month, top, origin });
+    plans.push({
+      kind: "podium",
+      key: `podium:${cycle.id}`,
+      branchId: "all",
+      branchName: "All branches",
+      to: [...new Set([...people.adminsByBranch.values()].flat())],
+      cc: [WARRANTY_HEAD_EMAIL, ...people.officers, ...PODIUM_STANDING_CC],
+      subject: `${month} Self-Audit - Top Performing Branches`,
+      text,
+      html,
+      label: `Podium - ${month}`,
+    });
+  }
+  return plans;
 }

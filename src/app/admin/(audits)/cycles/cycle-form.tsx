@@ -47,7 +47,7 @@ export function CycleForm() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-800">
             {state.notifyEmails && state.notifyEmails.length > 0
-              ? "Branch admins haven't been told yet - send them the notification email (sent by the portal, with the copies set on the Emails page)."
+              ? "Branch admins haven't been told yet - send them the notification email (sent by the portal, with the copies set in Settings → Email settings)."
               : "No branch admin accounts found for the branches assigned claims this cycle - nothing to notify."}
           </p>
           {state.cycleId && state.notifyEmails && state.notifyEmails.length > 0 && (

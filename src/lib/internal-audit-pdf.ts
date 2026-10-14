@@ -81,7 +81,8 @@ export function drawTable(
 }
 
 /** Ported from warranty_audit_app.html's generatePDF(). */
-export function generateInternalAuditPdf(data: InternalAuditPdfData): void {
+/** Builds the report PDF (no saving), so it can run in the browser for a download or on the server for an e-mail attachment. */
+export function buildInternalAuditPdf(data: InternalAuditPdfData): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const tableW = pageW - 80;
@@ -281,5 +282,13 @@ export function generateInternalAuditPdf(data: InternalAuditPdfData): void {
   doc.text(data.auditorName || NA, 40, y);
   doc.text(data.managerName || NA, 320, y);
 
-  doc.save(`Warranty_Audit_Report_${data.branchName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  return doc;
+}
+
+export function internalAuditPdfName(data: InternalAuditPdfData): string {
+  return `Warranty_Audit_Report_${data.branchName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
+export function generateInternalAuditPdf(data: InternalAuditPdfData): void {
+  buildInternalAuditPdf(data).save(internalAuditPdfName(data));
 }

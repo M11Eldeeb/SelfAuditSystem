@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { computeInternalAuditScores } from "@/lib/internal-audit-scoring";
-import { DEPARTMENT_LABELS } from "@/lib/departments";
+import { loadInternalAuditReport } from "@/lib/internal-audit-report-data";
 import { scoreBadgeClasses } from "@/lib/score-color";
 import { ReportActions } from "@/app/admin/(audits)/internal-audit/[id]/report/download-report-button";
-import type { DepartmentId } from "@/lib/supabase/types";
 
 /**
  * Shared, read-only rendering of a finalized internal audit's results - used
@@ -24,81 +22,22 @@ export async function InternalAuditReportView({
   showEmailButton?: boolean;
 }) {
   const supabase = await createClient();
+  const report = await loadInternalAuditReport(supabase, auditId);
+  if (!report) notFound();
+  const { audit, branchName, overallScore, departmentScores, recommendations, departmentRemarks, pdf } = report;
+  const { auditorName, auditDateLabel } = pdf;
 
-  const { data: audit } = await supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single();
-  if (!audit || audit.status !== "finalized") notFound();
-
-  const [{ data: branch }, { data: branchAdmin }, { data: questions }, { data: internalClaims }, { data: branchAnswers }, { data: remarks }] =
-    await Promise.all([
-      audit.branch_id ? supabase.from("self_audit_branches").select("name").eq("id", audit.branch_id).single() : Promise.resolve({ data: null }),
-      showEmailButton && audit.branch_id
-        ? supabase
-            .from("self_audit_users")
-            .select("email")
-            .eq("branch_id", audit.branch_id)
-            .eq("role", "branch_admin")
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),
-      supabase.from("self_audit_internal_audit_claims").select("id, claim_id").eq("internal_audit_id", auditId),
-      supabase.from("self_audit_internal_audit_branch_answers").select("question_id, answer_value").eq("internal_audit_id", auditId),
-      supabase.from("self_audit_internal_audit_department_remarks").select("department_id, remark_text").eq("internal_audit_id", auditId),
-    ]);
-
-  const internalClaimIds = (internalClaims ?? []).map((c) => c.id);
-  const [{ data: claimAnswers }, { data: notes }, { data: claims }] = await Promise.all([
-    internalClaimIds.length > 0
-      ? supabase.from("self_audit_internal_audit_answers").select("question_id, answer_value").in("internal_audit_claim_id", internalClaimIds)
-      : Promise.resolve({ data: [] }),
-    internalClaimIds.length > 0
-      ? supabase.from("self_audit_internal_audit_notes").select("internal_audit_claim_id, note_text").in("internal_audit_claim_id", internalClaimIds)
-      : Promise.resolve({ data: [] }),
-    internalClaimIds.length > 0
-      ? supabase.from("self_audit_claims").select("id, vin, claim_number").in(
-          "id",
-          (internalClaims ?? []).map((c) => c.claim_id)
-        )
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  const claimAnswersByQuestion = new Map<string, string[]>();
-  (claimAnswers ?? []).forEach((a) => {
-    const list = claimAnswersByQuestion.get(a.question_id) ?? [];
-    if (a.answer_value != null) list.push(a.answer_value);
-    claimAnswersByQuestion.set(a.question_id, list);
-  });
-  const branchAnswersByQuestion = new Map<string, string | null>(
-    (branchAnswers ?? []).map((a) => [a.question_id, a.answer_value])
-  );
-
-  const { overallScore, departmentScores, checkpointScores } = computeInternalAuditScores(
-    questions ?? [],
-    claimAnswersByQuestion,
-    branchAnswersByQuestion
-  );
-
-  // Reviewed, edited and possibly trimmed by the officer at finalize time
-  // (see the finalize form) - frozen there rather than recomputed here, so
-  // an edit or removal made before finalizing sticks on the report.
-  const recommendations = audit.recommendations ?? [];
-
-  const claimById = new Map((claims ?? []).map((c) => [c.id, c]));
-  const claimIdByInternalClaimId = new Map((internalClaims ?? []).map((c) => [c.id, c.claim_id]));
-  const claimNotes = (notes ?? [])
-    .filter((n) => n.note_text && n.note_text.trim())
-    .map((n) => {
-      const claim = claimById.get(claimIdByInternalClaimId.get(n.internal_audit_claim_id) ?? "");
-      return { vin: claim?.vin ?? "—", claimNumber: claim?.claim_number ?? "—", note: n.note_text ?? "" };
-    });
-
-  const departmentRemarks = (remarks ?? [])
-    .filter((r) => r.remark_text && r.remark_text.trim())
-    .map((r) => ({ label: DEPARTMENT_LABELS[r.department_id] ?? r.department_id, text: r.remark_text ?? "" }));
-
-  const branchName = branch?.name ?? "All branches";
-  const auditorName = audit.auditor_name ?? "";
-  const auditDateLabel = (audit.finalized_at ?? audit.created_at).slice(0, 10);
+  // Whether the results e-mail has already gone out (the officer's button shows it; a branch admin never sees the button).
+  let resultsSentAt: string | null = null;
+  if (showEmailButton) {
+    const { data: sent } = await supabase
+      .from("self_audit_email_log")
+      .select("sent_at")
+      .eq("dedupe_key", `internal-audit-results:${auditId}`)
+      .eq("status", "sent")
+      .maybeSingle();
+    resultsSentAt = sent?.sent_at ?? null;
+  }
 
   return (
     <div className="space-y-6">
@@ -115,29 +54,7 @@ export async function InternalAuditReportView({
             {audit.manager_name || "—"}
           </p>
         </div>
-        <ReportActions
-          branchAdminEmail={showEmailButton ? (branchAdmin?.email ?? null) : null}
-          showEmailButton={showEmailButton}
-          data={{
-            auditName: audit.name || `Internal Audit Report - ${branchName}`,
-            branchName,
-            auditDateLabel,
-            auditorName,
-            managerName: audit.manager_name ?? "",
-            overallScore,
-            departmentScores: departmentScores.map((d) => ({ label: d.label, pct: d.pct })),
-            checkpointScores: checkpointScores.map((c) => ({
-              departmentLabel: DEPARTMENT_LABELS[(c.departmentId as DepartmentId) ?? "reception"] ?? c.departmentId,
-              label: c.label,
-              pct: c.pct,
-            })),
-            departmentRemarks,
-            recommendations,
-            claimNotes,
-            branchOpsNote: audit.branch_ops_note ?? "",
-            closingStatement: audit.closing_statement ?? "",
-          }}
-        />
+        <ReportActions data={pdf} auditId={auditId} showEmailButton={showEmailButton} resultsSentAt={resultsSentAt} />
       </div>
 
       <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">

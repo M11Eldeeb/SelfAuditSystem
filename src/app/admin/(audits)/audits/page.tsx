@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { PODIUM_STANDING_CC, WARRANTY_HEAD_EMAIL } from "@/lib/mail/contacts";
 import { PodiumCongrats } from "@/components/podium-congrats";
 import { AuditFolders } from "@/components/audits/audit-folders";
 import { StandingsList } from "@/components/standings-list";
@@ -7,15 +8,9 @@ import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/sta
 // Standing recipients for the monthly podium congratulations email, on top
 // of every branch admin (fetched fresh below - branches/admins change).
 const PODIUM_EMAIL_CC = [
-  "mustafa.nasr@jiadmotors.com", // warranty head
+  WARRANTY_HEAD_EMAIL,
   "ahmad.hamdani@jiadmotors.com", // fellow warranty officer
-  "ahmed.gomaa@jiadmotors.com",
-  "ahmed.hablil@jiadmotors.com",
-  "saleh.ismail@jiadmotors.com",
-  "osman.ahmed@jiadmotors.com",
-  "ahmed.nader@jiadmotors.com",
-  "adil.almakhlafi@jiadmotors.com",
-  "rami.kamli@jiadmotors.com",
+  ...PODIUM_STANDING_CC,
 ];
 
 export default async function AuditsPage() {

@@ -11,7 +11,7 @@ export type AutomaticMail = {
   when: string;
   recipients: string;
   enabled: boolean;
-  samples: { kind: "self-audit-ready" | "self-audit-reminder" | "flagged-parts" | "flagged-reminder"; label: string }[];
+  samples: { kind: "self-audit-ready" | "self-audit-reminder" | "flagged-parts" | "flagged-reminder" | "podium" | "internal-audit-notice" | "internal-audit-results"; label: string }[];
 };
 
 /** The automatic mails, each with its on/off switch and a "send me a sample" button. All start switched off. */

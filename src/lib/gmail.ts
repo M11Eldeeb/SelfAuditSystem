@@ -126,8 +126,10 @@ function buildMime(input: {
   replyTo?: string;
   messageId: string;
   inReplyTo?: string;
+  attachments?: MailAttachment[];
 }): string {
   const boundary = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  const mixed = input.attachments?.length ? `m${boundary}` : null;
   const lines = [
     `From: ${encodeWord(MAIL_FROM_NAME)} <${input.from}>`,
     input.to.length ? `To: ${input.to.join(", ")}` : null,
@@ -139,13 +141,21 @@ function buildMime(input: {
     input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
     input.inReplyTo ? `References: ${input.inReplyTo}` : null,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    mixed ? `Content-Type: multipart/mixed; boundary="${mixed}"` : `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ].filter((l): l is string => l !== null);
 
   const part = (type: string, body: string) =>
     `--${boundary}\r\nContent-Type: ${type}; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap76(Buffer.from(body, "utf8").toString("base64"))}\r\n`;
-  return `${lines.join("\r\n")}\r\n\r\n${part("text/plain", input.text)}${input.html ? part("text/html", input.html) : ""}--${boundary}--`;
+  const alternative = `${part("text/plain", input.text)}${input.html ? part("text/html", input.html) : ""}--${boundary}--`;
+  if (!mixed) return `${lines.join("\r\n")}\r\n\r\n${alternative}`;
+
+  // With attachments: the text/HTML pair is the first part of a multipart/mixed message.
+  const file = (a: MailAttachment) =>
+    `--${mixed}\r\nContent-Type: ${a.mimeType}; name="${encodeWord(a.filename)}"\r\nContent-Disposition: attachment; filename="${encodeWord(a.filename)}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap76(a.data.toString("base64"))}\r\n`;
+  return `${lines.join("\r\n")}\r\n\r\n--${mixed}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}\r\n${input.attachments!.map(file).join("")}--${mixed}--`;
 }
+
+export type MailAttachment = { filename: string; mimeType: string; data: Buffer };
 
 export type SendMailInput = {
   kind: string; // e.g. "test", "self-audit-ready" - what the log files it under
@@ -158,6 +168,7 @@ export type SendMailInput = {
   sentBy?: string | null;
   /** An e-mail with this key that was already sent is never sent again (returns skipped). */
   dedupeKey?: string;
+  attachments?: MailAttachment[];
   /** Send as a reply in an earlier mail's thread. */
   reply?: { threadId: string; messageId: string };
 };
@@ -225,6 +236,7 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
         html: input.html,
         messageId,
         inReplyTo: input.reply?.messageId,
+        attachments: input.attachments,
       })
     ).toString("base64url");
     const res = await fetch(SEND_URL, {

@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMailStatus } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
-import { FLAGGED_DEADLINE_DAYS, MAIL_KEYS, WARRANTY_HEAD_EMAIL, planFlaggedParts, planSelfAuditReminders } from "@/lib/mail/plans";
+import { FLAGGED_DEADLINE_DAYS, MAIL_KEYS, WARRANTY_HEAD_EMAIL, planFlaggedParts, planPodium, planSelfAuditReminders } from "@/lib/mail/plans";
 import { EmailSenderCard } from "./email-sender-card";
 import { AutomaticMails, type AutomaticMail } from "./automatic-mails";
 import { ServiceManagers, type BranchManagers } from "./service-managers";
@@ -16,17 +16,18 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
   const admin = createAdminClient();
   const [connection, origin] = await Promise.all([getMailStatus(), siteOrigin()]);
 
-  const [{ data: settings }, { data: branches }, { data: contacts }, { data: log }, reminderPlans, flaggedPlans] = await Promise.all([
+  const [{ data: settings }, { data: branches }, { data: contacts }, { data: log }, reminderPlans, flaggedPlans, podiumPlans] = await Promise.all([
     admin.from("self_audit_mail_settings").select("key, enabled"),
     admin.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
     admin.from("self_audit_branch_contacts").select("id, branch_id, email").order("email"),
     admin.from("self_audit_email_log").select("id, kind, recipients, subject, status, error, sent_at").order("sent_at", { ascending: false }).limit(25),
     planSelfAuditReminders(origin),
     planFlaggedParts(origin),
+    planPodium(origin),
   ]);
   const enabled = new Map((settings ?? []).map((s) => [s.key, s.enabled]));
 
-  const plans = [...reminderPlans, ...flaggedPlans];
+  const plans = [...reminderPlans, ...flaggedPlans, ...podiumPlans];
   const { data: sentRows } = plans.length
     ? await admin.from("self_audit_email_log").select("dedupe_key").eq("status", "sent").in("dedupe_key", plans.map((p) => p.key))
     : { data: [] as { dedupe_key: string | null }[] };
@@ -55,12 +56,37 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       key: MAIL_KEYS.flaggedParts,
       title: "Flagged parts (scrap evidence)",
       when: `Once, as soon as a scrap list generation finishes. Deadline: ${FLAGGED_DEADLINE_DAYS} days from the start of the warranty room cycle (evidence can still be uploaded later). Then reminders on 7, 3 and 1 day before the deadline, in the same thread.`,
-      recipients: "Admins of only the branches that have parts flagged and have not submitted yet. No copies.",
+      recipients: "Admins of only the branches that have parts flagged and have not submitted yet (To). Copy: the officers.",
       enabled: enabled.get(MAIL_KEYS.flaggedParts) === true,
       samples: [
         { kind: "flagged-parts", label: "first mail" },
         { kind: "flagged-reminder", label: "reminder" },
       ],
+    },
+    {
+      key: MAIL_KEYS.podium,
+      title: "Podium congratulations",
+      when: "At about 9:00 on the working morning after the last branch result of a self-audit cycle is finalized. The podium is drawn inside the mail.",
+      recipients: "Every branch admin (To). Copy: Mustafa Nasr, the officers and the standing managers.",
+      enabled: enabled.get(MAIL_KEYS.podium) === true,
+      samples: [{ kind: "podium", label: "podium" }],
+    },
+    {
+      key: MAIL_KEYS.internalAuditNotice,
+      title: "Internal audit notice",
+      when: "Right after you create an internal audit for a branch, with the Excel sheet of the selected claims attached. There is also a Send notice button on the Internal Audit list.",
+      recipients: "The branch's admins (To). Copy: Mustafa Nasr, the branch's service managers and the officers.",
+      enabled: enabled.get(MAIL_KEYS.internalAuditNotice) === true,
+      samples: [{ kind: "internal-audit-notice", label: "notice" }],
+    },
+    {
+      key: "manual-results",
+      manual: true,
+      title: "Internal audit results",
+      when: "When you press Send results email on a finalized audit's report page - so you choose the day. The results PDF is attached.",
+      recipients: "The branch's admins (To). Copy: Mustafa Nasr, the branch's service managers and the officers.",
+      enabled: true,
+      samples: [{ kind: "internal-audit-results", label: "results" }],
     },
   ];
 
@@ -71,7 +97,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-8">
       <section className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Emails</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Email settings</h1>
         <p className="text-sm text-neutral-600">
           The portal sends these mails itself, from the connected mailbox. Each automatic mail is switched off until you turn it on, and a mail is never sent twice.
         </p>
