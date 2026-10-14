@@ -5,15 +5,32 @@
 
 import { fillPlaceholders, placeholdersIn, renderMailText, type PodiumEntry } from "@/lib/mail/template";
 
-export type MailKey = "ready" | "reminder" | "flagged" | "flagged_reminder" | "podium" | "notice" | "results";
-export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "standing";
+export type MailKey =
+  | "ready"
+  | "reminder"
+  | "flagged"
+  | "flagged_reminder"
+  | "podium"
+  | "notice"
+  | "results"
+  | "inquiry_new"
+  | "inquiry_reply"
+  | "inquiry_resubmitted"
+  | "inquiry_cancelled"
+  | "inquiry_answered"
+  | "inquiry_closed"
+  | "inquiry_reopened";
+export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "workshop_supervisors" | "workshop_team_leaders" | "technical_team" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
 export const CC_GROUP_LABELS: Record<CcGroup, string> = {
   head: "The warranty head",
   aftersales_head: "The aftersales head",
   service_managers: "The branch's service manager(s)",
+  workshop_supervisors: "The branch's workshop supervisor(s)",
+  workshop_team_leaders: "The branch's workshop team leader(s)",
   officers: "All officers",
+  technical_team: "The whole technical team",
   standing: "The standing managers list",
 };
 
@@ -225,9 +242,262 @@ ${SIGN_OFF}`,
       { name: "score", help: "The overall score (a number, the % sign is in the text).", sample: "86" },
     ],
   },
+  inquiry_new: {
+    key: "inquiry_new",
+    title: "Technical inquiry - new case",
+    to: "The technician the case is assigned to (the branch's technician), or the whole technical team when nobody is assigned",
+    switchKey: "inquiry_mails_technical",
+    defaultSubject: "{urgent}New technical inquiry {number} - {branch} - {model}",
+    defaultBody: `Dear technical team,
+
+{branch} has submitted a new technical inquiry, {number}.
+
+Work order: {work_order}
+VIN: {vin}
+Vehicle: {model}
+System: {system}
+Priority: {priority}
+Assigned to: {technician}
+
+Fault complaint:
+{fault}
+
+Open the case: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_reply: {
+    key: "inquiry_reply",
+    title: "Technical inquiry - the workshop replied",
+    to: "The technician the case is assigned to (the branch's technician), or the whole technical team when nobody is assigned",
+    switchKey: "inquiry_mails_technical",
+    defaultSubject: "{urgent}{number} - {branch} replied",
+    defaultBody: `Dear technical team,
+
+{by} from {branch} replied on inquiry {number} (work order {work_order}).
+
+{comment}
+
+Open the case: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_resubmitted: {
+    key: "inquiry_resubmitted",
+    title: "Technical inquiry - sent again by the workshop",
+    to: "The technician the case is assigned to (the branch's technician), or the whole technical team when nobody is assigned",
+    switchKey: "inquiry_mails_technical",
+    defaultSubject: "{urgent}{number} - {branch} sent the case again",
+    defaultBody: `Dear technical team,
+
+{by} from {branch} has sent inquiry {number} (work order {work_order}) back to you.
+
+{comment}
+
+Open the case: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_cancelled: {
+    key: "inquiry_cancelled",
+    title: "Technical inquiry - cancelled by the workshop",
+    to: "The technician the case is assigned to (the branch's technician), or the whole technical team when nobody is assigned",
+    switchKey: "inquiry_mails_technical",
+    defaultSubject: "{number} - {branch} cancelled the case",
+    defaultBody: `Dear technical team,
+
+{by} from {branch} has cancelled inquiry {number} (work order {work_order}). No answer is needed any more.
+
+{comment}
+
+Open the case: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_answered: {
+    key: "inquiry_answered",
+    title: "Technical inquiry - the technical team answered",
+    to: "The branch's admins",
+    switchKey: "inquiry_mails_workshop",
+    defaultSubject: "{number} - the technical team replied - {work_order}",
+    defaultBody: `Dear {branch} team,
+
+{by} from the technical team has replied on inquiry {number} (work order {work_order}, {model}).
+
+{comment}
+
+Please read it and reply in the portal: {link}
+
+${SIGN_OFF}`,
+    defaultCc: ["service_managers","workshop_supervisors","workshop_team_leaders"],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_closed: {
+    key: "inquiry_closed",
+    title: "Technical inquiry - closed with a solution",
+    to: "The branch's admins",
+    switchKey: "inquiry_mails_workshop",
+    defaultSubject: "{number} - closed - {work_order}",
+    defaultBody: `Dear {branch} team,
+
+{by} from the technical team has closed inquiry {number} (work order {work_order}, {model}).
+
+Solution:
+{resolution}
+
+Open the case: {link}
+
+${SIGN_OFF}`,
+    defaultCc: ["service_managers","workshop_supervisors","workshop_team_leaders"],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "resolution", help: "The summary of the solution written when the case was closed.", sample: "Replaced the throttle position sensor (part 10312345) and updated the ECU software." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_reopened: {
+    key: "inquiry_reopened",
+    title: "Technical inquiry - reopened by the technical team",
+    to: "The branch's admins",
+    switchKey: "inquiry_mails_workshop",
+    defaultSubject: "{number} - reopened - {work_order}",
+    defaultBody: `Dear {branch} team,
+
+{by} from the technical team has reopened inquiry {number} (work order {work_order}, {model}) and is waiting for your reply.
+
+{comment}
+
+Please reply in the portal: {link}
+
+${SIGN_OFF}`,
+    defaultCc: ["service_managers","workshop_supervisors","workshop_team_leaders"],
+    asReply: true,
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "priority", help: 'The priority: "Normal" or "Urgent - customer waiting".', sample: "Urgent - customer waiting" },
+      { name: "urgent", help: 'Becomes "URGENT - " for an urgent case, otherwise nothing (useful in the subject).', sample: "URGENT - " },
+      { name: "technician", help: 'The technician the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
 };
 
-export const MAIL_KEYS_IN_ORDER: MailKey[] = ["ready", "reminder", "flagged", "flagged_reminder", "podium", "notice", "results"];
+export const MAIL_KEYS_IN_ORDER: MailKey[] = [
+  "ready",
+  "reminder",
+  "flagged",
+  "flagged_reminder",
+  "podium",
+  "notice",
+  "results",
+  "inquiry_new",
+  "inquiry_reply",
+  "inquiry_resubmitted",
+  "inquiry_cancelled",
+  "inquiry_answered",
+  "inquiry_closed",
+  "inquiry_reopened",
+];
 
 /** What an officer saved for a mail (all optional - anything missing falls back to the built-in wording). */
 export type MailOverride = {

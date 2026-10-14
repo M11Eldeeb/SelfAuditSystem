@@ -25,13 +25,13 @@ Font.register({
 Font.registerHyphenationCallback((word) => [word]); // never split a word (breaks Arabic joining)
 
 const h = React.createElement;
-const BRAND = "#e4002b";
-const INK = "#171717";
-const MUTED = "#6b7280";
-const LINE = "#e5e7eb";
+export const BRAND = "#e4002b";
+export const INK = "#171717";
+export const MUTED = "#6b7280";
+export const LINE = "#e5e7eb";
 
 /** Right-aligns a paragraph whose first letter is Arabic or Hebrew. */
-function align(text: string): "left" | "right" {
+export function align(text: string): "left" | "right" {
   const firstLetter = text.match(/[A-Za-z֐-ࣿ]/)?.[0] ?? "";
   return /[֐-ࣿ]/.test(firstLetter) ? "right" : "left";
 }
@@ -136,9 +136,9 @@ async function loadSnapshot(entryId: string): Promise<Snapshot | null> {
  * with a thin border, and a caption. Scanning it opens the work order's Drive folder.
  */
 /** Height of the QR code's bordered square: 56 of code, 3 of padding and 1 of border each side. */
-const QR_BOX = 56 + 2 * 3 + 2 * 1;
+export const QR_BOX = 56 + 2 * 3 + 2 * 1;
 
-function qrBlock(url: string, caption: readonly [string, string]) {
+export function qrBlock(url: string, caption: readonly [string, string]) {
   const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
   const n = qr.modules.size;
   const quiet = 2; // modules of white around the code, so scanners find its edge
@@ -167,7 +167,7 @@ function qrBlock(url: string, caption: readonly [string, string]) {
  * English with the group line underneath. Typeset (not a screenshot) so it stays
  * sharp however far the PDF is zoomed or printed.
  */
-function brandLockup(height: number) {
+export function brandLockup(height: number) {
   const logoWidth = 27;
   return h(
     View,

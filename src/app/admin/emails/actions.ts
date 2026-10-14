@@ -123,7 +123,7 @@ export async function saveMailTemplate(input: SaveTemplateInput): Promise<{ erro
   const extraCc = cleanList(input.extraCc);
   const badAddress = [...extraTo, ...extraCc].find((e) => !VALID_EMAIL.test(e));
   if (badAddress) return { error: `"${badAddress}" is not a valid e-mail address.` };
-  const groups = [...new Set(input.ccGroups)].filter((g): g is CcGroup => g in { head: 1, aftersales_head: 1, officers: 1, service_managers: 1, standing: 1 });
+  const groups = [...new Set(input.ccGroups)].filter((g): g is CcGroup => g in { head: 1, aftersales_head: 1, officers: 1, service_managers: 1, workshop_supervisors: 1, workshop_team_leaders: 1, technical_team: 1, standing: 1 });
 
   const settings: { milestones?: number[]; deadline_days?: number } = {};
   if (def.milestones && input.milestones) {
@@ -178,17 +178,18 @@ export async function saveMailList(key: "warranty_head" | "aftersales_head" | "s
   return {};
 }
 
-export async function addServiceManager(branchId: string, email: string): Promise<{ error?: string }> {
+export async function addBranchContact(branchId: string, role: "service_manager" | "workshop_supervisor" | "workshop_team_leader", email: string): Promise<{ error?: string }> {
   await requireRole("officer");
+  if (role !== "service_manager" && role !== "workshop_supervisor" && role !== "workshop_team_leader") return { error: "Unknown role." };
   const clean = email.trim().toLowerCase();
   if (!VALID_EMAIL.test(clean)) return { error: "Enter a valid e-mail address." };
-  const { error } = await createAdminClient().from("self_audit_branch_contacts").insert({ branch_id: branchId, email: clean, role: "service_manager" });
+  const { error } = await createAdminClient().from("self_audit_branch_contacts").insert({ branch_id: branchId, email: clean, role });
   if (error) return { error: error.code === "23505" ? "That address is already listed for this branch." : error.message };
   revalidatePath("/admin/emails");
   return {};
 }
 
-export async function removeServiceManager(id: string): Promise<{ error?: string }> {
+export async function removeBranchContact(id: string): Promise<{ error?: string }> {
   await requireRole("officer");
   const { error } = await createAdminClient().from("self_audit_branch_contacts").delete().eq("id", id);
   if (error) return { error: error.message };

@@ -10,15 +10,24 @@ import { formatBytes, isAllowedFeedbackMime } from "@/lib/feedback-constants";
 import { DriveError, ensureInquiryFolder, getDriveStatus, getFileMeta, renameFile, startResumableUpload, syncDriveSharing } from "@/lib/google-drive";
 import { normalizeWorkOrder } from "@/lib/rejected-claims";
 import { getInquiriesAccess } from "@/lib/technical-inquiries-server";
+import { notifyInquiry, type InquiryEvent } from "@/lib/mail/inquiry-mails";
+import { syncInquiryPdf } from "@/lib/technical-inquiry-pdf";
+import { siteOrigin } from "@/lib/site-origin";
 import {
+  INQUIRY_DTC_MAX,
   INQUIRY_MAX_FILES,
   INQUIRY_MAX_FILE_BYTES,
+  INQUIRY_MAX_MILEAGE,
   INQUIRY_MAX_TERMS,
   INQUIRY_MODEL_MAX,
+  INQUIRY_SHORT_TEXT_MAX,
+  INQUIRY_SOFTWARE_MAX,
   INQUIRY_TERM_MAX,
   INQUIRY_TEXT_MAX,
+  SYSTEMS,
   VIN_PATTERN,
   inquiryLabel,
+  type InquirySystem,
 } from "@/lib/technical-inquiries";
 
 /** A file the browser has already uploaded to Google Drive. */
@@ -43,6 +52,17 @@ function revalidateInquiries(inquiryId?: string) {
     revalidatePath(base);
     if (inquiryId) revalidatePath(`${base}/${inquiryId}`);
   }
+}
+
+/**
+ * After a change on a case, once the response has gone: the case sheet in Drive is rewritten and the mail for the event
+ * goes to the other side (when its switch is on). Neither can undo the change - both only log problems.
+ */
+function afterCaseChange(event: InquiryEvent | null, inquiryId: string, origin: string) {
+  after(async () => {
+    await syncInquiryPdf(inquiryId);
+    if (event) await notifyInquiry(event, inquiryId, origin);
+  });
 }
 
 function checkFiles(files: { name: string; type: string; size: number }[]): string | null {
@@ -92,7 +112,7 @@ export async function prepareInquiryUploads(input: {
     // An existing inquiry (adding a comment): read it as the caller, so access is checked.
     const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("branch_id, work_order_no, inquiry_no, status").eq("id", input.inquiryId).maybeSingle();
     if (!inquiry) return { error: "This inquiry was not found." };
-    if (inquiry.status === "closed") return { error: "This inquiry is closed." };
+    if (inquiry.status === "closed" || inquiry.status === "cancelled") return { error: `This inquiry is ${inquiry.status}.` };
     branchId = inquiry.branch_id;
     label = `${inquiryLabel(inquiry.inquiry_no)} - ${inquiry.work_order_no}`;
   }
@@ -145,6 +165,14 @@ export type CreateInquiryInput = {
   workOrder: string;
   vin: string;
   model: string;
+  system: string;
+  priority: string;
+  mileage?: number | null;
+  dtc?: string;
+  software?: string;
+  occurrence?: string;
+  conditions?: string;
+  partsReplaced?: string;
   fault: string;
   actions: string;
   comments?: string;
@@ -174,6 +202,19 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   const model = input.model.trim();
   if (!model) return { error: "Enter the vehicle model." };
   if (model.length > INQUIRY_MODEL_MAX) return { error: `The vehicle model can be at most ${INQUIRY_MODEL_MAX} characters.` };
+  if (!(SYSTEMS as readonly string[]).includes(input.system)) return { error: "Choose the vehicle system the fault is in." };
+  if (input.priority !== "normal" && input.priority !== "urgent") return { error: "Choose the priority." };
+  const mileage = input.mileage == null || (input.mileage as unknown) === "" ? null : Number(input.mileage);
+  if (mileage !== null && (!Number.isInteger(mileage) || mileage < 0 || mileage > INQUIRY_MAX_MILEAGE)) return { error: "The mileage must be a whole number of kilometres." };
+  const dtc = (input.dtc ?? "").trim();
+  const software = (input.software ?? "").trim();
+  const occurrence = (input.occurrence ?? "").trim();
+  const conditions = (input.conditions ?? "").trim();
+  const partsReplaced = (input.partsReplaced ?? "").trim();
+  if (occurrence && occurrence !== "constant" && occurrence !== "intermittent") return { error: "Choose constant or intermittent." };
+  if (dtc.length > INQUIRY_DTC_MAX) return { error: `The fault codes can be at most ${INQUIRY_DTC_MAX} characters.` };
+  if (software.length > INQUIRY_SOFTWARE_MAX) return { error: `The software version can be at most ${INQUIRY_SOFTWARE_MAX} characters.` };
+  if (conditions.length > INQUIRY_SHORT_TEXT_MAX || partsReplaced.length > INQUIRY_SHORT_TEXT_MAX) return { error: `Those two fields can be at most ${INQUIRY_SHORT_TEXT_MAX} characters.` };
   const fault = input.fault.trim();
   const actions = input.actions.trim();
   const comments = (input.comments ?? "").trim();
@@ -192,6 +233,14 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_work_order: wo.value,
     p_vin: vin,
     p_model: model,
+    p_system: input.system as InquirySystem,
+    p_priority: input.priority,
+    p_mileage: mileage,
+    p_dtc: dtc || null,
+    p_software: software || null,
+    p_occurrence: occurrence || null,
+    p_conditions: conditions || null,
+    p_parts: partsReplaced || null,
     p_fault: fault,
     p_actions: actions,
     p_comments: comments || null,
@@ -210,7 +259,9 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     return { error: error.message };
   }
 
-  // After the response: the Drive folder gets its final name (TI-0007 - work order) and the right people get view access.
+  // After the response: the Drive folder gets its final name (TI-0007 - work order), the right people get view access,
+  // the case sheet is written and the technical team is told.
+  const origin = await siteOrigin();
   after(async () => {
     try {
       const { data: folder } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `inquiry:case:${input.id}`).maybeSingle();
@@ -219,6 +270,8 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     } catch (e) {
       console.error("Technical inquiry Drive follow-up failed:", e instanceof Error ? e.message : e);
     }
+    await syncInquiryPdf(input.id);
+    await notifyInquiry("created", input.id, origin);
   });
 
   revalidateInquiries(input.id);
@@ -226,9 +279,11 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
 }
 
 /** A comment (and files) on an inquiry, from the workshop or the technical team. */
-export async function addInquiryComment(input: { id: string; inquiryId: string; body: string; attachments: InquiryAttachmentInput[] }): Promise<{ error?: string }> {
+export async function addInquiryComment(input: { id: string; inquiryId: string; body: string; attachments: InquiryAttachmentInput[]; internal?: boolean }): Promise<{ error?: string }> {
   const who = await inquiryUser();
   if ("error" in who) return { error: who.error };
+  if (input.internal && who.user.role === "branch_admin") return { error: "Not allowed." };
+  if (input.internal && input.attachments.length > 0) return { error: "Internal notes cannot have files." };
   if (!UUID.test(input.id) || !UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
   const body = input.body.trim();
   if (!body) return { error: "Write your comment." };
@@ -243,6 +298,7 @@ export async function addInquiryComment(input: { id: string; inquiryId: string; 
     p_inquiry_id: input.inquiryId,
     p_body: body,
     p_attachments: verified.rows,
+    p_internal: input.internal === true,
   });
   if (error && error.code !== "23505") return { error: error.message };
 
@@ -255,6 +311,8 @@ export async function addInquiryComment(input: { id: string; inquiryId: string; 
       }
     });
   }
+  // An internal note is for the technical team only: no case-sheet update, no mail.
+  if (!input.internal && !error) afterCaseChange(who.user.role === "branch_admin" ? "workshop_reply" : "team_reply", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
@@ -268,6 +326,7 @@ export async function closeTechnicalInquiry(input: { inquiryId: string; resoluti
   const supabase = await createClient();
   const { error } = await supabase.rpc("close_technical_inquiry", { p_inquiry_id: input.inquiryId, p_resolution: input.resolution });
   if (error) return { error: error.message };
+  afterCaseChange("closed", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
@@ -279,8 +338,88 @@ export async function reopenTechnicalInquiry(input: { inquiryId: string; comment
   const supabase = await createClient();
   const { error } = await supabase.rpc("reopen_technical_inquiry", { p_inquiry_id: input.inquiryId, p_comment: input.comment?.trim() || null });
   if (error) return { error: error.message };
+  afterCaseChange("reopened", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
+}
+
+/** The workshop withdraws a case nobody needs to answer any more. */
+export async function cancelTechnicalInquiry(input: { inquiryId: string; reason?: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const reason = (input.reason ?? "").trim();
+  if (reason.length > INQUIRY_TEXT_MAX) return { error: `The reason can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_technical_inquiry", { p_inquiry_id: input.inquiryId, p_reason: reason || null });
+  if (error) return { error: error.message };
+  afterCaseChange("cancelled", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** The workshop sends a closed or cancelled case back to the technical team (the problem came back, or it was cancelled by mistake). */
+export async function resubmitTechnicalInquiry(input: { inquiryId: string; comment: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const comment = input.comment.trim();
+  if (!comment) return { error: "Say what has changed or why you are sending it again." };
+  if (comment.length > INQUIRY_TEXT_MAX) return { error: `The text can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resubmit_technical_inquiry", { p_inquiry_id: input.inquiryId, p_comment: comment });
+  if (error) return { error: error.message };
+  afterCaseChange("resubmitted", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** The technical team gives a case to a technician (or takes it themselves). */
+export async function assignTechnicalInquiry(input: { inquiryId: string; userId: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId) || !UUID.test(input.userId)) return { error: "Something went wrong - please reload the page and try again." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("assign_technical_inquiry", { p_inquiry_id: input.inquiryId, p_user_id: input.userId });
+  if (error) return { error: error.message };
+  afterCaseChange(null, input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** Which technician looks after which branch (new cases of that branch are assigned to them automatically). Officers only. */
+export async function saveInquiryRouting(input: { branchId: string; technicianId: string | null }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (who.user.role !== "officer") return { error: "Only an officer can change who handles which branch." };
+  if (!UUID.test(input.branchId) || (input.technicianId !== null && !UUID.test(input.technicianId))) return { error: "Something went wrong - please reload the page and try again." };
+  const supabase = await createClient();
+  const { error } = input.technicianId
+    ? await supabase.from("self_audit_inquiry_routing").upsert({ branch_id: input.branchId, technician_id: input.technicianId })
+    : await supabase.from("self_audit_inquiry_routing").delete().eq("branch_id", input.branchId);
+  if (error) return { error: error.message };
+  revalidateInquiries();
+  return {};
+}
+
+export type SimilarInquiry = { id: string; no: number; status: string; workOrder: string; system: string; createdAt: string; resolution: string | null };
+
+/** Earlier cases of the same vehicle (the database only shows the caller the cases they may see), newest first. */
+export async function findSimilarInquiries(vin: string): Promise<{ cases: SimilarInquiry[] }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { cases: [] };
+  const clean = vin.trim().toUpperCase().replace(/\s+/g, "");
+  if (!VIN_PATTERN.test(clean)) return { cases: [] };
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("self_audit_technical_inquiries")
+    .select("id, inquiry_no, status, work_order_no, system, created_at, resolution")
+    .eq("vin", clean)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return {
+    cases: (data ?? []).map((i) => ({ id: i.id, no: i.inquiry_no, status: i.status, workOrder: i.work_order_no, system: i.system, createdAt: i.created_at, resolution: i.resolution })),
+  };
 }
 
 /** An officer saves a new version of the terms every workshop must confirm. Nothing changes if the list is the same. */

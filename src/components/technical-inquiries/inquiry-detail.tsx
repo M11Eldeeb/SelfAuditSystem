@@ -1,16 +1,45 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDriveStatus } from "@/lib/google-drive";
-import { ROLE_LABEL, STATUS_BADGE, STATUS_LABEL, basePathFor, driveFileUrl, driveFolderUrl, inquiryLabel, type InquiryRole } from "@/lib/technical-inquiries";
+import {
+  OCCURRENCE_LABEL,
+  PRIORITY_LABEL,
+  ROLE_LABEL,
+  STATUS_BADGE,
+  STATUS_LABEL,
+  SYSTEM_LABEL,
+  basePathFor,
+  driveFileUrl,
+  driveFolderUrl,
+  durationText,
+  formatMileage,
+  inquiryLabel,
+  isLate,
+  waitingText,
+  type InquiryPriority,
+  type InquiryRole,
+  type InquiryStatus,
+  type InquirySystem,
+} from "@/lib/technical-inquiries";
 import { formatBytes } from "@/lib/feedback-constants";
 import { InquiryCommentForm } from "./comment-form";
 import { ClosePanel } from "./close-panel";
+import { AssignPanel, WorkshopActions } from "./case-actions";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
 type Attachment = { id: string; comment_id: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number };
+
+const EVENT_LABEL: Record<string, string> = {
+  closed: "Case closed",
+  reopened: "Case reopened",
+  cancelled: "Case cancelled",
+  resubmitted: "Case sent again",
+  assigned: "Case assigned",
+};
 
 function Files({ files }: { files: Attachment[] }) {
   if (files.length === 0) return null;
@@ -31,26 +60,46 @@ function Files({ files }: { files: Attachment[] }) {
   );
 }
 
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-neutral-500">{label}</dt>
+      <dd className="font-medium text-neutral-900">{children}</dd>
+    </div>
+  );
+}
+
 /** One inquiry: the case details, the files (in Google Drive), the conversation, and what this role can do about it. */
 export async function InquiryDetail({ role, id }: { role: InquiryRole; id: string }) {
   const supabase = await createClient();
   const basePath = basePathFor(role);
+  const isTeam = role === "technical" || role === "officer";
 
   // RLS decides what the caller may see: a branch admin gets nothing for another branch's case.
   const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
   if (!inquiry) notFound();
 
-  const [{ data: branch }, { data: comments }, { data: attachmentRows }, drive, { data: folder }] = await Promise.all([
+  const [user, { data: branch }, { data: comments }, { data: attachmentRows }, drive, { data: folder }, { data: techRows }] = await Promise.all([
+    getCurrentUser(),
     supabase.from("self_audit_branches").select("name").eq("id", inquiry.branch_id).maybeSingle(),
+    // Internal notes come back only for the technical team and officers (the database hides them from the workshop).
     supabase.from("self_audit_technical_inquiry_comments").select("*").eq("inquiry_id", id).order("created_at"),
     supabase.from("self_audit_technical_inquiry_attachments").select("*").eq("inquiry_id", id).order("created_at"),
     getDriveStatus(),
     createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `inquiry:case:${id}`).maybeSingle(),
+    isTeam ? createAdminClient().from("self_audit_users").select("id, full_name, email").eq("role", "technical").order("full_name") : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string }[] }),
   ]);
   const attachments = (attachmentRows ?? []) as Attachment[];
   const caseFiles = attachments.filter((a) => a.comment_id === null);
-  const isTeam = role === "technical" || role === "officer";
-  const closed = inquiry.status === "closed";
+  const status = inquiry.status as InquiryStatus;
+  const closed = status === "closed";
+  const cancelled = status === "cancelled";
+  const finished = closed || cancelled;
+  const late = isLate(inquiry.waiting_since, status);
+  const technicians = (techRows ?? []).map((t) => ({ id: t.id, name: t.full_name?.trim() || t.email }));
+  const timeToFirstAnswer = inquiry.first_response_at ? new Date(inquiry.first_response_at).getTime() - new Date(inquiry.created_at).getTime() : null;
+  const timeToClose = inquiry.closed_at ? new Date(inquiry.closed_at).getTime() - new Date(inquiry.created_at).getTime() : null;
+  const occurrence = inquiry.occurrence ? `${OCCURRENCE_LABEL[inquiry.occurrence] ?? inquiry.occurrence}${inquiry.occurrence_conditions ? ` - ${inquiry.occurrence_conditions}` : ""}` : inquiry.occurrence_conditions;
 
   return (
     <div className="space-y-6">
@@ -60,35 +109,50 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         </Link>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">{inquiryLabel(inquiry.inquiry_no)}</h1>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[inquiry.status]}`}>{STATUS_LABEL[inquiry.status]}</span>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</span>
+          {inquiry.priority === "urgent" && <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">URGENT</span>}
           {role !== "branch_admin" && branch?.name && (
             <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{branch.name}</span>
+          )}
+          <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{SYSTEM_LABEL[inquiry.system as InquirySystem] ?? inquiry.system}</span>
+          {inquiry.waiting_since && !finished && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${late ? "bg-red-50 text-red-700 ring-red-200" : "bg-neutral-50 text-neutral-600 ring-neutral-200"}`}>
+              {status === "open" ? "Waiting for the technical team" : "Waiting for the workshop"} {waitingText(inquiry.waiting_since)}
+            </span>
           )}
         </div>
       </div>
 
       <section className="space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <dt className="text-xs font-medium text-neutral-500">Work order</dt>
-            <dd className="font-medium text-neutral-900">{inquiry.work_order_no}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-neutral-500">VIN</dt>
-            <dd className="font-mono text-[13px] font-medium break-all text-neutral-900">{inquiry.vin}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-neutral-500">Vehicle model</dt>
-            <dd className="font-medium text-neutral-900">{inquiry.vehicle_model}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-neutral-500">Submitted by</dt>
-            <dd className="font-medium text-neutral-900">
-              {inquiry.created_by_name ?? "—"}
-              <span className="block text-xs font-normal text-neutral-500">{stamp(inquiry.created_at)}</span>
-            </dd>
-          </div>
+          <Fact label="Work order">{inquiry.work_order_no}</Fact>
+          <Fact label="VIN">
+            <span className="font-mono text-[13px] break-all">{inquiry.vin}</span>
+          </Fact>
+          <Fact label="Vehicle model">{inquiry.vehicle_model}</Fact>
+          <Fact label="Submitted by">
+            {inquiry.created_by_name ?? "—"}
+            <span className="block text-xs font-normal text-neutral-500">{stamp(inquiry.created_at)}</span>
+          </Fact>
+          <Fact label="Priority">{PRIORITY_LABEL[inquiry.priority as InquiryPriority] ?? inquiry.priority}</Fact>
+          {inquiry.mileage_km != null && <Fact label="Mileage">{formatMileage(inquiry.mileage_km)}</Fact>}
+          {inquiry.software_version && <Fact label="Software / ECU version">{inquiry.software_version}</Fact>}
+          {inquiry.dtc_codes && (
+            <Fact label="Fault codes (DTC)">
+              <span className="font-mono text-[13px] break-words">{inquiry.dtc_codes}</span>
+            </Fact>
+          )}
+          {occurrence && <Fact label="How often it happens">{occurrence}</Fact>}
+          <Fact label="Technician">{inquiry.assigned_to_name ?? <span className="font-normal text-neutral-500">Not assigned yet</span>}</Fact>
+          {timeToFirstAnswer != null && <Fact label="First answer after">{durationText(timeToFirstAnswer)}</Fact>}
+          {timeToClose != null && <Fact label="Solved in">{durationText(timeToClose)}</Fact>}
         </dl>
+        {inquiry.parts_replaced && (
+          <div>
+            <p className="text-xs font-medium text-neutral-500">Parts already replaced</p>
+            <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{inquiry.parts_replaced}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs font-medium text-neutral-500">Fault complaint</p>
           <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{inquiry.fault_complaint}</p>
@@ -117,18 +181,33 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
             <p className="text-sm font-semibold text-neutral-900">Photos, videos and documents</p>
             <p className="text-xs text-neutral-500">
               {attachments.length === 0 ? "Nothing has been attached yet." : `${attachments.length} file${attachments.length === 1 ? "" : "s"} in this case's Google Drive folder.`}
+              {inquiry.pdf_drive_file_id ? " The case report (PDF) is in the same folder." : ""}
             </p>
           </div>
-          <a
-            href={driveFolderUrl(folder.drive_id)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
-          >
-            Open on Google Drive
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            {inquiry.pdf_drive_file_id && (
+              <a
+                href={driveFileUrl(inquiry.pdf_drive_file_id)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50"
+              >
+                Case report (PDF)
+              </a>
+            )}
+            <a
+              href={driveFolderUrl(folder.drive_id)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
+            >
+              Open on Google Drive
+            </a>
+          </div>
         </section>
       )}
+
+      {isTeam && !finished && <AssignPanel inquiryId={inquiry.id} assignedTo={inquiry.assigned_to} assignedName={inquiry.assigned_to_name} technicians={technicians} meId={user?.role === "technical" ? user.id : null} />}
 
       {closed && inquiry.resolution && (
         <section className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -143,7 +222,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-neutral-700">
-          Conversation <span className="font-normal text-neutral-500">({(comments ?? []).length})</span>
+          Conversation <span className="font-normal text-neutral-500">({(comments ?? []).filter((c) => c.kind === "comment").length})</span>
         </h2>
         {(comments ?? []).length === 0 ? (
           <p className="rounded-xl border border-neutral-200/70 bg-white p-4 text-sm text-neutral-500 shadow-sm">No replies yet.</p>
@@ -154,8 +233,19 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
               if (c.kind !== "comment") {
                 return (
                   <li key={c.id} className="rounded-lg bg-neutral-100 px-4 py-2 text-xs text-neutral-600">
-                    <span className="font-semibold text-neutral-800">{c.kind === "closed" ? "Case closed" : "Case reopened"}</span> by {c.author_name ?? "the technical team"} · {stamp(c.created_at)}
-                    {c.kind === "reopened" && c.body && <span className="mt-0.5 block whitespace-pre-wrap text-neutral-700">{c.body}</span>}
+                    <span className="font-semibold text-neutral-800">{EVENT_LABEL[c.kind] ?? c.kind}</span> by {c.author_name ?? "the technical team"} · {stamp(c.created_at)}
+                    {c.body && <span className="mt-0.5 block whitespace-pre-wrap text-neutral-700">{c.body}</span>}
+                  </li>
+                );
+              }
+              if (c.internal) {
+                return (
+                  <li key={c.id} className="space-y-1.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4 shadow-sm">
+                    <p className="text-[11px] font-semibold tracking-wide text-amber-800 uppercase">Internal note - the workshop cannot see this</p>
+                    <p className="text-sm whitespace-pre-wrap text-neutral-900">{c.body}</p>
+                    <p className="text-xs text-neutral-500">
+                      {c.author_name ?? "Unknown"} · <span className="font-medium">{ROLE_LABEL[c.author_role ?? ""] ?? c.author_role}</span> · {stamp(c.created_at)}
+                    </p>
                   </li>
                 );
               }
@@ -173,15 +263,17 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         )}
       </section>
 
-      {!closed && (
+      {!finished && (
         <InquiryCommentForm
           inquiryId={inquiry.id}
           driveReady={drive !== null}
+          canWriteInternal={isTeam}
           placeholder={isTeam ? "Answer the workshop, ask for more information or a photo..." : "Reply to the technical team, add the photos or results they asked for..."}
         />
       )}
-      {isTeam && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
-      {!isTeam && closed && <p className="rounded-xl border border-neutral-200/70 bg-white p-4 text-sm text-neutral-600 shadow-sm">This case is closed. If the problem comes back, ask the technical team to reopen it.</p>}
+      {isTeam && !cancelled && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
+      {!isTeam && <WorkshopActions inquiryId={inquiry.id} status={status} />}
+      {role === "officer" && !closed && <WorkshopActions inquiryId={inquiry.id} status={status} />}
     </div>
   );
 }

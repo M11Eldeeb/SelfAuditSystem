@@ -1,10 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createTechnicalInquiry, prepareInquiryUploads } from "@/app/actions/technical-inquiries";
+import { createTechnicalInquiry, findSimilarInquiries, prepareInquiryUploads, type SimilarInquiry } from "@/app/actions/technical-inquiries";
 import { normalizeWorkOrder } from "@/lib/rejected-claims";
-import { INQUIRY_MAX_FILES, INQUIRY_MAX_FILE_BYTES, INQUIRY_MODEL_MAX, INQUIRY_TEXT_MAX, VIN_PATTERN } from "@/lib/technical-inquiries";
+import {
+  INQUIRY_DTC_MAX,
+  INQUIRY_MAX_FILES,
+  INQUIRY_MAX_FILE_BYTES,
+  INQUIRY_MAX_MILEAGE,
+  INQUIRY_MODEL_MAX,
+  INQUIRY_SHORT_TEXT_MAX,
+  INQUIRY_SOFTWARE_MAX,
+  INQUIRY_TEXT_MAX,
+  STATUS_LABEL,
+  SYSTEMS,
+  SYSTEM_LABEL,
+  VIN_PATTERN,
+  inquiryLabel,
+  type InquiryStatus,
+} from "@/lib/technical-inquiries";
 import { AttachmentPicker, useAttachments, type PrepareUploads } from "@/components/rejected-claims/use-attachments";
 
 type BranchOption = { id: string; name: string; code: string };
@@ -44,6 +60,15 @@ export function InquiryForm({
   const [workOrder, setWorkOrder] = useState("");
   const [vin, setVin] = useState("");
   const [model, setModel] = useState("");
+  const [system, setSystem] = useState("");
+  const [urgent, setUrgent] = useState(false);
+  const [mileage, setMileage] = useState("");
+  const [dtc, setDtc] = useState("");
+  const [software, setSoftware] = useState("");
+  const [occurrence, setOccurrence] = useState("");
+  const [conditions, setConditions] = useState("");
+  const [partsReplaced, setPartsReplaced] = useState("");
+  const [similarFor, setSimilarFor] = useState<{ vin: string; cases: SimilarInquiry[] } | null>(null);
   const [fault, setFault] = useState("");
   const [actions, setActions] = useState("");
   const [comments, setComments] = useState("");
@@ -56,6 +81,19 @@ export function InquiryForm({
   const vinOk = VIN_PATTERN.test(vinClean);
   const allTicked = terms.length > 0 && ticked.every(Boolean);
 
+  // Has this vehicle been to the technical team before? Shown as soon as the VIN is complete.
+  useEffect(() => {
+    if (!vinOk) return;
+    let cancelled = false;
+    findSimilarInquiries(vinClean).then((r) => {
+      if (!cancelled) setSimilarFor({ vin: vinClean, cases: r.cases });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vinClean, vinOk]);
+  const similar = vinOk && similarFor?.vin === vinClean ? similarFor.cases : [];
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
@@ -64,6 +102,9 @@ export function InquiryForm({
     if (!preview || preview.value === undefined) return setError(preview?.error ?? "Enter the work order number.");
     if (!vinOk) return setError("The VIN must be 17 letters and digits (no I, O or Q).");
     if (!model.trim()) return setError("Enter the vehicle model.");
+    if (!system) return setError("Choose the vehicle system the fault is in.");
+    const mileageNumber = mileage.trim() === "" ? null : Number(mileage);
+    if (mileageNumber !== null && (!Number.isInteger(mileageNumber) || mileageNumber < 0 || mileageNumber > INQUIRY_MAX_MILEAGE)) return setError("The mileage must be a whole number of kilometres.");
     if (!fault.trim()) return setError("Describe the fault complaint.");
     if (!actions.trim()) return setError("Write what the workshop has done so far.");
 
@@ -76,6 +117,14 @@ export function InquiryForm({
         workOrder: preview.value,
         vin: vinClean,
         model,
+        system,
+        priority: urgent ? "urgent" : "normal",
+        mileage: mileageNumber,
+        dtc,
+        software,
+        occurrence,
+        conditions,
+        partsReplaced,
         fault,
         actions,
         comments,
@@ -240,6 +289,88 @@ export function InquiryForm({
             </div>
           </div>
 
+          {similar.length > 0 && (
+            <div role="status" className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+              <p className="font-semibold">This vehicle already has {similar.length === 5 ? "5 or more" : similar.length} technical case{similar.length === 1 ? "" : "s"}:</p>
+              <ul className="space-y-1">
+                {similar.map((c) => (
+                  <li key={c.id} className="text-xs">
+                    <Link href={`${basePath}/${c.id}`} target="_blank" className="font-semibold underline">
+                      {inquiryLabel(c.no)}
+                    </Link>{" "}
+                    - {SYSTEM_LABEL[c.system as keyof typeof SYSTEM_LABEL] ?? c.system}, work order {c.workOrder}, {STATUS_LABEL[c.status as InquiryStatus] ?? c.status}
+                    {c.resolution ? ` - solution: ${c.resolution.length > 140 ? `${c.resolution.slice(0, 140)}...` : c.resolution}` : ""}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs">Check whether the same fault was already solved before you send a new case.</p>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="ti-system" className="text-xs font-medium text-neutral-700">
+                Vehicle system
+              </label>
+              <select id="ti-system" value={system} onChange={(e) => setSystem(e.target.value)} disabled={saving} className={inputClass}>
+                <option value="">Choose the system</option>
+                {SYSTEMS.map((k) => (
+                  <option key={k} value={k}>
+                    {SYSTEM_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-neutral-700">Priority</span>
+              <label className="flex h-[38px] cursor-pointer items-center gap-2.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm">
+                <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} disabled={saving} className="h-4 w-4 rounded border-neutral-300 text-brand focus:ring-brand/30" />
+                <span>
+                  Urgent <span className="text-neutral-500">- the customer is waiting</span>
+                </span>
+              </label>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="ti-mileage" className="text-xs font-medium text-neutral-700">
+                Mileage (km) <span className="font-normal text-neutral-500">(optional)</span>
+              </label>
+              <input id="ti-mileage" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" maxLength={7} placeholder="e.g. 45200" disabled={saving} className={inputClass} />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="ti-software" className="text-xs font-medium text-neutral-700">
+                Software / ECU version <span className="font-normal text-neutral-500">(optional)</span>
+              </label>
+              <input id="ti-software" value={software} onChange={(e) => setSoftware(e.target.value)} maxLength={INQUIRY_SOFTWARE_MAX} disabled={saving} className={inputClass} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label htmlFor="ti-dtc" className="text-xs font-medium text-neutral-700">
+                Fault codes (DTC) <span className="font-normal text-neutral-500">(optional - separate with commas)</span>
+              </label>
+              <input id="ti-dtc" value={dtc} onChange={(e) => setDtc(e.target.value)} maxLength={INQUIRY_DTC_MAX} placeholder="e.g. P0300, P0171, U0100" disabled={saving} className={`${inputClass} font-mono`} />
+            </div>
+            <fieldset className="space-y-1.5 sm:col-span-2" disabled={saving}>
+              <legend className="text-xs font-medium text-neutral-700">
+                How often does the fault happen? <span className="font-normal text-neutral-500">(optional)</span>
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["", "Not sure"],
+                  ["constant", "Constant"],
+                  ["intermittent", "Intermittent"],
+                ].map(([value, label]) => (
+                  <label key={value} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${occurrence === value ? "border-brand bg-brand/5 text-neutral-900" : "border-neutral-300 bg-white text-neutral-700"}`}>
+                    <input type="radio" name="ti-occurrence" value={value} checked={occurrence === value} onChange={() => setOccurrence(value)} className="h-4 w-4 border-neutral-300 text-brand focus:ring-brand/30" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+          {occurrence === "intermittent" && (
+            <TextArea id="ti-conditions" label="When does it happen?" optional value={conditions} onChange={setConditions} disabled={saving} rows={2} placeholder="Cold start, after driving 20 km, only when it rains, with the air conditioning on..." max={INQUIRY_SHORT_TEXT_MAX} />
+          )}
+          <TextArea id="ti-parts" label="Parts already replaced" optional value={partsReplaced} onChange={setPartsReplaced} disabled={saving} rows={2} placeholder="Part numbers or names the workshop has already changed for this fault" max={INQUIRY_SHORT_TEXT_MAX} />
+
           <TextArea id="ti-fault" label="Fault complaint" value={fault} onChange={setFault} disabled={saving} rows={4} placeholder="What is the customer's complaint and what is the fault?" />
           <TextArea id="ti-actions" label="What actions did the workshop do?" value={actions} onChange={setActions} disabled={saving} rows={4} placeholder="Checks, tests and repairs already done" />
           <TextArea id="ti-comments" label="Comments of the workshop" optional value={comments} onChange={setComments} disabled={saving} rows={3} placeholder="Anything else the technical team should know" />
@@ -285,6 +416,7 @@ function TextArea({
   rows,
   placeholder,
   optional,
+  max = INQUIRY_TEXT_MAX,
 }: {
   id: string;
   label: string;
@@ -294,6 +426,7 @@ function TextArea({
   rows: number;
   placeholder: string;
   optional?: boolean;
+  max?: number;
 }) {
   return (
     <div className="space-y-1.5">
@@ -304,7 +437,7 @@ function TextArea({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        maxLength={INQUIRY_TEXT_MAX}
+        maxLength={max}
         rows={rows}
         disabled={disabled}
         placeholder={placeholder}

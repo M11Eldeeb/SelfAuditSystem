@@ -521,7 +521,7 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments: string | null;
-          status: "open" | "awaiting_workshop" | "closed";
+          status: "open" | "awaiting_workshop" | "closed" | "cancelled";
           resolution: string | null;
           terms_set_id: string;
           created_by: string | null;
@@ -531,6 +531,19 @@ export interface Database {
           closed_at: string | null;
           created_at: string;
           updated_at: string;
+          system: "engine" | "transmission" | "electrical" | "adas" | "infotainment" | "hvac" | "body" | "chassis" | "hybrid_ev" | "other";
+          priority: "normal" | "urgent";
+          mileage_km: number | null;
+          dtc_codes: string | null;
+          software_version: string | null;
+          occurrence: "constant" | "intermittent" | null;
+          occurrence_conditions: string | null;
+          parts_replaced: string | null;
+          assigned_to: string | null;
+          assigned_to_name: string | null;
+          waiting_since: string | null;
+          first_response_at: string | null;
+          pdf_drive_file_id: string | null;
         };
         Insert: {
           id?: string;
@@ -541,8 +554,9 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments?: string | null;
-          status?: "open" | "awaiting_workshop" | "closed";
+          status?: "open" | "awaiting_workshop" | "closed" | "cancelled";
           terms_set_id: string;
+          pdf_drive_file_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiries"]["Insert"]>;
         Relationships: [];
@@ -551,14 +565,15 @@ export interface Database {
         Row: {
           id: string;
           inquiry_id: string;
-          kind: "comment" | "closed" | "reopened";
+          kind: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned";
           author_id: string | null;
           author_name: string | null;
           author_role: string | null;
           body: string | null;
           created_at: string;
+          internal: boolean;
         };
-        Insert: { id?: string; inquiry_id: string; kind?: "comment" | "closed" | "reopened"; author_id?: string | null; author_name?: string | null; author_role?: string | null; body?: string | null };
+        Insert: { id?: string; inquiry_id: string; kind?: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned"; author_id?: string | null; author_name?: string | null; author_role?: string | null; body?: string | null };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_comments"]["Insert"]>;
         Relationships: [];
       };
@@ -576,6 +591,12 @@ export interface Database {
         };
         Insert: { id?: string; inquiry_id: string; comment_id?: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by?: string | null };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_attachments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_inquiry_routing: {
+        Row: { branch_id: string; technician_id: string | null };
+        Insert: { branch_id: string; technician_id?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_inquiry_routing"]["Insert"]>;
         Relationships: [];
       };
       self_audit_mail_templates: {
@@ -611,8 +632,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_branch_contacts: {
-        Row: { id: string; branch_id: string; email: string; role: "service_manager"; created_at: string };
-        Insert: { id?: string; branch_id: string; email: string; role?: "service_manager"; created_at?: string };
+        Row: { id: string; branch_id: string; email: string; role: "service_manager" | "workshop_supervisor" | "workshop_team_leader"; created_at: string };
+        Insert: { id?: string; branch_id: string; email: string; role?: "service_manager" | "workshop_supervisor" | "workshop_team_leader"; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_branch_contacts"]["Insert"]>;
         Relationships: [];
       };
@@ -1376,6 +1397,14 @@ export interface Database {
           p_work_order: string;
           p_vin: string;
           p_model: string;
+          p_system: string;
+          p_priority: string;
+          p_mileage: number | null;
+          p_dtc: string | null;
+          p_software: string | null;
+          p_occurrence: string | null;
+          p_conditions: string | null;
+          p_parts: string | null;
           p_fault: string;
           p_actions: string;
           p_comments: string | null;
@@ -1385,8 +1414,20 @@ export interface Database {
         Returns: number;
       };
       technical_inquiry_comment: {
-        Args: { p_id: string; p_inquiry_id: string; p_body: string; p_attachments?: unknown };
+        Args: { p_id: string; p_inquiry_id: string; p_body: string; p_attachments?: unknown; p_internal?: boolean };
         Returns: string;
+      };
+      cancel_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_reason?: string | null };
+        Returns: void;
+      };
+      resubmit_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_comment: string };
+        Returns: void;
+      };
+      assign_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_user_id: string };
+        Returns: void;
       };
       close_technical_inquiry: {
         Args: { p_inquiry_id: string; p_resolution: string };

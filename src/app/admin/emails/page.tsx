@@ -8,7 +8,7 @@ import { planFlaggedParts, planPodium, planSelfAuditReminders } from "@/lib/mail
 import { EmailSenderCard } from "./email-sender-card";
 import { MailCards, type MailCard } from "./automatic-mails";
 import { ContactLists } from "./contact-lists";
-import { ServiceManagers, type BranchManagers } from "./service-managers";
+import { ServiceManagers, type BranchContactRole, type BranchManagers } from "./service-managers";
 
 const stamp = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
@@ -28,6 +28,13 @@ const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
   podium: () => "At about 9:00 on the working morning after the last branch result of a self-audit cycle is finalized. The podium is drawn inside the mail.",
   notice: () => "Right after you create an internal audit for a branch. There is also a Send notice button on the Internal Audit list.",
   results: () => "When you press Send results email on a finalized audit's report page - so you choose the day.",
+  inquiry_new: () => "Right when a workshop (or an officer) submits a technical inquiry. Goes to the technician assigned to that branch (Technical Inquiries → Who handles which branch), or to the whole technical team.",
+  inquiry_reply: () => "When the workshop replies on an open case - as a reply in the same thread as the first mail.",
+  inquiry_resubmitted: () => "When the workshop sends a closed or cancelled case back to the technical team.",
+  inquiry_cancelled: () => "When the workshop cancels a case that is still open.",
+  inquiry_answered: () => "When the technical team replies on a case. Goes to the branch's admins, with the service manager, workshop supervisor and workshop team leader copied.",
+  inquiry_closed: () => "When the technical team closes a case with the solution.",
+  inquiry_reopened: () => "When the technical team reopens a closed case.",
 };
 
 export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ mail?: string; detail?: string }> }) {
@@ -39,7 +46,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
   const [{ data: settings }, { data: branches }, { data: contacts }, { data: log }, { data: savedRows }, reminderPlans, flaggedPlans, podiumPlans, templates, people] = await Promise.all([
     admin.from("self_audit_mail_settings").select("key, enabled"),
     admin.from("self_audit_branches").select("id, name").eq("active", true).order("name"),
-    admin.from("self_audit_branch_contacts").select("id, branch_id, email").order("email"),
+    admin.from("self_audit_branch_contacts").select("id, branch_id, email, role").order("email"),
     admin.from("self_audit_email_log").select("id, kind, recipients, subject, status, error, sent_at").order("sent_at", { ascending: false }).limit(25),
     admin.from("self_audit_mail_templates").select("key"),
     planSelfAuditReminders(origin),
@@ -68,15 +75,16 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       copies: copyParts.length ? copyParts.join("; ") : "nobody",
       switchKey: def.switchKey,
       enabled: def.switchKey ? enabled.get(def.switchKey) === true : false,
-      sharedSwitch: key === "flagged_reminder",
+      // A mail that follows the same switch as the card before it is shown without a switch of its own.
+      sharedSwitch: def.switchKey !== null && MAIL_DEFS[MAIL_KEYS_IN_ORDER[MAIL_KEYS_IN_ORDER.indexOf(key) - 1]]?.switchKey === def.switchKey,
       saved: t,
       customized: customized.has(key),
     };
   });
 
-  const managersByBranch = new Map<string, { id: string; email: string }[]>();
-  for (const c of contacts ?? []) managersByBranch.set(c.branch_id, [...(managersByBranch.get(c.branch_id) ?? []), { id: c.id, email: c.email }]);
-  const branchRows: BranchManagers[] = (branches ?? []).map((b) => ({ branchId: b.id, branchName: b.name, managers: managersByBranch.get(b.id) ?? [] }));
+  const contactsByBranch = new Map<string, { id: string; email: string; role: BranchContactRole }[]>();
+  for (const c of contacts ?? []) contactsByBranch.set(c.branch_id, [...(contactsByBranch.get(c.branch_id) ?? []), { id: c.id, email: c.email, role: c.role }]);
+  const branchRows: BranchManagers[] = (branches ?? []).map((b) => ({ branchId: b.id, branchName: b.name, contacts: contactsByBranch.get(b.id) ?? [] }));
 
   return (
     <div className="space-y-8">
@@ -128,8 +136,8 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Service managers</h2>
-        <p className="text-sm text-neutral-600">Copied on the self-audit mails for their branch. Add each branch&apos;s service manager(s).</p>
+        <h2 className="text-lg font-semibold text-neutral-900">Branch contacts</h2>
+        <p className="text-sm text-neutral-600">Copied on the mails of their branch: the service managers on the self-audit and internal audit mails, and the service manager, workshop supervisor and workshop team leader on the technical inquiry mails to the workshop.</p>
         <ServiceManagers branches={branchRows} />
       </section>
 

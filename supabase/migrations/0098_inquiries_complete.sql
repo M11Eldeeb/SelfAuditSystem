@@ -28,6 +28,10 @@ alter table self_audit_technical_inquiries
   add column first_response_at timestamptz;
 alter table self_audit_technical_inquiries alter column system drop default;
 
+-- the case's summary PDF in Google Drive (rewritten when the case changes), and the VIN lookup for "similar cases"
+alter table self_audit_technical_inquiries add column pdf_drive_file_id text;
+create index self_audit_technical_inquiries_vin on self_audit_technical_inquiries (vin);
+
 -- an internal note is seen by the technical team and officers only
 alter table self_audit_technical_inquiry_comments add column internal boolean not null default false;
 
