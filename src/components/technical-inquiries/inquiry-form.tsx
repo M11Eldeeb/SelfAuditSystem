@@ -3,16 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createTechnicalInquiry, findSimilarInquiries, prepareInquiryUploads, type InquiryAttachmentInput, type SimilarInquiry } from "@/app/actions/technical-inquiries";
+import { createTechnicalInquiry, findSimilarInquiries, type InquiryAttachmentInput, type SimilarInquiry } from "@/app/actions/technical-inquiries";
 import { normalizeWorkOrder } from "@/lib/rejected-claims";
 import {
   AFTER_REPAIR_LABEL,
   INQUIRY_DTC_MAX,
   INQUIRY_FIRST_NOTICED_MAX,
-  INQUIRY_MAX_FILES,
-  INQUIRY_MAX_FILE_BYTES,
   INQUIRY_MAX_MILEAGE,
   INQUIRY_MAX_STEPS,
+  INQUIRY_MAX_WORK_ORDERS,
   INQUIRY_MODEL_MAX,
   INQUIRY_PERSON_MAX,
   INQUIRY_PLATE_MAX,
@@ -20,32 +19,43 @@ import {
   INQUIRY_SOFTWARE_MAX,
   INQUIRY_STEP_MAX,
   INQUIRY_TEXT_MAX,
+  LOW_MILEAGE_LIMIT_KM,
+  OCCURRENCE_CONDITIONS,
   OCCURRENCE_LABEL,
   RESPONSIBLE_ROLE_LABEL,
-  LOW_MILEAGE_LIMIT_KM,
   STATUS_LABEL,
   SUBMIT_REASONS,
   SUBMIT_REASON_LABEL,
   SYSTEMS,
   SYSTEM_LABEL,
+  VEHICLE_LOCATION_LABEL,
   VIN_PATTERN,
   inquiryLabel,
   type AttachmentCategory,
   type InquiryStatus,
 } from "@/lib/technical-inquiries";
-import { AttachmentPicker, useAttachments, type PrepareUploads } from "@/components/rejected-claims/use-attachments";
+import { FileBox, uploadPicked, type PickedFile } from "./file-box";
 
 type BranchOption = { id: string; name: string; code: string };
+
+type StepState = { key: string; text: string; files: PickedFile[] };
+/** One work order of the case: the first is the current one, the others are previous work orders of the same problem. */
+type WipState = { key: string; workOrder: string; previousConcern: string; steps: StepState[]; vds: PickedFile[]; woPhotos: PickedFile[]; agreementPhotos: PickedFile[] };
+
+const newStep = (): StepState => ({ key: crypto.randomUUID(), text: "", files: [] });
+const newWip = (): WipState => ({ key: crypto.randomUUID(), workOrder: "", previousConcern: "", steps: [newStep()], vds: [], woPhotos: [], agreementPhotos: [] });
 
 const inputClass =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition-colors placeholder:text-neutral-500 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60";
 
 /**
  * "New technical inquiry": a collapsed bar. Clicking it first asks which of the conditions for sending a case to the
- * technical team is met (a pop-up; at least one must be ticked), then opens the technical request form. A branch admin always submits
- * for their own branch (it is not asked); an officer picks the branch. The form asks for what the technical team needs to validate a case: who is escalating, the vehicle data, the customer
- * concern with media, the conditions, when it first appeared and whether it follows a previous repair, the vehicle
- * history, and the workshop effort step by step.
+ * technical team is met (a pop-up; at least one must be ticked), then opens the technical request form. A branch admin
+ * always submits for their own branch (it is not asked); an officer picks the branch. The form asks for what the technical
+ * team needs to validate a case: who is escalating, the vehicle data and whether the car is still in the workshop, the work
+ * order and any previous work orders of the same problem, the customer concern (and the previous concern of each earlier
+ * visit) with media, when it happens, when it first appeared and whether it follows a repair, the vehicle history, and for
+ * every work order the workshop effort step by step with the VDS report, the work order photo and the agreement photo.
  */
 export function InquiryForm({
   branches,
@@ -60,10 +70,6 @@ export function InquiryForm({
   driveReady: boolean;
 }) {
   const router = useRouter();
-  const pickerOptions = { prepare: prepareInquiryUploads as unknown as PrepareUploads, maxFiles: INQUIRY_MAX_FILES, maxFileBytes: INQUIRY_MAX_FILE_BYTES };
-  const concernFiles = useAttachments(pickerOptions);
-  const historyFiles = useAttachments(pickerOptions);
-  const effortFiles = useAttachments(pickerOptions);
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [reasons, setReasons] = useState<string[]>([]);
@@ -72,33 +78,35 @@ export function InquiryForm({
   const [responsibleName, setResponsibleName] = useState("");
   const [responsibleRole, setResponsibleRole] = useState("");
   const [responsiblePhone, setResponsiblePhone] = useState("");
-  const [workOrder, setWorkOrder] = useState("");
+  const [vehicleLocation, setVehicleLocation] = useState("");
+  const [wips, setWips] = useState<WipState[]>(() => [newWip()]);
   const [vin, setVin] = useState("");
   const [plate, setPlate] = useState("");
   const [mileage, setMileage] = useState("");
   const [model, setModel] = useState("");
   const [system, setSystem] = useState("");
-  const [urgent, setUrgent] = useState(false);
   const [fault, setFault] = useState("");
+  const [concernFiles, setConcernFiles] = useState<PickedFile[]>([]);
   const [occurrence, setOccurrence] = useState("");
-  const [conditions, setConditions] = useState("");
+  const [conditionKeys, setConditionKeys] = useState<string[]>([]);
+  const [otherCondition, setOtherCondition] = useState("");
   const [firstNoticed, setFirstNoticed] = useState("");
   const [afterRepair, setAfterRepair] = useState("");
   const [repairDetails, setRepairDetails] = useState("");
+  const [historyFiles, setHistoryFiles] = useState<PickedFile[]>([]);
   const [dtc, setDtc] = useState("");
   const [software, setSoftware] = useState("");
   const [partsReplaced, setPartsReplaced] = useState("");
-  const [steps, setSteps] = useState<string[]>([""]);
   const [comments, setComments] = useState("");
   const [similarFor, setSimilarFor] = useState<{ vin: string; cases: SimilarInquiry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const branch = branches.find((b) => b.id === (fixedBranchId ?? branchId));
-  const preview = branch && workOrder.trim() ? normalizeWorkOrder(workOrder, branch.code) : null;
   const vinClean = vin.trim().toUpperCase().replace(/\s+/g, "");
   const vinOk = VIN_PATTERN.test(vinClean);
-  const needsConditions = occurrence === "intermittent" || occurrence === "specific";
+  const woPreview = (value: string) => (branch && value.trim() ? normalizeWorkOrder(value, branch.code) : null);
 
   // Has this vehicle been to the technical team before? Shown as soon as the VIN is complete.
   useEffect(() => {
@@ -113,14 +121,20 @@ export function InquiryForm({
   }, [vinClean, vinOk]);
   const similar = vinOk && similarFor?.vin === vinClean ? similarFor.cases : [];
 
-  function moveStep(index: number, by: -1 | 1) {
-    setSteps((cur) => {
-      const next = [...cur];
-      const target = index + by;
-      if (target < 0 || target >= next.length) return cur;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const patchWip = (index: number, patch: Partial<WipState>) => setWips((cur) => cur.map((w, i) => (i === index ? { ...w, ...patch } : w)));
+  const patchStep = (wipIndex: number, stepIndex: number, patch: Partial<StepState>) =>
+    setWips((cur) => cur.map((w, i) => (i === wipIndex ? { ...w, steps: w.steps.map((st, j) => (j === stepIndex ? { ...st, ...patch } : st)) } : w)));
+  function moveStep(wipIndex: number, stepIndex: number, by: -1 | 1) {
+    setWips((cur) =>
+      cur.map((w, i) => {
+        if (i !== wipIndex) return w;
+        const target = stepIndex + by;
+        if (target < 0 || target >= w.steps.length) return w;
+        const steps = [...w.steps];
+        [steps[stepIndex], steps[target]] = [steps[target], steps[stepIndex]];
+        return { ...w, steps };
+      })
+    );
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -131,7 +145,15 @@ export function InquiryForm({
     if (!branch) return setError("Choose the branch.");
     if (responsibleName.trim().length < 2) return setError("Enter the name of the workshop supervisor or delegated responsible.");
     if (!responsibleRole) return setError("Say whether the case is escalated by the workshop supervisor or a delegated responsible.");
-    if (!preview || preview.value === undefined) return setError(preview?.error ?? "Enter the work order number.");
+    if (!vehicleLocation) return setError("Say whether the car is in the workshop or out.");
+    const woValues: string[] = [];
+    for (const [i, w] of wips.entries()) {
+      const p = woPreview(w.workOrder);
+      const name = i === 0 ? "work order" : `previous work order ${i}`;
+      if (!p || p.value === undefined) return setError(p?.error ?? `Enter the ${name} number.`);
+      if (woValues.includes(p.value)) return setError(`The work order ${p.value} is listed twice.`);
+      woValues.push(p.value);
+    }
     if (!vinOk) return setError("The VIN must be 17 letters and digits (no I, O or Q).");
     if (plate.trim().length < 2) return setError("Enter the plate number.");
     const mileageNumber = mileage.trim() === "" ? null : Number(mileage);
@@ -140,37 +162,65 @@ export function InquiryForm({
     if (!model.trim()) return setError("Enter the vehicle model.");
     if (!system) return setError("Choose the vehicle system the fault is in.");
     if (!fault.trim()) return setError("Describe the customer concern.");
-    if (concernFiles.count === 0) return setError("Attach a photo or video that shows the customer concern.");
-    if (!occurrence) return setError("Say whether the concern is permanent, intermittent or happens under a specific condition.");
-    if (needsConditions && !conditions.trim()) return setError("Describe the conditions in which the concern happens.");
+    if (concernFiles.length === 0) return setError("Attach a photo or video that shows the customer concern.");
+    for (const [i, w] of wips.entries()) {
+      if (i > 0 && !w.previousConcern.trim()) return setError(`Write the customer previous concern of work order ${woValues[i]}.`);
+    }
+    if (!occurrence) return setError("Say whether the concern is permanent or intermittent.");
+    if (conditionKeys.length === 0) return setError(`Tick when the concern happens ${occurrence === "permanent" ? "permanently" : "intermittently"}.`);
+    if (conditionKeys.includes("other") && !otherCondition.trim()) return setError("Describe the other condition in which the concern happens.");
     if (!firstNoticed.trim()) return setError("Say when the customer first noticed the concern.");
     if (!afterRepair) return setError("Say whether the concern is related to a previous repair.");
     if (afterRepair === "yes" && !repairDetails.trim()) return setError("Say which previous repair it follows (what was repaired, when, work order).");
-    if (historyFiles.count === 0) return setError("Attach the full vehicle history (service / repair history).");
-    if (steps.every((t) => !t.trim())) return setError("Write the workshop effort, step by step.");
+    if (historyFiles.length === 0) return setError("Attach the full vehicle history (service / repair history).");
+    for (const [i, w] of wips.entries()) {
+      const label = `work order ${woValues[i]}`;
+      if (w.steps.some((st) => !st.text.trim())) return setError(`Write the workshop effort of ${label}: every step needs its text (remove the empty ones).`);
+      if (w.vds.length === 0) return setError(`Attach the VDS report of ${label}.`);
+      if (w.woPhotos.length === 0) return setError(`Attach a photo of ${label}.`);
+      if (w.agreementPhotos.length === 0) return setError(`Attach a photo of the agreement of ${label}.`);
+    }
 
     setSaving(true);
     try {
-      // One folder, three kinds of files: each upload batch is tagged with what it is.
-      const ctx = { inquiryId, branchId: branch.id, workOrder: preview.value };
-      const tag = (rows: InquiryAttachmentInput[], category: AttachmentCategory) => rows.map((r) => ({ driveFileId: r.driveFileId, name: r.name, type: r.type, size: r.size, category }));
-      const concern = tag(await concernFiles.upload(ctx), "concern_media");
-      const history = tag(await historyFiles.upload(ctx), "vehicle_history");
-      const effort = tag(await effortFiles.upload(ctx), "workshop_effort");
+      // Everything that is not in Drive yet goes up in one go; each file that lands is remembered, in this variable for the
+      // payload below and in the form's state so a failed save never repeats it.
+      const landed = new Map<string, string>();
+      const pending: PickedFile[] = [
+        ...concernFiles,
+        ...historyFiles,
+        ...wips.flatMap((w) => [...w.steps.flatMap((st) => st.files), ...w.vds, ...w.woPhotos, ...w.agreementPhotos]),
+      ].filter((f) => !f.driveFileId);
+      const remember = (key: string, driveFileId: string) => {
+        landed.set(key, driveFileId);
+        const mark = (files: PickedFile[]) => files.map((f) => (f.key === key ? { ...f, driveFileId } : f));
+        setConcernFiles(mark);
+        setHistoryFiles(mark);
+        setWips((cur) => cur.map((w) => ({ ...w, steps: w.steps.map((st) => ({ ...st, files: mark(st.files) })), vds: mark(w.vds), woPhotos: mark(w.woPhotos), agreementPhotos: mark(w.agreementPhotos) })));
+      };
+      if (pending.length > 0) await uploadPicked(pending, { inquiryId, branchId: branch.id, workOrder: woValues[0] }, remember, setStatus);
+
+      const input = (f: PickedFile, category?: AttachmentCategory): InquiryAttachmentInput => ({
+        driveFileId: (f.driveFileId ?? landed.get(f.key))!,
+        name: f.file.name,
+        type: f.file.type,
+        size: f.file.size,
+        category,
+      });
       const result = await createTechnicalInquiry({
         id: inquiryId,
         branchId: branch.id,
-        workOrder: preview.value,
         vin: vinClean,
         plate,
         model,
         system,
-        priority: urgent ? "urgent" : "normal",
+        vehicleLocation,
         mileage: mileageNumber,
         dtc,
         software,
         occurrence,
-        conditions: needsConditions ? conditions : "",
+        conditionKeys,
+        conditions: conditionKeys.includes("other") ? otherCondition : "",
         partsReplaced,
         responsibleName,
         responsibleRole,
@@ -179,10 +229,17 @@ export function InquiryForm({
         afterRepair,
         repairDetails: afterRepair === "yes" ? repairDetails : "",
         fault,
-        steps,
         comments,
         reasons,
-        attachments: [...concern, ...history, ...effort],
+        workOrders: wips.map((w, i) => ({
+          workOrder: woValues[i],
+          previousConcern: i > 0 ? w.previousConcern : undefined,
+          steps: w.steps.map((st) => ({ text: st.text, files: st.files.map((f) => input(f)) })),
+          vds: w.vds.map((f) => input(f)),
+          woPhotos: w.woPhotos.map((f) => input(f)),
+          agreementPhotos: w.agreementPhotos.map((f) => input(f)),
+        })),
+        attachments: [...concernFiles.map((f) => input(f, "concern_media")), ...historyFiles.map((f) => input(f, "vehicle_history"))],
       });
       if (result.id) {
         router.push(`${basePath}/${result.id}`);
@@ -193,8 +250,11 @@ export function InquiryForm({
       setError(err instanceof Error ? err.message : "Could not submit the inquiry - please try again.");
     } finally {
       setSaving(false);
+      setStatus(null);
     }
   }
+
+  const fileBoxProps = { disabled: saving, driveReady, onError: setError };
 
   return (
     <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm">
@@ -246,15 +306,7 @@ export function InquiryForm({
                 <input id="ti-resp-phone" value={responsiblePhone} onChange={(e) => setResponsiblePhone(e.target.value)} maxLength={40} disabled={saving} className={inputClass} />
               </div>
               <Choice legend="Role" name="ti-resp-role" value={responsibleRole} onChange={setResponsibleRole} disabled={saving} options={Object.entries(RESPONSIBLE_ROLE_LABEL)} />
-              <div className="space-y-1.5">
-                <span className="text-xs font-medium text-neutral-700">Priority</span>
-                <label className="flex h-[38px] cursor-pointer items-center gap-2.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm">
-                  <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} disabled={saving} className="h-4 w-4 rounded border-neutral-300 text-brand focus:ring-brand/30" />
-                  <span>
-                    Urgent <span className="text-neutral-500">- the customer is waiting</span>
-                  </span>
-                </label>
-              </div>
+              <Choice legend="Where is the car?" name="ti-location" value={vehicleLocation} onChange={setVehicleLocation} disabled={saving} options={Object.entries(VEHICLE_LOCATION_LABEL)} />
             </div>
           </Section>
 
@@ -276,28 +328,56 @@ export function InquiryForm({
                 </div>
               )}
               <div className="space-y-1.5">
-                <label htmlFor="ti-wo" className="text-xs font-medium text-neutral-700">
+                <label htmlFor="ti-wo-0" className="text-xs font-medium text-neutral-700">
                   Work order (WIP) number
                 </label>
-                <input
-                  id="ti-wo"
-                  value={workOrder}
-                  onChange={(e) => setWorkOrder(e.target.value)}
-                  placeholder={branch ? `35698 or ${branch.code}-35698` : "35698"}
-                  maxLength={40}
-                  disabled={saving}
-                  className={inputClass}
-                />
-                {preview && (
-                  <p className={`text-xs ${preview.error ? "text-red-600" : "text-neutral-500"}`}>
-                    {preview.error ?? (
-                      <>
-                        Saved as <span className="font-semibold text-neutral-800">{preview.value}</span>
-                      </>
-                    )}
-                  </p>
-                )}
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      id="ti-wo-0"
+                      value={wips[0].workOrder}
+                      onChange={(e) => patchWip(0, { workOrder: e.target.value })}
+                      placeholder={branch ? `35698 or ${branch.code}-35698` : "35698"}
+                      maxLength={40}
+                      disabled={saving}
+                      className={inputClass}
+                    />
+                    <WoNote preview={woPreview(wips[0].workOrder)} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWips((cur) => [...cur, newWip()])}
+                    disabled={saving || wips.length >= INQUIRY_MAX_WORK_ORDERS}
+                    title="Add a previous work order of the same problem"
+                    aria-label="Add a previous work order"
+                    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-lg font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
+              {wips.slice(1).map((w, k) => (
+                <div key={w.key} className="space-y-1.5 sm:col-span-2 sm:max-w-[calc(50%-0.5rem)] sm:justify-self-end">
+                  <label htmlFor={`ti-wo-${k + 1}`} className="text-xs font-medium text-neutral-700">
+                    Previous work order {k + 1}
+                  </label>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <input id={`ti-wo-${k + 1}`} value={w.workOrder} onChange={(e) => patchWip(k + 1, { workOrder: e.target.value })} placeholder={branch ? `${branch.code}-35000` : "35000"} maxLength={40} disabled={saving} className={inputClass} />
+                      <WoNote preview={woPreview(w.workOrder)} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWips((cur) => cur.filter((x) => x.key !== w.key))}
+                      disabled={saving}
+                      aria-label={`Remove previous work order ${k + 1}`}
+                      className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-lg text-neutral-600 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
               <div className="space-y-1.5">
                 <label htmlFor="ti-vin" className="text-xs font-medium text-neutral-700">
                   VIN
@@ -374,23 +454,55 @@ export function InquiryForm({
             <TextArea id="ti-fault" label="Customer concern" value={fault} onChange={setFault} disabled={saving} rows={4} placeholder="What does the customer complain about, and what is the fault?" />
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-neutral-700">Photos / videos of the concern</p>
-              <AttachmentPicker state={concernFiles} disabled={saving} driveReady={driveReady} label="Attach photos or videos of the concern" />
+              <FileBox {...fileBoxProps} files={concernFiles} onChange={setConcernFiles} label="Add photos or videos of the concern" />
             </div>
+            {wips.slice(1).map((w, k) => (
+              <TextArea
+                key={w.key}
+                id={`ti-prev-concern-${k + 1}`}
+                label={`Customer previous concern${w.workOrder.trim() ? ` - work order ${woPreview(w.workOrder)?.value ?? w.workOrder.trim().toUpperCase()}` : ` - previous work order ${k + 1}`}`}
+                value={w.previousConcern}
+                onChange={(v) => patchWip(k + 1, { previousConcern: v })}
+                disabled={saving}
+                rows={3}
+                placeholder="What did the customer complain about at that earlier visit?"
+              />
+            ))}
           </Section>
 
-          <Section number={4} title="Conditions of the concern">
-            <Choice legend="How does the concern happen?" name="ti-occurrence" value={occurrence} onChange={setOccurrence} disabled={saving} options={Object.entries(OCCURRENCE_LABEL)} />
-            {needsConditions && (
-              <TextArea
-                id="ti-conditions"
-                label={occurrence === "specific" ? "Which condition?" : "When does it happen?"}
-                value={conditions}
-                onChange={setConditions}
-                disabled={saving}
-                rows={2}
-                placeholder="Cold start, after driving 20 km, only when it rains, with the air conditioning on, in reverse..."
-                max={INQUIRY_SHORT_TEXT_MAX}
-              />
+          <Section number={4} title="How the concern happens">
+            <Choice
+              legend="The concern is"
+              name="ti-occurrence"
+              value={occurrence}
+              onChange={(v) => {
+                setOccurrence(v);
+                setConditionKeys([]);
+                setOtherCondition("");
+              }}
+              disabled={saving}
+              options={Object.entries(OCCURRENCE_LABEL)}
+            />
+            {occurrence && (
+              <fieldset className="space-y-2" disabled={saving}>
+                <legend className="text-xs font-medium text-neutral-700">It happens {occurrence === "permanent" ? "permanently" : "intermittently"} when:</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {OCCURRENCE_CONDITIONS.map((c) => (
+                    <label key={c.key} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm ${conditionKeys.includes(c.key) ? "border-brand bg-brand/5 text-neutral-900" : "border-neutral-300 bg-white text-neutral-700"}`}>
+                      <input
+                        type="checkbox"
+                        checked={conditionKeys.includes(c.key)}
+                        onChange={(e) => setConditionKeys((cur) => (e.target.checked ? [...cur, c.key] : cur.filter((k) => k !== c.key)))}
+                        className="h-4 w-4 shrink-0 rounded border-neutral-300 text-brand focus:ring-brand/30"
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+                {conditionKeys.includes("other") && (
+                  <input value={otherCondition} onChange={(e) => setOtherCondition(e.target.value)} maxLength={INQUIRY_SHORT_TEXT_MAX} aria-label="The other condition" placeholder="Describe the other condition" className={inputClass} />
+                )}
+              </fieldset>
             )}
           </Section>
 
@@ -407,53 +519,79 @@ export function InquiryForm({
             )}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-neutral-700">Full vehicle history (service history or repair history)</p>
-              <AttachmentPicker state={historyFiles} disabled={saving} driveReady={driveReady} label="Attach the vehicle history" />
+              <FileBox {...fileBoxProps} files={historyFiles} onChange={setHistoryFiles} label="Add the vehicle history" />
             </div>
           </Section>
 
-          <Section number={6} title="Workshop effort" hint="Every check, test and repair, written accurately and in the order it was done. Add a step for each one.">
-            <ol className="space-y-2">
-              {steps.map((step, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">{i + 1}</span>
-                  <textarea
-                    value={step}
-                    onChange={(e) => setSteps((cur) => cur.map((v, j) => (j === i ? e.target.value : v)))}
-                    maxLength={INQUIRY_STEP_MAX}
-                    rows={2}
-                    disabled={saving}
-                    aria-label={`Workshop step ${i + 1}`}
-                    placeholder={i === 0 ? "e.g. Scanned all modules - P0300 stored in the engine control module" : "Next check, test or repair"}
-                    className={`${inputClass} resize-y`}
-                  />
-                  <div className="flex shrink-0 flex-col gap-1 pt-1">
-                    <button type="button" onClick={() => moveStep(i, -1)} disabled={saving || i === 0} aria-label={`Move step ${i + 1} up`} className="h-5 w-6 rounded border border-neutral-300 text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
-                      ▲
-                    </button>
-                    <button type="button" onClick={() => moveStep(i, 1)} disabled={saving || i === steps.length - 1} aria-label={`Move step ${i + 1} down`} className="h-5 w-6 rounded border border-neutral-300 text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
-                      ▼
-                    </button>
-                    <button type="button" onClick={() => setSteps((cur) => (cur.length > 1 ? cur.filter((_, j) => j !== i) : [""]))} disabled={saving} aria-label={`Remove step ${i + 1}`} className="h-5 w-6 rounded border border-neutral-300 text-xs leading-none text-neutral-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-30">
-                      ×
-                    </button>
+          <Section number={6} title="Workshop effort" hint="For every work order: each check, test and repair, written accurately and in the order it was done, with its own photos or videos - then the three documents asked for every work order.">
+            {wips.map((w, wi) => {
+              const p = woPreview(w.workOrder);
+              const title = p?.value ?? (w.workOrder.trim() ? w.workOrder.trim().toUpperCase() : wi === 0 ? "Work order" : `Previous work order ${wi}`);
+              return (
+                <div key={w.key} className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 sm:p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+                    {title}
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200 ring-inset">{wi === 0 ? "current work order" : "previous work order"}</span>
+                  </p>
+                  <ol className="space-y-3">
+                    {w.steps.map((step, si) => (
+                      <li key={step.key} className="flex items-start gap-2">
+                        <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">{si + 1}</span>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <textarea
+                            value={step.text}
+                            onChange={(e) => patchStep(wi, si, { text: e.target.value })}
+                            maxLength={INQUIRY_STEP_MAX}
+                            rows={2}
+                            disabled={saving}
+                            aria-label={`${title} - step ${si + 1}`}
+                            placeholder={si === 0 ? "e.g. Scanned all modules - P0300 stored in the engine control module" : "Next check, test or repair"}
+                            className={`${inputClass} resize-y`}
+                          />
+                          <FileBox {...fileBoxProps} files={step.files} onChange={(files) => patchStep(wi, si, { files })} label="Add attachment" />
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1 pt-1">
+                          <button type="button" onClick={() => moveStep(wi, si, -1)} disabled={saving || si === 0} aria-label={`Move step ${si + 1} up`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
+                            ▲
+                          </button>
+                          <button type="button" onClick={() => moveStep(wi, si, 1)} disabled={saving || si === w.steps.length - 1} aria-label={`Move step ${si + 1} down`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
+                            ▼
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => patchWip(wi, { steps: w.steps.length > 1 ? w.steps.filter((x) => x.key !== step.key) : [newStep()] })}
+                            disabled={saving}
+                            aria-label={`Remove step ${si + 1}`}
+                            className="h-5 w-6 rounded border border-neutral-300 bg-white text-xs leading-none text-neutral-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => patchWip(wi, { steps: [...w.steps, newStep()] })}
+                    disabled={saving || w.steps.length >= INQUIRY_MAX_STEPS}
+                    className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    + Add a step
+                  </button>
+                  <div className="grid gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-3">
+                    <DocBox title="VDS report" hint="Required">
+                      <FileBox {...fileBoxProps} files={w.vds} onChange={(files) => patchWip(wi, { vds: files })} label="Add the VDS report" />
+                    </DocBox>
+                    <DocBox title="Work order photo" hint="Required">
+                      <FileBox {...fileBoxProps} files={w.woPhotos} onChange={(files) => patchWip(wi, { woPhotos: files })} label="Add the work order photo" />
+                    </DocBox>
+                    <DocBox title="Agreement photo" hint="Required">
+                      <FileBox {...fileBoxProps} files={w.agreementPhotos} onChange={(files) => patchWip(wi, { agreementPhotos: files })} label="Add the agreement photo" />
+                    </DocBox>
                   </div>
-                </li>
-              ))}
-            </ol>
-            <button
-              type="button"
-              onClick={() => setSteps((cur) => [...cur, ""])}
-              disabled={saving || steps.length >= INQUIRY_MAX_STEPS}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
-            >
-              + Add a step
-            </button>
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-neutral-700">
-                Photos / videos of the workshop effort <span className="font-normal text-neutral-500">(recommended)</span>
-              </p>
-              <AttachmentPicker state={effortFiles} disabled={saving} driveReady={driveReady} label="Attach photos or videos of the work" />
-            </div>
+                </div>
+              );
+            })}
           </Section>
 
           <Section number={7} title="More technical details (optional)" hint="You do not have to answer these, but they can save the technical team a question.">
@@ -475,11 +613,6 @@ export function InquiryForm({
             <TextArea id="ti-comments" label="Comments of the workshop" optional value={comments} onChange={setComments} disabled={saving} rows={3} placeholder="Anything else the technical team should know" />
           </Section>
 
-          {[concernFiles.error, historyFiles.error, effortFiles.error].filter(Boolean).map((msg, i) => (
-            <p key={i} role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {msg}
-            </p>
-          ))}
           {error && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -489,7 +622,7 @@ export function InquiryForm({
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-neutral-500">The inquiry gets its number (TI-0001...) once it is submitted.</p>
             <div className="flex shrink-0 items-center gap-3">
-              {(concernFiles.status || historyFiles.status || effortFiles.status) && <span className="text-sm text-neutral-500">{concernFiles.status ?? historyFiles.status ?? effortFiles.status}</span>}
+              {status && <span className="text-sm text-neutral-500">{status}</span>}
               <button
                 type="submit"
                 disabled={saving}
@@ -501,6 +634,7 @@ export function InquiryForm({
           </div>
         </form>
       )}
+
       {asking && (
         <ReasonsDialog
           selected={reasons}
@@ -513,6 +647,30 @@ export function InquiryForm({
         />
       )}
     </section>
+  );
+}
+
+function WoNote({ preview }: { preview: { value?: string; error?: string } | null }) {
+  if (!preview) return null;
+  return (
+    <p className={`mt-1 text-xs ${preview.error ? "text-red-600" : "text-neutral-500"}`}>
+      {preview.error ?? (
+        <>
+          Saved as <span className="font-semibold text-neutral-800">{preview.value}</span>
+        </>
+      )}
+    </p>
+  );
+}
+
+function DocBox({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-neutral-700">
+        {title} <span className="font-normal text-neutral-500">({hint})</span>
+      </p>
+      {children}
+    </div>
   );
 }
 

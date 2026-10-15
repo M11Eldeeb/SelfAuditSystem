@@ -8,17 +8,17 @@ import { BRAND, INK, LINE, MUTED, QR_BOX, align, brandLockup, qrBlock } from "@/
 import {
   AFTER_REPAIR_LABEL,
   CATEGORY_LABEL,
-  OCCURRENCE_LABEL,
-  PRIORITY_LABEL,
+  OCCURRENCE_CONDITION_LABEL,
   RESPONSIBLE_ROLE_LABEL,
   ROLE_LABEL,
   STATUS_LABEL,
   SUBMIT_REASON_LABEL,
   SYSTEM_LABEL,
+  VEHICLE_LOCATION_LABEL,
   formatMileage,
   inquiryLabel,
   type AttachmentCategory,
-  type InquiryPriority,
+  type VehicleLocation,
   type InquiryStatus,
   type InquirySystem,
 } from "@/lib/technical-inquiries";
@@ -48,13 +48,14 @@ async function loadInquiry(id: string) {
   const admin = createAdminClient();
   const { data: inquiry } = await admin.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
   if (!inquiry) return null;
-  const [{ data: branch }, { data: comments }, { data: files }] = await Promise.all([
+  const [{ data: branch }, { data: comments }, { data: files }, { data: workOrders }] = await Promise.all([
     admin.from("self_audit_branches").select("name").eq("id", inquiry.branch_id).maybeSingle(),
     // Internal notes stay out of the PDF.
     admin.from("self_audit_technical_inquiry_comments").select("id, kind, body, author_name, author_role, created_at").eq("inquiry_id", id).eq("internal", false).order("created_at"),
-    admin.from("self_audit_technical_inquiry_attachments").select("comment_id, file_name, size_bytes, created_at, category").eq("inquiry_id", id).order("created_at"),
+    admin.from("self_audit_technical_inquiry_attachments").select("comment_id, file_name, size_bytes, created_at, category, wip_id, step_no").eq("inquiry_id", id).order("created_at"),
+    admin.from("self_audit_inquiry_work_orders").select("id, position, work_order_no, previous_concern, steps").eq("inquiry_id", id).order("position"),
   ]);
-  return { inquiry, branchName: branch?.name ?? "Branch", comments: comments ?? [], files: files ?? [] };
+  return { inquiry, branchName: branch?.name ?? "Branch", comments: comments ?? [], files: files ?? [], workOrders: workOrders ?? [] };
 }
 
 const EVENT_TEXT: Record<string, string> = {
@@ -125,11 +126,11 @@ function caseDocument(s: Inquiry, folderUrl: string) {
         row("Plate number", q.plate_number),
         row("Vehicle model", q.vehicle_model),
         row("System", SYSTEM_LABEL[q.system as InquirySystem] ?? q.system),
-        row("Priority", PRIORITY_LABEL[q.priority as InquiryPriority] ?? q.priority),
+        row("The car", VEHICLE_LOCATION_LABEL[q.vehicle_location as VehicleLocation] ?? q.vehicle_location),
         row("Mileage", formatMileage(q.mileage_km)),
         row("Fault codes (DTC)", q.dtc_codes),
         row("Software / ECU version", q.software_version),
-        row("How it happens", `${OCCURRENCE_LABEL[q.occurrence] ?? q.occurrence}${q.occurrence_conditions ? ` - ${q.occurrence_conditions}` : ""}`),
+        row(`Happens ${q.occurrence === "permanent" ? "permanently" : "intermittently"} when`, q.occurrence_keys.map((k) => (k === "other" && q.occurrence_conditions ? `Other: ${q.occurrence_conditions}` : (OCCURRENCE_CONDITION_LABEL[k] ?? k))).join("; ")),
         row("First noticed", q.concern_first_noticed),
         row("Previous repair", `${(AFTER_REPAIR_LABEL[q.after_previous_repair] ?? q.after_previous_repair).split(" - ")[0]}${q.previous_repair_details ? ` - ${q.previous_repair_details}` : ""}`),
         row("Parts already replaced", q.parts_replaced),
@@ -141,23 +142,38 @@ function caseDocument(s: Inquiry, folderUrl: string) {
         row("Closed", q.closed_at ? `${stamp(q.closed_at)}${q.closed_by_name ? ` by ${q.closed_by_name}` : ""}` : null)
       ),
       block("Customer concern", q.fault_complaint),
-      h(
-        View,
-        { key: "steps", style: { borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10, marginBottom: 10 } },
-        h(Text, { style: { fontSize: 9, color: MUTED, marginBottom: 4 } }, "Workshop effort (in the order it was done)"),
-        ...q.workshop_steps.map((step, i) =>
-          h(
-            View,
-            { key: String(i), wrap: false, style: { flexDirection: "row", marginBottom: 3 } },
-            h(Text, { style: { width: 18, fontSize: 9, fontWeight: 700, color: BRAND } }, String(i + 1)),
-            h(Text, { style: { flex: 1, fontSize: 10.5, lineHeight: 1.45, textAlign: align(step) } }, step)
-          )
-        )
-      ),
+      ...s.workOrders.map((w) => {
+        const mine = s.files.filter((f) => f.wip_id === w.id);
+        const docs: AttachmentCategory[] = ["vds_report", "work_order_photo", "agreement_photo"];
+        return h(
+          View,
+          { key: w.id, style: { borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10, marginBottom: 10 } },
+          h(Text, { style: { fontSize: 9, color: MUTED, marginBottom: 4 } }, `Workshop effort - ${w.work_order_no} (${w.position === 0 ? "current work order" : "previous work order"})`),
+          w.previous_concern ? h(Text, { style: { fontSize: 10, marginBottom: 5, textAlign: align(w.previous_concern) } }, `Customer previous concern: ${w.previous_concern}`) : null,
+          ...w.steps.map((step, i) => {
+            const stepFiles = mine.filter((f) => f.category === "workshop_effort" && f.step_no === i + 1);
+            return h(
+              View,
+              { key: String(i), wrap: false, style: { marginBottom: 3 } },
+              h(
+                View,
+                { style: { flexDirection: "row" } },
+                h(Text, { style: { width: 18, fontSize: 9, fontWeight: 700, color: BRAND } }, String(i + 1)),
+                h(Text, { style: { flex: 1, fontSize: 10.5, lineHeight: 1.45, textAlign: align(step) } }, step)
+              ),
+              stepFiles.length > 0 ? h(View, { style: { marginLeft: 18 } }, filesList(stepFiles)) : null
+            );
+          }),
+          ...docs.map((category) => {
+            const files = mine.filter((f) => f.category === category);
+            return files.length > 0 ? h(View, { key: category, style: { marginTop: 3 } }, h(Text, { style: { fontSize: 9, color: MUTED } }, CATEGORY_LABEL[category]), filesList(files)) : null;
+          })
+        );
+      }),
       block("Comments of the workshop", q.workshop_comments),
       q.resolution ? block("Solution", q.resolution) : null,
-      ...(["concern_media", "vehicle_history", "workshop_effort", "other"] as AttachmentCategory[]).map((category) => {
-        const files = s.files.filter((f) => f.comment_id === null && f.category === category);
+      ...(["concern_media", "vehicle_history", "other"] as AttachmentCategory[]).map((category) => {
+        const files = s.files.filter((f) => f.comment_id === null && f.wip_id === null && f.category === category);
         return files.length > 0 ? h(View, { key: category, style: { marginBottom: 8 } }, h(Text, { style: { fontSize: 9, color: MUTED } }, CATEGORY_LABEL[category]), filesList(files)) : null;
       }),
       h(Text, { style: { fontSize: 12, fontWeight: 700, marginTop: 6, marginBottom: 8 } }, `Conversation (${s.comments.length})`),

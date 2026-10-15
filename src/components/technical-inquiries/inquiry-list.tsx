@@ -33,7 +33,7 @@ const selectClass = "h-9 rounded-lg border border-neutral-300 bg-white px-3 text
 /**
  * The inquiries list for all three roles: submit one (workshop / warranty team), filter by status, search, and the list
  * itself. The database decides what each role sees (a branch admin: their own branch only); the branch, system and "my
- * cases" filters are the team's pickers. Cases waiting more than two days are shown in red, urgent ones first.
+ * cases" filters are the team's pickers. Cases waiting more than two days are shown in red, cars still in the workshop first.
  */
 export async function InquiryList({ user, role, params }: { user: CurrentUser; role: InquiryRole; params: InquiryListParams }) {
   const supabase = await createClient();
@@ -80,7 +80,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
   };
 
   let query = withFilters(supabase.from("self_audit_technical_inquiries").select("*", { count: "exact" }))
-    .order("priority", { ascending: false })
+    .order("vehicle_location", { ascending: true })
     .order("updated_at", { ascending: false })
     .range(from, from + INQUIRY_PAGE_SIZE - 1);
   if (tab.statuses) query = query.in("status", tab.statuses);
@@ -224,7 +224,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-semibold text-neutral-900">{inquiryLabel(i.inquiry_no)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</span>
-                    {i.priority === "urgent" && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">URGENT</span>}
+                    {i.vehicle_location === "in_workshop" && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">CAR IN WORKSHOP</span>}
                     {!isBranch && (
                       <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{branchName.get(i.branch_id) ?? "Branch"}</span>
                     )}

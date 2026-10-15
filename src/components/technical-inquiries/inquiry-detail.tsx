@@ -7,14 +7,15 @@ import { getDriveStatus } from "@/lib/google-drive";
 import {
   AFTER_REPAIR_LABEL,
   CATEGORY_LABEL,
+  OCCURRENCE_CONDITION_LABEL,
   OCCURRENCE_LABEL,
-  PRIORITY_LABEL,
   RESPONSIBLE_ROLE_LABEL,
   ROLE_LABEL,
   SUBMIT_REASON_LABEL,
   STATUS_BADGE,
   STATUS_LABEL,
   SYSTEM_LABEL,
+  VEHICLE_LOCATION_LABEL,
   basePathFor,
   driveFileUrl,
   driveFolderUrl,
@@ -24,7 +25,7 @@ import {
   inquiryLabel,
   isLate,
   waitingText,
-  type InquiryPriority,
+  type VehicleLocation,
   type InquiryRole,
   type InquiryStatus,
   type InquirySystem,
@@ -36,7 +37,7 @@ import { AssignPanel, WorkshopActions } from "./case-actions";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
-type Attachment = { id: string; comment_id: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; category: AttachmentCategory };
+type Attachment = { id: string; comment_id: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; category: AttachmentCategory; wip_id: string | null; step_no: number | null };
 
 const EVENT_LABEL: Record<string, string> = {
   closed: "Case closed",
@@ -87,19 +88,21 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
   if (!inquiry) notFound();
 
-  const [user, { data: branch }, { data: comments }, { data: attachmentRows }, drive, { data: folder }, { data: techRows }] = await Promise.all([
+  const [user, { data: branch }, { data: comments }, { data: attachmentRows }, { data: wipRows }, drive, { data: folder }, { data: techRows }] = await Promise.all([
     getCurrentUser(),
     supabase.from("self_audit_branches").select("name").eq("id", inquiry.branch_id).maybeSingle(),
     // Internal notes come back only for the technical team and officers (the database hides them from the workshop).
     supabase.from("self_audit_technical_inquiry_comments").select("*").eq("inquiry_id", id).order("created_at"),
     supabase.from("self_audit_technical_inquiry_attachments").select("*").eq("inquiry_id", id).order("created_at"),
+    supabase.from("self_audit_inquiry_work_orders").select("*").eq("inquiry_id", id).order("position"),
     getDriveStatus(),
     createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `inquiry:case:${id}`).maybeSingle(),
     isTeam ? createAdminClient().from("self_audit_users").select("id, full_name, email").eq("role", "technical").order("full_name") : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string }[] }),
   ]);
   const attachments = (attachmentRows ?? []) as Attachment[];
-  const caseFiles = attachments.filter((a) => a.comment_id === null);
-  const caseFileGroups = (["concern_media", "vehicle_history", "workshop_effort", "other"] as AttachmentCategory[])
+  const caseFiles = attachments.filter((a) => a.comment_id === null && a.wip_id === null);
+  const workOrders = wipRows ?? [];
+  const caseFileGroups = (["concern_media", "vehicle_history", "other"] as AttachmentCategory[])
     .map((category) => ({ category, files: caseFiles.filter((f) => f.category === category) }))
     .filter((g) => g.files.length > 0);
   const status = inquiry.status as InquiryStatus;
@@ -110,7 +113,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const technicians = (techRows ?? []).map((t) => ({ id: t.id, name: t.full_name?.trim() || t.email }));
   const timeToFirstAnswer = inquiry.first_response_at ? new Date(inquiry.first_response_at).getTime() - new Date(inquiry.created_at).getTime() : null;
   const timeToClose = inquiry.closed_at ? new Date(inquiry.closed_at).getTime() - new Date(inquiry.created_at).getTime() : null;
-  const occurrence = `${OCCURRENCE_LABEL[inquiry.occurrence] ?? inquiry.occurrence}${inquiry.occurrence_conditions ? ` - ${inquiry.occurrence_conditions}` : ""}`;
+  const occurrenceWhen = inquiry.occurrence_keys.map((k) => (k === "other" && inquiry.occurrence_conditions ? `Other: ${inquiry.occurrence_conditions}` : (OCCURRENCE_CONDITION_LABEL[k] ?? k))).join("; ");
 
   return (
     <div className="space-y-6">
@@ -121,7 +124,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">{inquiryLabel(inquiry.inquiry_no)}</h1>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</span>
-          {inquiry.priority === "urgent" && <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">URGENT</span>}
+          {inquiry.vehicle_location === "in_workshop" && <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">CAR IN WORKSHOP</span>}
           {role !== "branch_admin" && branch?.name && (
             <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{branch.name}</span>
           )}
@@ -153,7 +156,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
             {inquiry.created_by_name ?? "—"}
             <span className="block text-xs font-normal text-neutral-500">{stamp(inquiry.created_at)}</span>
           </Fact>
-          <Fact label="Priority">{PRIORITY_LABEL[inquiry.priority as InquiryPriority] ?? inquiry.priority}</Fact>
+          <Fact label="The car">{VEHICLE_LOCATION_LABEL[inquiry.vehicle_location as VehicleLocation] ?? inquiry.vehicle_location}</Fact>
           <Fact label="Mileage">{formatMileage(inquiry.mileage_km)}</Fact>
           {inquiry.software_version && <Fact label="Software / ECU version">{inquiry.software_version}</Fact>}
           {inquiry.dtc_codes && (
@@ -161,7 +164,10 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
               <span className="font-mono text-[13px] break-words">{inquiry.dtc_codes}</span>
             </Fact>
           )}
-          <Fact label="How the concern happens">{occurrence}</Fact>
+          <Fact label={`Happens ${inquiry.occurrence === "permanent" ? "permanently" : "intermittently"} when`}>
+            <span className="text-[13px] font-medium">{occurrenceWhen}</span>
+            <span className="block text-xs font-normal text-neutral-500">{OCCURRENCE_LABEL[inquiry.occurrence] ?? inquiry.occurrence}</span>
+          </Fact>
           <Fact label="First noticed by the customer">{inquiry.concern_first_noticed}</Fact>
           <Fact label="Related to a previous repair">
             {AFTER_REPAIR_LABEL[inquiry.after_previous_repair]?.split(" - ")[0] ?? inquiry.after_previous_repair}
@@ -189,17 +195,43 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           <p className="text-xs font-medium text-neutral-500">Customer concern</p>
           <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{inquiry.fault_complaint}</p>
         </div>
-        <div>
-          <p className="text-xs font-medium text-neutral-500">Workshop effort (in the order it was done)</p>
-          <ol className="mt-1 space-y-1.5">
-            {inquiry.workshop_steps.map((step, i) => (
-              <li key={i} className="flex gap-2.5 text-sm text-neutral-900">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">{i + 1}</span>
-                <span className="whitespace-pre-wrap">{step}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
+        {workOrders.map((w) => {
+          const mine = attachments.filter((f) => f.wip_id === w.id);
+          const docs: AttachmentCategory[] = ["vds_report", "work_order_photo", "agreement_photo"];
+          return (
+            <div key={w.id} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+              <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900">
+                Workshop effort - {w.work_order_no}
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200 ring-inset">{w.position === 0 ? "current work order" : "previous work order"}</span>
+              </p>
+              {w.previous_concern && (
+                <div>
+                  <p className="text-xs font-medium text-neutral-500">Customer previous concern</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{w.previous_concern}</p>
+                </div>
+              )}
+              <ol className="space-y-2.5">
+                {w.steps.map((step, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-neutral-900">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">{i + 1}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="whitespace-pre-wrap">{step}</p>
+                      <Files files={mine.filter((f) => f.category === "workshop_effort" && f.step_no === i + 1)} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div className="grid gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-3">
+                {docs.map((cat) => (
+                  <div key={cat}>
+                    <p className="mb-1 text-xs font-medium text-neutral-500">{CATEGORY_LABEL[cat]}</p>
+                    <Files files={mine.filter((f) => f.category === cat)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
         {inquiry.workshop_comments && (
           <div>
             <p className="text-xs font-medium text-neutral-500">Comments of the workshop</p>

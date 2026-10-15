@@ -49,18 +49,47 @@ export const SYSTEM_LABEL: Record<InquirySystem, string> = {
   other: "Other",
 };
 
-export type InquiryPriority = "normal" | "urgent";
-export const PRIORITY_LABEL: Record<InquiryPriority, string> = { normal: "Normal", urgent: "Urgent - customer waiting" };
-export const OCCURRENCE_LABEL: Record<string, string> = { permanent: "Permanent", intermittent: "Intermittent", specific: "Under a specific condition" };
+/** Is the car still in the workshop (the customer is waiting) or already out? A car in the workshop is listed first. */
+export type VehicleLocation = "in_workshop" | "out";
+export const VEHICLE_LOCATION_LABEL: Record<VehicleLocation, string> = { in_workshop: "The car is in the workshop", out: "The car is out of the workshop" };
+export const OCCURRENCE_LABEL: Record<string, string> = { permanent: "Permanent", intermittent: "Intermittent" };
+/** "It happens permanently / intermittently when ..." - the conditions the workshop ticks. */
+export const OCCURRENCE_CONDITIONS = [
+  { key: "always", label: "At all times - no particular condition" },
+  { key: "cold_start", label: "Cold start" },
+  { key: "hot_engine", label: "Hot engine" },
+  { key: "idling", label: "At idle" },
+  { key: "accelerating", label: "When accelerating" },
+  { key: "braking", label: "When braking" },
+  { key: "highway", label: "At constant / highway speed" },
+  { key: "low_speed", label: "At low speed or when parking" },
+  { key: "turning", label: "When turning the steering" },
+  { key: "reversing", label: "In reverse" },
+  { key: "gear_change", label: "On gear change" },
+  { key: "rough_road", label: "On rough road or bumps" },
+  { key: "ac_on", label: "With the air conditioning on" },
+  { key: "rain", label: "In rain or wet weather" },
+  { key: "parked", label: "When parked / engine off" },
+  { key: "charging", label: "While charging (hybrid / EV)" },
+  { key: "other", label: "Other condition" },
+] as const;
+export const OCCURRENCE_CONDITION_LABEL: Record<string, string> = Object.fromEntries(OCCURRENCE_CONDITIONS.map((c) => [c.key, c.label]));
 export const RESPONSIBLE_ROLE_LABEL: Record<string, string> = { workshop_supervisor: "Workshop supervisor", delegated: "Delegated responsible" };
 export const AFTER_REPAIR_LABEL: Record<string, string> = { yes: "Yes - it followed a previous repair", no: "No - it is not related to a previous repair", unknown: "Not sure" };
-export type AttachmentCategory = "concern_media" | "vehicle_history" | "workshop_effort" | "other";
+export type AttachmentCategory = "concern_media" | "vehicle_history" | "workshop_effort" | "vds_report" | "work_order_photo" | "agreement_photo" | "other";
 export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
   concern_media: "Customer concern (photos / videos)",
   vehicle_history: "Vehicle history (service / repair history)",
   workshop_effort: "Workshop effort (photos / videos)",
+  vds_report: "VDS report",
+  work_order_photo: "Work order photo",
+  agreement_photo: "Agreement photo",
   other: "Other files",
 };
+export const INQUIRY_MAX_WORK_ORDERS = 10;
+/** Files uploaded to Drive in one go when a case is submitted (every work order, every step), and the most a case can hold. */
+export const INQUIRY_MAX_UPLOAD_BATCH = 100;
+export const INQUIRY_MAX_CASE_FILES = 150;
 /** The conditions for sending a case to the technical team: at least one must be met. */
 export const LOW_MILEAGE_LIMIT_KM = 1000;
 export const SUBMIT_REASONS = [

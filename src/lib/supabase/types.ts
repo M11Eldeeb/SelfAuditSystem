@@ -525,11 +525,12 @@ export interface Database {
           created_at: string;
           updated_at: string;
           system: "engine" | "transmission" | "electrical" | "adas" | "infotainment" | "hvac" | "body" | "chassis" | "hybrid_ev" | "other";
-          priority: "normal" | "urgent";
+          vehicle_location: "in_workshop" | "out";
           mileage_km: number;
           dtc_codes: string | null;
           software_version: string | null;
-          occurrence: "permanent" | "intermittent" | "specific";
+          occurrence: "permanent" | "intermittent";
+          occurrence_keys: string[];
           plate_number: string;
           responsible_name: string;
           responsible_role: "workshop_supervisor" | "delegated";
@@ -537,7 +538,6 @@ export interface Database {
           concern_first_noticed: string;
           after_previous_repair: "yes" | "no" | "unknown";
           previous_repair_details: string | null;
-          workshop_steps: string[];
           submit_reasons: string[];
           occurrence_conditions: string | null;
           parts_replaced: string | null;
@@ -589,10 +589,18 @@ export interface Database {
           size_bytes: number;
           uploaded_by: string | null;
           created_at: string;
-          category: "concern_media" | "vehicle_history" | "workshop_effort" | "other";
+          category: "concern_media" | "vehicle_history" | "workshop_effort" | "vds_report" | "work_order_photo" | "agreement_photo" | "other";
+          wip_id: string | null;
+          step_no: number | null;
         };
-        Insert: { id?: string; inquiry_id: string; comment_id?: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by?: string | null; category?: "concern_media" | "vehicle_history" | "workshop_effort" | "other" };
+        Insert: { id?: string; inquiry_id: string; comment_id?: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by?: string | null; category?: "concern_media" | "vehicle_history" | "workshop_effort" | "vds_report" | "work_order_photo" | "agreement_photo" | "other"; wip_id?: string | null; step_no?: number | null };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_attachments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_inquiry_work_orders: {
+        Row: { id: string; inquiry_id: string; position: number; work_order_no: string; previous_concern: string | null; steps: string[] };
+        Insert: { id?: string; inquiry_id: string; position: number; work_order_no: string; previous_concern?: string | null; steps: string[] };
+        Update: Partial<Database["public"]["Tables"]["self_audit_inquiry_work_orders"]["Insert"]>;
         Relationships: [];
       };
       self_audit_inquiry_routing: {
@@ -1401,11 +1409,12 @@ export interface Database {
           p_plate: string;
           p_model: string;
           p_system: string;
-          p_priority: string;
+          p_vehicle_location: string;
           p_mileage: number;
           p_dtc: string | null;
           p_software: string | null;
           p_occurrence: string;
+          p_condition_keys: string[];
           p_conditions: string | null;
           p_parts: string | null;
           p_responsible_name: string;
@@ -1415,9 +1424,9 @@ export interface Database {
           p_after_repair: string;
           p_repair_details: string | null;
           p_fault: string;
-          p_steps: string[];
           p_comments: string | null;
           p_reasons: string[];
+          p_work_orders: unknown;
           p_attachments?: unknown;
         };
         Returns: number;

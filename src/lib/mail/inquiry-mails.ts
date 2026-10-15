@@ -4,7 +4,7 @@ import { findSentMail, getMailStatus } from "@/lib/gmail";
 import { composeMail, type MailKey } from "@/lib/mail/catalog";
 import { loadPeople, loadTemplates, recipientsFor } from "@/lib/mail/people";
 import { isMailEnabled, sendPlans, type PlannedMail, type SendOutcome } from "@/lib/mail/plans";
-import { PRIORITY_LABEL, RESPONSIBLE_ROLE_LABEL, SUBMIT_REASON_LABEL, SYSTEM_LABEL, inquiryLabel, type InquiryPriority, type InquirySystem } from "@/lib/technical-inquiries";
+import { RESPONSIBLE_ROLE_LABEL, SUBMIT_REASON_LABEL, SYSTEM_LABEL, VEHICLE_LOCATION_LABEL, inquiryLabel, type InquirySystem, type VehicleLocation } from "@/lib/technical-inquiries";
 
 /**
  * The e-mails of Technical Inquiries. Each event on a case sends one mail, to the other side:
@@ -104,8 +104,8 @@ export async function planInquiryMail(event: InquiryEvent, inquiryId: string, or
     escalated_by: `${inquiry.responsible_name} (${RESPONSIBLE_ROLE_LABEL[inquiry.responsible_role] ?? inquiry.responsible_role})`,
     model: inquiry.vehicle_model,
     system: SYSTEM_LABEL[inquiry.system as InquirySystem] ?? inquiry.system,
-    priority: PRIORITY_LABEL[inquiry.priority as InquiryPriority] ?? inquiry.priority,
-    urgent: inquiry.priority === "urgent" ? "URGENT - " : "",
+    car_location: VEHICLE_LOCATION_LABEL[inquiry.vehicle_location as VehicleLocation] ?? inquiry.vehicle_location,
+    in_workshop: inquiry.vehicle_location === "in_workshop" ? "CAR IN WORKSHOP - " : "",
     advisor: inquiry.assigned_to_name ?? "Not assigned yet",
     by,
     fault: clip(inquiry.fault_complaint, 400),

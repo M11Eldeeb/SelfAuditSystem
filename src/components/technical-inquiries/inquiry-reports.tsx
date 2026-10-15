@@ -15,7 +15,7 @@ type Row = {
   branch_id: string;
   system: string;
   status: string;
-  priority: string;
+  vehicle_location: string;
   created_at: string;
   first_response_at: string | null;
   closed_at: string | null;
@@ -36,8 +36,8 @@ export async function InquiryReports({ role, params }: { role: InquiryRole; para
     supabase.from("self_audit_branches").select("id, name").order("name"),
     // A few hundred cases a year at most - read once and add up here (the database only returns what the caller may see).
     (since
-      ? supabase.from("self_audit_technical_inquiries").select("branch_id, system, status, priority, created_at, first_response_at, closed_at, assigned_to_name, waiting_since").gte("created_at", since)
-      : supabase.from("self_audit_technical_inquiries").select("branch_id, system, status, priority, created_at, first_response_at, closed_at, assigned_to_name, waiting_since")
+      ? supabase.from("self_audit_technical_inquiries").select("branch_id, system, status, vehicle_location, created_at, first_response_at, closed_at, assigned_to_name, waiting_since").gte("created_at", since)
+      : supabase.from("self_audit_technical_inquiries").select("branch_id, system, status, vehicle_location, created_at, first_response_at, closed_at, assigned_to_name, waiting_since")
     ).order("created_at", { ascending: false }).limit(5000),
   ]);
   const rows = (all ?? []) as Row[];

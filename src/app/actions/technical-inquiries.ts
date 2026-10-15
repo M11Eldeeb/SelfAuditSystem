@@ -17,11 +17,15 @@ import {
   INQUIRY_DTC_MAX,
   INQUIRY_FIRST_NOTICED_MAX,
   INQUIRY_MAX_FILES,
+  INQUIRY_MAX_CASE_FILES,
   INQUIRY_MAX_STEPS,
+  INQUIRY_MAX_UPLOAD_BATCH,
+  INQUIRY_MAX_WORK_ORDERS,
   INQUIRY_PERSON_MAX,
   INQUIRY_PLATE_MAX,
   INQUIRY_STEP_MAX,
   LOW_MILEAGE_LIMIT_KM,
+  OCCURRENCE_CONDITIONS,
   SUBMIT_REASONS,
   type AttachmentCategory,
   INQUIRY_MAX_FILE_BYTES,
@@ -73,7 +77,7 @@ function afterCaseChange(event: InquiryEvent | null, inquiryId: string, origin: 
 
 function checkFiles(files: { name: string; type: string; size: number }[]): string | null {
   if (files.length === 0) return "Choose a file first.";
-  if (files.length > INQUIRY_MAX_FILES) return `You can attach at most ${INQUIRY_MAX_FILES} files.`;
+  if (files.length > INQUIRY_MAX_UPLOAD_BATCH) return `You can send at most ${INQUIRY_MAX_UPLOAD_BATCH} files at once.`;
   for (const f of files) {
     if (!isAllowedFeedbackMime(f.type)) return `"${f.name}" is not a photo, PDF or video.`;
     if (!(f.size >= 1) || f.size > INQUIRY_MAX_FILE_BYTES) return `"${f.name}" must be between 1 byte and ${formatBytes(INQUIRY_MAX_FILE_BYTES)}.`;
@@ -166,20 +170,32 @@ async function verifyAttachments(inquiryId: string, files: InquiryAttachmentInpu
   return { rows };
 }
 
+/** One work order of a case: its steps (each with its own files) and the three documents asked for every work order. */
+export type WorkOrderInput = {
+  workOrder: string;
+  /** What the customer complained about at that earlier visit - required for a previous work order. */
+  previousConcern?: string;
+  steps: { text: string; files: InquiryAttachmentInput[] }[];
+  vds: InquiryAttachmentInput[];
+  woPhotos: InquiryAttachmentInput[];
+  agreementPhotos: InquiryAttachmentInput[];
+};
+
 export type CreateInquiryInput = {
   id: string;
   branchId?: string;
-  workOrder: string;
   vin: string;
   plate: string;
   model: string;
   system: string;
-  priority: string;
+  /** "in_workshop" or "out": is the car still in the workshop? */
+  vehicleLocation: string;
   mileage?: number | null;
   dtc?: string;
   software?: string;
-  /** "permanent", "intermittent" or "specific" (a specific condition). */
+  /** "permanent" or "intermittent", with the conditions it happens in (keys of OCCURRENCE_CONDITIONS; "other" needs the text in `conditions`). */
   occurrence?: string;
+  conditionKeys: string[];
   conditions?: string;
   partsReplaced?: string;
   /** Who is escalating: the workshop supervisor or a delegated responsible, who speaks to the technical team. */
@@ -191,13 +207,16 @@ export type CreateInquiryInput = {
   afterRepair: string;
   repairDetails?: string;
   fault: string;
-  /** The workshop effort, one entry per step, in the order it was done. */
-  steps: string[];
+  comments?: string;
   /** The conditions for sending a case to the technical team that are met (at least one). */
   reasons: string[];
-  comments?: string;
+  /** The current work order first, then the previous ones of the same problem. */
+  workOrders: WorkOrderInput[];
+  /** The case-level files: the concern media and the vehicle history, each with its category. */
   attachments: InquiryAttachmentInput[];
 };
+
+const OCCURRENCE_KEYS = OCCURRENCE_CONDITIONS.map((c) => c.key) as string[];
 
 /** Submits a technical inquiry. A branch admin always submits for their own branch; an officer picks the branch. */
 export async function createTechnicalInquiry(input: CreateInquiryInput): Promise<{ id?: string; no?: number; error?: string }> {
@@ -213,22 +232,45 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   const { data: branch } = await supabase.from("self_audit_branches").select("id, code").eq("id", branchId).maybeSingle();
   if (!branch) return { error: "Branch not found." };
 
-  const wo = normalizeWorkOrder(input.workOrder, branch.code);
-  if (wo.value === undefined) return { error: wo.error };
+  const reasons = [...new Set(input.reasons ?? [])];
+  if (reasons.length === 0) return { error: "A case can only go to the technical team when one of the conditions is met - tick at least one." };
+  if (!reasons.every((r) => SUBMIT_REASONS.some((x) => x.key === r))) return { error: "Unknown condition." };
+
+  // Work orders: the first is the current one; every other is a previous work order of the same problem.
+  if (!Array.isArray(input.workOrders) || input.workOrders.length === 0) return { error: "Enter the work order number." };
+  if (input.workOrders.length > INQUIRY_MAX_WORK_ORDERS) return { error: `At most ${INQUIRY_MAX_WORK_ORDERS} work orders (the current one and ${INQUIRY_MAX_WORK_ORDERS - 1} previous ones).` };
+  const seenWo = new Set<string>();
+  const workOrders: { value: string; input: WorkOrderInput }[] = [];
+  for (const [index, w] of input.workOrders.entries()) {
+    const wo = normalizeWorkOrder(w.workOrder, branch.code);
+    if (wo.value === undefined) return { error: `${index === 0 ? "Work order" : `Previous work order ${index}`}: ${wo.error}` };
+    if (seenWo.has(wo.value)) return { error: `The work order ${wo.value} is listed twice.` };
+    seenWo.add(wo.value);
+    const label = index === 0 ? `work order ${wo.value}` : `previous work order ${wo.value}`;
+    if (index > 0 && !(w.previousConcern ?? "").trim()) return { error: `Write the customer previous concern of ${label}.` };
+    if ((w.previousConcern ?? "").length > INQUIRY_TEXT_MAX) return { error: `The customer previous concern can be at most ${INQUIRY_TEXT_MAX} characters.` };
+    const texts = w.steps.map((st) => st.text.trim());
+    if (texts.length === 0 || texts.some((t) => !t)) return { error: `Write the workshop effort of ${label}, step by step (every step needs its text).` };
+    if (texts.length > INQUIRY_MAX_STEPS) return { error: `At most ${INQUIRY_MAX_STEPS} steps per work order.` };
+    if (texts.some((t) => t.length > INQUIRY_STEP_MAX)) return { error: `Each step can be at most ${INQUIRY_STEP_MAX} characters.` };
+    if (w.vds.length === 0) return { error: `Attach the VDS report of ${label}.` };
+    if (w.woPhotos.length === 0) return { error: `Attach a photo of ${label}.` };
+    if (w.agreementPhotos.length === 0) return { error: `Attach a photo of the agreement of ${label}.` };
+    workOrders.push({ value: wo.value, input: w });
+  }
+  const wo = { value: workOrders[0].value };
+
   const vin = input.vin.trim().toUpperCase().replace(/\s+/g, "");
   if (!VIN_PATTERN.test(vin)) return { error: "The VIN must be 17 letters and digits (no I, O or Q)." };
   const model = input.model.trim();
   if (!model) return { error: "Enter the vehicle model." };
   if (model.length > INQUIRY_MODEL_MAX) return { error: `The vehicle model can be at most ${INQUIRY_MODEL_MAX} characters.` };
   if (!(SYSTEMS as readonly string[]).includes(input.system)) return { error: "Choose the vehicle system the fault is in." };
-  if (input.priority !== "normal" && input.priority !== "urgent") return { error: "Choose the priority." };
-  const reasons = [...new Set(input.reasons ?? [])];
-  if (reasons.length === 0) return { error: "A case can only go to the technical team when one of the conditions is met - tick at least one." };
-  if (!reasons.every((r) => SUBMIT_REASONS.some((x) => x.key === r))) return { error: "Unknown condition." };
+  if (input.vehicleLocation !== "in_workshop" && input.vehicleLocation !== "out") return { error: "Say whether the car is in the workshop or out." };
   const mileage = input.mileage == null || (input.mileage as unknown) === "" ? null : Number(input.mileage);
   if (mileage === null) return { error: "Enter the mileage." };
-  if (reasons.includes("low_mileage") && mileage >= LOW_MILEAGE_LIMIT_KM) return { error: "The low mileage condition needs a mileage below 1,000 km." };
   if (!Number.isInteger(mileage) || mileage < 0 || mileage > INQUIRY_MAX_MILEAGE) return { error: "The mileage must be a whole number of kilometres." };
+  if (reasons.includes("low_mileage") && mileage >= LOW_MILEAGE_LIMIT_KM) return { error: "The low mileage condition needs a mileage below 1,000 km." };
   const plate = input.plate.trim().replace(/\s+/g, " ").toUpperCase();
   if (!plate) return { error: "Enter the plate number." };
   if (plate.length < 2 || plate.length > INQUIRY_PLATE_MAX) return { error: `The plate number must be between 2 and ${INQUIRY_PLATE_MAX} characters.` };
@@ -249,27 +291,30 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   const occurrence = (input.occurrence ?? "").trim();
   const conditions = (input.conditions ?? "").trim();
   const partsReplaced = (input.partsReplaced ?? "").trim();
-  if (!["permanent", "intermittent", "specific"].includes(occurrence)) return { error: "Say whether the concern is permanent, intermittent or happens under a specific condition." };
-  if (occurrence !== "permanent" && !conditions) return { error: "Describe the conditions in which the concern happens." };
+  if (occurrence !== "permanent" && occurrence !== "intermittent") return { error: "Say whether the concern is permanent or intermittent." };
+  const conditionKeys = [...new Set(input.conditionKeys ?? [])];
+  if (conditionKeys.length === 0) return { error: "Tick when the concern happens." };
+  if (!conditionKeys.every((k) => OCCURRENCE_KEYS.includes(k))) return { error: "Unknown condition." };
+  if (conditionKeys.includes("other") && !conditions) return { error: "Describe the other condition in which the concern happens." };
   if (dtc.length > INQUIRY_DTC_MAX) return { error: `The fault codes can be at most ${INQUIRY_DTC_MAX} characters.` };
   if (software.length > INQUIRY_SOFTWARE_MAX) return { error: `The software version can be at most ${INQUIRY_SOFTWARE_MAX} characters.` };
   if (conditions.length > INQUIRY_SHORT_TEXT_MAX || partsReplaced.length > INQUIRY_SHORT_TEXT_MAX || repairDetails.length > INQUIRY_SHORT_TEXT_MAX) return { error: `Those fields can be at most ${INQUIRY_SHORT_TEXT_MAX} characters.` };
   const fault = input.fault.trim();
-  const steps = input.steps.map((t) => t.trim()).filter(Boolean);
   const comments = (input.comments ?? "").trim();
   if (!fault) return { error: "Describe the customer concern." };
-  if (steps.length === 0) return { error: "Write the workshop effort, step by step." };
-  if (steps.length > INQUIRY_MAX_STEPS) return { error: `At most ${INQUIRY_MAX_STEPS} steps.` };
-  if (steps.some((t) => t.length > INQUIRY_STEP_MAX)) return { error: `Each step can be at most ${INQUIRY_STEP_MAX} characters.` };
   for (const [label, text] of [["customer concern", fault], ["comments", comments]] as const) {
     if (text.length > INQUIRY_TEXT_MAX) return { error: `The ${label} can be at most ${INQUIRY_TEXT_MAX} characters.` };
   }
 
-  // The media the technical team needs to validate the case: a photo or video of the concern, and the vehicle history.
-  const verified = await verifyAttachments(input.id, input.attachments, INQUIRY_MAX_FILES * 3);
+  // Every file the browser says it uploaded is checked against Google once: it exists, sits in this case's folder, is a sane size and type.
+  const nested = workOrders.flatMap(({ input: w }) => [...w.steps.flatMap((st) => st.files), ...w.vds, ...w.woPhotos, ...w.agreementPhotos]);
+  const verified = await verifyAttachments(input.id, [...input.attachments, ...nested], INQUIRY_MAX_CASE_FILES);
   if ("error" in verified) return { error: verified.error };
-  if (!verified.rows.some((f) => f.category === "concern_media" && (f.type.startsWith("image/") || f.type.startsWith("video/")))) return { error: "Attach a photo or video that shows the customer concern." };
-  if (!verified.rows.some((f) => f.category === "vehicle_history")) return { error: "Attach the full vehicle history (service / repair history)." };
+  const byId = new Map(verified.rows.map((r) => [r.driveFileId, r]));
+  const checked = (files: InquiryAttachmentInput[]) => files.flatMap((f) => (byId.get(f.driveFileId) ? [{ driveFileId: f.driveFileId, name: byId.get(f.driveFileId)!.name, type: byId.get(f.driveFileId)!.type, size: byId.get(f.driveFileId)!.size }] : []));
+  const caseFiles = verified.rows.filter((r) => input.attachments.some((a) => a.driveFileId === r.driveFileId));
+  if (!caseFiles.some((f) => f.category === "concern_media" && (f.type.startsWith("image/") || f.type.startsWith("video/")))) return { error: "Attach a photo or video that shows the customer concern." };
+  if (!caseFiles.some((f) => f.category === "vehicle_history")) return { error: "Attach the full vehicle history (service / repair history)." };
 
   const { data: no, error } = await supabase.rpc("create_technical_inquiry", {
     p_id: input.id,
@@ -279,12 +324,13 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_plate: plate,
     p_model: model,
     p_system: input.system as InquirySystem,
-    p_priority: input.priority,
+    p_vehicle_location: input.vehicleLocation,
     p_mileage: mileage,
     p_dtc: dtc || null,
     p_software: software || null,
     p_occurrence: occurrence,
-    p_conditions: conditions || null,
+    p_condition_keys: conditionKeys,
+    p_conditions: conditionKeys.includes("other") ? conditions : null,
     p_parts: partsReplaced || null,
     p_responsible_name: responsibleName,
     p_responsible_role: input.responsibleRole,
@@ -293,10 +339,17 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_after_repair: input.afterRepair,
     p_repair_details: repairDetails || null,
     p_fault: fault,
-    p_steps: steps,
     p_comments: comments || null,
     p_reasons: reasons,
-    p_attachments: verified.rows,
+    p_work_orders: workOrders.map(({ value, input: w }, index) => ({
+      workOrder: value,
+      previousConcern: index > 0 ? (w.previousConcern ?? "").trim() : null,
+      steps: w.steps.map((st) => ({ text: st.text.trim(), files: checked(st.files) })),
+      vds: checked(w.vds),
+      woPhotos: checked(w.woPhotos),
+      agreementPhotos: checked(w.agreementPhotos),
+    })),
+    p_attachments: caseFiles,
   });
   if (error) {
     if (error.code === "23505") {
