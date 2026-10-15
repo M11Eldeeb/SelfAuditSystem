@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { saveInquiryRouting } from "@/app/actions/technical-inquiries";
 
 /**
- * Officers: which technician looks after which branch. A new case from a branch is assigned to its technician at once
+ * Officers: which technical advisor looks after which branch. A new case from a branch is assigned to its technical advisor at once
  * (and the "new case" mail goes to them). Changes save as soon as they are made.
  */
 export function RoutingEditor({
@@ -49,11 +49,11 @@ export function RoutingEditor({
       <div className="space-y-3 border-t border-neutral-100 p-4">
         {technicians.length === 0 ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            There is no technical team account yet. Create the technicians under Branches &amp; Users (account type &quot;Technical team&quot;), then choose who handles each branch here.
+            There is no technical team account yet. Create the technical advisors under Branches &amp; Users (account type &quot;Technical team&quot;), then choose who handles each branch here.
           </p>
         ) : (
           <>
-            <p className="text-xs text-neutral-500">A new case from a branch goes to the technician chosen here. A branch with nobody chosen goes to the whole technical team.</p>
+            <p className="text-xs text-neutral-500">A new case from a branch goes to the technical advisor chosen here. A branch with nobody chosen goes to the whole technical team.</p>
             <ul className="divide-y divide-neutral-100">
               {branches.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -62,7 +62,7 @@ export function RoutingEditor({
                     value={current[b.id] ?? ""}
                     onChange={(e) => change(b.id, e.target.value)}
                     disabled={pending}
-                    aria-label={`Technician for ${b.name}`}
+                    aria-label={`Technical advisor for ${b.name}`}
                     className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
                   >
                     <option value="">Whole technical team</option>

@@ -136,7 +136,7 @@ function caseDocument(s: Inquiry, folderUrl: string) {
         row("Escalated by", `${q.responsible_name} (${RESPONSIBLE_ROLE_LABEL[q.responsible_role] ?? q.responsible_role})${q.responsible_phone ? ` - ${q.responsible_phone}` : ""}`),
         row("Sent because", q.submit_reasons.map((r) => SUBMIT_REASON_LABEL[r] ?? r).join("; ")),
         row("Submitted by", `${q.created_by_name ?? "Unknown"} - ${stamp(q.created_at)}`),
-        row("Technician", q.assigned_to_name),
+        row("Technical advisor", q.assigned_to_name),
         row("First answer", q.first_response_at ? stamp(q.first_response_at) : null),
         row("Closed", q.closed_at ? `${stamp(q.closed_at)}${q.closed_by_name ? ` by ${q.closed_by_name}` : ""}` : null)
       ),

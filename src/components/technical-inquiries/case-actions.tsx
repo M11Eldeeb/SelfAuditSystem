@@ -97,8 +97,8 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
 }
 
 /**
- * For the technical team: who looks after this case. The first technician who opens an unassigned case gets it; any
- * technician can delegate it to a colleague here (the colleague is told by mail when the mail is switched on), or take it
+ * For the technical team: who looks after this case. The first technical advisor who opens an unassigned case gets it; any
+ * technical advisor can delegate it to a colleague here (the colleague is told by mail when the mail is switched on), or take it
  * over. Officers can assign it too.
  */
 export function AssignPanel({
@@ -112,7 +112,7 @@ export function AssignPanel({
   assignedTo: string | null;
   assignedName: string | null;
   technicians: { id: string; name: string }[];
-  /** The signed-in user, when they are a technician (so "Take this case" is offered). */
+  /** The signed-in user, when they are a technical advisor (so "Take this case" is offered). */
   meId: string | null;
 }) {
   const router = useRouter();
@@ -135,7 +135,7 @@ export function AssignPanel({
   return (
     <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-neutral-900">Technician</p>
+        <p className="text-sm font-semibold text-neutral-900">Technical advisor</p>
         <p className="text-xs text-neutral-500">{assignedName ? (mine ? "This case is assigned to you" : `Assigned to ${assignedName}`) : "Nobody is looking after this case yet"}</p>
       </div>
       <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -158,7 +158,7 @@ export function AssignPanel({
               aria-label={assignedTo ? "Delegate the case to" : "Assign the case to"}
               className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
             >
-              <option value="">{assignedTo ? "Delegate to another technician" : "Choose a technician"}</option>
+              <option value="">{assignedTo ? "Delegate to another technical advisor" : "Choose a technical advisor"}</option>
               {others.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

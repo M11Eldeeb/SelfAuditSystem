@@ -167,7 +167,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
             {AFTER_REPAIR_LABEL[inquiry.after_previous_repair]?.split(" - ")[0] ?? inquiry.after_previous_repair}
             {inquiry.previous_repair_details && <span className="block text-xs font-normal whitespace-pre-wrap text-neutral-500">{inquiry.previous_repair_details}</span>}
           </Fact>
-          <Fact label="Technician">{inquiry.assigned_to_name ?? <span className="font-normal text-neutral-500">Not assigned yet</span>}</Fact>
+          <Fact label="Technical advisor">{inquiry.assigned_to_name ?? <span className="font-normal text-neutral-500">Not assigned yet</span>}</Fact>
           {timeToFirstAnswer != null && <Fact label="First answer after">{durationText(timeToFirstAnswer)}</Fact>}
           {timeToClose != null && <Fact label="Solved in">{durationText(timeToClose)}</Fact>}
         </dl>

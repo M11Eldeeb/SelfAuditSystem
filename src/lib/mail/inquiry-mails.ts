@@ -75,7 +75,7 @@ export async function planInquiryMail(event: InquiryEvent, inquiryId: string, or
   const t = templates[mailKey];
   const branchName = branch?.name ?? "Branch";
 
-  // To: the assigned technician, else the whole technical team, else (nobody is set up yet) the officers.
+  // To: the assigned technical advisor, else the whole technical team, else (nobody is set up yet) the officers.
   // Or, for the workshop, the branch's admins - a closed branch gets nothing.
   let to: string[];
   let path: string;
@@ -106,7 +106,7 @@ export async function planInquiryMail(event: InquiryEvent, inquiryId: string, or
     system: SYSTEM_LABEL[inquiry.system as InquirySystem] ?? inquiry.system,
     priority: PRIORITY_LABEL[inquiry.priority as InquiryPriority] ?? inquiry.priority,
     urgent: inquiry.priority === "urgent" ? "URGENT - " : "",
-    technician: inquiry.assigned_to_name ?? "Not assigned yet",
+    advisor: inquiry.assigned_to_name ?? "Not assigned yet",
     by,
     fault: clip(inquiry.fault_complaint, 400),
     comment: clip(comment?.body, 800),

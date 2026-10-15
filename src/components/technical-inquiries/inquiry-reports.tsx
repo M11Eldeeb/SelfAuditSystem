@@ -125,7 +125,7 @@ export async function InquiryReports({ role, params }: { role: InquiryRole; para
           &larr; Back to the inquiries
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries - reports</h1>
-        <p className="text-sm text-neutral-600">How many cases each branch, system and technician has, and how fast they are answered and closed.</p>
+        <p className="text-sm text-neutral-600">How many cases each branch, system and technical advisor has, and how fast they are answered and closed.</p>
       </div>
 
       <nav aria-label="Period" className="flex flex-wrap gap-1.5">
@@ -152,7 +152,7 @@ export async function InquiryReports({ role, params }: { role: InquiryRole; para
 
       {table("By branch", "Branch", byBranch)}
       {table("By vehicle system", "System", bySystem)}
-      {table("By technician", "Technician", byTechnician)}
+      {table("By technical advisor", "Technical advisor", byTechnician)}
     </div>
   );
 }

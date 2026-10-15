@@ -242,7 +242,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
                   </p>
                   <p className="line-clamp-2 text-sm text-neutral-600">{i.fault_complaint}</p>
                   <p className="text-xs text-neutral-500">
-                    {i.assigned_to_name ? `Technician: ${i.assigned_to_name}` : isTeam ? "Not assigned" : ""}
+                    {i.assigned_to_name ? `Technical advisor: ${i.assigned_to_name}` : isTeam ? "Not assigned" : ""}
                     {(commentCount.get(i.id) ?? 0) > 0 && (
                       <>
                         {i.assigned_to_name || isTeam ? " · " : ""}
