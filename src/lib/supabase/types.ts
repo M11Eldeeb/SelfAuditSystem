@@ -504,12 +504,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_mail_settings"]["Insert"]>;
         Relationships: [];
       };
-      self_audit_inquiry_term_sets: {
-        Row: { id: string; terms: string[]; created_by: string | null; created_at: string };
-        Insert: { id?: string; terms: string[]; created_by?: string | null; created_at?: string };
-        Update: Partial<Database["public"]["Tables"]["self_audit_inquiry_term_sets"]["Insert"]>;
-        Relationships: [];
-      };
       self_audit_technical_inquiries: {
         Row: {
           id: string;
@@ -523,7 +517,6 @@ export interface Database {
           workshop_comments: string | null;
           status: "open" | "awaiting_workshop" | "closed" | "cancelled";
           resolution: string | null;
-          terms_set_id: string;
           created_by: string | null;
           created_by_name: string | null;
           closed_by: string | null;
@@ -563,7 +556,6 @@ export interface Database {
           actions_taken: string;
           workshop_comments?: string | null;
           status?: "open" | "awaiting_workshop" | "closed" | "cancelled";
-          terms_set_id: string;
           pdf_drive_file_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiries"]["Insert"]>;
@@ -1424,7 +1416,6 @@ export interface Database {
           p_fault: string;
           p_steps: string[];
           p_comments: string | null;
-          p_terms_confirmed: boolean;
           p_attachments?: unknown;
         };
         Returns: number;

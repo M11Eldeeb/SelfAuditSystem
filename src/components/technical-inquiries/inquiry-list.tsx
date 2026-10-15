@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CurrentUser } from "@/lib/auth";
 import { getDriveStatus } from "@/lib/google-drive";
-import { getCurrentInquiryTerms } from "@/lib/technical-inquiries-server";
 import {
   INQUIRY_PAGE_SIZE,
   STATUS_BADGE,
@@ -20,7 +19,6 @@ import {
   type InquirySystem,
 } from "@/lib/technical-inquiries";
 import { InquiryForm } from "./inquiry-form";
-import { TermsEditor } from "./terms-editor";
 import { RoutingEditor } from "./routing-editor";
 
 export type InquiryListParams = { q?: string; tab?: string; branch?: string; system?: string; mine?: string; page?: string };
@@ -44,15 +42,18 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
   const isTeam = !isBranch;
   const canSubmit = role !== "technical";
 
-  const [drive, terms, { data: branchRows }, { data: techRows }, { data: routingRows }] = await Promise.all([
+  const [drive, { data: branchRows }, { data: techRows }, { data: routingRows }] = await Promise.all([
     getDriveStatus(),
-    getCurrentInquiryTerms(),
     supabase.from("self_audit_branches").select("id, name, code, active").order("name"),
     role === "officer" ? createAdminClient().from("self_audit_users").select("id, full_name, email").eq("role", "technical").order("full_name") : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string }[] }),
     role === "officer" ? supabase.from("self_audit_inquiry_routing").select("branch_id, technician_id") : Promise.resolve({ data: [] as { branch_id: string; technician_id: string | null }[] }),
   ]);
   const allBranches = branchRows ?? [];
-  const formBranches = (isBranch ? allBranches.filter((b) => b.id === user.branch_id) : allBranches.filter((b) => b.active)).map((b) => ({ id: b.id, name: b.name, code: b.code }));
+  let formBranches = (isBranch ? allBranches.filter((b) => b.id === user.branch_id) : allBranches.filter((b) => b.active)).map((b) => ({ id: b.id, name: b.name, code: b.code }));
+  if (isBranch && user.branch_id && formBranches.length === 0) {
+    const { data: own } = await createAdminClient().from("self_audit_branches").select("id, name, code").eq("id", user.branch_id).maybeSingle();
+    if (own) formBranches = [own];
+  }
   const branchName = new Map(allBranches.map((b) => [b.id, b.name]));
 
   const tabs = statusTabs(role);
@@ -131,7 +132,6 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
         )}
       </div>
 
-      {role === "officer" && <TermsEditor terms={terms} />}
       {role === "officer" && (
         <RoutingEditor
           branches={allBranches.filter((b) => b.active).map((b) => ({ id: b.id, name: b.name }))}
@@ -146,7 +146,6 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
           fixedBranchId={isBranch ? (user.branch_id ?? undefined) : undefined}
           basePath={basePath}
           driveReady={drive !== null}
-          terms={terms}
         />
       )}
 

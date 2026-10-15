@@ -24,11 +24,9 @@ import {
   type AttachmentCategory,
   INQUIRY_MAX_FILE_BYTES,
   INQUIRY_MAX_MILEAGE,
-  INQUIRY_MAX_TERMS,
   INQUIRY_MODEL_MAX,
   INQUIRY_SHORT_TEXT_MAX,
   INQUIRY_SOFTWARE_MAX,
-  INQUIRY_TERM_MAX,
   INQUIRY_TEXT_MAX,
   SYSTEMS,
   VIN_PATTERN,
@@ -194,7 +192,6 @@ export type CreateInquiryInput = {
   /** The workshop effort, one entry per step, in the order it was done. */
   steps: string[];
   comments?: string;
-  termsConfirmed: boolean;
   attachments: InquiryAttachmentInput[];
 };
 
@@ -205,7 +202,6 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   const { user } = who;
   if (user.role === "technical") return { error: "The technical team does not submit inquiries." };
   if (!UUID.test(input.id)) return { error: "Something went wrong - please reload the page and try again." };
-  if (input.termsConfirmed !== true) return { error: "Confirm all the terms before submitting." };
 
   const supabase = await createClient();
   const branchId = user.role === "branch_admin" ? user.branch_id : input.branchId;
@@ -291,7 +287,6 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_fault: fault,
     p_steps: steps,
     p_comments: comments || null,
-    p_terms_confirmed: true,
     p_attachments: verified.rows,
   });
   if (error) {
@@ -467,23 +462,4 @@ export async function findSimilarInquiries(vin: string): Promise<{ cases: Simila
   return {
     cases: (data ?? []).map((i) => ({ id: i.id, no: i.inquiry_no, status: i.status, workOrder: i.work_order_no, system: i.system, createdAt: i.created_at, resolution: i.resolution })),
   };
-}
-
-/** An officer saves a new version of the terms every workshop must confirm. Nothing changes if the list is the same. */
-export async function saveInquiryTerms(terms: string[]): Promise<{ error?: string }> {
-  const who = await inquiryUser();
-  if ("error" in who) return { error: who.error };
-  if (who.user.role !== "officer") return { error: "Only an officer can change the terms." };
-  const clean = terms.map((t) => t.trim()).filter(Boolean);
-  if (clean.length === 0) return { error: "Add at least one term." };
-  if (clean.length > INQUIRY_MAX_TERMS) return { error: `At most ${INQUIRY_MAX_TERMS} terms.` };
-  if (clean.some((t) => t.length > INQUIRY_TERM_MAX)) return { error: `Each term can be at most ${INQUIRY_TERM_MAX} characters.` };
-
-  const supabase = await createClient();
-  const { data: latest } = await supabase.from("self_audit_inquiry_term_sets").select("terms").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (latest && latest.terms.length === clean.length && latest.terms.every((t, i) => t === clean[i])) return {};
-  const { error } = await supabase.from("self_audit_inquiry_term_sets").insert({ terms: clean, created_by: who.user.id });
-  if (error) return { error: error.message };
-  revalidateInquiries();
-  return {};
 }

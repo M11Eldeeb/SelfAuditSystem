@@ -38,9 +38,8 @@ const inputClass =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition-colors placeholder:text-neutral-500 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60";
 
 /**
- * "New technical inquiry": a collapsed bar that opens into the checklist of the terms the workshop must meet first.
- * Only when every term is ticked does the technical request form appear; the confirmation is recorded with the inquiry.
- * The form asks for what the technical team needs to validate a case: who is escalating, the vehicle data, the customer
+ * "New technical inquiry": a collapsed bar that opens into the technical request form. A branch admin always submits
+ * for their own branch (it is not asked); an officer picks the branch. The form asks for what the technical team needs to validate a case: who is escalating, the vehicle data, the customer
  * concern with media, the conditions, when it first appeared and whether it follows a previous repair, the vehicle
  * history, and the workshop effort step by step.
  */
@@ -49,14 +48,12 @@ export function InquiryForm({
   fixedBranchId,
   basePath,
   driveReady,
-  terms,
 }: {
   branches: BranchOption[];
   /** Set for a branch admin: the only branch they can submit for. */
   fixedBranchId?: string;
   basePath: string;
   driveReady: boolean;
-  terms: string[];
 }) {
   const router = useRouter();
   const pickerOptions = { prepare: prepareInquiryUploads as unknown as PrepareUploads, maxFiles: INQUIRY_MAX_FILES, maxFileBytes: INQUIRY_MAX_FILE_BYTES };
@@ -64,8 +61,6 @@ export function InquiryForm({
   const historyFiles = useAttachments(pickerOptions);
   const effortFiles = useAttachments(pickerOptions);
   const [open, setOpen] = useState(false);
-  const [ticked, setTicked] = useState<boolean[]>(() => terms.map(() => false));
-  const [confirmed, setConfirmed] = useState(false);
   const [inquiryId] = useState(() => crypto.randomUUID());
   const [branchId, setBranchId] = useState(fixedBranchId ?? "");
   const [responsibleName, setResponsibleName] = useState("");
@@ -97,7 +92,6 @@ export function InquiryForm({
   const preview = branch && workOrder.trim() ? normalizeWorkOrder(workOrder, branch.code) : null;
   const vinClean = vin.trim().toUpperCase().replace(/\s+/g, "");
   const vinOk = VIN_PATTERN.test(vinClean);
-  const allTicked = terms.length > 0 && ticked.every(Boolean);
   const needsConditions = occurrence === "intermittent" || occurrence === "specific";
 
   // Has this vehicle been to the technical team before? Shown as soon as the VIN is complete.
@@ -179,7 +173,6 @@ export function InquiryForm({
         fault,
         steps,
         comments,
-        termsConfirmed: true,
         attachments: [...concern, ...history, ...effort],
       });
       if (result.id) {
@@ -215,56 +208,8 @@ export function InquiryForm({
         </svg>
       </button>
 
-      {open && !confirmed && (
-        <div className="space-y-4 border-t border-neutral-100 p-4">
-          <div>
-            <h2 className="text-sm font-semibold text-neutral-900">Before you submit</h2>
-            <p className="text-xs text-neutral-500">Confirm that every point below is done. The technical team can only validate and help with a case that meets all of them.</p>
-          </div>
-          {terms.length === 0 ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">No terms have been set up yet - ask a warranty officer.</p>
-          ) : (
-            <ul className="space-y-2">
-              {terms.map((t, i) => (
-                <li key={i}>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-neutral-200 px-3 py-2.5 text-sm text-neutral-800 transition-colors hover:bg-neutral-50">
-                    <input
-                      type="checkbox"
-                      checked={ticked[i] ?? false}
-                      onChange={(e) => setTicked((cur) => cur.map((v, j) => (j === i ? e.target.checked : v)))}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-brand focus:ring-brand/30"
-                    />
-                    <span>{t}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-neutral-500">
-              {ticked.filter(Boolean).length} of {terms.length} confirmed
-            </p>
-            <button
-              type="button"
-              disabled={!allTicked}
-              onClick={() => setConfirmed(true)}
-              className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark disabled:opacity-50"
-            >
-              All done - continue
-            </button>
-          </div>
-        </div>
-      )}
-
-      {open && confirmed && (
+      {open && (
         <form onSubmit={handleSave} className="space-y-7 border-t border-neutral-100 p-4">
-          <p className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-            <span>All {terms.length} terms confirmed.</span>
-            <button type="button" onClick={() => setConfirmed(false)} className="font-semibold underline" disabled={saving}>
-              Review the terms
-            </button>
-          </p>
-
           <Section number={1} title="Who is escalating this case" hint="The workshop supervisor, or the delegated responsible who has the full picture and will talk to the technical team during the investigation.">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -294,15 +239,11 @@ export function InquiryForm({
 
           <Section number={2} title="Vehicle data">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label htmlFor="ti-branch" className="text-xs font-medium text-neutral-700">
-                  Branch
-                </label>
-                {fixedBranchId ? (
-                  <p id="ti-branch" className="flex h-[38px] items-center rounded-lg bg-neutral-100 px-3 text-sm text-neutral-800">
-                    {branch?.name ?? "Your branch"}
-                  </p>
-                ) : (
+              {fixedBranchId ? null : (
+                <div className="space-y-1.5">
+                  <label htmlFor="ti-branch" className="text-xs font-medium text-neutral-700">
+                    Branch
+                  </label>
                   <select id="ti-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)} disabled={saving} className={inputClass}>
                     <option value="">Choose a branch</option>
                     {branches.map((b) => (
@@ -311,8 +252,8 @@ export function InquiryForm({
                       </option>
                     ))}
                   </select>
-                )}
-              </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label htmlFor="ti-wo" className="text-xs font-medium text-neutral-700">
                   Work order (WIP) number
@@ -494,17 +435,17 @@ export function InquiryForm({
             </div>
           </Section>
 
-          <Section number={7} title="More technical details" hint="Optional, but they save the technical team a question.">
+          <Section number={7} title="More technical details (optional)" hint="You do not have to answer these, but they can save the technical team a question.">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label htmlFor="ti-dtc" className="text-xs font-medium text-neutral-700">
-                  Fault codes (DTC) <span className="font-normal text-neutral-500">(separate with commas)</span>
+                  Fault codes (DTC) <span className="font-normal text-neutral-500">(optional - separate with commas)</span>
                 </label>
                 <input id="ti-dtc" value={dtc} onChange={(e) => setDtc(e.target.value)} maxLength={INQUIRY_DTC_MAX} placeholder="e.g. P0300, P0171, U0100" disabled={saving} className={`${inputClass} font-mono`} />
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="ti-software" className="text-xs font-medium text-neutral-700">
-                  Software / ECU version
+                  Software / ECU version <span className="font-normal text-neutral-500">(optional)</span>
                 </label>
                 <input id="ti-software" value={software} onChange={(e) => setSoftware(e.target.value)} maxLength={INQUIRY_SOFTWARE_MAX} disabled={saving} className={inputClass} />
               </div>

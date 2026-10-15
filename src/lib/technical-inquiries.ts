@@ -10,8 +10,6 @@ export const INQUIRY_SHORT_TEXT_MAX = 1000;
 export const INQUIRY_DTC_MAX = 500;
 export const INQUIRY_SOFTWARE_MAX = 120;
 export const INQUIRY_MODEL_MAX = 80;
-export const INQUIRY_TERM_MAX = 500;
-export const INQUIRY_MAX_TERMS = 30;
 export const INQUIRY_MAX_MILEAGE = 2_000_000;
 /** A case that has waited longer than this (days) for the technical team or the workshop is shown in red. */
 export const INQUIRY_LATE_AFTER_DAYS = 2;

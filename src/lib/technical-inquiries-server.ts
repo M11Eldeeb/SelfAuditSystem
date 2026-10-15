@@ -21,13 +21,6 @@ export async function getInquiriesAccess(user: CurrentUser): Promise<"full" | "l
   return data === true ? "full" : "locked";
 }
 
-/** The terms a workshop confirms before submitting: the newest saved set. */
-export async function getCurrentInquiryTerms(): Promise<string[]> {
-  const supabase = await createClient();
-  const { data } = await supabase.from("self_audit_inquiry_term_sets").select("terms").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return data?.terms ?? [];
-}
-
 /**
  * The small tag on the navigation tab: how many inquiries wait for THIS role to act - the technical team and officers:
  * new or answered by the workshop; branch admins: waiting for their reply ("Soon" while locked).
