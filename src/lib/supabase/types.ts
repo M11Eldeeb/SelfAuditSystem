@@ -538,6 +538,7 @@ export interface Database {
           after_previous_repair: "yes" | "no" | "unknown";
           previous_repair_details: string | null;
           workshop_steps: string[];
+          submit_reasons: string[];
           occurrence_conditions: string | null;
           parts_replaced: string | null;
           assigned_to: string | null;
@@ -1416,6 +1417,7 @@ export interface Database {
           p_fault: string;
           p_steps: string[];
           p_comments: string | null;
+          p_reasons: string[];
           p_attachments?: unknown;
         };
         Returns: number;

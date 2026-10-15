@@ -21,6 +21,8 @@ import {
   INQUIRY_PERSON_MAX,
   INQUIRY_PLATE_MAX,
   INQUIRY_STEP_MAX,
+  LOW_MILEAGE_LIMIT_KM,
+  SUBMIT_REASONS,
   type AttachmentCategory,
   INQUIRY_MAX_FILE_BYTES,
   INQUIRY_MAX_MILEAGE,
@@ -191,6 +193,8 @@ export type CreateInquiryInput = {
   fault: string;
   /** The workshop effort, one entry per step, in the order it was done. */
   steps: string[];
+  /** The conditions for sending a case to the technical team that are met (at least one). */
+  reasons: string[];
   comments?: string;
   attachments: InquiryAttachmentInput[];
 };
@@ -218,8 +222,12 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   if (model.length > INQUIRY_MODEL_MAX) return { error: `The vehicle model can be at most ${INQUIRY_MODEL_MAX} characters.` };
   if (!(SYSTEMS as readonly string[]).includes(input.system)) return { error: "Choose the vehicle system the fault is in." };
   if (input.priority !== "normal" && input.priority !== "urgent") return { error: "Choose the priority." };
+  const reasons = [...new Set(input.reasons ?? [])];
+  if (reasons.length === 0) return { error: "A case can only go to the technical team when one of the conditions is met - tick at least one." };
+  if (!reasons.every((r) => SUBMIT_REASONS.some((x) => x.key === r))) return { error: "Unknown condition." };
   const mileage = input.mileage == null || (input.mileage as unknown) === "" ? null : Number(input.mileage);
   if (mileage === null) return { error: "Enter the mileage." };
+  if (reasons.includes("low_mileage") && mileage >= LOW_MILEAGE_LIMIT_KM) return { error: "The low mileage condition needs a mileage below 1,000 km." };
   if (!Number.isInteger(mileage) || mileage < 0 || mileage > INQUIRY_MAX_MILEAGE) return { error: "The mileage must be a whole number of kilometres." };
   const plate = input.plate.trim().replace(/\s+/g, " ").toUpperCase();
   if (!plate) return { error: "Enter the plate number." };
@@ -287,6 +295,7 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_fault: fault,
     p_steps: steps,
     p_comments: comments || null,
+    p_reasons: reasons,
     p_attachments: verified.rows,
   });
   if (error) {

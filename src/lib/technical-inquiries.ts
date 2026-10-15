@@ -61,6 +61,16 @@ export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
   workshop_effort: "Workshop effort (photos / videos)",
   other: "Other files",
 };
+/** The conditions for sending a case to the technical team: at least one must be met. */
+export const LOW_MILEAGE_LIMIT_KM = 1000;
+export const SUBMIT_REASONS = [
+  { key: "moc", label: "MOC case" },
+  { key: "repeat_complaint", label: "Second come-back for the same problem" },
+  { key: "low_mileage", label: "Low mileage - below 1,000 km" },
+  { key: "unsolved", label: "Unsolved case" },
+] as const;
+export type SubmitReason = (typeof SUBMIT_REASONS)[number]["key"];
+export const SUBMIT_REASON_LABEL: Record<string, string> = Object.fromEntries(SUBMIT_REASONS.map((r) => [r.key, r.label]));
 export const INQUIRY_MAX_STEPS = 30;
 export const INQUIRY_STEP_MAX = 1000;
 export const INQUIRY_FIRST_NOTICED_MAX = 300;

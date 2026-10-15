@@ -11,6 +11,7 @@ import {
   PRIORITY_LABEL,
   RESPONSIBLE_ROLE_LABEL,
   ROLE_LABEL,
+  SUBMIT_REASON_LABEL,
   STATUS_BADGE,
   STATUS_LABEL,
   SYSTEM_LABEL,
@@ -167,6 +168,14 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           {timeToFirstAnswer != null && <Fact label="First answer after">{durationText(timeToFirstAnswer)}</Fact>}
           {timeToClose != null && <Fact label="Solved in">{durationText(timeToClose)}</Fact>}
         </dl>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-neutral-500">Sent to the technical team because</span>
+          {inquiry.submit_reasons.map((r) => (
+            <span key={r} className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-800 ring-1 ring-neutral-200 ring-inset">
+              {SUBMIT_REASON_LABEL[r] ?? r}
+            </span>
+          ))}
+        </div>
         {inquiry.parts_replaced && (
           <div>
             <p className="text-xs font-medium text-neutral-500">Parts already replaced</p>

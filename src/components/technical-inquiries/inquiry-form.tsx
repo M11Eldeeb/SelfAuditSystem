@@ -22,7 +22,10 @@ import {
   INQUIRY_TEXT_MAX,
   OCCURRENCE_LABEL,
   RESPONSIBLE_ROLE_LABEL,
+  LOW_MILEAGE_LIMIT_KM,
   STATUS_LABEL,
+  SUBMIT_REASONS,
+  SUBMIT_REASON_LABEL,
   SYSTEMS,
   SYSTEM_LABEL,
   VIN_PATTERN,
@@ -38,7 +41,8 @@ const inputClass =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition-colors placeholder:text-neutral-500 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60";
 
 /**
- * "New technical inquiry": a collapsed bar that opens into the technical request form. A branch admin always submits
+ * "New technical inquiry": a collapsed bar. Clicking it first asks which of the conditions for sending a case to the
+ * technical team is met (a pop-up; at least one must be ticked), then opens the technical request form. A branch admin always submits
  * for their own branch (it is not asked); an officer picks the branch. The form asks for what the technical team needs to validate a case: who is escalating, the vehicle data, the customer
  * concern with media, the conditions, when it first appeared and whether it follows a previous repair, the vehicle
  * history, and the workshop effort step by step.
@@ -61,6 +65,8 @@ export function InquiryForm({
   const historyFiles = useAttachments(pickerOptions);
   const effortFiles = useAttachments(pickerOptions);
   const [open, setOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [reasons, setReasons] = useState<string[]>([]);
   const [inquiryId] = useState(() => crypto.randomUUID());
   const [branchId, setBranchId] = useState(fixedBranchId ?? "");
   const [responsibleName, setResponsibleName] = useState("");
@@ -121,6 +127,7 @@ export function InquiryForm({
     e.preventDefault();
     if (saving) return;
     setError(null);
+    if (reasons.length === 0) return setError("Tick at least one of the conditions for sending a case to the technical team.");
     if (!branch) return setError("Choose the branch.");
     if (responsibleName.trim().length < 2) return setError("Enter the name of the workshop supervisor or delegated responsible.");
     if (!responsibleRole) return setError("Say whether the case is escalated by the workshop supervisor or a delegated responsible.");
@@ -129,6 +136,7 @@ export function InquiryForm({
     if (plate.trim().length < 2) return setError("Enter the plate number.");
     const mileageNumber = mileage.trim() === "" ? null : Number(mileage);
     if (mileageNumber === null || !Number.isInteger(mileageNumber) || mileageNumber < 0 || mileageNumber > INQUIRY_MAX_MILEAGE) return setError("Enter the mileage as a whole number of kilometres.");
+    if (reasons.includes("low_mileage") && mileageNumber >= LOW_MILEAGE_LIMIT_KM) return setError("You ticked the low mileage condition, but the mileage is not below 1,000 km. Change the mileage or the ticked conditions.");
     if (!model.trim()) return setError("Enter the vehicle model.");
     if (!system) return setError("Choose the vehicle system the fault is in.");
     if (!fault.trim()) return setError("Describe the customer concern.");
@@ -173,6 +181,7 @@ export function InquiryForm({
         fault,
         steps,
         comments,
+        reasons,
         attachments: [...concern, ...history, ...effort],
       });
       if (result.id) {
@@ -191,7 +200,7 @@ export function InquiryForm({
     <section className="rounded-xl border border-neutral-200/70 bg-white shadow-sm">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? setOpen(false) : setAsking(true))}
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-neutral-50"
       >
@@ -210,6 +219,18 @@ export function InquiryForm({
 
       {open && (
         <form onSubmit={handleSave} className="space-y-7 border-t border-neutral-100 p-4">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+            <span className="font-semibold">Sent because:</span>
+            {reasons.map((r) => (
+              <span key={r} className="rounded-full bg-white px-2.5 py-0.5 font-medium ring-1 ring-emerald-200 ring-inset">
+                {SUBMIT_REASON_LABEL[r] ?? r}
+              </span>
+            ))}
+            <button type="button" onClick={() => setAsking(true)} disabled={saving} className="ml-auto font-semibold underline">
+              Change
+            </button>
+          </div>
+
           <Section number={1} title="Who is escalating this case" hint="The workshop supervisor, or the delegated responsible who has the full picture and will talk to the technical team during the investigation.">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -480,7 +501,77 @@ export function InquiryForm({
           </div>
         </form>
       )}
+      {asking && (
+        <ReasonsDialog
+          selected={reasons}
+          onClose={() => setAsking(false)}
+          onContinue={(picked) => {
+            setReasons(picked);
+            setAsking(false);
+            setOpen(true);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * The pop-up that opens when "New technical inquiry" is clicked: a case can go to the technical team only when at least
+ * one of these conditions is met. Closes with Escape, a click outside or Cancel.
+ */
+function ReasonsDialog({ selected, onClose, onContinue }: { selected: string[]; onClose: () => void; onContinue: (picked: string[]) => void }) {
+  const [picked, setPicked] = useState<string[]>(selected);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="ti-reasons-title" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-xl">
+        <div>
+          <h2 id="ti-reasons-title" className="text-base font-semibold text-neutral-900">
+            Can this case go to the technical team?
+          </h2>
+          <p className="mt-1 text-sm text-neutral-600">A case can be submitted only when at least one of these conditions is met. Tick the ones that apply.</p>
+        </div>
+        <ul className="space-y-2">
+          {SUBMIT_REASONS.map((r, i) => (
+            <li key={r.key}>
+              <label className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${picked.includes(r.key) ? "border-brand bg-brand/5 text-neutral-900" : "border-neutral-200 text-neutral-800 hover:bg-neutral-50"}`}>
+                <input
+                  type="checkbox"
+                  autoFocus={i === 0}
+                  checked={picked.includes(r.key)}
+                  onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, r.key] : cur.filter((k) => k !== r.key)))}
+                  className="h-4 w-4 shrink-0 rounded border-neutral-300 text-brand focus:ring-brand/30"
+                />
+                <span>{r.label}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        {picked.length === 0 && <p className="text-xs text-neutral-500">None of these conditions is met? Then the case cannot be sent to the technical team.</p>}
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={picked.length === 0}
+            onClick={() => onContinue(picked)}
+            className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark disabled:opacity-50"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
