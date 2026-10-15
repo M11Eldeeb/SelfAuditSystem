@@ -15,7 +15,13 @@ import { syncInquiryPdf } from "@/lib/technical-inquiry-pdf";
 import { siteOrigin } from "@/lib/site-origin";
 import {
   INQUIRY_DTC_MAX,
+  INQUIRY_FIRST_NOTICED_MAX,
   INQUIRY_MAX_FILES,
+  INQUIRY_MAX_STEPS,
+  INQUIRY_PERSON_MAX,
+  INQUIRY_PLATE_MAX,
+  INQUIRY_STEP_MAX,
+  type AttachmentCategory,
   INQUIRY_MAX_FILE_BYTES,
   INQUIRY_MAX_MILEAGE,
   INQUIRY_MAX_TERMS,
@@ -31,7 +37,7 @@ import {
 } from "@/lib/technical-inquiries";
 
 /** A file the browser has already uploaded to Google Drive. */
-export type InquiryAttachmentInput = { driveFileId: string; name: string; type: string; size: number };
+export type InquiryAttachmentInput = { driveFileId: string; name: string; type: string; size: number; category?: AttachmentCategory };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOT_CONNECTED = "Google Drive is not connected yet - ask an officer to connect it.";
@@ -135,9 +141,9 @@ export async function prepareInquiryUploads(input: {
 }
 
 /** Before saving: re-checks every file the browser says it uploaded against Google - it exists, sits in this case's folder and is a sane size and type. */
-async function verifyAttachments(inquiryId: string, files: InquiryAttachmentInput[]) {
-  if (files.length === 0) return { rows: [] as { driveFileId: string; name: string; type: string; size: number }[] };
-  if (files.length > INQUIRY_MAX_FILES) return { error: `You can attach at most ${INQUIRY_MAX_FILES} files.` };
+async function verifyAttachments(inquiryId: string, files: InquiryAttachmentInput[], maxFiles = INQUIRY_MAX_FILES) {
+  if (files.length === 0) return { rows: [] as { driveFileId: string; name: string; type: string; size: number; category: AttachmentCategory }[] };
+  if (files.length > maxFiles) return { error: `You can attach at most ${maxFiles} files.` };
   if (!(await getDriveStatus())) return { error: NOT_CONNECTED };
   const { data: folder } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `inquiry:case:${inquiryId}`).maybeSingle();
   if (!folder) return { error: "The upload folder was not found - please attach the files again." };
@@ -151,7 +157,8 @@ async function verifyAttachments(inquiryId: string, files: InquiryAttachmentInpu
       if (!meta || meta.trashed || !meta.parents.includes(folder.drive_id)) return { error: `"${unique[i].name}" did not finish uploading - please attach it again.` };
       if (!isAllowedFeedbackMime(meta.mimeType)) return { error: `"${meta.name}" is not a photo, PDF or video.` };
       if (meta.size < 1 || meta.size > INQUIRY_MAX_FILE_BYTES) return { error: `"${meta.name}" is larger than ${formatBytes(INQUIRY_MAX_FILE_BYTES)}.` };
-      rows.push({ driveFileId: meta.id, name: meta.name, type: meta.mimeType, size: meta.size });
+      const category: AttachmentCategory = unique[i].category && ["concern_media", "vehicle_history", "workshop_effort"].includes(unique[i].category as string) ? (unique[i].category as AttachmentCategory) : "other";
+      rows.push({ driveFileId: meta.id, name: meta.name, type: meta.mimeType, size: meta.size, category });
     }
   } catch (e) {
     return { error: driveMessage(e) };
@@ -164,17 +171,28 @@ export type CreateInquiryInput = {
   branchId?: string;
   workOrder: string;
   vin: string;
+  plate: string;
   model: string;
   system: string;
   priority: string;
   mileage?: number | null;
   dtc?: string;
   software?: string;
+  /** "permanent", "intermittent" or "specific" (a specific condition). */
   occurrence?: string;
   conditions?: string;
   partsReplaced?: string;
+  /** Who is escalating: the workshop supervisor or a delegated responsible, who speaks to the technical team. */
+  responsibleName: string;
+  responsibleRole: string;
+  responsiblePhone?: string;
+  /** When the customer first noticed the concern (from the customer interview), and whether it follows a previous repair. */
+  firstNoticed: string;
+  afterRepair: string;
+  repairDetails?: string;
   fault: string;
-  actions: string;
+  /** The workshop effort, one entry per step, in the order it was done. */
+  steps: string[];
   comments?: string;
   termsConfirmed: boolean;
   attachments: InquiryAttachmentInput[];
@@ -205,44 +223,73 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   if (!(SYSTEMS as readonly string[]).includes(input.system)) return { error: "Choose the vehicle system the fault is in." };
   if (input.priority !== "normal" && input.priority !== "urgent") return { error: "Choose the priority." };
   const mileage = input.mileage == null || (input.mileage as unknown) === "" ? null : Number(input.mileage);
-  if (mileage !== null && (!Number.isInteger(mileage) || mileage < 0 || mileage > INQUIRY_MAX_MILEAGE)) return { error: "The mileage must be a whole number of kilometres." };
+  if (mileage === null) return { error: "Enter the mileage." };
+  if (!Number.isInteger(mileage) || mileage < 0 || mileage > INQUIRY_MAX_MILEAGE) return { error: "The mileage must be a whole number of kilometres." };
+  const plate = input.plate.trim().replace(/\s+/g, " ").toUpperCase();
+  if (!plate) return { error: "Enter the plate number." };
+  if (plate.length < 2 || plate.length > INQUIRY_PLATE_MAX) return { error: `The plate number must be between 2 and ${INQUIRY_PLATE_MAX} characters.` };
+  const responsibleName = input.responsibleName.trim();
+  if (responsibleName.length < 2) return { error: "Enter the name of the workshop supervisor or delegated responsible." };
+  if (responsibleName.length > INQUIRY_PERSON_MAX) return { error: `The name can be at most ${INQUIRY_PERSON_MAX} characters.` };
+  if (input.responsibleRole !== "workshop_supervisor" && input.responsibleRole !== "delegated") return { error: "Say whether the case is escalated by the workshop supervisor or a delegated responsible." };
+  const responsiblePhone = (input.responsiblePhone ?? "").trim();
+  if (responsiblePhone.length > 40) return { error: "The phone number can be at most 40 characters." };
+  const firstNoticed = input.firstNoticed.trim();
+  if (!firstNoticed) return { error: "Say when the customer first noticed the concern." };
+  if (firstNoticed.length > INQUIRY_FIRST_NOTICED_MAX) return { error: `That answer can be at most ${INQUIRY_FIRST_NOTICED_MAX} characters.` };
+  if (!["yes", "no", "unknown"].includes(input.afterRepair)) return { error: "Say whether the concern is related to a previous repair." };
+  const repairDetails = (input.repairDetails ?? "").trim();
+  if (input.afterRepair === "yes" && !repairDetails) return { error: "Say which previous repair it follows (what was repaired, when, work order)." };
   const dtc = (input.dtc ?? "").trim();
   const software = (input.software ?? "").trim();
   const occurrence = (input.occurrence ?? "").trim();
   const conditions = (input.conditions ?? "").trim();
   const partsReplaced = (input.partsReplaced ?? "").trim();
-  if (occurrence && occurrence !== "constant" && occurrence !== "intermittent") return { error: "Choose constant or intermittent." };
+  if (!["permanent", "intermittent", "specific"].includes(occurrence)) return { error: "Say whether the concern is permanent, intermittent or happens under a specific condition." };
+  if (occurrence !== "permanent" && !conditions) return { error: "Describe the conditions in which the concern happens." };
   if (dtc.length > INQUIRY_DTC_MAX) return { error: `The fault codes can be at most ${INQUIRY_DTC_MAX} characters.` };
   if (software.length > INQUIRY_SOFTWARE_MAX) return { error: `The software version can be at most ${INQUIRY_SOFTWARE_MAX} characters.` };
-  if (conditions.length > INQUIRY_SHORT_TEXT_MAX || partsReplaced.length > INQUIRY_SHORT_TEXT_MAX) return { error: `Those two fields can be at most ${INQUIRY_SHORT_TEXT_MAX} characters.` };
+  if (conditions.length > INQUIRY_SHORT_TEXT_MAX || partsReplaced.length > INQUIRY_SHORT_TEXT_MAX || repairDetails.length > INQUIRY_SHORT_TEXT_MAX) return { error: `Those fields can be at most ${INQUIRY_SHORT_TEXT_MAX} characters.` };
   const fault = input.fault.trim();
-  const actions = input.actions.trim();
+  const steps = input.steps.map((t) => t.trim()).filter(Boolean);
   const comments = (input.comments ?? "").trim();
-  if (!fault) return { error: "Describe the fault complaint." };
-  if (!actions) return { error: "Write what the workshop has done so far." };
-  for (const [label, text] of [["fault complaint", fault], ["actions", actions], ["comments", comments]] as const) {
+  if (!fault) return { error: "Describe the customer concern." };
+  if (steps.length === 0) return { error: "Write the workshop effort, step by step." };
+  if (steps.length > INQUIRY_MAX_STEPS) return { error: `At most ${INQUIRY_MAX_STEPS} steps.` };
+  if (steps.some((t) => t.length > INQUIRY_STEP_MAX)) return { error: `Each step can be at most ${INQUIRY_STEP_MAX} characters.` };
+  for (const [label, text] of [["customer concern", fault], ["comments", comments]] as const) {
     if (text.length > INQUIRY_TEXT_MAX) return { error: `The ${label} can be at most ${INQUIRY_TEXT_MAX} characters.` };
   }
 
-  const verified = await verifyAttachments(input.id, input.attachments);
+  // The media the technical team needs to validate the case: a photo or video of the concern, and the vehicle history.
+  const verified = await verifyAttachments(input.id, input.attachments, INQUIRY_MAX_FILES * 3);
   if ("error" in verified) return { error: verified.error };
+  if (!verified.rows.some((f) => f.category === "concern_media" && (f.type.startsWith("image/") || f.type.startsWith("video/")))) return { error: "Attach a photo or video that shows the customer concern." };
+  if (!verified.rows.some((f) => f.category === "vehicle_history")) return { error: "Attach the full vehicle history (service / repair history)." };
 
   const { data: no, error } = await supabase.rpc("create_technical_inquiry", {
     p_id: input.id,
     p_branch_id: branchId,
     p_work_order: wo.value,
     p_vin: vin,
+    p_plate: plate,
     p_model: model,
     p_system: input.system as InquirySystem,
     p_priority: input.priority,
     p_mileage: mileage,
     p_dtc: dtc || null,
     p_software: software || null,
-    p_occurrence: occurrence || null,
+    p_occurrence: occurrence,
     p_conditions: conditions || null,
     p_parts: partsReplaced || null,
+    p_responsible_name: responsibleName,
+    p_responsible_role: input.responsibleRole,
+    p_responsible_phone: responsiblePhone || null,
+    p_first_noticed: firstNoticed,
+    p_after_repair: input.afterRepair,
+    p_repair_details: repairDetails || null,
     p_fault: fault,
-    p_actions: actions,
+    p_steps: steps,
     p_comments: comments || null,
     p_terms_confirmed: true,
     p_attachments: verified.rows,

@@ -4,7 +4,7 @@ import { findSentMail, getMailStatus } from "@/lib/gmail";
 import { composeMail, type MailKey } from "@/lib/mail/catalog";
 import { loadPeople, loadTemplates, recipientsFor } from "@/lib/mail/people";
 import { isMailEnabled, sendPlans, type PlannedMail, type SendOutcome } from "@/lib/mail/plans";
-import { PRIORITY_LABEL, SYSTEM_LABEL, inquiryLabel, type InquiryPriority, type InquirySystem } from "@/lib/technical-inquiries";
+import { PRIORITY_LABEL, RESPONSIBLE_ROLE_LABEL, SYSTEM_LABEL, inquiryLabel, type InquiryPriority, type InquirySystem } from "@/lib/technical-inquiries";
 
 /**
  * The e-mails of Technical Inquiries. Each event on a case sends one mail, to the other side:
@@ -96,6 +96,9 @@ export async function planInquiryMail(event: InquiryEvent, inquiryId: string, or
     branch: branchName,
     work_order: inquiry.work_order_no,
     vin: inquiry.vin,
+    plate: inquiry.plate_number,
+    mileage: `${inquiry.mileage_km.toLocaleString("en-US")} km`,
+    escalated_by: `${inquiry.responsible_name} (${RESPONSIBLE_ROLE_LABEL[inquiry.responsible_role] ?? inquiry.responsible_role})`,
     model: inquiry.vehicle_model,
     system: SYSTEM_LABEL[inquiry.system as InquirySystem] ?? inquiry.system,
     priority: PRIORITY_LABEL[inquiry.priority as InquiryPriority] ?? inquiry.priority,

@@ -72,7 +72,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     if (mine) next = next.eq("assigned_to", user.id);
     if (q) {
       next = next.or(
-        ["work_order_no", "vin", "vehicle_model", "fault_complaint", "actions_taken", "resolution", "dtc_codes", "parts_replaced"].map((c) => `${c}.ilike.%${q}%`).join(",")
+        ["work_order_no", "vin", "plate_number", "vehicle_model", "fault_complaint", "actions_taken", "resolution", "dtc_codes", "parts_replaced", "responsible_name"].map((c) => `${c}.ilike.%${q}%`).join(",")
       );
     }
     return next;
@@ -171,7 +171,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search work order, VIN, fault, fault code, solution or part"
+          placeholder="Search work order, VIN, plate, fault, fault code, solution or part"
           aria-label="Search the inquiries"
           className="h-9 w-full max-w-sm rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-500 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
         />

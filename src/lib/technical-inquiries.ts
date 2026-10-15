@@ -53,7 +53,21 @@ export const SYSTEM_LABEL: Record<InquirySystem, string> = {
 
 export type InquiryPriority = "normal" | "urgent";
 export const PRIORITY_LABEL: Record<InquiryPriority, string> = { normal: "Normal", urgent: "Urgent - customer waiting" };
-export const OCCURRENCE_LABEL: Record<string, string> = { constant: "Constant", intermittent: "Intermittent" };
+export const OCCURRENCE_LABEL: Record<string, string> = { permanent: "Permanent", intermittent: "Intermittent", specific: "Under a specific condition" };
+export const RESPONSIBLE_ROLE_LABEL: Record<string, string> = { workshop_supervisor: "Workshop supervisor", delegated: "Delegated responsible" };
+export const AFTER_REPAIR_LABEL: Record<string, string> = { yes: "Yes - it followed a previous repair", no: "No - it is not related to a previous repair", unknown: "Not sure" };
+export type AttachmentCategory = "concern_media" | "vehicle_history" | "workshop_effort" | "other";
+export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
+  concern_media: "Customer concern (photos / videos)",
+  vehicle_history: "Vehicle history (service / repair history)",
+  workshop_effort: "Workshop effort (photos / videos)",
+  other: "Other files",
+};
+export const INQUIRY_MAX_STEPS = 30;
+export const INQUIRY_STEP_MAX = 1000;
+export const INQUIRY_FIRST_NOTICED_MAX = 300;
+export const INQUIRY_PLATE_MAX = 20;
+export const INQUIRY_PERSON_MAX = 120;
 
 export const ROLE_LABEL: Record<string, string> = { branch_admin: "Workshop", technical: "Technical team", officer: "Warranty team" };
 
