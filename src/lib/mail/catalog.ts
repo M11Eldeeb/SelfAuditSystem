@@ -20,7 +20,9 @@ export type MailKey =
   | "inquiry_delegated"
   | "inquiry_answered"
   | "inquiry_closed"
-  | "inquiry_reopened";
+  | "inquiry_reopened"
+  | "inquiry_verify"
+  | "inquiry_rejected";
 export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "workshop_supervisors" | "workshop_team_leaders" | "technical_team" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
@@ -286,6 +288,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
     ],
@@ -322,6 +325,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -359,6 +363,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -396,6 +401,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -437,6 +443,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -474,6 +481,89 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_verify: {
+    key: "inquiry_verify",
+    title: "Technical inquiry - a team leader's case waits for verification",
+    to: "The workshop supervisor(s) of the branch (the branch admins when the branch has no supervisor account)",
+    switchKey: "inquiry_mails_workshop",
+    defaultSubject: "{in_workshop}{number} - waiting for your verification - {branch}",
+    defaultBody: `Dear {branch} workshop supervisor,
+
+{by} has submitted technical inquiry {number} (work order {work_order}). It does not go to the technical team until you verify it.
+
+Vehicle: {model}
+VIN: {vin}
+Plate number: {plate}
+The car: {car_location}
+Sent because: {reasons}
+
+Customer concern:
+{fault}
+
+Please check it, then verify it or send it back with the reason: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "plate", help: "The vehicle's plate number.", sample: "ABC 1234" },
+      { name: "reasons", help: "Which of the conditions for sending a case to the technical team are met (MOC case - a Ministry of Commerce complaint, second come-back, low mileage, unsolved case).", sample: "Second come-back for the same problem" },
+      { name: "mileage", help: "The mileage, with the unit.", sample: "45,200 km" },
+      { name: "escalated_by", help: "The workshop supervisor or delegated responsible who escalated the case (name and role).", sample: "Mohamed Ali (Workshop supervisor)" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "car_location", help: 'Whether the car is in the workshop: "The car is in the workshop" or "The car is out of the workshop".', sample: "The car is in the workshop" },
+      { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
+      { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
+      { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
+      { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
+      { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
+    ],
+  },
+  inquiry_rejected: {
+    key: "inquiry_rejected",
+    title: "Technical inquiry - sent back by the workshop supervisor",
+    to: "The team leader who submitted the case",
+    switchKey: "inquiry_mails_workshop",
+    defaultSubject: "{number} - sent back by the workshop supervisor - {work_order}",
+    defaultBody: `Dear {submitted_by},
+
+{by} (workshop supervisor) did not verify your technical inquiry {number} (work order {work_order}), so it was not sent to the technical team.
+
+Reason:
+{comment}
+
+Please speak to your workshop supervisor, then send the case again from the portal: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "number", help: "The inquiry number.", sample: "TI-0007" },
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "work_order", help: "The work order number.", sample: "RNQ-35698" },
+      { name: "vin", help: "The vehicle's VIN.", sample: "LSJW74U99NZ012345" },
+      { name: "plate", help: "The vehicle's plate number.", sample: "ABC 1234" },
+      { name: "reasons", help: "Which of the conditions for sending a case to the technical team are met (MOC case - a Ministry of Commerce complaint, second come-back, low mileage, unsolved case).", sample: "Second come-back for the same problem" },
+      { name: "mileage", help: "The mileage, with the unit.", sample: "45,200 km" },
+      { name: "escalated_by", help: "The workshop supervisor or delegated responsible who escalated the case (name and role).", sample: "Mohamed Ali (Workshop supervisor)" },
+      { name: "model", help: "The vehicle model.", sample: "MG ZS 2024" },
+      { name: "system", help: "The vehicle system the fault is in.", sample: "Engine" },
+      { name: "car_location", help: 'Whether the car is in the workshop: "The car is in the workshop" or "The car is out of the workshop".', sample: "The car is in the workshop" },
+      { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
+      { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
+      { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -512,6 +602,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "resolution", help: "The summary of the solution written when the case was closed.", sample: "Replaced the throttle position sensor (part 10312345) and updated the ECU software." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -549,6 +640,7 @@ ${SIGN_OFF}`,
       { name: "in_workshop", help: 'Becomes "CAR IN WORKSHOP - " when the car is still in the workshop, otherwise nothing (useful in the subject).', sample: "CAR IN WORKSHOP - " },
       { name: "advisor", help: 'The technical advisor the case is assigned to, or "Not assigned yet".', sample: "Hesham" },
       { name: "by", help: "Who wrote it (the person who submitted, replied, closed...).", sample: "Mohamed Ali" },
+      { name: "submitted_by", help: "Who submitted the case.", sample: "Mohamed Ali" },
       { name: "fault", help: "The fault complaint (the first part of it).", sample: "Engine warning light on and the car loses power on acceleration." },
       { name: "comment", help: "The text that was written (reply, reason, note).", sample: "Cleaned the throttle body and the fault came back after 20 km." },
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
@@ -572,6 +664,8 @@ export const MAIL_KEYS_IN_ORDER: MailKey[] = [
   "inquiry_answered",
   "inquiry_closed",
   "inquiry_reopened",
+  "inquiry_verify",
+  "inquiry_rejected",
 ];
 
 /** What an officer saved for a mail (all optional - anything missing falls back to the built-in wording). */

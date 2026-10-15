@@ -1,11 +1,11 @@
 import "server-only";
 import type { CurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { INQUIRIES_FLAG, type InquiryRole } from "@/lib/technical-inquiries";
+import { INQUIRIES_FLAG, canVerifyRole, isWorkshopRole, type InquiryRole, type InquiryStatus } from "@/lib/technical-inquiries";
 
 /** The role as far as Technical Inquiries is concerned, or null for roles with no access (finance). */
 export function inquiryRole(user: CurrentUser): InquiryRole | null {
-  return user.role === "officer" || user.role === "technical" || user.role === "branch_admin" ? user.role : null;
+  return user.role === "officer" || user.role === "technical" || isWorkshopRole(user.role) ? (user.role as InquiryRole) : null;
 }
 
 /**
@@ -15,7 +15,7 @@ export function inquiryRole(user: CurrentUser): InquiryRole | null {
  */
 export async function getInquiriesAccess(user: CurrentUser): Promise<"full" | "locked" | "none"> {
   if (user.role === "officer" || user.role === "technical") return "full";
-  if (user.role !== "branch_admin") return "none";
+  if (!isWorkshopRole(user.role)) return "none";
   const supabase = await createClient();
   const { data } = await supabase.rpc("feature_enabled", { p_key: INQUIRIES_FLAG });
   return data === true ? "full" : "locked";
@@ -30,9 +30,10 @@ export async function inquiriesBadge(user: CurrentUser): Promise<string | undefi
     const access = await getInquiriesAccess(user);
     if (access === "locked") return "Soon";
     if (access !== "full") return undefined;
-    const status = user.role === "branch_admin" ? "awaiting_workshop" : "open";
+    // What waits for THIS role: the workshop - a reply (and, for the people who verify, a case to verify); the technical team - an open case.
+    const statuses: InquiryStatus[] = isWorkshopRole(user.role) ? (canVerifyRole(user.role) ? ["awaiting_workshop", "pending_verification"] : ["awaiting_workshop"]) : ["open"];
     const supabase = await createClient();
-    const { count } = await supabase.from("self_audit_technical_inquiries").select("id", { count: "exact", head: true }).eq("status", status);
+    const { count } = await supabase.from("self_audit_technical_inquiries").select("id", { count: "exact", head: true }).in("status", statuses);
     return count && count > 0 ? String(count) : undefined;
   } catch {
     return undefined; // a slow or failing count must never break a page

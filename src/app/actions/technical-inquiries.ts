@@ -26,6 +26,7 @@ import {
   INQUIRY_STEP_MAX,
   LOW_MILEAGE_LIMIT_KM,
   OCCURRENCE_CONDITIONS,
+  isWorkshopRole,
   SUBMIT_REASONS,
   type AttachmentCategory,
   INQUIRY_MAX_FILE_BYTES,
@@ -58,7 +59,7 @@ async function inquiryUser(): Promise<{ user: CurrentUser } | { error: string }>
 }
 
 function revalidateInquiries(inquiryId?: string) {
-  for (const base of ["/admin/technical-inquiries", "/audit/technical-inquiries", "/technical/technical-inquiries"]) {
+  for (const base of ["/admin/technical-inquiries", "/audit/technical-inquiries", "/technical/technical-inquiries", "/workshop/technical-inquiries"]) {
     revalidatePath(base);
     if (inquiryId) revalidatePath(`${base}/${inquiryId}`);
   }
@@ -110,7 +111,7 @@ export async function prepareInquiryUploads(input: {
   if (input.workOrder !== undefined) {
     // A new inquiry: the branch and work order come from the form.
     if (user.role === "technical") return { error: "The technical team does not submit inquiries." };
-    const candidate = user.role === "branch_admin" ? user.branch_id : input.branchId;
+    const candidate = isWorkshopRole(user.role) ? user.branch_id : input.branchId;
     if (!candidate || !UUID.test(candidate)) return { error: "Choose the branch first." };
     const { data: branch } = await supabase.from("self_audit_branches").select("id, code").eq("id", candidate).maybeSingle();
     if (!branch) return { error: "Branch not found." };
@@ -227,7 +228,7 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   if (!UUID.test(input.id)) return { error: "Something went wrong - please reload the page and try again." };
 
   const supabase = await createClient();
-  const branchId = user.role === "branch_admin" ? user.branch_id : input.branchId;
+  const branchId = isWorkshopRole(user.role) ? user.branch_id : input.branchId;
   if (!branchId || !UUID.test(branchId)) return { error: "Choose the branch." };
   const { data: branch } = await supabase.from("self_audit_branches").select("id, code").eq("id", branchId).maybeSingle();
   if (!branch) return { error: "Branch not found." };
@@ -375,7 +376,8 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
       console.error("Technical inquiry Drive follow-up failed:", e instanceof Error ? e.message : e);
     }
     await syncInquiryPdf(input.id);
-    await notifyInquiry("created", input.id, origin);
+    // A team leader's case waits for the workshop supervisor; the technical team is told when it is verified.
+    await notifyInquiry(user.role === "team_leader" ? "needs_verification" : "created", input.id, origin);
   });
 
   revalidateInquiries(input.id);
@@ -386,7 +388,7 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
 export async function addInquiryComment(input: { id: string; inquiryId: string; body: string; attachments: InquiryAttachmentInput[]; internal?: boolean }): Promise<{ error?: string }> {
   const who = await inquiryUser();
   if ("error" in who) return { error: who.error };
-  if (input.internal && who.user.role === "branch_admin") return { error: "Not allowed." };
+  if (input.internal && isWorkshopRole(who.user.role)) return { error: "Not allowed." };
   if (input.internal && input.attachments.length > 0) return { error: "Internal notes cannot have files." };
   if (!UUID.test(input.id) || !UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
   const body = input.body.trim();
@@ -397,7 +399,7 @@ export async function addInquiryComment(input: { id: string; inquiryId: string; 
   if ("error" in verified) return { error: verified.error };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("technical_inquiry_comment", {
+  const { data: newStatus, error } = await supabase.rpc("technical_inquiry_comment", {
     p_id: input.id,
     p_inquiry_id: input.inquiryId,
     p_body: body,
@@ -416,7 +418,8 @@ export async function addInquiryComment(input: { id: string; inquiryId: string; 
     });
   }
   // An internal note is for the technical team only: no case-sheet update, no mail.
-  if (!input.internal && !error) afterCaseChange(who.user.role === "branch_admin" ? "workshop_reply" : "team_reply", input.inquiryId, await siteOrigin());
+  // (A comment on a case that is still waiting for verification is a talk inside the workshop: no mail.)
+  if (!input.internal && !error && newStatus !== "pending_verification") afterCaseChange(isWorkshopRole(who.user.role) ? "workshop_reply" : "team_reply", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
@@ -455,9 +458,10 @@ export async function cancelTechnicalInquiry(input: { inquiryId: string; reason?
   const reason = (input.reason ?? "").trim();
   if (reason.length > INQUIRY_TEXT_MAX) return { error: `The reason can be at most ${INQUIRY_TEXT_MAX} characters.` };
   const supabase = await createClient();
+  const { data: before } = await supabase.from("self_audit_technical_inquiries").select("status").eq("id", input.inquiryId).maybeSingle();
   const { error } = await supabase.rpc("cancel_technical_inquiry", { p_inquiry_id: input.inquiryId, p_reason: reason || null });
   if (error) return { error: error.message };
-  afterCaseChange("cancelled", input.inquiryId, await siteOrigin());
+  afterCaseChange(before?.status === "pending_verification" ? null : "cancelled", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
@@ -473,7 +477,37 @@ export async function resubmitTechnicalInquiry(input: { inquiryId: string; comme
   const supabase = await createClient();
   const { error } = await supabase.rpc("resubmit_technical_inquiry", { p_inquiry_id: input.inquiryId, p_comment: comment });
   if (error) return { error: error.message };
-  afterCaseChange("resubmitted", input.inquiryId, await siteOrigin());
+  const { data: after } = await supabase.from("self_audit_technical_inquiries").select("status").eq("id", input.inquiryId).maybeSingle();
+  afterCaseChange(after?.status === "pending_verification" ? "needs_verification" : "resubmitted", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** The workshop supervisor verifies a team leader's case: only now does it reach the technical team. */
+export async function verifyTechnicalInquiry(input: { inquiryId: string; comment?: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("verify_technical_inquiry", { p_inquiry_id: input.inquiryId, p_comment: input.comment?.trim() || null });
+  if (error) return { error: error.message };
+  afterCaseChange("verified", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** The workshop supervisor sends a team leader's case back, with the reason (the team leader can fix it and send it again). */
+export async function rejectTechnicalInquiry(input: { inquiryId: string; reason: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const reason = input.reason.trim();
+  if (!reason) return { error: "Say why the case is rejected, so the team leader can fix it." };
+  if (reason.length > INQUIRY_TEXT_MAX) return { error: `The reason can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reject_technical_inquiry", { p_inquiry_id: input.inquiryId, p_reason: reason });
+  if (error) return { error: error.message };
+  afterCaseChange("rejected", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }

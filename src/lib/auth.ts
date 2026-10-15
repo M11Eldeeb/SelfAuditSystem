@@ -36,7 +36,16 @@ export function homePathFor(role: UserRole | null | undefined): string {
   if (role === "officer") return "/admin/dashboard";
   if (role === "finance") return "/finance";
   if (role === "technical") return "/technical/technical-inquiries";
+  if (role === "workshop_supervisor" || role === "team_leader") return "/workshop/technical-inquiries";
   return "/audit/dashboard";
+}
+
+/** Like requireRole, for pages two account types share (the workshop supervisor and the team leader). */
+export async function requireAnyRole(roles: UserRole[]): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!roles.includes(user.role)) redirect(homePathFor(user.role));
+  return user;
 }
 
 /** Redirects to /login if not signed in, or to the user's own home if the role doesn't match. */

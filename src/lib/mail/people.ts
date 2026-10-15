@@ -16,6 +16,8 @@ export type People = {
   teamLeadersByBranch: Map<string, string[]>;
   /** The technical team's accounts (self_audit_users with the technical role). */
   technical: string[];
+  /** The workshop supervisors' accounts per branch (they verify a team leader's case). */
+  supervisorAccountsByBranch: Map<string, string[]>;
   branchName: Map<string, string>;
   /** Branches that are still open - a closed branch gets no mail. */
   activeBranches: Set<string>;
@@ -36,6 +38,10 @@ export async function loadPeople(): Promise<People> {
   for (const u of users ?? []) {
     if (u.role === "branch_admin" && u.branch_id && u.email && VALID_EMAIL.test(u.email)) adminsByBranch.set(u.branch_id, [...(adminsByBranch.get(u.branch_id) ?? []), u.email.toLowerCase()]);
   }
+  const supervisorAccountsByBranch = new Map<string, string[]>();
+  for (const u of users ?? []) {
+    if ((u.role as string) === "workshop_supervisor" && u.branch_id && u.email && VALID_EMAIL.test(u.email)) supervisorAccountsByBranch.set(u.branch_id, [...(supervisorAccountsByBranch.get(u.branch_id) ?? []), u.email.toLowerCase()]);
+  }
   const managersByBranch = new Map<string, string[]>();
   const supervisorsByBranch = new Map<string, string[]>();
   const teamLeadersByBranch = new Map<string, string[]>();
@@ -50,6 +56,7 @@ export async function loadPeople(): Promise<People> {
     managersByBranch,
     supervisorsByBranch,
     teamLeadersByBranch,
+    supervisorAccountsByBranch,
     technical: [...new Set((users ?? []).filter((u) => u.role === "technical" && u.email && VALID_EMAIL.test(u.email)).map((u) => u.email.toLowerCase()))],
     branchName: new Map((branches ?? []).map((b) => [b.id, b.name])),
     activeBranches: new Set((branches ?? []).filter((b) => b.active).map((b) => b.id)),

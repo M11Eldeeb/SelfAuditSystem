@@ -367,7 +367,7 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
   const { data: inquiryBranchFolders } = await inquiryQuery;
   for (const folder of inquiryBranchFolders ?? []) {
     const branchId = folder.key.slice("inquiry:branch:".length);
-    const admins = unique((users ?? []).filter((u) => u.role === "branch_admin" && u.branch_id === branchId).map(company));
+    const admins = unique((users ?? []).filter((u) => ["branch_admin", "workshop_supervisor", "team_leader"].includes(u.role as string) && u.branch_id === branchId).map(company));
     if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
   }
 

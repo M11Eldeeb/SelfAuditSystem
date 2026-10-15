@@ -17,6 +17,8 @@ import {
   SYSTEM_LABEL,
   VEHICLE_LOCATION_LABEL,
   basePathFor,
+  canVerifyRole,
+  isWorkshopRole,
   driveFileUrl,
   driveFolderUrl,
   durationText,
@@ -33,7 +35,7 @@ import {
 import { formatBytes } from "@/lib/feedback-constants";
 import { InquiryCommentForm } from "./comment-form";
 import { ClosePanel } from "./close-panel";
-import { AssignPanel, WorkshopActions } from "./case-actions";
+import { AssignPanel, VerifyPanel, WorkshopActions } from "./case-actions";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
@@ -43,6 +45,8 @@ const EVENT_LABEL: Record<string, string> = {
   closed: "Case closed",
   reopened: "Case reopened",
   cancelled: "Case cancelled",
+  verified: "Verified by the workshop supervisor - sent to the technical team",
+  rejected: "Sent back by the workshop supervisor",
   resubmitted: "Case sent again",
   assigned: "Case assigned",
 };
@@ -107,6 +111,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
     .filter((g) => g.files.length > 0);
   const status = inquiry.status as InquiryStatus;
   const closed = status === "closed";
+  const awaitingVerification = status === "pending_verification";
   const cancelled = status === "cancelled";
   const finished = closed || cancelled;
   const late = isLate(inquiry.waiting_since, status);
@@ -125,7 +130,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">{inquiryLabel(inquiry.inquiry_no)}</h1>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</span>
           {inquiry.vehicle_location === "in_workshop" && <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">CAR IN WORKSHOP</span>}
-          {role !== "branch_admin" && branch?.name && (
+          {!isWorkshopRole(role) && branch?.name && (
             <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{branch.name}</span>
           )}
           <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200 ring-inset">{SYSTEM_LABEL[inquiry.system as InquirySystem] ?? inquiry.system}</span>
@@ -173,6 +178,12 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
             {AFTER_REPAIR_LABEL[inquiry.after_previous_repair]?.split(" - ")[0] ?? inquiry.after_previous_repair}
             {inquiry.previous_repair_details && <span className="block text-xs font-normal whitespace-pre-wrap text-neutral-500">{inquiry.previous_repair_details}</span>}
           </Fact>
+          {inquiry.verified_by_name && (
+            <Fact label="Verified by">
+              {inquiry.verified_by_name}
+              {inquiry.verified_at && <span className="block text-xs font-normal text-neutral-500">{stamp(inquiry.verified_at)}</span>}
+            </Fact>
+          )}
           <Fact label="Technical advisor">{inquiry.assigned_to_name ?? <span className="font-normal text-neutral-500">Not assigned yet</span>}</Fact>
           {timeToFirstAnswer != null && <Fact label="First answer after">{durationText(timeToFirstAnswer)}</Fact>}
           {timeToClose != null && <Fact label="Solved in">{durationText(timeToClose)}</Fact>}
@@ -278,7 +289,9 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         </section>
       )}
 
-      {isTeam && !finished && <AssignPanel inquiryId={inquiry.id} assignedTo={inquiry.assigned_to} assignedName={inquiry.assigned_to_name} technicians={technicians} meId={user?.role === "technical" ? user.id : null} />}
+      {awaitingVerification && <VerifyPanel inquiryId={inquiry.id} canVerify={canVerifyRole(role)} submittedBy={inquiry.created_by_name} />}
+
+      {isTeam && !finished && !awaitingVerification && <AssignPanel inquiryId={inquiry.id} assignedTo={inquiry.assigned_to} assignedName={inquiry.assigned_to_name} technicians={technicians} meId={user?.role === "technical" ? user.id : null} />}
 
       {closed && inquiry.resolution && (
         <section className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -321,7 +334,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
                 );
               }
               return (
-                <li key={c.id} className={`space-y-2 rounded-xl border p-4 shadow-sm ${c.author_role === "branch_admin" ? "border-neutral-200/70 bg-white" : "border-sky-200 bg-sky-50/60"}`}>
+                <li key={c.id} className={`space-y-2 rounded-xl border p-4 shadow-sm ${isWorkshopRole(c.author_role ?? "") ? "border-neutral-200/70 bg-white" : "border-sky-200 bg-sky-50/60"}`}>
                   <p className="text-sm whitespace-pre-wrap text-neutral-900">{c.body}</p>
                   <Files files={mine} />
                   <p className="text-xs text-neutral-500">
@@ -342,7 +355,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           placeholder={isTeam ? "Answer the workshop, ask for more information or a photo..." : "Reply to the technical team, add the photos or results they asked for..."}
         />
       )}
-      {isTeam && !cancelled && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
+      {isTeam && !cancelled && !awaitingVerification && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
       {!isTeam && <WorkshopActions inquiryId={inquiry.id} status={status} />}
       {role === "officer" && !closed && <WorkshopActions inquiryId={inquiry.id} status={status} />}
     </div>

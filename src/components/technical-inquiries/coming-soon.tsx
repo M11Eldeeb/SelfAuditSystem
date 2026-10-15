@@ -1,4 +1,4 @@
-/** Shown to branch admins until Technical Inquiries is unlocked for them. */
+/** Shown to the workshop side (branch admins, workshop supervisors, team leaders) until Technical Inquiries is unlocked for them. */
 export function InquiriesComingSoon() {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center py-16 text-center">

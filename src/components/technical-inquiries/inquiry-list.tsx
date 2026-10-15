@@ -12,6 +12,7 @@ import {
   basePathFor,
   inquiryLabel,
   isLate,
+  isWorkshopRole,
   statusTabs,
   waitingText,
   type InquiryRole,
@@ -38,7 +39,7 @@ const selectClass = "h-9 rounded-lg border border-neutral-300 bg-white px-3 text
 export async function InquiryList({ user, role, params }: { user: CurrentUser; role: InquiryRole; params: InquiryListParams }) {
   const supabase = await createClient();
   const basePath = basePathFor(role);
-  const isBranch = role === "branch_admin";
+  const isBranch = isWorkshopRole(role);
   const isTeam = !isBranch;
   const canSubmit = role !== "technical";
 
@@ -89,8 +90,15 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     const c = withFilters(supabase.from("self_audit_technical_inquiries").select("id", { count: "exact", head: true })).eq("status", status);
     return (await c).count ?? 0;
   };
-  const [{ data: inquiries, count }, nOpen, nAwaiting, nClosed, nCancelled] = await Promise.all([query, countStatus("open"), countStatus("awaiting_workshop"), countStatus("closed"), countStatus("cancelled")]);
-  const tabCount: Record<string, number> = { open: nOpen, awaiting: nAwaiting, closed: nClosed, cancelled: nCancelled, all: nOpen + nAwaiting + nClosed + nCancelled };
+  const [{ data: inquiries, count }, nOpen, nAwaiting, nClosed, nCancelled, nVerify] = await Promise.all([
+    query,
+    countStatus("open"),
+    countStatus("awaiting_workshop"),
+    countStatus("closed"),
+    countStatus("cancelled"),
+    isBranch ? countStatus("pending_verification") : Promise.resolve(0),
+  ]);
+  const tabCount: Record<string, number> = { open: nOpen, awaiting: nAwaiting, closed: nClosed, cancelled: nCancelled, verify: nVerify, all: nOpen + nAwaiting + nClosed + nCancelled + nVerify };
 
   const ids = (inquiries ?? []).map((i) => i.id);
   const { data: comments } = ids.length ? await supabase.from("self_audit_technical_inquiry_comments").select("inquiry_id").eq("kind", "comment").eq("internal", false).in("inquiry_id", ids) : { data: [] as { inquiry_id: string }[] };

@@ -33,6 +33,8 @@ const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
   inquiry_resubmitted: () => "When the workshop sends a closed or cancelled case back to the technical team.",
   inquiry_cancelled: () => "When the workshop cancels a case that is still open.",
   inquiry_delegated: () => "When a technical advisor delegates a case to a colleague (or an officer assigns it). Goes to that technical advisor. Taking a case yourself, or opening an unassigned one, sends nothing.",
+  inquiry_verify: () => "When a team leader submits a case (or sends one again). Goes to the workshop supervisor of the branch - the case reaches the technical team only after the supervisor verifies it.",
+  inquiry_rejected: () => "When the workshop supervisor sends a team leader's case back with a reason. Goes to the team leader.",
   inquiry_answered: () => "When the technical team replies on a case. Goes to the branch's admins, with the service manager, workshop supervisor and workshop team leader copied.",
   inquiry_closed: () => "When the technical team closes a case with the solution.",
   inquiry_reopened: () => "When the technical team reopens a closed case.",

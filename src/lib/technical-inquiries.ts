@@ -17,10 +17,15 @@ export const INQUIRY_LATE_AFTER_DAYS = 2;
 /** A VIN is 17 letters and digits, never I, O or Q. */
 export const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 
-export type InquiryStatus = "open" | "awaiting_workshop" | "closed" | "cancelled";
-export type InquiryRole = "branch_admin" | "technical" | "officer";
+export type InquiryStatus = "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
+/** branch_admin, workshop_supervisor and team_leader are the workshop side of a case; technical and officer are the technical / warranty side. */
+export type InquiryRole = "branch_admin" | "workshop_supervisor" | "team_leader" | "technical" | "officer";
+export const isWorkshopRole = (role: string): boolean => role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader";
+/** Who verifies a team leader's case before it reaches the technical team. */
+export const canVerifyRole = (role: string): boolean => role === "workshop_supervisor" || role === "branch_admin" || role === "officer";
 
 export const STATUS_LABEL: Record<InquiryStatus, string> = {
+  pending_verification: "Waiting for the workshop supervisor",
   open: "With the technical team",
   awaiting_workshop: "Waiting for the workshop",
   closed: "Closed",
@@ -28,6 +33,7 @@ export const STATUS_LABEL: Record<InquiryStatus, string> = {
 };
 
 export const STATUS_BADGE: Record<InquiryStatus, string> = {
+  pending_verification: "bg-violet-50 text-violet-800 ring-violet-200",
   open: "bg-amber-50 text-amber-800 ring-amber-200",
   awaiting_workshop: "bg-sky-50 text-sky-800 ring-sky-200",
   closed: "bg-emerald-50 text-emerald-800 ring-emerald-200",
@@ -106,7 +112,13 @@ export const INQUIRY_FIRST_NOTICED_MAX = 300;
 export const INQUIRY_PLATE_MAX = 20;
 export const INQUIRY_PERSON_MAX = 120;
 
-export const ROLE_LABEL: Record<string, string> = { branch_admin: "Workshop", technical: "Technical team", officer: "Warranty team" };
+export const ROLE_LABEL: Record<string, string> = {
+  branch_admin: "Workshop",
+  workshop_supervisor: "Workshop supervisor",
+  team_leader: "Team leader",
+  technical: "Technical team",
+  officer: "Warranty team",
+};
 
 /** "45,200 km", or null when no mileage was given. */
 export const formatMileage = (km: number | null | undefined): string | null => (km == null ? null : `${km.toLocaleString("en-US")} km`);
@@ -150,10 +162,12 @@ export function durationText(ms: number | null): string {
 
 /** The list's filter tabs for each role, the most useful first. `statuses` null means everything. */
 export function statusTabs(role: InquiryRole): { key: string; label: string; statuses: InquiryStatus[] | null }[] {
-  if (role === "branch_admin") {
+  if (isWorkshopRole(role)) {
     return [
+      ...(canVerifyRole(role) ? [{ key: "verify", label: "To verify", statuses: ["pending_verification"] as InquiryStatus[] }] : []),
       { key: "awaiting", label: "Needs your reply", statuses: ["awaiting_workshop"] },
       { key: "open", label: "With the technical team", statuses: ["open"] },
+      ...(canVerifyRole(role) ? [] : [{ key: "verify", label: "Waiting for my supervisor", statuses: ["pending_verification"] as InquiryStatus[] }]),
       { key: "closed", label: "Closed", statuses: ["closed"] },
       { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
       { key: "all", label: "All", statuses: null },
@@ -169,5 +183,11 @@ export function statusTabs(role: InquiryRole): { key: string; label: string; sta
 }
 
 export function basePathFor(role: InquiryRole): string {
-  return role === "officer" ? "/admin/technical-inquiries" : role === "technical" ? "/technical/technical-inquiries" : "/audit/technical-inquiries";
+  return role === "officer"
+    ? "/admin/technical-inquiries"
+    : role === "technical"
+      ? "/technical/technical-inquiries"
+      : role === "workshop_supervisor" || role === "team_leader"
+        ? "/workshop/technical-inquiries"
+        : "/audit/technical-inquiries";
 }

@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance" | "technical";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -515,7 +515,7 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments: string | null;
-          status: "open" | "awaiting_workshop" | "closed" | "cancelled";
+          status: "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
           resolution: string | null;
           created_by: string | null;
           created_by_name: string | null;
@@ -546,6 +546,9 @@ export interface Database {
           waiting_since: string | null;
           first_response_at: string | null;
           pdf_drive_file_id: string | null;
+          verified_by: string | null;
+          verified_by_name: string | null;
+          verified_at: string | null;
         };
         Insert: {
           id?: string;
@@ -556,7 +559,7 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments?: string | null;
-          status?: "open" | "awaiting_workshop" | "closed" | "cancelled";
+          status?: "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
           pdf_drive_file_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiries"]["Insert"]>;
@@ -566,7 +569,7 @@ export interface Database {
         Row: {
           id: string;
           inquiry_id: string;
-          kind: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned";
+          kind: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected";
           author_id: string | null;
           author_name: string | null;
           author_role: string | null;
@@ -574,7 +577,7 @@ export interface Database {
           created_at: string;
           internal: boolean;
         };
-        Insert: { id?: string; inquiry_id: string; kind?: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned"; author_id?: string | null; author_name?: string | null; author_role?: string | null; body?: string | null };
+        Insert: { id?: string; inquiry_id: string; kind?: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected"; author_id?: string | null; author_name?: string | null; author_role?: string | null; body?: string | null };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_comments"]["Insert"]>;
         Relationships: [];
       };
@@ -1434,6 +1437,14 @@ export interface Database {
       technical_inquiry_comment: {
         Args: { p_id: string; p_inquiry_id: string; p_body: string; p_attachments?: unknown; p_internal?: boolean };
         Returns: string;
+      };
+      verify_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_comment?: string | null };
+        Returns: void;
+      };
+      reject_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_reason: string };
+        Returns: void;
       };
       claim_technical_inquiry: {
         Args: { p_inquiry_id: string };

@@ -98,11 +98,12 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const role = String(formData.get("role") ?? "");
   const branchId = String(formData.get("branch_id") ?? "");
 
-  if (!email || (role !== "officer" && role !== "branch_admin" && role !== "finance" && role !== "technical")) {
+  const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader"];
+  if (!email || (role !== "officer" && role !== "finance" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
-  if (role === "branch_admin" && !branchId) {
-    return { error: "Select a branch for a branch admin account." };
+  if (WORKSHOP_ROLES.includes(role) && !branchId) {
+    return { error: "Select a branch for this account." };
   }
 
   const tempPassword = generateTempPassword();
@@ -123,8 +124,8 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role,
-    branch_id: role === "branch_admin" ? branchId : null,
+    role: role as "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader",
+    branch_id: WORKSHOP_ROLES.includes(role) ? branchId : null,
   });
 
   if (profileError) {

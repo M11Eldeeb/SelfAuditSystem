@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { assignTechnicalInquiry, cancelTechnicalInquiry, resubmitTechnicalInquiry } from "@/app/actions/technical-inquiries";
+import { assignTechnicalInquiry, cancelTechnicalInquiry, rejectTechnicalInquiry, resubmitTechnicalInquiry, verifyTechnicalInquiry } from "@/app/actions/technical-inquiries";
 import { INQUIRY_TEXT_MAX, type InquiryStatus } from "@/lib/technical-inquiries";
 
 const textareaClass =
@@ -18,7 +18,7 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const canCancel = status === "open" || status === "awaiting_workshop";
+  const canCancel = status === "open" || status === "awaiting_workshop" || status === "pending_verification";
   const canResubmit = status === "closed" || status === "cancelled";
   if (!canCancel && !canResubmit) return null;
 
@@ -88,6 +88,96 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
         </div>
       )}
       {!open && error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A team leader's case waits here for the workshop supervisor (or the branch admin): verify it to send it to the technical
+ * team, or send it back with the reason. Nobody else can act on it; the team leader just sees that it is waiting.
+ */
+export function VerifyPanel({ inquiryId, canVerify, submittedBy }: { inquiryId: string; canVerify: boolean; submittedBy: string | null }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"verify" | "reject" | null>(null);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(action: () => Promise<{ error?: string }>) {
+    setError(null);
+    startTransition(async () => {
+      const res = await action();
+      if (res.error) return setError(res.error);
+      setText("");
+      setMode(null);
+      router.refresh();
+    });
+  }
+
+  if (!canVerify) {
+    return (
+      <section className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 shadow-sm">
+        <p className="font-semibold">Waiting for the workshop supervisor</p>
+        <p className="mt-0.5 text-xs">This case is not with the technical team yet - the workshop supervisor has to verify it first. You can still add comments for the supervisor below.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="space-y-3 rounded-xl border border-violet-300 bg-violet-50 p-4 shadow-sm">
+      <div>
+        <h2 className="text-sm font-semibold text-violet-950">Verify this case</h2>
+        <p className="text-xs text-violet-900">
+          {submittedBy ?? "A team leader"} submitted it. It reaches the technical team only when you verify it. Check the details, the files and the work orders first.
+        </p>
+      </div>
+      {mode === null ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setMode("verify")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark">
+            Verify and send to the technical team
+          </button>
+          <button type="button" onClick={() => setMode("reject")} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
+            Send back with a reason
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label htmlFor="ti-verify-text" className="text-xs font-medium text-neutral-700">
+            {mode === "verify" ? "A note for the technical team (optional)" : "Why is it sent back? The team leader will see this."}
+          </label>
+          <textarea
+            id="ti-verify-text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={INQUIRY_TEXT_MAX}
+            rows={3}
+            disabled={pending}
+            className={textareaClass}
+          />
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || (mode === "reject" && !text.trim())}
+              onClick={() => run(() => (mode === "verify" ? verifyTechnicalInquiry({ inquiryId, comment: text }) : rejectTechnicalInquiry({ inquiryId, reason: text })))}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark disabled:opacity-50"
+            >
+              {pending ? "Saving..." : mode === "verify" ? "Verify and send" : "Send it back"}
+            </button>
+            <button type="button" onClick={() => setMode(null)} disabled={pending} className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+      {mode === null && error && (
         <p role="alert" className="text-sm text-red-600">
           {error}
         </p>
