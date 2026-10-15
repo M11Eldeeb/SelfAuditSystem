@@ -16,27 +16,29 @@ import { PRIORITY_LABEL, RESPONSIBLE_ROLE_LABEL, SUBMIT_REASON_LABEL, SYSTEM_LAB
  * side of a case form one thread.
  */
 
-export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "team_reply" | "closed" | "reopened";
+export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "delegated" | "team_reply" | "closed" | "reopened";
 
 const MAIL_FOR: Record<InquiryEvent, MailKey> = {
   created: "inquiry_new",
   workshop_reply: "inquiry_reply",
   resubmitted: "inquiry_resubmitted",
   cancelled: "inquiry_cancelled",
+  delegated: "inquiry_delegated",
   team_reply: "inquiry_answered",
   closed: "inquiry_closed",
   reopened: "inquiry_reopened",
 };
 /** The comment row an event leaves behind (the "created" event has none). */
-const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopened" | "cancelled" | "resubmitted">> = {
+const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned">> = {
   workshop_reply: "comment",
   team_reply: "comment",
   resubmitted: "resubmitted",
   cancelled: "cancelled",
+  delegated: "assigned",
   closed: "closed",
   reopened: "reopened",
 };
-const TO_TECHNICAL = new Set<InquiryEvent>(["created", "workshop_reply", "resubmitted", "cancelled"]);
+const TO_TECHNICAL = new Set<InquiryEvent>(["created", "workshop_reply", "resubmitted", "cancelled", "delegated"]);
 
 export const INQUIRY_SWITCH = { technical: "inquiry_mails_technical", workshop: "inquiry_mails_workshop" } as const;
 

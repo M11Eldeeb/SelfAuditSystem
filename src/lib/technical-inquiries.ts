@@ -64,7 +64,7 @@ export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
 /** The conditions for sending a case to the technical team: at least one must be met. */
 export const LOW_MILEAGE_LIMIT_KM = 1000;
 export const SUBMIT_REASONS = [
-  { key: "moc", label: "MOC case" },
+  { key: "moc", label: "MOC case - the customer complained to the Ministry of Commerce" },
   { key: "repeat_complaint", label: "Second come-back for the same problem" },
   { key: "low_mileage", label: "Low mileage - below 1,000 km" },
   { key: "unsolved", label: "Unsolved case" },

@@ -433,7 +433,8 @@ export async function assignTechnicalInquiry(input: { inquiryId: string; userId:
   const supabase = await createClient();
   const { error } = await supabase.rpc("assign_technical_inquiry", { p_inquiry_id: input.inquiryId, p_user_id: input.userId });
   if (error) return { error: error.message };
-  afterCaseChange(null, input.inquiryId, await siteOrigin());
+  // Giving the case to a colleague tells them; taking it yourself does not.
+  afterCaseChange(input.userId === who.user.id ? null : "delegated", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }

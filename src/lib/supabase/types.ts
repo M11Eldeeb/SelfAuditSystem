@@ -1426,6 +1426,10 @@ export interface Database {
         Args: { p_id: string; p_inquiry_id: string; p_body: string; p_attachments?: unknown; p_internal?: boolean };
         Returns: string;
       };
+      claim_technical_inquiry: {
+        Args: { p_inquiry_id: string };
+        Returns: void;
+      };
       cancel_technical_inquiry: {
         Args: { p_inquiry_id: string; p_reason?: string | null };
         Returns: void;

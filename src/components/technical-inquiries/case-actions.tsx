@@ -96,7 +96,11 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
   );
 }
 
-/** For the technical team: who looks after this case - take it yourself or give it to a colleague. */
+/**
+ * For the technical team: who looks after this case. The first technician who opens an unassigned case gets it; any
+ * technician can delegate it to a colleague here (the colleague is told by mail when the mail is switched on), or take it
+ * over. Officers can assign it too.
+ */
 export function AssignPanel({
   inquiryId,
   assignedTo,
@@ -112,15 +116,18 @@ export function AssignPanel({
   meId: string | null;
 }) {
   const router = useRouter();
-  const [choice, setChoice] = useState(assignedTo ?? "");
+  const [choice, setChoice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const others = technicians.filter((t) => t.id !== assignedTo);
+  const mine = !!meId && assignedTo === meId;
 
   function assign(userId: string) {
     setError(null);
     startTransition(async () => {
       const res = await assignTechnicalInquiry({ inquiryId, userId });
       if (res.error) return setError(res.error);
+      setChoice("");
       router.refresh();
     });
   }
@@ -129,10 +136,10 @@ export function AssignPanel({
     <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-neutral-900">Technician</p>
-        <p className="text-xs text-neutral-500">{assignedName ? `Assigned to ${assignedName}` : "Nobody is looking after this case yet"}</p>
+        <p className="text-xs text-neutral-500">{assignedName ? (mine ? "This case is assigned to you" : `Assigned to ${assignedName}`) : "Nobody is looking after this case yet"}</p>
       </div>
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        {meId && assignedTo !== meId && technicians.some((t) => t.id === meId) && (
+        {meId && !mine && technicians.some((t) => t.id === meId) && (
           <button
             type="button"
             onClick={() => assign(meId)}
@@ -142,17 +149,17 @@ export function AssignPanel({
             Take this case
           </button>
         )}
-        {technicians.length > 0 && (
+        {others.length > 0 && (
           <>
             <select
               value={choice}
               onChange={(e) => setChoice(e.target.value)}
               disabled={pending}
-              aria-label="Assign the case to"
+              aria-label={assignedTo ? "Delegate the case to" : "Assign the case to"}
               className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
             >
-              <option value="">Choose a technician</option>
-              {technicians.map((t) => (
+              <option value="">{assignedTo ? "Delegate to another technician" : "Choose a technician"}</option>
+              {others.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
@@ -161,10 +168,10 @@ export function AssignPanel({
             <button
               type="button"
               onClick={() => choice && assign(choice)}
-              disabled={pending || !choice || choice === assignedTo}
+              disabled={pending || !choice}
               className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50 disabled:opacity-50"
             >
-              Assign
+              {assignedTo ? "Delegate" : "Assign"}
             </button>
           </>
         )}

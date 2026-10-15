@@ -80,6 +80,9 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const basePath = basePathFor(role);
   const isTeam = role === "technical" || role === "officer";
 
+  // The first technician to open an unassigned case gets it (the database does nothing for anyone else or for a case that has a technician).
+  if (role === "technical") await supabase.rpc("claim_technical_inquiry", { p_inquiry_id: id });
+
   // RLS decides what the caller may see: a branch admin gets nothing for another branch's case.
   const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
   if (!inquiry) notFound();
