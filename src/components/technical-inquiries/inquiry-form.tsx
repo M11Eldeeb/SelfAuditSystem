@@ -7,7 +7,6 @@ import { createTechnicalInquiry, findSimilarInquiries, type InquiryAttachmentInp
 import { normalizeWorkOrder } from "@/lib/rejected-claims";
 import {
   AFTER_REPAIR_LABEL,
-  INQUIRY_DTC_MAX,
   INQUIRY_FIRST_NOTICED_MAX,
   INQUIRY_MAX_MILEAGE,
   INQUIRY_MAX_STEPS,
@@ -16,7 +15,6 @@ import {
   INQUIRY_PERSON_MAX,
   INQUIRY_PLATE_MAX,
   INQUIRY_SHORT_TEXT_MAX,
-  INQUIRY_SOFTWARE_MAX,
   INQUIRY_STEP_MAX,
   INQUIRY_TEXT_MAX,
   LOW_MILEAGE_LIMIT_KM,
@@ -94,9 +92,6 @@ export function InquiryForm({
   const [afterRepair, setAfterRepair] = useState("");
   const [repairDetails, setRepairDetails] = useState("");
   const [historyFiles, setHistoryFiles] = useState<PickedFile[]>([]);
-  const [dtc, setDtc] = useState("");
-  const [software, setSoftware] = useState("");
-  const [partsReplaced, setPartsReplaced] = useState("");
   const [comments, setComments] = useState("");
   const [similarFor, setSimilarFor] = useState<{ vin: string; cases: SimilarInquiry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,12 +211,9 @@ export function InquiryForm({
         system,
         vehicleLocation,
         mileage: mileageNumber,
-        dtc,
-        software,
         occurrence,
         conditionKeys,
         conditions: conditionKeys.includes("other") ? otherCondition : "",
-        partsReplaced,
         responsibleName,
         responsibleRole,
         responsiblePhone,
@@ -331,8 +323,8 @@ export function InquiryForm({
                 <label htmlFor="ti-wo-0" className="text-xs font-medium text-neutral-700">
                   Work order (WIP) number
                 </label>
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="min-w-[10rem] flex-1">
                     <input
                       id="ti-wo-0"
                       value={wips[0].workOrder}
@@ -349,10 +341,10 @@ export function InquiryForm({
                     onClick={() => setWips((cur) => [...cur, newWip()])}
                     disabled={saving || wips.length >= INQUIRY_MAX_WORK_ORDERS}
                     title="Add a previous work order of the same problem"
-                    aria-label="Add a previous work order"
-                    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-lg font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                    className="flex h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand/5 px-3 text-sm font-semibold text-brand shadow-sm transition-colors hover:bg-brand/10 disabled:opacity-50"
                   >
-                    +
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand text-base leading-none text-white">+</span>
+                    Add previous Work Order
                   </button>
                 </div>
               </div>
@@ -594,24 +586,7 @@ export function InquiryForm({
             })}
           </Section>
 
-          <Section number={7} title="More technical details (optional)" hint="You do not have to answer these, but they can save the technical team a question.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label htmlFor="ti-dtc" className="text-xs font-medium text-neutral-700">
-                  Fault codes (DTC) <span className="font-normal text-neutral-500">(optional - separate with commas)</span>
-                </label>
-                <input id="ti-dtc" value={dtc} onChange={(e) => setDtc(e.target.value)} maxLength={INQUIRY_DTC_MAX} placeholder="e.g. P0300, P0171, U0100" disabled={saving} className={`${inputClass} font-mono`} />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="ti-software" className="text-xs font-medium text-neutral-700">
-                  Software / ECU version <span className="font-normal text-neutral-500">(optional)</span>
-                </label>
-                <input id="ti-software" value={software} onChange={(e) => setSoftware(e.target.value)} maxLength={INQUIRY_SOFTWARE_MAX} disabled={saving} className={inputClass} />
-              </div>
-            </div>
-            <TextArea id="ti-parts" label="Parts already replaced" optional value={partsReplaced} onChange={setPartsReplaced} disabled={saving} rows={2} placeholder="Part numbers or names the workshop has already changed for this fault" max={INQUIRY_SHORT_TEXT_MAX} />
-            <TextArea id="ti-comments" label="Comments of the workshop" optional value={comments} onChange={setComments} disabled={saving} rows={3} placeholder="Anything else the technical team should know" />
-          </Section>
+          <TextArea id="ti-comments" label="Comments of the workshop" optional value={comments} onChange={setComments} disabled={saving} rows={3} placeholder="Anything else the technical team should know" />
 
           {error && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

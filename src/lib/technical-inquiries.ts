@@ -100,7 +100,7 @@ export const INQUIRY_MAX_CASE_FILES = 150;
 export const LOW_MILEAGE_LIMIT_KM = 1000;
 export const SUBMIT_REASONS = [
   { key: "moc", label: "MOC case - the customer complained to the Ministry of Commerce" },
-  { key: "repeat_complaint", label: "Second come-back for the same problem" },
+  { key: "repeat_complaint", label: "Second come-back for the same problem (3rd visit)" },
   { key: "low_mileage", label: "Low mileage - below 1,000 km" },
   { key: "unsolved", label: "Unsolved case" },
 ] as const;
