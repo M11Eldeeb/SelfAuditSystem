@@ -91,6 +91,7 @@ export async function planInternalAuditResults(auditId: string, origin: string):
   // Older saved templates do not have the link lines: add them just before the sign-off.
   let body = t.body;
   const extra = [
+    !body.includes("{departments}") ? "{departments}" : null,
     !body.includes("{link}") ? "View the audit on the portal: {link}" : null,
     !body.includes("{drive_link}") && driveFolderId ? "Audit files on Google Drive: {drive_link}" : null,
   ].filter(Boolean);
@@ -102,7 +103,7 @@ export async function planInternalAuditResults(auditId: string, origin: string):
   // No Drive folder (Drive not connected): drop the Drive line rather than send an empty button.
   if (!driveFolderId) body = body.split(/\n{2,}/).filter((p) => !p.includes("{drive_link}")).join("\n\n");
 
-  const mail = composeMail({ subject: t.subject, body }, vars);
+  const mail = composeMail({ subject: t.subject, body }, vars, undefined, report.departmentScores.map((d) => ({ label: d.label, pct: d.pct })));
   return {
     driveFolderId,
     kind: "internal-audit-results",

@@ -3,6 +3,7 @@
 // no secrets and nothing server-only in here.
 
 export type PodiumEntry = { place: 1 | 2 | 3; name: string; pct: string };
+export type DepartmentScoreEntry = { label: string; pct: number | null };
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const ORDINAL = { 1: "1st", 2: "2nd", 3: "3rd" } as const;
@@ -29,6 +30,24 @@ function podiumHtml(entries: PodiumEntry[]): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 20px"><tr>${cell(2)}${cell(1)}${cell(3)}</tr></table>`;
 }
 
+/** Department scores as a two-column table with a colored bar per department (green 90+, amber 75+, red below). */
+function departmentsHtml(entries: DepartmentScoreEntry[]): string {
+  const rows = entries
+    .map((d) => {
+      const pct = d.pct;
+      const color = pct == null ? "#9ca3af" : pct >= 90 ? "#16a34a" : pct >= 75 ? "#d97706" : "#dc2626";
+      const width = pct == null ? 0 : Math.max(2, Math.min(100, Math.round(pct)));
+      return `<tr>
+<td style="padding:7px 10px;font-size:14px;color:#222;border-bottom:1px solid #eee;width:45%">${escapeHtml(d.label)}</td>
+<td style="padding:7px 10px;border-bottom:1px solid #eee"><div style="background:#f1f1f1;border-radius:4px;height:8px;width:100%"><div style="background:${color};border-radius:4px;height:8px;width:${width}%"></div></div></td>
+<td style="padding:7px 10px;font-size:14px;font-weight:700;color:${color};text-align:right;border-bottom:1px solid #eee;white-space:nowrap">${pct == null ? "N/A" : `${pct}%`}</td>
+</tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 18px;border:1px solid #eee;border-radius:6px;border-collapse:separate">
+<tr><td colspan="3" style="padding:8px 10px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#666;background:#fafafa;border-bottom:1px solid #eee">Department scores</td></tr>${rows}</table>`;
+}
+
 /** Replaces {name} with its value; a name that has no value is left as it is. */
 export function fillPlaceholders(text: string, vars: Record<string, string>): string {
   return text.replace(/\{([a-z_]+)\}/g, (whole, name: string) => (name in vars ? vars[name] : whole));
@@ -49,7 +68,7 @@ const LINK_LINE = /^([^\n:]{1,60}):\s*(https?:\/\/\S+)$/;
  *   - a paragraph starting "Note:" becomes a highlighted note;
  *   - a paragraph like "Link to the portal: https://..." becomes a button.
  */
-export function renderMailText(template: string, vars: Record<string, string>, podium?: PodiumEntry[]): { text: string; html: string } {
+export function renderMailText(template: string, vars: Record<string, string>, podium?: PodiumEntry[], departments?: DepartmentScoreEntry[]): { text: string; html: string } {
   const paragraphs = template.replace(/\r\n/g, "\n").trim().split(/\n{2,}/);
   const text: string[] = [];
   const html: string[] = [];
@@ -59,6 +78,13 @@ export function renderMailText(template: string, vars: Record<string, string>, p
       const entries = podium ?? [];
       text.push(entries.map((e) => `${ORDINAL[e.place]} - ${e.name} - ${e.pct}`).join("\n"));
       html.push(podiumHtml(entries));
+      return;
+    }
+    if (raw.trim() === "{departments}") {
+      const entries = departments ?? [];
+      if (entries.length === 0) return;
+      text.push(["Department scores:", ...entries.map((d) => `- ${d.label}: ${d.pct == null ? "N/A" : `${d.pct}%`}`)].join("\n"));
+      html.push(departmentsHtml(entries));
       return;
     }
     const p = fillPlaceholders(raw, vars).trim();

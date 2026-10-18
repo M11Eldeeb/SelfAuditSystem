@@ -3,7 +3,7 @@
 // Settings -> Email settings; what they change is stored in self_audit_mail_templates and layered on top of this.
 // No "server-only" here on purpose: the editor's live preview runs in the browser on the same code.
 
-import { fillPlaceholders, placeholdersIn, renderMailText, type PodiumEntry } from "@/lib/mail/template";
+import { fillPlaceholders, placeholdersIn, renderMailText, type DepartmentScoreEntry, type PodiumEntry } from "@/lib/mail/template";
 
 export type MailKey =
   | "ready"
@@ -237,6 +237,8 @@ ${SIGN_OFF}`,
 
 The internal audit for your branch is complete, with an overall score of {score}%. The full report is attached.
 
+{departments}
+
 View the audit on the portal: {link}
 
 Audit files on Google Drive: {drive_link}
@@ -247,6 +249,7 @@ ${SIGN_OFF}`,
     placeholders: [
       { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
       { name: "score", help: "The overall score (a number, the % sign is in the text).", sample: "86" },
+      { name: "departments", help: "The score of each department (a table in the mail). Keep it on its own line.", sample: "" },
       { name: "link", help: "The audit's page on the portal (becomes a button).", sample: "https://self-audit-system.vercel.app/audit/internal-audit/0f8c2d1e-6b7a-4c3d-9e2f-1a2b3c4d5e6f" },
       { name: "drive_link", help: "The audit's Google Drive folder - Internal Audit / branch / month (becomes a button; the recipients get view access).", sample: "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz" },
     ],
@@ -707,8 +710,8 @@ export function resolveTemplate(def: MailDef, o?: MailOverride | null): Resolved
 }
 
 /** The finished mail (subject, plain text, HTML) from a template and the values for its placeholders. */
-export function composeMail(t: Pick<ResolvedTemplate, "subject" | "body">, vars: Record<string, string>, podium?: PodiumEntry[]) {
-  const { text, html } = renderMailText(t.body, vars, podium);
+export function composeMail(t: Pick<ResolvedTemplate, "subject" | "body">, vars: Record<string, string>, podium?: PodiumEntry[], departments?: DepartmentScoreEntry[]) {
+  const { text, html } = renderMailText(t.body, vars, podium, departments);
   return { subject: fillPlaceholders(t.subject, vars).replace(/[\r\n]+/g, " ").trim(), text, html };
 }
 
