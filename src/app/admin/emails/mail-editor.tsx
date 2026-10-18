@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { CC_GROUP_LABELS, SAMPLE_PODIUM, composeMail, sampleVars, validateTemplate, type CcGroup, type MailDef, type ResolvedTemplate } from "@/lib/mail/catalog";
+import { CC_GROUP_LABELS, SAMPLE_DEPARTMENTS, SAMPLE_PODIUM, composeMail, sampleVars, validateTemplate, type CcGroup, type MailDef, type ResolvedTemplate } from "@/lib/mail/catalog";
 import { resetMailTemplate, saveMailTemplate } from "./actions";
 
 const splitAddresses = (text: string) => text.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
@@ -22,7 +22,7 @@ export function MailEditor({ def, saved, customized }: { def: MailDef; saved: Re
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const preview = useMemo(
-    () => composeMail({ subject, body }, sampleVars(def), def.key === "podium" ? SAMPLE_PODIUM : undefined),
+    () => composeMail({ subject, body }, sampleVars(def), def.key === "podium" ? SAMPLE_PODIUM : undefined, def.key === "results" ? SAMPLE_DEPARTMENTS : undefined),
     [subject, body, def]
   );
   const problem = validateTemplate(def, subject, body);

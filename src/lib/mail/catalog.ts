@@ -717,6 +717,14 @@ export function composeMail(t: Pick<ResolvedTemplate, "subject" | "body">, vars:
 
 export const sampleVars = (def: MailDef): Record<string, string> => Object.fromEntries(def.placeholders.map((p) => [p.name, p.sample]));
 
+export const SAMPLE_DEPARTMENTS: DepartmentScoreEntry[] = [
+  { label: "Reception", pct: 92 },
+  { label: "Workshop", pct: 78 },
+  { label: "Parts", pct: 95 },
+  { label: "Warranty Administrator", pct: 88 },
+  { label: "Branch Operation", pct: 70 },
+];
+
 export const SAMPLE_PODIUM: PodiumEntry[] = [
   { place: 1, name: "Sample Branch A", pct: "97.5%" },
   { place: 2, name: "Sample Branch B", pct: "94%" },

@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getMailStatus, sendMail } from "@/lib/gmail";
 import { DRIVE_ALLOWED_DOMAIN, shareFolderWithEmails } from "@/lib/google-drive";
 import { siteOrigin } from "@/lib/site-origin";
-import { MAIL_DEFS, MAIL_KEYS_IN_ORDER, SAMPLE_PODIUM, composeMail, sampleVars, validateTemplate, type CcGroup, type MailKey } from "@/lib/mail/catalog";
+import { MAIL_DEFS, MAIL_KEYS_IN_ORDER, SAMPLE_DEPARTMENTS, SAMPLE_PODIUM, composeMail, sampleVars, validateTemplate, type CcGroup, type MailKey } from "@/lib/mail/catalog";
 import { loadTemplates, VALID_EMAIL } from "@/lib/mail/people";
 import { planInternalAuditNotice, planInternalAuditResults } from "@/lib/mail/internal-audit";
 import { MAIL_KEYS, isMailEnabled, planFlaggedParts, planSelfAuditReady, sendPlans, type SendOutcome } from "@/lib/mail/plans";
@@ -88,7 +88,7 @@ export async function sendSampleMail(key: MailKey): Promise<{ error?: string; se
   const def = MAIL_DEFS[key];
   if (!def) return { error: "Unknown e-mail." };
   const t = (await loadTemplates())[key];
-  const mail = composeMail(t, sampleVars(def), key === "podium" ? SAMPLE_PODIUM : undefined);
+  const mail = composeMail(t, sampleVars(def), key === "podium" ? SAMPLE_PODIUM : undefined, key === "results" ? SAMPLE_DEPARTMENTS : undefined);
 
   const result = await sendMail({
     kind: "sample",
