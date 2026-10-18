@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { InternalAuditClaimForm } from "./internal-audit-claim-form";
 import { WorkOrderSearch } from "./work-order-search";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
+import { SHARED_WIP_DEPARTMENT, firstClaimOfWip, orderReceptionQuestions } from "@/lib/internal-audit-wip";
+import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
 
 export default async function InternalAuditClaimPage({
   params,
@@ -72,12 +74,27 @@ export default async function InternalAuditClaimPage({
       .map((a) => [a.question_id, a.answer_value])
   );
 
+  // Same WIP as an earlier claim in this audit: Reception is about the job
+  // card, so its answers come from that first claim (saving the first claim
+  // copies them over too; this keeps the form showing them either way).
+  const wipLead = firstClaimOfWip(internalClaims, new Map((allClaims ?? []).map((c) => [c.id, c.work_order_no]))).get(current.id) ?? null;
+  const receptionIds = new Set((questions ?? []).filter((q) => q.department === SHARED_WIP_DEPARTMENT).map((q) => q.id));
+  if (wipLead) {
+    for (const a of allAnswers ?? []) {
+      if (a.internal_audit_claim_id === wipLead.id && receptionIds.has(a.question_id) && a.answer_value != null) answersMap.set(a.question_id, a.answer_value);
+    }
+  }
+  const wipLeadClaim = wipLead ? claimById.get(internalClaims[wipLead.index].claim_id) : null;
+
   const questionGroups = DEPARTMENT_ORDER.filter((dept) => dept !== "branchops")
     .filter((dept) => (mode === "parts" ? dept === "parts" : dept !== "parts"))
     .map((dept) => ({
       departmentId: dept,
       label: DEPARTMENT_LABELS[dept],
-      questions: (questions ?? []).filter((q) => q.department === dept),
+      questions:
+        dept === SHARED_WIP_DEPARTMENT
+          ? orderReceptionQuestions((questions ?? []).filter((q) => q.department === dept))
+          : (questions ?? []).filter((q) => q.department === dept),
     }))
     .filter((g) => g.questions.length > 0);
 
@@ -222,6 +239,16 @@ export default async function InternalAuditClaimPage({
         </div>
       </div>
 
+      {wipLead && mode === "documents" && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Same WIP as claim {wipLead.index + 1} ({wipLeadClaim?.claim_number ?? "earlier claim"}
+          {wipLeadClaim?.work_order_no ? `, WO ${wipLeadClaim.work_order_no}` : ""}) - the Reception answers are taken from that claim.{" "}
+          <Link href={`/admin/internal-audit/${auditId}?claim=${wipLead.index}&mode=documents`} className="font-medium underline">
+            Open it
+          </Link>
+        </div>
+      )}
+
       <InternalAuditClaimForm
         auditId={auditId}
         internalAuditClaimId={current.id}
@@ -234,6 +261,8 @@ export default async function InternalAuditClaimPage({
         noteText={noteText}
         locked={false}
       />
+
+      <InternalAuditFilesSection auditId={auditId} />
     </div>
   );
 }

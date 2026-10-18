@@ -863,6 +863,34 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_task_reminders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_internal_audit_files: {
+        Row: {
+          id: string;
+          internal_audit_id: string;
+          kind: "attachment" | "report";
+          drive_file_id: string;
+          drive_url: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          internal_audit_id: string;
+          kind?: "attachment" | "report";
+          drive_file_id: string;
+          drive_url?: string | null;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_files"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_reconciliation: {
         Row: {
           claim_id: string;

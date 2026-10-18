@@ -31,6 +31,8 @@ export const DRIVE_ROOT_FOLDER_NAME = "Rejected Claims From Workshop";
 export const DRIVE_SCRAP_ROOT_NAME = "Scrap evidence";
 /** Top-level folder of the Shared Drive for the technical inquiries: Technical Inquiries / <branch> / <TI-0001 - work order>. */
 export const DRIVE_INQUIRY_ROOT_NAME = "Technical Inquiries";
+/** Top-level folder of the Shared Drive for internal audits: Internal Audit / <branch> / <MM-YYYY>. */
+export const DRIVE_INTERNAL_AUDIT_ROOT_NAME = "Internal Audit";
 export const DRIVE_SHARED_DRIVE_ID = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || "0AMGzTNddVT5yUk9PVA";
 
 export class DriveError extends Error {
@@ -358,6 +360,10 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
     if (admins.length > 0) add(await shareFolderWithEmails(folder.drive_id, admins));
   }
 
+  // Internal audits: officers only.
+  const { data: iaRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "ia:root").maybeSingle();
+  if (iaRoot && !opts.branchId) add(await shareFolderWithEmails(iaRoot.drive_id, officers));
+
   // Technical Inquiries: officers and the technical team open all of it, a branch's admins only their own branch's cases.
   const technicalTeam = unique((users ?? []).filter((u) => (u.role as string) === "technical").map(company));
   const { data: inquiryRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "inquiry:root").maybeSingle();
@@ -391,6 +397,16 @@ export async function ensureScrapBranchFolder(monthLabel: string, branchId: stri
   const root = await ensureFolder("scrap:root", DRIVE_SCRAP_ROOT_NAME, DRIVE_SHARED_DRIVE_ID);
   const month = await ensureFolder(`scrap:month:${monthLabel}`, monthLabel, root);
   return ensureFolder(`scrap:branch:${monthLabel}:${branchId}`, branchName, month);
+}
+
+/**
+ * The Drive folder for one branch's internal audits of a month: Internal Audit /
+ * <branch> / <MM-YYYY> (e.g. "10-2026"), created on first use.
+ */
+export async function ensureInternalAuditFolder(branchId: string, branchName: string, monthLabel: string): Promise<string> {
+  const root = await ensureFolder("ia:root", DRIVE_INTERNAL_AUDIT_ROOT_NAME, DRIVE_SHARED_DRIVE_ID);
+  const branch = await ensureFolder(`ia:branch:${branchId}`, branchName, root);
+  return ensureFolder(`ia:month:${branchId}:${monthLabel}`, monthLabel, branch);
 }
 
 /** Renames a file or folder. False if it is gone. */

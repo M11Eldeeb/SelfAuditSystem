@@ -16,6 +16,8 @@ import { buildWorkOrderCounts, computeAuditFlag } from "@/lib/audit-flag";
 import { selectWithPartCap } from "@/lib/internal-audit-sampling";
 import { computeInternalAuditScores } from "@/lib/internal-audit-scoring";
 import { DEPARTMENT_ORDER } from "@/lib/departments";
+import { SHARED_WIP_DEPARTMENT, firstClaimOfWip } from "@/lib/internal-audit-wip";
+import { uploadInternalAuditReportToDrive } from "@/app/actions/internal-audit-files";
 import type { DepartmentId, Database } from "@/lib/supabase/types";
 
 type SampleCriteria = {
@@ -301,6 +303,14 @@ export async function saveClaimAnswers(
   ]);
   if (rpcResult.error) return { error: rpcResult.error.message };
 
+  // Reception answers are per WIP: saving the first claim of a WIP copies
+  // them to the audit's other claims on the same WIP ("HER-12345",
+  // "HER-12345-1", ...). The RPC re-checks ownership for each one.
+  if (mode === "documents") {
+    const copyError = await copyReceptionToSameWip(supabase, auditId, internalAuditClaimId, answerRows);
+    if (copyError) return { error: copyError };
+  }
+
   revalidatePath(`/admin/internal-audit/${auditId}`);
 
   // The work-order search submits this directly (bypassing the nav buttons)
@@ -337,6 +347,40 @@ export async function saveClaimAnswers(
   }
 
   redirect(`/admin/internal-audit/${auditId}?claim=${currentIndex}&mode=${mode}`);
+}
+
+async function copyReceptionToSameWip(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  auditId: string,
+  internalAuditClaimId: string,
+  answerRows: { question_id: string; answer_value: string }[]
+): Promise<string | null> {
+  const [{ data: internalClaims }, { data: receptionQuestions }] = await Promise.all([
+    supabase.from("self_audit_internal_audit_claims").select("id, claim_id, sort_order").eq("internal_audit_id", auditId).order("sort_order"),
+    supabase.from("self_audit_audit_questions").select("id").eq("department", SHARED_WIP_DEPARTMENT),
+  ]);
+  if (!internalClaims?.length) return null;
+  const receptionIds = new Set((receptionQuestions ?? []).map((q) => q.id));
+  const reception = answerRows.filter((r) => receptionIds.has(r.question_id));
+  if (reception.length === 0) return null;
+
+  const { data: claims } = await supabase.from("self_audit_claims").select("id, work_order_no").in("id", internalClaims.map((c) => c.claim_id));
+  const leads = firstClaimOfWip(internalClaims, new Map((claims ?? []).map((c) => [c.id, c.work_order_no])));
+  // Only the first claim of a WIP drives the others.
+  if (leads.get(internalAuditClaimId) !== null) return null;
+  const followers = internalClaims.filter((ic) => leads.get(ic.id)?.id === internalAuditClaimId);
+
+  for (const f of followers) {
+    const { error } = await supabase.rpc("save_internal_audit_claim_answers", {
+      p_audit_id: auditId,
+      p_claim_id: f.id,
+      p_answers: Object.fromEntries(reception.map((r) => [r.question_id, r.answer_value])),
+      p_touch_note: false,
+      p_note: null,
+    });
+    if (error) return `Saved, but could not copy the Reception answers to the other claims on this WIP: ${error.message}`;
+  }
+  return null;
 }
 
 export type SaveBranchAnswersState = { error?: string } | undefined;
@@ -488,6 +532,11 @@ export async function finalizeInternalAudit(
     })
     .eq("id", auditId);
   if (updateError) return { error: updateError.message };
+
+  // Save the result PDF to Google Drive (Internal Audit / branch / month). Never
+  // blocks finalizing - if Drive is not connected or busy, the report page has
+  // an "Upload result to Drive" button to do it later.
+  await uploadInternalAuditReportToDrive(auditId).catch(() => null);
 
   revalidatePath("/admin/internal-audit");
   revalidatePath("/admin/results/internal-audit");
