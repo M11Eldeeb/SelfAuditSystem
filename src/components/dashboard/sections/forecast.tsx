@@ -28,8 +28,8 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
   const lastActual = hist.length - 1;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * max);
   const avg12 = f.history.slice(-12).reduce((s, p) => s + p.gross, 0) / Math.min(12, f.history.length);
-  const nextTotal = f.forecast.reduce((s, p) => s + p.gross, 0);
-  const last3 = f.history.slice(-3).reduce((s, p) => s + p.gross, 0);
+  const prevOf = (k: number) => (k === 0 ? hist[lastActual].gross : f.forecast[k - 1].gross);
+  const pct = (v: number, base: number) => (base ? `${v >= base ? "+" : ""}${(((v - base) / base) * 100).toFixed(1)}%` : "—");
 
   const actualPath = hist.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.gross).toFixed(1)}`).join(" ");
   const fcPath = [`M${x(lastActual).toFixed(1)},${y(hist[lastActual].gross).toFixed(1)}`, ...f.forecast.map((p, k) => `L${x(lastActual + 1 + k).toFixed(1)},${y(p.gross).toFixed(1)}`)].join(" ");
@@ -48,23 +48,16 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
       action={<Pill tone="blue">Officer only</Pill>}
     >
       {layer}
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-        {f.forecast.map((p) => (
-          <div key={p.month} className="rounded-lg bg-[#eff4ff] p-3" {...bind(<TipCard title={`${monthShort(p.month)} (forecast)`} rows={[{ label: "Expected", value: fmtMoney(p.gross), strong: true }, { label: "Likely range", value: `${fmtMoney(p.low)} – ${fmtMoney(p.high)}` }, { label: "vs 12-mo average", value: `${p.gross >= avg12 ? "+" : ""}${(((p.gross - avg12) / avg12) * 100).toFixed(1)}%` }]} />)}>
-            <Label>{monthShort(p.month)}</Label>
-            <div className="font-display text-xl font-bold text-[#0041b0]">{fmtCompact(p.gross)}</div>
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {f.forecast.map((p, k) => (
+          <div key={p.month} className="rounded-lg bg-[#eff4ff] p-3" {...bind(<TipCard title={`${monthShort(p.month)} (forecast)`} rows={[{ label: "Expected", value: fmtMoney(p.gross), strong: true }, { label: "Likely range", value: `${fmtMoney(p.low)} – ${fmtMoney(p.high)}` }, { label: "vs previous month", value: pct(p.gross, prevOf(k)) }, { label: "vs 12-mo average", value: pct(p.gross, avg12) }]} />)}>
+            <Label>Month {k + 1} · {monthShort(p.month)}</Label>
+            <div className="font-display text-xl font-bold text-[#0041b0]">{fmtMoney(p.gross)}</div>
             <div className="text-[11px] text-[#575e70]">
-              {fmtCompact(p.low)} – {fmtCompact(p.high)}
+              range {fmtCompact(p.low)} – {fmtCompact(p.high)} · {pct(p.gross, prevOf(k))} vs {k === 0 ? "last settled" : "prev. month"}
             </div>
           </div>
         ))}
-        <div className="rounded-lg bg-[#0b1c30] p-3 text-white">
-          <Label className="text-white/70">Next 3 months</Label>
-          <div className="font-display text-xl font-bold">{fmtCompact(nextTotal)}</div>
-          <div className="text-[11px] text-white/70">
-            vs last 3: {last3 ? `${nextTotal >= last3 ? "+" : ""}${(((nextTotal - last3) / last3) * 100).toFixed(1)}%` : "—"}
-          </div>
-        </div>
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
@@ -83,6 +76,11 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
         {all.map((a, i) => (
           <g key={a.month}>
             <circle cx={x(i)} cy={y(a.value)} r={a.kind === "forecast" ? 4.5 : 3.5} fill="white" stroke={a.kind === "forecast" ? C.blueLight : C.red} strokeWidth={2} />
+            {a.kind === "forecast" && (
+              <text x={x(i)} y={y(a.value) - 9} textAnchor={i === all.length - 1 ? "end" : "middle"} className="fill-[#0041b0] text-[10px] font-bold">
+                {fmtCompact(a.value)}
+              </text>
+            )}
             {(i % 3 === 0 || i === all.length - 1 || i === lastActual) && (
               <text x={x(i)} y={H - 10} textAnchor="middle" className={`text-[10px] ${a.kind === "forecast" ? "fill-[#0041b0] font-bold" : "fill-neutral-500"}`}>
                 {monthShort(a.month)}

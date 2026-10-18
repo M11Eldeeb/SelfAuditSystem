@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, TaskData } from "@/lib/tasks";
 import { logTaskReminders } from "@/app/actions/task-reminders";
+import { sendDirectMail } from "@/app/actions/direct-mail";
 
 const FOLLOW_UP_AFTER_DAYS = 5;
 
@@ -61,6 +62,7 @@ export function TaskRow({ task, compact = false }: { task: Task; compact?: boole
 function ReminderButton({ branchId, branchName, tasks, emails }: { branchId: string; branchName: string; tasks: Task[]; emails: string[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const overdue = tasks.filter((t) => t.ageDays >= FOLLOW_UP_AFTER_DAYS);
   if (!overdue.length) return null;
   const due = overdue.some((t) => t.reminder?.due);
@@ -81,17 +83,24 @@ function ReminderButton({ branchId, branchName, tasks, emails }: { branchId: str
       "Warranty team",
     ].join("\n");
     startTransition(async () => {
+      const res = await sendDirectMail({ kind: "task-reminder", to: emails, subject, text: body });
+      if (res.error) {
+        setMsg({ ok: false, text: res.error });
+        return;
+      }
       await logTaskReminders(
         branchId,
         overdue.map((t) => t.key)
       );
-      window.location.href = `mailto:${encodeURIComponent(emails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      setMsg({ ok: true, text: `Sent to ${emails.join(", ")}` });
       router.refresh();
     });
   };
 
   return (
-    <button
+    <span className="inline-flex items-center gap-2">
+      {msg && <span className={`text-xs ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</span>}
+      <button
       type="button"
       onClick={send}
       disabled={isPending || emails.length === 0}
@@ -100,8 +109,9 @@ function ReminderButton({ branchId, branchName, tasks, emails }: { branchId: str
         due ? "bg-red-600 text-white hover:bg-red-700" : "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
       }`}
     >
-      ✉ {due ? "Send reminder (due)" : "Send reminder"}
-    </button>
+      ✉ {isPending ? "Sending..." : due ? "Send reminder (due)" : "Send reminder"}
+      </button>
+    </span>
   );
 }
 

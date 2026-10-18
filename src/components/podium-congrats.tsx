@@ -3,15 +3,13 @@
 import { useRef, useState } from "react";
 import { Podium } from "./podium";
 import type { StandingsEntry } from "@/lib/standings";
+import { sendDirectMail } from "@/app/actions/direct-mail";
 
 /**
- * A mailto: link can't carry an attachment - there's no such thing as a
- * mailto attachment, in any browser or mail client. So this is a two-step,
- * fully manual flow by necessity: download an image of the podium exactly as
- * rendered here, then the mailto link opens a draft (branch admins in To,
- * warranty head/fellow officer/branch managers in Cc) with the
- * congratulations text ready, for the officer to attach that image to and
- * send themselves. Nothing is sent automatically.
+ * The podium as a picture plus the congratulations e-mail: "Send" captures the
+ * podium exactly as rendered here and sends the mail straight from the
+ * warranty mailbox (branch admins in To, warranty head/fellow officer/branch
+ * managers in Cc) with that image attached. "Download" just saves the image.
  */
 export function PodiumCongrats({
   entries,
@@ -27,9 +25,46 @@ export function PodiumCongrats({
   const podiumRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
 
   const top3 = entries.slice(0, 3);
   if (top3.length === 0) return <Podium entries={entries} />;
+
+  async function capture(): Promise<string> {
+    const { domToPng } = await import("modern-screenshot");
+    const node = podiumRef.current!;
+    node.classList.add("theme-light");
+    try {
+      return await domToPng(node, { backgroundColor: "#ffffff", scale: 2 });
+    } finally {
+      node.classList.remove("theme-light");
+    }
+  }
+
+  async function handleSend() {
+    if (!podiumRef.current) return;
+    setError(null);
+    setSent(null);
+    setSending(true);
+    try {
+      const dataUrl = await capture();
+      const res = await sendDirectMail({
+        kind: "podium-congrats",
+        to: [...new Set(toEmails)],
+        cc: [...new Set(ccEmails)],
+        subject,
+        text: body,
+        attachment: { filename: `podium-${cycleLabel.toLowerCase().replace(/\s+/g, "-")}.png`, mimeType: "image/png", base64: dataUrl.split(",")[1] ?? "" },
+      });
+      if (res.error) setError(res.error);
+      else setSent(`Sent to ${toEmails.length} branch admin${toEmails.length === 1 ? "" : "s"} with the podium image attached.`);
+    } catch {
+      setError("Could not send the e-mail - please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function handleDownload() {
     if (!podiumRef.current) return;
@@ -80,7 +115,6 @@ export function PodiumCongrats({
     "Best regards,",
     "JMM Warranty Team",
   ].join("\n");
-  const mailtoHref = `mailto:${encodeURIComponent(to)}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <div className="space-y-3">
@@ -94,19 +128,20 @@ export function PodiumCongrats({
           disabled={downloading}
           className="rounded-lg border border-neutral-300 bg-white shadow-sm px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
         >
-          {downloading ? "Preparing image..." : "1. Download podium image"}
+          {downloading ? "Preparing image..." : "Download podium image"}
         </button>
-        <a
-          href={mailtoHref}
-          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark"
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={sending || toEmails.length === 0}
+          title={[to && `To: ${to}`, cc && `Cc: ${cc}`].filter(Boolean).join("\n")}
+          className="rounded-lg bg-brand shadow-sm shadow-brand/25 hover:shadow-md hover:shadow-brand/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
         >
-          2. Compose congratulations email
-        </a>
+          {sending ? "Sending..." : "Send congratulations email"}
+        </button>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <p className="text-xs text-neutral-500">
-        Download the image, then attach it to the draft before sending - a mailto link can&apos;t attach files on its own.
-      </p>
+      {sent && <p className="text-xs text-emerald-700">{sent}</p>}
     </div>
   );
 }

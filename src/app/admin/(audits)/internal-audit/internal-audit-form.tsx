@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { previewInternalAuditSample, startInternalAudit, type InternalAuditPreviewClaim } from "./actions";
-import { generateSamplePreviewExcel } from "@/lib/internal-audit-sample-excel";
+import { buildSampleWorkbook, generateSamplePreviewExcel } from "@/lib/internal-audit-sample-excel";
+import { sendDirectMail } from "@/app/actions/direct-mail";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -25,7 +26,7 @@ function buildAuditEmail({
   branchLabel: string;
   auditDate: string;
   auditorName: string;
-}): string {
+}): { to: string[]; subject: string; text: string } {
   const subject = `Internal Audit Notice - ${branchLabel}`;
   const body = [
     `Dear ${branchLabel} team,`,
@@ -38,7 +39,7 @@ function buildAuditEmail({
     "Best regards,",
     auditorName || "",
   ].join("\n");
-  return `mailto:${encodeURIComponent(branchAdminEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return { to: branchAdminEmail.split(/[,;]/).map((e) => e.trim()).filter(Boolean), subject, text: body };
 }
 
 export function InternalAuditForm({ branches, officerName }: { branches: Branch[]; officerName: string }) {
@@ -200,6 +201,30 @@ function SamplePreviewPanel({
   const [managerName, setManagerName] = useState("");
   const [auditDate, setAuditDate] = useState("");
   const showFlag = sampleMode === "flagged";
+  const [mailState, setMailState] = useState<{ sending?: boolean; ok?: string; error?: string }>({});
+
+  async function sendNotice() {
+    if (!branchAdminEmail) return;
+    setMailState({ sending: true });
+    try {
+      const bytes = new Uint8Array(await buildSampleWorkbook(claims));
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const mail = buildAuditEmail({ branchAdminEmail, branchLabel, auditDate, auditorName });
+      const res = await sendDirectMail({
+        kind: "internal-audit-notice",
+        ...mail,
+        attachment: {
+          filename: `Internal_Audit_Sample_${new Date().toISOString().slice(0, 10)}.xlsx`,
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          base64: btoa(bin),
+        },
+      });
+      setMailState(res.error ? { error: res.error } : { ok: `Sent to ${mail.to.join(", ")} with the sample Excel attached.` });
+    } catch {
+      setMailState({ error: "Could not send the e-mail - please try again." });
+    }
+  }
 
   return (
     <div className="space-y-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
@@ -296,29 +321,22 @@ function SamplePreviewPanel({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={!branchAdminEmail}
+          disabled={!branchAdminEmail || mailState.sending}
           title={
             branchAdminEmail ? undefined : "No branch admin email found for this branch (or 'All branches' is selected)."
           }
-          onClick={() => {
-            if (!branchAdminEmail) return;
-            generateSamplePreviewExcel(claims);
-            window.location.href = buildAuditEmail({
-              branchAdminEmail,
-              branchLabel,
-              auditDate,
-              auditorName,
-            });
-          }}
+          onClick={sendNotice}
           className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Send Audit Email to branch admin
+          {mailState.sending ? "Sending..." : "Send Audit Email to branch admin"}
         </button>
-        <p className="text-xs text-neutral-500">
-          Downloads the Excel sheet and opens your email app with the branch admin, subject and message
-          filled in - email links can&apos;t attach files automatically, so attach the file that just
-          downloaded before sending.
-        </p>
+        {mailState.ok ? (
+          <p className="text-xs text-emerald-700">{mailState.ok}</p>
+        ) : mailState.error ? (
+          <p className="text-xs text-red-600">{mailState.error}</p>
+        ) : (
+          <p className="text-xs text-neutral-500">Sends the notice straight to the branch admin from the warranty mailbox, with the sample Excel attached.</p>
+        )}
       </div>
 
       <form action={startAction} className="flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-3">
