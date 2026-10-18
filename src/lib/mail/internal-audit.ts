@@ -4,6 +4,7 @@ import { loadInternalAuditReport } from "@/lib/internal-audit-report-data";
 import { buildInternalAuditPdf, internalAuditPdfName } from "@/lib/internal-audit-pdf";
 import { buildSampleWorkbook, type SampleExcelRow } from "@/lib/internal-audit-sample-excel";
 import { composeMail } from "@/lib/mail/catalog";
+import { ensureInternalAuditFolder, getDriveStatus } from "@/lib/google-drive";
 import { dateLabel } from "@/lib/mail/template";
 import { loadPeople, loadTemplates, recipientsFor } from "@/lib/mail/people";
 import type { PlannedMail } from "@/lib/mail/plans";
@@ -58,17 +59,52 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
   };
 }
 
-/** "Internal Audit Results": to the branch's admins, with the results PDF attached. Null until the audit is finalized (or for all branches). */
-export async function planInternalAuditResults(auditId: string): Promise<PlannedMail | null> {
+/**
+ * "Internal Audit Results": to the branch's admins, with the results PDF attached, a button to the audit on the
+ * portal and one to its Google Drive folder (Internal Audit / branch / month). Null until the audit is finalized
+ * (or for all branches). A saved template without the {link} / {drive_link} lines gets them added at the end.
+ */
+export async function planInternalAuditResults(auditId: string, origin: string): Promise<(PlannedMail & { driveFolderId: string | null }) | null> {
   const admin = createAdminClient();
   const report = await loadInternalAuditReport(admin, auditId);
   if (!report?.audit.branch_id) return null;
   const branchId = report.audit.branch_id;
-  const [people, templates] = await Promise.all([loadPeople(), loadTemplates()]);
+  const [people, templates, { data: audit }, drive] = await Promise.all([
+    loadPeople(),
+    loadTemplates(),
+    admin.from("self_audit_internal_audits").select("audit_date, date_to, created_at").eq("id", auditId).maybeSingle(),
+    getDriveStatus(),
+  ]);
   const t = templates.results;
 
-  const mail = composeMail(t, { branch: report.branchName, score: String(report.overallScore) });
+  let driveFolderId: string | null = null;
+  if (drive && audit) {
+    const iso = audit.audit_date ?? audit.date_to ?? audit.created_at;
+    driveFolderId = await ensureInternalAuditFolder(branchId, report.branchName, `${iso.slice(5, 7)}-${iso.slice(0, 4)}`).catch(() => null);
+  }
+  const vars = {
+    branch: report.branchName,
+    score: String(report.overallScore),
+    link: `${origin}/audit/internal-audit/${auditId}`,
+    drive_link: driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : "",
+  };
+  // Older saved templates do not have the link lines: add them just before the sign-off.
+  let body = t.body;
+  const extra = [
+    !body.includes("{link}") ? "View the audit on the portal: {link}" : null,
+    !body.includes("{drive_link}") && driveFolderId ? "Audit files on Google Drive: {drive_link}" : null,
+  ].filter(Boolean);
+  if (extra.length) {
+    const parts = body.trim().split(/\n{2,}/);
+    const signOff = parts.length > 1 ? parts.pop()! : "";
+    body = [...parts, ...extra, signOff].filter(Boolean).join("\n\n");
+  }
+  // No Drive folder (Drive not connected): drop the Drive line rather than send an empty button.
+  if (!driveFolderId) body = body.split(/\n{2,}/).filter((p) => !p.includes("{drive_link}")).join("\n\n");
+
+  const mail = composeMail({ subject: t.subject, body }, vars);
   return {
+    driveFolderId,
     kind: "internal-audit-results",
     key: `internal-audit-results:${auditId}`,
     branchId,

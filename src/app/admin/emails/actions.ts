@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMailStatus, sendMail } from "@/lib/gmail";
+import { DRIVE_ALLOWED_DOMAIN, shareFolderWithEmails } from "@/lib/google-drive";
 import { siteOrigin } from "@/lib/site-origin";
 import { MAIL_DEFS, MAIL_KEYS_IN_ORDER, SAMPLE_PODIUM, composeMail, sampleVars, validateTemplate, type CcGroup, type MailKey } from "@/lib/mail/catalog";
 import { loadTemplates, VALID_EMAIL } from "@/lib/mail/people";
@@ -46,7 +47,13 @@ export async function sendInternalAuditNotice(auditId: string): Promise<OneMailR
 export async function sendInternalAuditResults(auditId: string): Promise<OneMailResult> {
   const officer = await requireRole("officer");
   if (!(await getMailStatus())) return { error: NOT_CONNECTED };
-  return sendOne(await planInternalAuditResults(auditId), officer.id);
+  const plan = await planInternalAuditResults(auditId, await siteOrigin());
+  // The mail's Drive button only works for people who can see the folder: give the recipients view access first.
+  if (plan?.driveFolderId) {
+    const company = [...plan.to, ...plan.cc].map((e) => e.trim().toLowerCase()).filter((e) => e.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`));
+    await shareFolderWithEmails(plan.driveFolderId, [...new Set(company)]).catch(() => null);
+  }
+  return sendOne(plan, officer.id);
 }
 
 /**

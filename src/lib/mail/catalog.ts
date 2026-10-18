@@ -237,12 +237,18 @@ ${SIGN_OFF}`,
 
 The internal audit for your branch is complete, with an overall score of {score}%. The full report is attached.
 
+View the audit on the portal: {link}
+
+Audit files on Google Drive: {drive_link}
+
 ${SIGN_OFF}`,
     defaultCc: ["head", "service_managers", "officers"],
     attachment: "The results PDF is attached automatically.",
     placeholders: [
       { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
       { name: "score", help: "The overall score (a number, the % sign is in the text).", sample: "86" },
+      { name: "link", help: "The audit's page on the portal (becomes a button).", sample: "https://self-audit-system.vercel.app/audit/internal-audit/0f8c2d1e-6b7a-4c3d-9e2f-1a2b3c4d5e6f" },
+      { name: "drive_link", help: "The audit's Google Drive folder - Internal Audit / branch / month (becomes a button; the recipients get view access).", sample: "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz" },
     ],
   },
   inquiry_new: {
