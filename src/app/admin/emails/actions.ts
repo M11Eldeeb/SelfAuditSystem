@@ -87,6 +87,33 @@ export async function sendSampleMail(key: MailKey): Promise<{ error?: string; se
   if (!(await getMailStatus())) return { error: "Connect the e-mail sender first." };
   const def = MAIL_DEFS[key];
   if (!def) return { error: "Unknown e-mail." };
+  // The results mail's sample is the latest finalized audit's real mail - scores, links and the report PDF attached.
+  if (key === "results") {
+    const { data: latest } = await createAdminClient()
+      .from("self_audit_internal_audits")
+      .select("id")
+      .eq("status", "finalized")
+      .not("branch_id", "is", null)
+      .order("finalized_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    const plan = latest ? await planInternalAuditResults(latest.id, await siteOrigin()) : null;
+    if (plan) {
+      const result = await sendMail({
+        kind: "sample",
+        to: [officer.email],
+        sentBy: officer.id,
+        subject: `[SAMPLE] ${plan.subject}`,
+        text: `(This is a sample of the latest finalized audit - it was sent only to you.)
+
+${plan.text}`,
+        html: plan.html,
+        attachments: plan.attachments,
+      });
+      revalidatePath("/admin/emails");
+      return result.ok ? { sentTo: officer.email } : { error: result.error };
+    }
+  }
   const t = (await loadTemplates())[key];
   const mail = composeMail(t, sampleVars(def), key === "podium" ? SAMPLE_PODIUM : undefined, key === "results" ? SAMPLE_DEPARTMENTS : undefined);
 
