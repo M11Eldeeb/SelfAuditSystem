@@ -29,6 +29,16 @@ function revalidateAll() {
   for (const p of ["/workshop/technical-inquiries", "/audit/technical-inquiries", "/technical/technical-inquiries", "/admin/technical-inquiries", "/admin/dashboard", "/audit/dashboard"]) revalidatePath(p);
 }
 
+/** Always in Cc of a new request. */
+const WARRANTY_TEAM_CC = "warranty.team@jiadmotors.com";
+
+/** Cc of an answer (code / rejection): the technical team, plus whoever answered if they are not on it (e.g. an officer). */
+async function answerCc(user: { email: string | null; role: string }): Promise<string[]> {
+  const team = await emailsOfRole(["technical"]);
+  const me = user.email?.trim().toLowerCase();
+  return me && user.role !== "technical" && !team.includes(me) ? [...team, me] : team;
+}
+
 const SIGN_OFF = "Thank you,\nWarranty Department - Jiad Modern Motors";
 
 /** Submits a request from the workshop and e-mails the technical team. */
@@ -113,6 +123,7 @@ export async function createVerificationRequest(input: {
       const res = await sendMail({
         kind: "verification-request",
         to,
+        cc: [WARRANTY_TEAM_CC],
         subject: `Verification Code Request VC-${String(row.request_no).padStart(4, "0")} - ${branchName} - ${moduleName}`,
         text: mail.text,
         html: mail.html,
@@ -156,6 +167,7 @@ export async function closeVerificationRequest(id: string, code: string): Promis
       const res = await sendMail({
         kind: "verification-code",
         to: [requester.email],
+        cc: await answerCc(user),
         subject: `Verification Code VC-${String(row.request_no).padStart(4, "0")} - ${row.module_name} - ${row.vin}`,
         text: mail.text,
         html: mail.html,
@@ -200,6 +212,7 @@ export async function rejectVerificationRequest(id: string, reason: string): Pro
       const res = await sendMail({
         kind: "verification-rejected",
         to: [requester.email],
+        cc: await answerCc(user),
         subject: `Verification Code Request VC-${String(row.request_no).padStart(4, "0")} rejected - ${row.module_name} - ${row.vin}`,
         text: mail.text,
         html: mail.html,
