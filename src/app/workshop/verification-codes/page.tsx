@@ -2,9 +2,6 @@ import { requireAnyRole } from "@/lib/auth";
 import { VerificationRequestForm } from "@/components/verification-codes/request-form";
 import { VerificationRequestsSection } from "@/components/verification-codes/requests-section";
 
-// Reading a photo calls Claude, which can take a few seconds.
-export const maxDuration = 60;
-
 export default async function WorkshopVerificationCodesPage() {
   const user = await requireAnyRole(["workshop_supervisor", "team_leader"]);
   return (

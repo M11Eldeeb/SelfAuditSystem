@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createVerificationRequest, readVerificationPhoto } from "@/app/actions/verification-requests";
+import { createVerificationRequest } from "@/app/actions/verification-requests";
+import { readMileage, readVin } from "./ocr";
 import { CopyText } from "./copy-text";
 
 type Photo = { base64: string; mimeType: string; preview: string };
@@ -48,9 +49,9 @@ function PhotoField({
     try {
       const p = await shrink(file);
       onPhoto(p);
-      const res = await readVerificationPhoto(kind, { base64: p.base64, mimeType: p.mimeType });
-      if (res.value) onValue(res.value);
-      else setNote(res.error ?? "Could not read the photo - type it in.");
+      const value = await (kind === "vin" ? readVin(p.preview) : readMileage(p.preview));
+      if (value) onValue(value);
+      else setNote(kind === "vin" ? "Could not read a 17-character VIN - take a closer, straight photo or type it in." : "Could not read the mileage - take a closer photo or type it in.");
     } catch {
       setNote("Could not open the photo - try again.");
     } finally {
@@ -71,7 +72,8 @@ function PhotoField({
         )}
         {photo && <span className="text-xs">Retake</span>}
       </label>
-      {reading && <p className="text-xs text-blue-700">Reading the photo...</p>}
+      {reading && <p className="text-xs text-blue-700">Reading the photo... (the first time takes a few seconds)</p>}
+      {value && !reading && <p className="text-[11px] text-neutral-500">Check it against the photo before sending.</p>}
       {note && <p className="text-xs text-amber-700">{note}</p>}
       <div className="flex items-center gap-2">
         <input

@@ -1,6 +1,5 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
@@ -20,49 +19,6 @@ type ImageType = (typeof IMAGE_TYPES)[number];
 
 function checkPhoto(p: Photo | null | undefined): p is Photo & { mimeType: ImageType } {
   return !!p && (IMAGE_TYPES as readonly string[]).includes(p.mimeType) && p.base64.length > 0 && p.base64.length * 0.75 <= MAX_PHOTO_BYTES;
-}
-
-const PROMPTS = {
-  vin: "This photo shows a vehicle VIN (17 characters, on a plate, sticker, windscreen or chassis stamp). Reply with the VIN only - 17 characters, capital letters and digits, no spaces. VINs never contain I, O or Q. If you cannot read a full VIN, reply UNREADABLE.",
-  mileage: "This photo shows a vehicle's instrument cluster / odometer. Reply with the total odometer reading in km as digits only (no unit, no separators) - not the trip meter, not the range. If you cannot read it, reply UNREADABLE.",
-} as const;
-
-/** Reads the VIN or the odometer from a phone photo with Claude's vision; the user can still correct the result. */
-export async function readVerificationPhoto(kind: "vin" | "mileage", photo: Photo): Promise<{ value?: string; error?: string }> {
-  await requireAnyRole([...WORKSHOP_ROLES]);
-  if (!checkPhoto(photo)) return { error: "Take a photo (JPG or PNG, under 8 MB)." };
-  if (!process.env.ANTHROPIC_API_KEY) return { error: "Reading photos is not set up - type it in." };
-  try {
-    const client = new Anthropic();
-    const response = await client.beta.messages.create({
-      model: "claude-opus-5-5",
-      max_tokens: 2000,
-      output_config: { effort: "low" },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: photo.mimeType, data: photo.base64 } },
-            { type: "text", text: PROMPTS[kind] },
-          ],
-        },
-      ],
-    });
-    if (response.stop_reason === "refusal") return { error: "Could not read the photo - type it in." };
-    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ").trim().toUpperCase();
-    if (kind === "vin") {
-      const vin = text.replace(/[^A-Z0-9]/g, "");
-      if (!VIN_RE.test(vin)) return { error: "Could not read a 17-character VIN - take a closer photo or type it in." };
-      return { value: vin };
-    }
-    const km = text.replace(/[^0-9]/g, "");
-    if (!km || text.includes("UNREADABLE")) return { error: "Could not read the mileage - take a closer photo or type it in." };
-    return { value: String(Number(km)) };
-  } catch {
-    return { error: "Could not read the photo - type it in." };
-  }
 }
 
 async function emailsOfRole(roles: string[]): Promise<string[]> {
