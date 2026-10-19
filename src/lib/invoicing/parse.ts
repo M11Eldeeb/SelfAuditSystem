@@ -12,8 +12,30 @@ export type InvoicingRow = {
   account_name: string;
   owing_operator: string;
   sales_type: string;
+  department: string;
   amount: number;
   lines: number;
+};
+
+/** One report line as it is (for "show me the lines behind this visual"). */
+export type InvoicingDetail = {
+  month: string;
+  invoice_date: string | null;
+  source: "labor" | "parts";
+  branch: string;
+  account_code: string;
+  account_name: string;
+  owing_operator: string;
+  sales_type: string;
+  department: string;
+  wip: string;
+  invoice_no: string;
+  vin: string;
+  item: string;
+  description: string;
+  customer: string;
+  qty: number | null;
+  amount: number;
 };
 
 type Cell = ExcelJS.CellValue;
@@ -60,11 +82,13 @@ function columns(header: Cell[], wanted: Record<string, string[]>): Record<strin
   const out: Record<string, number> = {};
   for (const [key, names] of Object.entries(wanted)) {
     const hit = names.map((n) => idx.get(norm(n))).find((i) => i != null);
-    if (hit == null && key !== "salesType" && key !== "branch2" && key !== "accountName") throw new Error(`Column "${names[0]}" not found.`);
+    if (hit == null && !OPTIONAL.has(key)) throw new Error(`Column "${names[0]}" not found.`);
     out[key] = hit ?? -1;
   }
   return out;
 }
+
+const OPTIONAL = new Set(["salesType", "branch2", "accountName", "department", "wip", "invoice", "vin", "item", "description", "customer", "qty"]);
 
 const LABOR_COLS = {
   branch2: ["Branch Code2"],
@@ -77,6 +101,14 @@ const LABOR_COLS = {
   st: ["ST"],
   date: ["Invoiced Date"],
   amount: ["Sales Value"],
+  department: ["Department"],
+  wip: ["WIP Number"],
+  invoice: ["Invoice Number"],
+  vin: ["VIN"],
+  item: ["RTS Code"],
+  description: ["Description"],
+  customer: ["Customer S Name"],
+  qty: ["Hours Sold", "Allowed Time"],
 };
 const PARTS_COLS = {
   branch2: ["Branch"],
@@ -89,13 +121,21 @@ const PARTS_COLS = {
   st: ["Sale Type"],
   date: ["Invoice Date"],
   amount: ["Sales Value"],
+  department: ["Department8", "Department"],
+  wip: ["WIP Number"],
+  invoice: ["Invoice Number"],
+  vin: ["VIN"],
+  item: ["Part Number"],
+  description: ["Description"],
+  customer: ["Customer Contact", "Account Name"],
+  qty: ["Order QTY"],
 };
 
 /**
  * Reads the KH9-Labor and MG5-Parts sheets of the daily report (streamed: the file is ~11 MB with a dozen other sheets)
  * and sums Sales Value per day / branch / account / owing operator / sales type.
  */
-export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: InvoicingRow[]; laborLines: number; partLines: number; months: string[] }> {
+export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: InvoicingRow[]; details: InvoicingDetail[]; laborLines: number; partLines: number; months: string[] }> {
   const reader = new ExcelJS.stream.xlsx.WorkbookReader(Readable.from(bytes), {
     sharedStrings: "cache",
     hyperlinks: "ignore",
@@ -104,6 +144,7 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
     entries: "emit",
   });
   const groups = new Map<string, InvoicingRow>();
+  const details: InvoicingDetail[] = [];
   const counts = { labor: 0, parts: 0 };
   const seen = { labor: false, parts: false };
 
@@ -137,12 +178,33 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
         account_name: text(get("accountName")).slice(0, 200),
         owing_operator: text(get("owing")),
         sales_type: salesType,
+        department: text(get("department")).slice(0, 60),
         amount: num(get("amount")),
         lines: 1,
       };
       if (!r.month) continue;
       counts[source]++;
-      const key = [r.source, r.invoice_date, r.branch, r.branch_name, r.account_code, r.account_name, r.owing_operator, r.sales_type].join("|");
+      const qty = get("qty");
+      details.push({
+        month: r.month,
+        invoice_date: r.invoice_date,
+        source,
+        branch,
+        account_code: r.account_code,
+        account_name: r.account_name,
+        owing_operator: r.owing_operator,
+        sales_type: salesType,
+        department: r.department,
+        wip: text(get("wip")).slice(0, 30),
+        invoice_no: text(get("invoice")).slice(0, 30),
+        vin: text(get("vin")).slice(0, 30),
+        item: text(get("item")).slice(0, 60),
+        description: text(get("description")).slice(0, 200),
+        customer: text(get("customer")).slice(0, 120),
+        qty: qty == null || qty === "" ? null : Math.round(num(qty) * 100) / 100,
+        amount: Math.round(r.amount * 100) / 100,
+      });
+      const key = [r.source, r.invoice_date, r.branch, r.branch_name, r.account_code, r.account_name, r.owing_operator, r.sales_type, r.department].join("|");
       const g = groups.get(key);
       if (g) {
         g.amount += r.amount;
@@ -152,5 +214,5 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
   }
   if (!seen.labor || !seen.parts) throw new Error(`The report has no ${!seen.labor ? "KH9-Labor" : "MG5-Parts"} sheet.`);
   const rows = [...groups.values()].map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
-  return { rows, laborLines: counts.labor, partLines: counts.parts, months: [...new Set(rows.map((r) => r.month))].sort() };
+  return { rows, details, laborLines: counts.labor, partLines: counts.parts, months: [...new Set(rows.map((r) => r.month))].sort() };
 }

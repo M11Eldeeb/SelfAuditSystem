@@ -3,6 +3,31 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchLatestReport, getInvoicingConnection, InvoicingError } from "./gmail-reader";
 import { parseInvoicingReport } from "./parse";
 
+/** Replaces the months in `parsed` (summary rows and every line). Returns an error message, or null. */
+export async function saveParsed(parsed: Awaited<ReturnType<typeof parseInvoicingReport>>): Promise<string | null> {
+  const admin = createAdminClient();
+  for (const table of ["self_audit_invoicing_lines", "self_audit_invoicing_detail"] as const) {
+    const { error } = await admin.from(table).delete().in("month", parsed.months);
+    if (error) return error.message;
+  }
+  // ~35k rows a month: batches of 2,000 sent 6 at a time keep the import well inside the 60 s limit.
+  const batches: (() => PromiseLike<{ error: { message: string } | null }>)[] = [];
+  for (let i = 0; i < parsed.rows.length; i += 2000) {
+    const chunk = parsed.rows.slice(i, i + 2000);
+    batches.push(() => admin.from("self_audit_invoicing_lines").insert(chunk));
+  }
+  for (let i = 0; i < parsed.details.length; i += 2000) {
+    const chunk = parsed.details.slice(i, i + 2000);
+    batches.push(() => admin.from("self_audit_invoicing_detail").insert(chunk));
+  }
+  for (let i = 0; i < batches.length; i += 6) {
+    const results = await Promise.all(batches.slice(i, i + 6).map((run) => run()));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) return failed.error.message;
+  }
+  return null;
+}
+
 export type ImportResult =
   | { status: "imported"; fileName: string; receivedAt: string; laborLines: number; partLines: number }
   | { status: "unchanged"; receivedAt: string | null }
@@ -27,12 +52,8 @@ export async function importLatestInvoicingReport(opts: { force?: boolean; userI
     const parsed = await parseInvoicingReport(report.bytes);
     if (!parsed.rows.length) return { status: "error", error: "The report's labor and parts sheets are empty." };
 
-    const { error: delError } = await admin.from("self_audit_invoicing_lines").delete().in("month", parsed.months);
-    if (delError) return { status: "error", error: delError.message };
-    for (let i = 0; i < parsed.rows.length; i += 1000) {
-      const { error } = await admin.from("self_audit_invoicing_lines").insert(parsed.rows.slice(i, i + 1000));
-      if (error) return { status: "error", error: error.message };
-    }
+    const saved = await saveParsed(parsed);
+    if (saved) return { status: "error", error: saved };
     await admin.from("self_audit_invoicing_imports").insert({
       gmail_message_id: report.messageId,
       subject: report.subject.slice(0, 300),

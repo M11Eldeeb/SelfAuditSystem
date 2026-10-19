@@ -897,6 +897,31 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_imports"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_invoicing_detail: {
+        Row: {
+          id: number;
+          month: string;
+          invoice_date: string | null;
+          source: "labor" | "parts";
+          branch: string;
+          account_code: string;
+          account_name: string;
+          owing_operator: string;
+          sales_type: string;
+          department: string;
+          wip: string;
+          invoice_no: string;
+          vin: string;
+          item: string;
+          description: string;
+          customer: string;
+          qty: number | null;
+          amount: number;
+        };
+        Insert: Omit<Database["public"]["Tables"]["self_audit_invoicing_detail"]["Row"], "id">;
+        Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_detail"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_invoicing_lines: {
         Row: {
           id: number;
@@ -909,10 +934,12 @@ export interface Database {
           account_name: string;
           owing_operator: string;
           sales_type: string;
+          department: string;
           amount: number;
           lines: number;
         };
         Insert: {
+          department?: string;
           month: string;
           invoice_date?: string | null;
           source: "labor" | "parts";
@@ -1460,6 +1487,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      invoicing_counts: {
+        Args: { p_month: string; p_type: string; p_account: string; p_branch: string; p_operator: string };
+        Returns: { work_orders: number; lines: number }[];
+      };
       save_internal_audit_claim_answers: {
         Args: {
           p_audit_id: string;

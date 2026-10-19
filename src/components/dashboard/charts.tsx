@@ -299,7 +299,7 @@ export function Meter({ pct, color = C.red, height = "h-2", tip }: { pct: number
 }
 
 /** Donut of a few segments with a big number in the middle. */
-export function Donut({ segments, center, caption }: { segments: Segment[]; center: string; caption: string }) {
+export function Donut({ segments, center, caption, onSelect }: { segments: Segment[]; center: string; caption: string; onSelect?: (label: string) => void }) {
   const r = 38;
   const circ = 2 * Math.PI * r;
   const total = segments.reduce((s, x) => s + Math.max(x.value, 0), 0) || 1;
@@ -325,7 +325,8 @@ export function Donut({ segments, center, caption }: { segments: Segment[]; cent
             strokeWidth="12"
             strokeDasharray={`${s.len} ${circ}`}
             strokeDashoffset={-s.start}
-            className="cursor-default transition-[stroke-width] hover:[stroke-width:14]"
+            className={`${onSelect ? "cursor-pointer" : "cursor-default"} transition-[stroke-width] hover:[stroke-width:14]`}
+            onClick={onSelect ? () => onSelect(s.label) : undefined}
             {...bind(
               <TipCard
                 title={s.label}
