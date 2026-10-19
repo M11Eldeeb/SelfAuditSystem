@@ -139,3 +139,131 @@ export async function getInvoicingDetails(month: string, f: InvoicingFilter, pag
     })),
   };
 }
+
+const DETAIL_COLUMNS = "invoice_date, source, branch, account_code, account_name, owing_operator, sales_type, department, wip, invoice_no, vin, item, description, customer, qty, amount" as const;
+
+/** Export: every line behind the current view (up to 30,000), in the same shape as the drill-down. */
+export async function getInvoicingExport(month: string, f: InvoicingFilter): Promise<InvoicingDetailRow[]> {
+  await requireRole("officer");
+  const out: InvoicingDetailRow[] = [];
+  for (let from = 0; from < 30000; from += 1000) {
+    let q = createAdminClient().from("self_audit_invoicing_detail").select(DETAIL_COLUMNS).eq("month", month);
+    if (f.type) q = q.eq("sales_type", f.type);
+    if (f.account) q = q.eq("account_code", f.account);
+    if (f.branch) q = q.eq("branch", f.branch);
+    if (f.operator) q = q.eq("owing_operator", f.operator);
+    if (f.source) q = q.eq("source", f.source);
+    if (f.day) q = q.eq("invoice_date", f.day);
+    if (f.department) q = q.eq("department", f.department);
+    const { data } = await q.order("id").range(from, from + 999);
+    for (const r of data ?? [])
+      out.push({
+        date: r.invoice_date,
+        source: r.source,
+        branch: r.branch,
+        account: r.account_code,
+        accountName: r.account_name,
+        operator: r.owing_operator,
+        type: r.sales_type,
+        department: r.department,
+        wip: r.wip,
+        invoice: r.invoice_no,
+        vin: r.vin,
+        item: r.item,
+        description: r.description,
+        customer: r.customer,
+        qty: r.qty == null ? null : Number(r.qty),
+        amount: Number(r.amount),
+      });
+    if ((data ?? []).length < 1000) break;
+  }
+  return out;
+}
+
+/** Month totals (labor / parts, per department) for the trend chart - every month imported so far. */
+export async function getInvoicingMonthly(f: InvoicingFilter): Promise<{ month: string; source: string; department: string; amount: number; lines: number }[]> {
+  await requireRole("officer");
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("invoicing_monthly", { p_type: f.type ?? "", p_account: f.account ?? "", p_branch: f.branch ?? "", p_operator: f.operator ?? "" });
+  return (data ?? []).map((r) => ({ month: String(r.month).slice(0, 10), source: r.source, department: r.department, amount: Number(r.amount), lines: Number(r.lines) }));
+}
+
+export type UnclaimedLine = InvoicingDetailRow & {
+  key: string;
+  mark: { status: "resolved" | "credit_note"; note: string | null; by: string | null; at: string } | null;
+};
+
+/** Warranty lines invoiced without a claim number (the month's lines, plus any marks made on them). */
+export async function getUnclaimedWarranty(month: string): Promise<UnclaimedLine[]> {
+  await requireRole("officer");
+  const admin = createAdminClient();
+  const [{ data: lines }, { data: marks }] = await Promise.all([
+    admin.from("self_audit_invoicing_detail").select(`${DETAIL_COLUMNS}, line_key`).eq("month", month).eq("sales_type", "Warranty").eq("claim_no", "").order("invoice_date").limit(2000),
+    admin.from("self_audit_invoicing_unclaimed_marks").select("line_key, status, note, marked_by_name, marked_at").eq("month", month),
+  ]);
+  const markOf = new Map((marks ?? []).map((m) => [m.line_key, m]));
+  return (lines ?? []).map((r) => {
+    const m = markOf.get(r.line_key);
+    return {
+      key: r.line_key,
+      date: r.invoice_date,
+      source: r.source,
+      branch: r.branch,
+      account: r.account_code,
+      accountName: r.account_name,
+      operator: r.owing_operator,
+      type: r.sales_type,
+      department: r.department,
+      wip: r.wip,
+      invoice: r.invoice_no,
+      vin: r.vin,
+      item: r.item,
+      description: r.description,
+      customer: r.customer,
+      qty: r.qty == null ? null : Number(r.qty),
+      amount: Number(r.amount),
+      mark: m ? { status: m.status, note: m.note, by: m.marked_by_name, at: m.marked_at } : null,
+    };
+  });
+}
+
+/** Marks warranty lines without a claim number as resolved or credit note (a copy of each line is kept with the mark). */
+export async function markUnclaimed(month: string, keys: string[], status: "resolved" | "credit_note", note: string): Promise<{ error?: string }> {
+  const officer = await requireRole("officer");
+  if (!keys.length) return { error: "Select at least one line." };
+  if (status !== "resolved" && status !== "credit_note") return { error: "Unknown status." };
+  const admin = createAdminClient();
+  const { data: lines } = await admin
+    .from("self_audit_invoicing_detail")
+    .select("line_key, invoice_date, source, branch, wip, invoice_no, item, description, amount")
+    .eq("month", month)
+    .in("line_key", keys.slice(0, 500));
+  if (!lines?.length) return { error: "Those lines are no longer in the report - refresh the page." };
+  const { error } = await admin.from("self_audit_invoicing_unclaimed_marks").upsert(
+    lines.map((l) => ({
+      line_key: l.line_key,
+      status,
+      note: note.trim().slice(0, 500) || null,
+      month,
+      invoice_date: l.invoice_date,
+      source: l.source,
+      branch: l.branch,
+      wip: l.wip,
+      invoice_no: l.invoice_no,
+      item: l.item,
+      description: l.description,
+      amount: l.amount,
+      marked_by: officer.id,
+      marked_by_name: officer.full_name ?? officer.email,
+      marked_at: new Date().toISOString(),
+    }))
+  );
+  return error ? { error: error.message } : {};
+}
+
+/** Takes the mark off (the line shows as open again). */
+export async function clearUnclaimedMark(keys: string[]): Promise<{ error?: string }> {
+  await requireRole("officer");
+  const { error } = await createAdminClient().from("self_audit_invoicing_unclaimed_marks").delete().in("line_key", keys.slice(0, 500));
+  return error ? { error: error.message } : {};
+}

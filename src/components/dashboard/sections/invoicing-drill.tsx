@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getInvoicingDetails, type InvoicingDetailRow, type InvoicingFilter } from "@/app/admin/dashboard/invoicing-actions";
+import { getInvoicingDetails, getInvoicingExport, type InvoicingDetailRow, type InvoicingFilter } from "@/app/admin/dashboard/invoicing-actions";
+import { downloadXlsx, LINE_COLUMNS } from "./invoicing-export";
 import { Sar } from "@/components/dashboard/riyal";
 
 export type Drill = { title: string; filter: InvoicingFilter; total?: number };
@@ -13,6 +14,17 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
   const [page, setPage] = useState(0);
   const [state, setState] = useState<{ rows: InvoicingDetailRow[]; total: number; pageSize: number; page: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  async function exportAll() {
+    setExporting(true);
+    try {
+      await downloadXlsx(`${drill.title.slice(0, 120)}.xlsx`, "Lines", LINE_COLUMNS, await getInvoicingExport(month, drill.filter));
+    } catch {
+      setError("The export failed - please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
   const loading = !state || state.page !== page;
 
   useEffect(() => {
@@ -37,10 +49,10 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label={drill.title}>
       <div className="flex max-h-full w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e5eeff] px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div>
-            <h3 className="font-display text-lg font-semibold text-[#0b1c30]">{drill.title}</h3>
-            <p className="text-xs text-[#575e70]">
+            <h3 className="font-display text-lg font-semibold text-slate-900">{drill.title}</h3>
+            <p className="text-xs text-slate-500">
               {state ? `${state.total.toLocaleString("en-US")} lines` : "Loading..."}
               {drill.total != null && (
                 <>
@@ -51,12 +63,15 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={() => void exportAll()} disabled={exporting || !state?.total} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40">
+              {exporting ? "Exporting..." : "⬇ Export to Excel"}
+            </button>
             {onFilter && (
-              <button type="button" onClick={onFilter} className="rounded-lg border border-[#c0c6db] px-3 py-1.5 text-xs font-semibold text-[#0b1c30] hover:bg-[#eff4ff]">
+              <button type="button" onClick={onFilter} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-slate-50">
                 Filter the dashboard by this
               </button>
             )}
-            <button type="button" onClick={onClose} className="rounded-lg bg-[#0b1c30] px-3 py-1.5 text-xs font-semibold text-white">
+            <button type="button" onClick={onClose} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
               Close
             </button>
           </div>
@@ -64,7 +79,7 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
         {error && <p className="m-4 rounded-lg bg-[#ffdad6] px-3 py-2 text-sm text-[#93000a]">{error}</p>}
         <div className={`min-h-0 flex-1 overflow-auto transition-opacity ${loading ? "opacity-50" : ""}`}>
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[#eff4ff] text-left text-[11px] font-bold tracking-wide text-[#575e70] uppercase">
+            <thead className="sticky top-0 bg-slate-50 text-left text-[11px] font-bold tracking-wide text-slate-500 uppercase">
               <tr>
                 {["Date", "Type", "Branch", "WIP", "Invoice", "Account", "Owing operator", "Sales type", "Department", "VIN", "Code", "Description", "Customer", "Qty", "Amount (SAR)"].map((h) => (
                   <th key={h} className={`px-2 py-2 whitespace-nowrap ${h === "Qty" || h.startsWith("Amount") ? "text-right" : ""}`}>
@@ -73,9 +88,9 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#eff4ff]">
+            <tbody className="divide-y divide-slate-100">
               {state?.rows.map((r, i) => (
-                <tr key={i} className="hover:bg-[#f8faff]">
+                <tr key={i} className="hover:bg-slate-50">
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.date}</td>
                   <td className="px-2 py-1.5">{r.source === "labor" ? "Labor" : "Parts"}</td>
                   <td className="px-2 py-1.5">{r.branch}</td>
@@ -101,7 +116,7 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
               ))}
               {state && state.rows.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="py-8 text-center text-sm text-[#575e70]">
+                  <td colSpan={15} className="py-8 text-center text-sm text-slate-500">
                     No lines.
                   </td>
                 </tr>
@@ -110,14 +125,14 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
           </table>
         </div>
         {pages > 1 && (
-          <div className="flex items-center justify-end gap-2 border-t border-[#e5eeff] px-4 py-2 text-xs">
-            <button type="button" disabled={page === 0 || loading} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-[#c0c6db] px-2.5 py-1 disabled:opacity-40">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-2 text-xs">
+            <button type="button" disabled={page === 0 || loading} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 px-2.5 py-1 disabled:opacity-40">
               Previous
             </button>
-            <span className="text-[#575e70]">
+            <span className="text-slate-500">
               Page {page + 1} of {pages}
             </span>
-            <button type="button" disabled={page >= pages - 1 || loading} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-[#c0c6db] px-2.5 py-1 disabled:opacity-40">
+            <button type="button" disabled={page >= pages - 1 || loading} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 px-2.5 py-1 disabled:opacity-40">
               Next
             </button>
           </div>

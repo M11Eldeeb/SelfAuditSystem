@@ -36,6 +36,9 @@ export type InvoicingDetail = {
   customer: string;
   qty: number | null;
   amount: number;
+  claim_no: string;
+  /** Stable across re-imports of the same month (marks on lines are kept by it). */
+  line_key: string;
 };
 
 type Cell = ExcelJS.CellValue;
@@ -88,7 +91,7 @@ function columns(header: Cell[], wanted: Record<string, string[]>): Record<strin
   return out;
 }
 
-const OPTIONAL = new Set(["salesType", "branch2", "accountName", "department", "wip", "invoice", "vin", "item", "description", "customer", "qty"]);
+const OPTIONAL = new Set(["salesType", "branch2", "accountName", "department", "wip", "invoice", "vin", "item", "description", "customer", "qty", "claim", "lineNo"]);
 
 const LABOR_COLS = {
   branch2: ["Branch Code2"],
@@ -109,6 +112,8 @@ const LABOR_COLS = {
   description: ["Description"],
   customer: ["Customer S Name"],
   qty: ["Hours Sold", "Allowed Time"],
+  claim: ["Claim Order No."],
+  lineNo: ["Actual Line No(sort)"],
 };
 const PARTS_COLS = {
   branch2: ["Branch"],
@@ -129,6 +134,7 @@ const PARTS_COLS = {
   description: ["Description"],
   customer: ["Customer Contact", "Account Name"],
   qty: ["Order QTY"],
+  claim: ["Claim no."],
 };
 
 /**
@@ -145,6 +151,7 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
   });
   const groups = new Map<string, InvoicingRow>();
   const details: InvoicingDetail[] = [];
+  const keyUses = new Map<string, number>();
   const counts = { labor: 0, parts: 0 };
   const seen = { labor: false, parts: false };
 
@@ -185,6 +192,15 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
       if (!r.month) continue;
       counts[source]++;
       const qty = get("qty");
+      const wip = text(get("wip")).slice(0, 30);
+      const invoiceNo = text(get("invoice")).slice(0, 30);
+      const item = text(get("item")).slice(0, 60);
+      const amount = Math.round(r.amount * 100) / 100;
+      const claim = text(get("claim"));
+      // Labor has its own line number; parts lines are told apart by part, quantity and amount (+ a counter for exact repeats).
+      const baseKey = [source, branch, invoiceNo, wip, source === "labor" ? text(get("lineNo")) : `${item}|${text(qty)}|${amount}`].join("|");
+      const n = (keyUses.get(baseKey) ?? 0) + 1;
+      keyUses.set(baseKey, n);
       details.push({
         month: r.month,
         invoice_date: r.invoice_date,
@@ -195,14 +211,16 @@ export async function parseInvoicingReport(bytes: Buffer): Promise<{ rows: Invoi
         owing_operator: r.owing_operator,
         sales_type: salesType,
         department: r.department,
-        wip: text(get("wip")).slice(0, 30),
-        invoice_no: text(get("invoice")).slice(0, 30),
+        wip,
+        invoice_no: invoiceNo,
         vin: text(get("vin")).slice(0, 30),
-        item: text(get("item")).slice(0, 60),
+        item,
         description: text(get("description")).slice(0, 200),
         customer: text(get("customer")).slice(0, 120),
         qty: qty == null || qty === "" ? null : Math.round(num(qty) * 100) / 100,
-        amount: Math.round(r.amount * 100) / 100,
+        amount,
+        claim_no: claim === "0" ? "" : claim.slice(0, 40),
+        line_key: n > 1 ? `${baseKey}#${n}` : baseKey,
       });
       const key = [r.source, r.invoice_date, r.branch, r.branch_name, r.account_code, r.account_name, r.owing_operator, r.sales_type, r.department].join("|");
       const g = groups.get(key);

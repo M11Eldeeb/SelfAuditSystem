@@ -897,6 +897,28 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_imports"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_invoicing_unclaimed_marks: {
+        Row: {
+          line_key: string;
+          status: "resolved" | "credit_note";
+          note: string | null;
+          month: string;
+          invoice_date: string | null;
+          source: string;
+          branch: string;
+          wip: string;
+          invoice_no: string;
+          item: string;
+          description: string;
+          amount: number;
+          marked_by: string | null;
+          marked_by_name: string | null;
+          marked_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["self_audit_invoicing_unclaimed_marks"]["Row"], "marked_at"> & { marked_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_unclaimed_marks"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_invoicing_detail: {
         Row: {
           id: number;
@@ -917,6 +939,8 @@ export interface Database {
           customer: string;
           qty: number | null;
           amount: number;
+          claim_no: string;
+          line_key: string;
         };
         Insert: Omit<Database["public"]["Tables"]["self_audit_invoicing_detail"]["Row"], "id">;
         Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_detail"]["Insert"]>;
@@ -1487,6 +1511,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      invoicing_monthly: {
+        Args: { p_type: string; p_account: string; p_branch: string; p_operator: string };
+        Returns: { month: string; source: string; department: string; amount: number; lines: number }[];
+      };
       invoicing_counts: {
         Args: { p_month: string; p_type: string; p_account: string; p_branch: string; p_operator: string };
         Returns: { work_orders: number; lines: number }[];
