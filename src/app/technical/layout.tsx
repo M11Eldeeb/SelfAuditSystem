@@ -9,7 +9,7 @@ export default async function TechnicalLayout({ children }: { children: ReactNod
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[{ href: "/technical/technical-inquiries", label: "Technical Inquiries", badge }]} />
+      <NavBar user={user} links={[{ href: "/technical/technical-inquiries", label: "Technical Inquiries & Verification Codes", badge }]} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
     </div>
   );

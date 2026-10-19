@@ -86,13 +86,18 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries &amp; Verification Codes</h1>
           <p className="text-sm text-neutral-600">
             {isBranch ? "Ask the technical team for a verification code - you get it by e-mail." : "Verification code requests from the workshops: send the code, or reject with a reason."}
           </p>
         </div>
         {viewSwitch}
-        {newRequest}
+        {isBranch && (
+          <section className="space-y-3 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
+            <div className="text-sm font-semibold text-neutral-900">New verification code request</div>
+            <VerificationRequestForm />
+          </section>
+        )}
         {role === "officer" && <OcrAccuracy />}
         <VerificationRequestsSection user={user} canAnswer={!isBranch} openId={params.open} />
       </div>
@@ -168,7 +173,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries &amp; Verification Codes</h1>
           <p className="text-sm text-neutral-600">
             {isBranch
               ? "Escalate a workshop problem to the technical team, follow their answer and reply."
