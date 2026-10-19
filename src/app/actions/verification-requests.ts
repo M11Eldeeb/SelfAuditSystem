@@ -11,7 +11,6 @@ import { siteOrigin } from "@/lib/site-origin";
 const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader"] as const;
 const ANSWER_ROLES = ["technical", "officer"] as const;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
-const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
 
 type Photo = { base64: string; mimeType: string };
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
@@ -47,7 +46,8 @@ export async function createVerificationRequest(input: {
   const user = await requireAnyRole([...WORKSHOP_ROLES]);
   if (!user.branch_id) return { error: "Your account has no branch." };
   const vin = input.vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!VIN_RE.test(vin)) return { error: "The VIN must be 17 characters (letters and digits, no I, O or Q)." };
+  if (!vin) return { error: "Enter the VIN." };
+  if (vin.length > 30) return { error: "The VIN is too long." };
   const mileageDigits = input.mileage.replace(/[^0-9]/g, "");
   if (!mileageDigits) return { error: "Enter the mileage." };
   const moduleName = input.moduleName.trim().slice(0, 120);

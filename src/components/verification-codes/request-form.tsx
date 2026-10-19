@@ -123,7 +123,7 @@ export function VerificationRequestForm() {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <PhotoField kind="vin" label="VIN number" photo={vinPhoto} value={vin} onPhoto={setVinPhoto} onValue={setVin} onGuess={setVinOcr} placeholder="17-character VIN" inputMode="text" />
+      <PhotoField kind="vin" label="VIN number" photo={vinPhoto} value={vin} onPhoto={setVinPhoto} onValue={setVin} onGuess={setVinOcr} placeholder="VIN" inputMode="text" />
       <PhotoField kind="mileage" label="Mileage" photo={mileagePhoto} value={mileage} onPhoto={setMileagePhoto} onValue={setMileage} onGuess={setMileageOcr} placeholder="km" inputMode="numeric" />
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
         <label className="block space-y-1">
