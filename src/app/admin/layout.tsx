@@ -3,7 +3,6 @@ import { requireRole } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
 import { getNotifications } from "@/lib/notifications";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
-import { openVerificationCount } from "@/lib/verification-requests";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -17,15 +16,14 @@ const ADMIN_LINKS = [
   { href: "/admin/part-returns", label: "Part Return" },
   { href: "/admin/rejected-claims", label: "Rejected Claims" },
   { href: "/admin/technical-inquiries", label: "Technical Inquiries" },
-  { href: "/admin/verification-codes", label: "Verification Codes" },
   { href: "/admin/feedbacks", label: "Feedbacks" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
-  const [notifications, inquiryBadge, codesBadge] = await Promise.all([getNotifications(user), inquiriesBadge(user), openVerificationCount()]);
+  const [notifications, inquiryBadge] = await Promise.all([getNotifications(user), inquiriesBadge(user)]);
   // The Technical Inquiries tab carries the number of cases waiting for the technical team.
-  const links = ADMIN_LINKS.map((l) => (l.href === "/admin/technical-inquiries" ? { ...l, badge: inquiryBadge } : l.href === "/admin/verification-codes" ? { ...l, badge: codesBadge } : l));
+  const links = ADMIN_LINKS.map((l) => (l.href === "/admin/technical-inquiries" ? { ...l, badge: inquiryBadge } : l));
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">

@@ -11,7 +11,7 @@ export async function VerificationRequestsSection({ user, canAnswer, openId }: {
   let query = admin
     .from("self_audit_verification_requests")
     .select("*")
-    .order("status", { ascending: false }) // "open" before "closed"
+    .order("closed_at", { ascending: false, nullsFirst: true }) // open (not answered) first
     .order("created_at", { ascending: false })
     .limit(200);
   if (!canAnswer) query = query.eq("branch_id", user.branch_id ?? "00000000-0000-0000-0000-000000000000");
@@ -32,6 +32,7 @@ export async function VerificationRequestsSection({ user, canAnswer, openId }: {
     reason: r.reason,
     status: r.status,
     code: r.code,
+    rejectReason: r.reject_reason,
     createdBy: r.created_by_name,
     createdAt: r.created_at,
     closedBy: r.closed_by_name,

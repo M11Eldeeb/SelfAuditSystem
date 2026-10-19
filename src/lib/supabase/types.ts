@@ -876,8 +876,9 @@ export interface Database {
           mileage_ocr: string | null;
           module_name: string;
           reason: string;
-          status: "open" | "closed";
+          status: "open" | "closed" | "rejected";
           code: string | null;
+          reject_reason: string | null;
           closed_by: string | null;
           closed_by_name: string | null;
           closed_at: string | null;
@@ -896,8 +897,9 @@ export interface Database {
           mileage_ocr?: string | null;
           module_name: string;
           reason: string;
-          status?: "open" | "closed";
+          status?: "open" | "closed" | "rejected";
           code?: string | null;
+          reject_reason?: string | null;
           closed_by?: string | null;
           closed_by_name?: string | null;
           closed_at?: string | null;

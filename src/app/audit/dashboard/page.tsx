@@ -7,6 +7,7 @@ import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getTasks } from "@/lib/tasks";
+import { getSupportLeadTimes } from "@/lib/dashboard/support";
 
 export default async function BranchDashboardPage({
   searchParams,
@@ -26,6 +27,8 @@ export default async function BranchDashboardPage({
     .single();
   const scopeBranches = branch ? [branch] : [];
 
+  const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
+  support.catch(() => {});
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
@@ -43,6 +46,7 @@ export default async function BranchDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         tasks={await tasksPromise}
+        support={support}
       />
     </div>
   );

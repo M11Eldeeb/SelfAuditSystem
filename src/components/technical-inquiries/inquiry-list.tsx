@@ -21,8 +21,12 @@ import {
 } from "@/lib/technical-inquiries";
 import { InquiryForm } from "./inquiry-form";
 import { RoutingEditor } from "./routing-editor";
+import { ServicePicker } from "./service-picker";
+import { VerificationRequestForm } from "@/components/verification-codes/request-form";
+import { VerificationRequestsSection } from "@/components/verification-codes/requests-section";
+import { OcrAccuracy } from "@/components/verification-codes/ocr-accuracy";
 
-export type InquiryListParams = { q?: string; tab?: string; branch?: string; system?: string; mine?: string; page?: string };
+export type InquiryListParams = { q?: string; tab?: string; branch?: string; system?: string; mine?: string; page?: string; view?: string; open?: string };
 
 const dateLabel = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Riyadh" });
 
@@ -56,6 +60,44 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     if (own) formBranches = [own];
   }
   const branchName = new Map(allBranches.map((b) => [b.id, b.name]));
+
+  // Verification code requests live here too: the workshop picks the service, and a view switch shows the codes.
+  const showCodes = params.view === "codes";
+  let openCodes = createAdminClient().from("self_audit_verification_requests").select("id", { count: "exact", head: true }).eq("status", "open");
+  if (isBranch) openCodes = openCodes.eq("branch_id", user.branch_id ?? "00000000-0000-0000-0000-000000000000");
+  const { count: openCodeCount } = await openCodes;
+  const viewSwitch = (
+    <nav aria-label="Service" className="flex gap-1 rounded-xl bg-neutral-100 p-1 text-sm font-semibold">
+      <Link href={basePath} aria-current={!showCodes ? "page" : undefined} className={`flex-1 rounded-lg px-3 py-1.5 text-center ${!showCodes ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800"}`}>
+        Technical inquiries
+      </Link>
+      <Link href={`${basePath}?view=codes`} aria-current={showCodes ? "page" : undefined} className={`flex-1 rounded-lg px-3 py-1.5 text-center ${showCodes ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800"}`}>
+        Verification codes{openCodeCount ? <span className="ml-1.5 rounded-full bg-brand px-1.5 py-0.5 text-[11px] text-white">{openCodeCount}</span> : null}
+      </Link>
+    </nav>
+  );
+  const inquiryForm = canSubmit ? (
+    <InquiryForm branches={formBranches} fixedBranchId={isBranch ? (user.branch_id ?? undefined) : undefined} basePath={basePath} driveReady={drive !== null} />
+  ) : null;
+  // The workshop chooses the service first; the warranty team only files inquiries.
+  const newRequest = isBranch ? <ServicePicker inquiryForm={inquiryForm} codeForm={<VerificationRequestForm />} /> : inquiryForm;
+
+  if (showCodes) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Technical Inquiries</h1>
+          <p className="text-sm text-neutral-600">
+            {isBranch ? "Ask the technical team for a verification code - you get it by e-mail." : "Verification code requests from the workshops: send the code, or reject with a reason."}
+          </p>
+        </div>
+        {viewSwitch}
+        {newRequest}
+        {role === "officer" && <OcrAccuracy />}
+        <VerificationRequestsSection user={user} canAnswer={!isBranch} openId={params.open} />
+      </div>
+    );
+  }
 
   const tabs = statusTabs(role);
   const tab = tabs.find((t) => t.key === params.tab) ?? tabs[0];
@@ -140,6 +182,8 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
         )}
       </div>
 
+      {viewSwitch}
+
       {role === "officer" && (
         <RoutingEditor
           branches={allBranches.filter((b) => b.active).map((b) => ({ id: b.id, name: b.name }))}
@@ -148,14 +192,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
         />
       )}
 
-      {canSubmit && (
-        <InquiryForm
-          branches={formBranches}
-          fixedBranchId={isBranch ? (user.branch_id ?? undefined) : undefined}
-          basePath={basePath}
-          driveReady={drive !== null}
-        />
-      )}
+      {newRequest}
 
       <nav aria-label="Status" className="flex flex-wrap gap-1.5">
         {tabs.map((t) => (

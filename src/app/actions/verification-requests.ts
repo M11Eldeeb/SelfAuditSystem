@@ -8,7 +8,7 @@ import { getMailStatus, sendMail } from "@/lib/gmail";
 import { renderMailText } from "@/lib/mail/template";
 import { siteOrigin } from "@/lib/site-origin";
 
-const WORKSHOP_ROLES = ["workshop_supervisor", "team_leader"] as const;
+const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader"] as const;
 const ANSWER_ROLES = ["technical", "officer"] as const;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
@@ -24,6 +24,10 @@ function checkPhoto(p: Photo | null | undefined): p is Photo & { mimeType: Image
 async function emailsOfRole(roles: string[]): Promise<string[]> {
   const { data } = await createAdminClient().from("self_audit_users").select("email, role").in("role", roles as never);
   return [...new Set((data ?? []).map((u) => u.email?.trim().toLowerCase()).filter((e): e is string => !!e))];
+}
+
+function revalidateAll() {
+  for (const p of ["/workshop/technical-inquiries", "/audit/technical-inquiries", "/technical/technical-inquiries", "/admin/technical-inquiries", "/admin/dashboard", "/audit/dashboard"]) revalidatePath(p);
 }
 
 const SIGN_OFF = "Thank you,\nWarranty Department - Jiad Modern Motors";
@@ -100,16 +104,16 @@ export async function createVerificationRequest(input: {
       const branchName = branch?.name ?? "Branch";
       const body = [
         "Dear Technical Team,",
-        `A new verification code request (#${row.request_no}) was submitted by ${user.full_name ?? user.email} - ${branchName}.`,
+        `A new verification code request (VC-${String(row.request_no).padStart(4, "0")}) was submitted by ${user.full_name ?? user.email} - ${branchName}.`,
         `VIN: ${vin}\nMileage: ${Number(mileageDigits).toLocaleString("en-US")} km\nModule: ${moduleName}\nReason: ${reason}`,
-        `Open the request: ${origin}/technical/verification-codes?open=${id}`,
+        `Open the request: ${origin}/technical/technical-inquiries?view=codes&open=${id}`,
         SIGN_OFF,
       ].join("\n\n");
       const mail = renderMailText(body, {});
       const res = await sendMail({
         kind: "verification-request",
         to,
-        subject: `Verification Code Request #${row.request_no} - ${branchName} - ${moduleName}`,
+        subject: `Verification Code Request VC-${String(row.request_no).padStart(4, "0")} - ${branchName} - ${moduleName}`,
         text: mail.text,
         html: mail.html,
         sentBy: user.id,
@@ -117,9 +121,7 @@ export async function createVerificationRequest(input: {
       if (!res.ok) mailError = res.error;
     }
   }
-  revalidatePath("/workshop/verification-codes");
-  revalidatePath("/technical/verification-codes");
-  revalidatePath("/admin/verification-codes");
+  revalidateAll();
   return { id, mailError };
 }
 
@@ -137,7 +139,7 @@ export async function closeVerificationRequest(id: string, code: string): Promis
     .select("request_no, vin, module_name, created_by")
     .maybeSingle();
   if (error) return { error: error.message };
-  if (!row) return { error: "This request is already closed." };
+  if (!row) return { error: "This request is already answered." };
 
   let mailError: string | undefined;
   if (row.created_by && (await getMailStatus())) {
@@ -145,7 +147,7 @@ export async function closeVerificationRequest(id: string, code: string): Promis
     if (requester?.email) {
       const body = [
         `Dear ${requester.full_name ?? "colleague"},`,
-        `Your verification code request #${row.request_no} is closed.`,
+        `Your verification code request VC-${String(row.request_no).padStart(4, "0")} is closed.`,
         `VIN: ${row.vin}\nModule: ${row.module_name}`,
         `The verification code is: ${clean}`,
         SIGN_OFF,
@@ -154,7 +156,7 @@ export async function closeVerificationRequest(id: string, code: string): Promis
       const res = await sendMail({
         kind: "verification-code",
         to: [requester.email],
-        subject: `Verification Code #${row.request_no} - ${row.module_name} - ${row.vin}`,
+        subject: `Verification Code VC-${String(row.request_no).padStart(4, "0")} - ${row.module_name} - ${row.vin}`,
         text: mail.text,
         html: mail.html,
         sentBy: user.id,
@@ -162,8 +164,50 @@ export async function closeVerificationRequest(id: string, code: string): Promis
       if (!res.ok) mailError = res.error;
     }
   }
-  revalidatePath("/workshop/verification-codes");
-  revalidatePath("/technical/verification-codes");
-  revalidatePath("/admin/verification-codes");
+  revalidateAll();
+  return { mailError };
+}
+
+/** The technical team / an officer rejects a request with a reason; the requester is e-mailed the reason. */
+export async function rejectVerificationRequest(id: string, reason: string): Promise<{ error?: string; mailError?: string }> {
+  const user = await requireAnyRole([...ANSWER_ROLES]);
+  const clean = reason.trim().slice(0, 1000);
+  if (!clean) return { error: "Write the reason for rejecting." };
+  const admin = createAdminClient();
+  const { data: row, error } = await admin
+    .from("self_audit_verification_requests")
+    .update({ status: "rejected", reject_reason: clean, closed_by: user.id, closed_by_name: user.full_name ?? user.email, closed_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "open")
+    .select("request_no, vin, module_name, created_by")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!row) return { error: "This request is already answered." };
+
+  let mailError: string | undefined;
+  if (row.created_by && (await getMailStatus())) {
+    const { data: requester } = await admin.from("self_audit_users").select("email, full_name").eq("id", row.created_by).maybeSingle();
+    if (requester?.email) {
+      const body = [
+        `Dear ${requester.full_name ?? "colleague"},`,
+        `Your verification code request VC-${String(row.request_no).padStart(4, "0")} was rejected.`,
+        `VIN: ${row.vin}\nModule: ${row.module_name}`,
+        `Reason: ${clean}`,
+        "You can send a new request with the missing details.",
+        SIGN_OFF,
+      ].join("\n\n");
+      const mail = renderMailText(body, {});
+      const res = await sendMail({
+        kind: "verification-rejected",
+        to: [requester.email],
+        subject: `Verification Code Request VC-${String(row.request_no).padStart(4, "0")} rejected - ${row.module_name} - ${row.vin}`,
+        text: mail.text,
+        html: mail.html,
+        sentBy: user.id,
+      });
+      if (!res.ok) mailError = res.error;
+    }
+  }
+  revalidateAll();
   return { mailError };
 }

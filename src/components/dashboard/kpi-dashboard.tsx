@@ -7,6 +7,8 @@ import type { TrendData } from "@/lib/dashboard/trends";
 import { C, Meter } from "@/components/dashboard/charts";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
+import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
+import type { SupportLeadTimes } from "@/lib/dashboard/support";
 import { OverviewSection } from "@/components/dashboard/sections/overview";
 import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
 import { FinancialsSection } from "@/components/dashboard/sections/financials";
@@ -76,6 +78,7 @@ export function KpiDashboard({
   forecast,
   settlementOrders = [],
   tasks,
+  support,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -94,6 +97,8 @@ export function KpiDashboard({
   /** Officer only - newest first. */
   settlementOrders?: string[];
   tasks?: TaskData;
+  /** Technical Inquiries / Verification Codes closure lead time (Cycle Times tab), streamed in. */
+  support?: Promise<SupportLeadTimes>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -323,6 +328,13 @@ export function KpiDashboard({
           {tab === "tasks" && (tasks ? <TaskTracker data={tasks} isOfficer={isOfficer} /> : null)}
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
+          {tab === "cycle" && support && (
+            <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+              <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-white ring-1 ring-[#dce9ff]/60" />}>
+                <SupportLeadTimesPanel support={support} />
+              </Suspense>
+            </SectionErrorBoundary>
+          )}
           {tab === "financials" && (
             <FinancialsSection
               {...sectionProps}

@@ -7,6 +7,7 @@ import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getTasks } from "@/lib/tasks";
+import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { requireRole } from "@/lib/auth";
 
 export default async function AdminDashboardPage({
@@ -42,6 +43,8 @@ export default async function AdminDashboardPage({
   // Same idea for the settlement forecast (Claims & Financials), after trends.
   const forecast = trends.then(() => getCachedForecast(), () => getCachedForecast());
   forecast.catch(() => {});
+  const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
+  support.catch(() => {});
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
@@ -60,6 +63,7 @@ export default async function AdminDashboardPage({
         rangeClamped={clamped}
         trends={trends}
         forecast={forecast}
+        support={support}
         tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
