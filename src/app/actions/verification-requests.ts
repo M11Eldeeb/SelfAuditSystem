@@ -29,6 +29,8 @@ function revalidateAll() {
   for (const p of ["/workshop/technical-inquiries", "/audit/technical-inquiries", "/technical/technical-inquiries", "/admin/technical-inquiries", "/admin/dashboard", "/audit/dashboard"]) revalidatePath(p);
 }
 
+const note = (s: string) => s.trim().slice(0, 1000) || null;
+
 /** Always in Cc of a new request. */
 const WARRANTY_TEAM_CC = "warranty.team@jiadmotors.com";
 
@@ -137,14 +139,14 @@ export async function createVerificationRequest(input: {
 }
 
 /** The technical team / an officer enters the code: the request closes and the requester gets an e-mail with it. */
-export async function closeVerificationRequest(id: string, code: string): Promise<{ error?: string; mailError?: string }> {
+export async function closeVerificationRequest(id: string, code: string, comment = ""): Promise<{ error?: string; mailError?: string }> {
   const user = await requireAnyRole([...ANSWER_ROLES]);
   const clean = code.trim().slice(0, 200);
   if (!clean) return { error: "Enter the verification code." };
   const admin = createAdminClient();
   const { data: row, error } = await admin
     .from("self_audit_verification_requests")
-    .update({ status: "closed", code: clean, closed_by: user.id, closed_by_name: user.full_name ?? user.email, closed_at: new Date().toISOString() })
+    .update({ status: "closed", code: clean, answer_comment: note(comment), closed_by: user.id, closed_by_name: user.full_name ?? user.email, closed_at: new Date().toISOString() })
     .eq("id", id)
     .eq("status", "open")
     .select("request_no, vin, module_name, created_by")
@@ -161,6 +163,7 @@ export async function closeVerificationRequest(id: string, code: string): Promis
         `Your verification code request VC-${String(row.request_no).padStart(4, "0")} is closed.`,
         `VIN: ${row.vin}\nModule: ${row.module_name}`,
         `The verification code is: ${clean}`,
+        ...(note(comment) ? [`Comment: ${note(comment)}`] : []),
         SIGN_OFF,
       ].join("\n\n");
       const mail = renderMailText(body, {});
@@ -181,14 +184,14 @@ export async function closeVerificationRequest(id: string, code: string): Promis
 }
 
 /** The technical team / an officer rejects a request with a reason; the requester is e-mailed the reason. */
-export async function rejectVerificationRequest(id: string, reason: string): Promise<{ error?: string; mailError?: string }> {
+export async function rejectVerificationRequest(id: string, reason: string, comment = ""): Promise<{ error?: string; mailError?: string }> {
   const user = await requireAnyRole([...ANSWER_ROLES]);
   const clean = reason.trim().slice(0, 1000);
   if (!clean) return { error: "Write the reason for rejecting." };
   const admin = createAdminClient();
   const { data: row, error } = await admin
     .from("self_audit_verification_requests")
-    .update({ status: "rejected", reject_reason: clean, closed_by: user.id, closed_by_name: user.full_name ?? user.email, closed_at: new Date().toISOString() })
+    .update({ status: "rejected", reject_reason: clean, answer_comment: note(comment), closed_by: user.id, closed_by_name: user.full_name ?? user.email, closed_at: new Date().toISOString() })
     .eq("id", id)
     .eq("status", "open")
     .select("request_no, vin, module_name, created_by")
@@ -205,6 +208,7 @@ export async function rejectVerificationRequest(id: string, reason: string): Pro
         `Your verification code request VC-${String(row.request_no).padStart(4, "0")} was rejected.`,
         `VIN: ${row.vin}\nModule: ${row.module_name}`,
         `Reason: ${clean}`,
+        ...(note(comment) ? [`Comment: ${note(comment)}`] : []),
         "You can send a new request with the missing details.",
         SIGN_OFF,
       ].join("\n\n");
@@ -223,4 +227,21 @@ export async function rejectVerificationRequest(id: string, reason: string): Pro
   }
   revalidateAll();
   return { mailError };
+}
+
+/** The technical team / an officer corrects the VIN or the mileage a workshop typed (who and when is kept). */
+export async function correctVerificationRequest(id: string, input: { vin: string; mileage: string }): Promise<{ error?: string }> {
+  const user = await requireAnyRole([...ANSWER_ROLES]);
+  const vin = input.vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!vin) return { error: "Enter the VIN." };
+  if (vin.length > 30) return { error: "The VIN is too long." };
+  const digits = input.mileage.replace(/[^0-9]/g, "");
+  if (!digits) return { error: "Enter the mileage." };
+  const { error } = await createAdminClient()
+    .from("self_audit_verification_requests")
+    .update({ vin, mileage: Number(digits), edited_by_name: user.full_name ?? user.email, edited_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return {};
 }

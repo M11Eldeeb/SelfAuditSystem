@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { closeVerificationRequest, rejectVerificationRequest } from "@/app/actions/verification-requests";
+import { closeVerificationRequest, correctVerificationRequest, rejectVerificationRequest } from "@/app/actions/verification-requests";
 import { CopyText } from "./copy-text";
 
 export type VerificationRow = {
@@ -16,6 +16,9 @@ export type VerificationRow = {
   status: "open" | "closed" | "rejected";
   code: string | null;
   rejectReason: string | null;
+  answerComment: string | null;
+  editedBy: string | null;
+  editedAt: string | null;
   createdBy: string | null;
   createdAt: string;
   closedBy: string | null;
@@ -47,6 +50,7 @@ function AnswerForm({ id }: { id: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<"code" | "reject">("code");
   const [text, setText] = useState("");
+  const [comment, setComment] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const rejecting = mode === "reject";
@@ -56,7 +60,7 @@ function AnswerForm({ id }: { id: string }) {
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const res = rejecting ? await rejectVerificationRequest(id, text) : await closeVerificationRequest(id, text);
+          const res = rejecting ? await rejectVerificationRequest(id, text, comment) : await closeVerificationRequest(id, text, comment);
           if (res.error) setMsg({ ok: false, text: res.error });
           else {
             const done = rejecting ? "Rejected - the reason was e-mailed to the requester." : "Closed - the code was e-mailed to the requester.";
@@ -101,8 +105,99 @@ function AnswerForm({ id }: { id: string }) {
           {rejecting ? "Send a code instead" : "Reject with reason"}
         </button>
       </div>
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        rows={2}
+        placeholder="Comment (optional) - shown on the request and e-mailed with it"
+        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
+      />
       {msg && <p className={`text-xs ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
     </form>
+  );
+}
+
+/** VIN and mileage, with an Edit button for the technical team / officers to correct what the workshop typed. */
+function VinMileage({ r, canEdit }: { r: VerificationRow; canEdit: boolean }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [vin, setVin] = useState(r.vin);
+  const [km, setKm] = useState(r.mileage != null ? String(r.mileage) : "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  if (editing) {
+    return (
+      <div className="mt-2 space-y-2 rounded-lg bg-neutral-50 p-3">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="text-xs text-neutral-500">
+            VIN
+            <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} className="mt-0.5 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-mono text-sm text-neutral-900 focus:border-brand focus:outline-none" />
+          </label>
+          <label className="text-xs text-neutral-500">
+            Mileage (km)
+            <input value={km} inputMode="numeric" onChange={(e) => setKm(e.target.value.replace(/[^0-9]/g, ""))} className="mt-0.5 w-full rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-900 focus:border-brand focus:outline-none" />
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const res = await correctVerificationRequest(r.id, { vin, mileage: km });
+                if (res.error) setError(res.error);
+                else {
+                  setEditing(false);
+                  setError(null);
+                  router.refresh();
+                }
+              })
+            }
+            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+          >
+            {pending ? "Saving..." : "Save"}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="text-xs text-neutral-500 underline">
+            Cancel
+          </button>
+          {error && <span className="text-xs text-red-600">{error}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-16 shrink-0 text-xs text-neutral-500">VIN</span>
+        <CopyText value={r.vin} mono />
+        {r.vinPhoto && (
+          <a href={r.vinPhoto} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
+            photo
+          </a>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-16 shrink-0 text-xs text-neutral-500">Mileage</span>
+        {r.mileage != null ? <CopyText value={String(r.mileage)} label={`${r.mileage.toLocaleString("en-US")} km`} /> : "—"}
+        {r.mileagePhoto && (
+          <a href={r.mileagePhoto} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
+            photo
+          </a>
+        )}
+        {canEdit && (
+          <button type="button" onClick={() => setEditing(true)} className="ml-auto text-xs font-medium text-neutral-500 underline hover:text-neutral-800">
+            Correct VIN / mileage
+          </button>
+        )}
+      </div>
+      {r.editedAt && (
+        <p className="text-[11px] text-neutral-500 sm:col-span-2">
+          Corrected by {r.editedBy} · {stamp(r.editedAt)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -138,30 +233,14 @@ export function RequestList({ rows, canAnswer, showBranch, openId }: { rows: Ver
             </div>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
           </div>
-          <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-xs text-neutral-500">VIN</span>
-              <CopyText value={r.vin} mono />
-              {r.vinPhoto && (
-                <a href={r.vinPhoto} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
-                  photo
-                </a>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-xs text-neutral-500">Mileage</span>
-              {r.mileage != null ? <CopyText value={String(r.mileage)} label={`${r.mileage.toLocaleString("en-US")} km`} /> : "—"}
-              {r.mileagePhoto && (
-                <a href={r.mileagePhoto} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
-                  photo
-                </a>
-              )}
-            </div>
+          <VinMileage r={r} canEdit={canAnswer} />
+          <div className="mt-2 flex items-start gap-2 text-sm text-neutral-700">
+            <p className="min-w-0 flex-1 whitespace-pre-wrap">
+              <span className="text-xs text-neutral-500">Reason: </span>
+              {r.reason}
+            </p>
+            <CopyText value={r.reason} label=" " />
           </div>
-          <p className="mt-2 text-sm whitespace-pre-wrap text-neutral-700">
-            <span className="text-xs text-neutral-500">Reason: </span>
-            {r.reason}
-          </p>
 
           <dl className="mt-3 grid gap-x-4 gap-y-1 rounded-lg bg-neutral-50 px-3 py-2 text-xs sm:grid-cols-3">
             <div>
@@ -191,7 +270,14 @@ export function RequestList({ rows, canAnswer, showBranch, openId }: { rows: Ver
               <span className="font-semibold">Rejected: </span>
               {r.rejectReason}
             </p>
-          ) : canAnswer ? (
+          ) : null}
+          {r.status !== "open" && r.answerComment && (
+            <p className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm whitespace-pre-wrap text-neutral-800">
+              <span className="text-xs font-semibold text-neutral-500">Comment: </span>
+              {r.answerComment}
+            </p>
+          )}
+          {r.status !== "open" ? null : canAnswer ? (
             <AnswerForm id={r.id} />
           ) : (
             <p className="mt-3 text-xs text-neutral-500">Waiting for the technical team - you will get the code by e-mail.</p>

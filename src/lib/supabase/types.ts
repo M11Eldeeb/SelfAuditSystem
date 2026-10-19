@@ -879,6 +879,9 @@ export interface Database {
           status: "open" | "closed" | "rejected";
           code: string | null;
           reject_reason: string | null;
+          answer_comment: string | null;
+          edited_by_name: string | null;
+          edited_at: string | null;
           closed_by: string | null;
           closed_by_name: string | null;
           closed_at: string | null;
@@ -900,6 +903,9 @@ export interface Database {
           status?: "open" | "closed" | "rejected";
           code?: string | null;
           reject_reason?: string | null;
+          answer_comment?: string | null;
+          edited_by_name?: string | null;
+          edited_at?: string | null;
           closed_by?: string | null;
           closed_by_name?: string | null;
           closed_at?: string | null;
