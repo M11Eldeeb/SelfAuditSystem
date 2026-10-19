@@ -117,7 +117,9 @@ export async function createVerificationRequest(input: {
       const body = [
         "Dear Technical Team,",
         `A new verification code request (VC-${String(row.request_no).padStart(4, "0")}) was submitted by ${user.full_name ?? user.email} - ${branchName}.`,
-        `VIN: ${vin}\nMileage: ${Number(mileageDigits).toLocaleString("en-US")} km\nModule: ${moduleName}\nReason: ${reason}`,
+        // No VIN or mileage here on purpose: the team opens the request in the system and answers it there.
+        `Module: ${moduleName}\nReason: ${reason}`,
+        "The VIN and mileage are in the system - open the request to see them and send the code from there.",
         `Open the request: ${origin}/technical/technical-inquiries?view=codes&open=${id}`,
         SIGN_OFF,
       ].join("\n\n");
