@@ -8,7 +8,7 @@ export default async function WorkshopVerificationCodesPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900">Verification code request</h1>
-        <p className="text-sm text-neutral-500">Take a photo of the VIN and the mileage - they are read automatically. The technical team e-mails you the code.</p>
+        <p className="text-sm text-neutral-500">Take a photo of the VIN and the mileage and type them in. The technical team e-mails you the code.</p>
       </div>
       <VerificationRequestForm />
       <div className="space-y-3">

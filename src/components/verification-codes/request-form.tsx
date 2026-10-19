@@ -27,6 +27,7 @@ function PhotoField({
   value,
   onPhoto,
   onValue,
+  onGuess,
   placeholder,
   inputMode,
 }: {
@@ -36,26 +37,23 @@ function PhotoField({
   value: string;
   onPhoto: (p: Photo | null) => void;
   onValue: (v: string) => void;
+  onGuess: (v: string | null) => void;
   placeholder: string;
   inputMode: "text" | "numeric";
 }) {
-  const [reading, setReading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   async function pick(file: File | undefined) {
     if (!file) return;
     setNote(null);
-    setReading(true);
+    onGuess(null);
     try {
       const p = await shrink(file);
       onPhoto(p);
-      const value = await (kind === "vin" ? readVin(p.preview) : readMileage(p.preview));
-      if (value) onValue(value);
-      else setNote(kind === "vin" ? "Could not read a 17-character VIN - take a closer, straight photo or type it in." : "Could not read the mileage - take a closer photo or type it in.");
+      // Trial: the phone reads the photo in the background; the guess is saved with the request to measure accuracy, the user types the value.
+      void (kind === "vin" ? readVin(p.preview) : readMileage(p.preview)).then(onGuess, () => onGuess(null));
     } catch {
       setNote("Could not open the photo - try again.");
-    } finally {
-      setReading(false);
     }
   }
 
@@ -72,8 +70,6 @@ function PhotoField({
         )}
         {photo && <span className="text-xs">Retake</span>}
       </label>
-      {reading && <p className="text-xs text-blue-700">Reading the photo... (the first time takes a few seconds)</p>}
-      {value && !reading && <p className="text-[11px] text-neutral-500">Check it against the photo before sending.</p>}
       {note && <p className="text-xs text-amber-700">{note}</p>}
       <div className="flex items-center gap-2">
         <input
@@ -95,6 +91,8 @@ export function VerificationRequestForm() {
   const [mileage, setMileage] = useState("");
   const [vinPhoto, setVinPhoto] = useState<Photo | null>(null);
   const [mileagePhoto, setMileagePhoto] = useState<Photo | null>(null);
+  const [vinOcr, setVinOcr] = useState<string | null>(null);
+  const [mileageOcr, setMileageOcr] = useState<string | null>(null);
   const [moduleName, setModuleName] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -105,7 +103,7 @@ export function VerificationRequestForm() {
     setMsg(null);
     setBusy(true);
     const strip = (p: Photo | null) => (p ? { base64: p.base64, mimeType: p.mimeType } : null);
-    const res = await createVerificationRequest({ vin, mileage, moduleName, reason, vinPhoto: strip(vinPhoto), mileagePhoto: strip(mileagePhoto) });
+    const res = await createVerificationRequest({ vin, mileage, moduleName, reason, vinPhoto: strip(vinPhoto), mileagePhoto: strip(mileagePhoto), vinOcr, mileageOcr });
     setBusy(false);
     if (res.error) {
       setMsg({ ok: false, text: res.error });
@@ -116,6 +114,8 @@ export function VerificationRequestForm() {
     setMileage("");
     setVinPhoto(null);
     setMileagePhoto(null);
+    setVinOcr(null);
+    setMileageOcr(null);
     setModuleName("");
     setReason("");
     router.refresh();
@@ -123,8 +123,8 @@ export function VerificationRequestForm() {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <PhotoField kind="vin" label="VIN number" photo={vinPhoto} value={vin} onPhoto={setVinPhoto} onValue={setVin} placeholder="17-character VIN" inputMode="text" />
-      <PhotoField kind="mileage" label="Mileage" photo={mileagePhoto} value={mileage} onPhoto={setMileagePhoto} onValue={setMileage} placeholder="km" inputMode="numeric" />
+      <PhotoField kind="vin" label="VIN number" photo={vinPhoto} value={vin} onPhoto={setVinPhoto} onValue={setVin} onGuess={setVinOcr} placeholder="17-character VIN" inputMode="text" />
+      <PhotoField kind="mileage" label="Mileage" photo={mileagePhoto} value={mileage} onPhoto={setMileagePhoto} onValue={setMileage} onGuess={setMileageOcr} placeholder="km" inputMode="numeric" />
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
         <label className="block space-y-1">
           <span className="text-sm font-semibold text-neutral-900">Module name</span>

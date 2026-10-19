@@ -872,6 +872,8 @@ export interface Database {
           mileage: number | null;
           vin_photo_path: string | null;
           mileage_photo_path: string | null;
+          vin_ocr: string | null;
+          mileage_ocr: string | null;
           module_name: string;
           reason: string;
           status: "open" | "closed";
@@ -890,6 +892,8 @@ export interface Database {
           mileage?: number | null;
           vin_photo_path?: string | null;
           mileage_photo_path?: string | null;
+          vin_ocr?: string | null;
+          mileage_ocr?: string | null;
           module_name: string;
           reason: string;
           status?: "open" | "closed";

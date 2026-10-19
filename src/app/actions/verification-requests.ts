@@ -36,6 +36,9 @@ export async function createVerificationRequest(input: {
   reason: string;
   vinPhoto: Photo | null;
   mileagePhoto: Photo | null;
+  /** What the phone's reader made of the photos (not shown to the user) - kept to measure its accuracy. */
+  vinOcr?: string | null;
+  mileageOcr?: string | null;
 }): Promise<{ error?: string; id?: string; mailError?: string }> {
   const user = await requireAnyRole([...WORKSHOP_ROLES]);
   if (!user.branch_id) return { error: "Your account has no branch." };
@@ -74,6 +77,8 @@ export async function createVerificationRequest(input: {
       mileage: Number(mileageDigits),
       vin_photo_path: vinPath,
       mileage_photo_path: mileagePath,
+      vin_ocr: input.vinOcr?.slice(0, 40) || null,
+      mileage_ocr: input.mileageOcr?.slice(0, 20) || null,
       module_name: moduleName,
       reason,
       created_by: user.id,
