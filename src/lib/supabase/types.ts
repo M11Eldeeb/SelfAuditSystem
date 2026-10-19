@@ -863,6 +863,47 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_task_reminders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_verification_requests: {
+        Row: {
+          id: string;
+          request_no: number;
+          branch_id: string;
+          vin: string;
+          mileage: number | null;
+          vin_photo_path: string | null;
+          mileage_photo_path: string | null;
+          module_name: string;
+          reason: string;
+          status: "open" | "closed";
+          code: string | null;
+          closed_by: string | null;
+          closed_by_name: string | null;
+          closed_at: string | null;
+          created_by: string | null;
+          created_by_name: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          branch_id: string;
+          vin: string;
+          mileage?: number | null;
+          vin_photo_path?: string | null;
+          mileage_photo_path?: string | null;
+          module_name: string;
+          reason: string;
+          status?: "open" | "closed";
+          code?: string | null;
+          closed_by?: string | null;
+          closed_by_name?: string | null;
+          closed_at?: string | null;
+          created_by?: string | null;
+          created_by_name?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_verification_requests"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_internal_audit_files: {
         Row: {
           id: string;
