@@ -10,6 +10,9 @@ import { getTasks } from "@/lib/tasks";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { requireRole } from "@/lib/auth";
 
+// The Warranty Invoicing refresh reads the report e-mail and its ~11 MB Excel file.
+export const maxDuration = 60;
+
 export default async function AdminDashboardPage({
   searchParams,
 }: {

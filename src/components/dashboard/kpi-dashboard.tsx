@@ -8,6 +8,7 @@ import { C, Meter } from "@/components/dashboard/charts";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
+import { InvoicingSection } from "@/components/dashboard/sections/invoicing";
 import type { SupportLeadTimes } from "@/lib/dashboard/support";
 import { OverviewSection } from "@/components/dashboard/sections/overview";
 import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
@@ -28,6 +29,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   warranty: Icon.box,
   trends: Icon.alert,
   reconciliation: Icon.money,
+  invoicing: Icon.receipt,
 };
 
 const inputClass =
@@ -225,6 +227,8 @@ export function KpiDashboard({
               </div>
               {tab === "reconciliation" ? (
                 <p className="text-sm text-[#575e70]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
+              ) : tab === "invoicing" ? (
+                <p className="text-sm text-[#575e70]">Labor and parts invoicing from the daily report e-mail - filter by sales type, account, branch and owing operator below.</p>
               ) : (
                 <p className="text-sm text-[#575e70]">
                   Claims with repair end date in <strong className="text-[#0b1c30]">{periodLabel}</strong> · {fmtNum(t.workingDays, 1)} working days
@@ -238,7 +242,7 @@ export function KpiDashboard({
             </div>
           </div>
 
-          {tab !== "reconciliation" && tab !== "tasks" && (
+          {tab !== "reconciliation" && tab !== "tasks" && tab !== "invoicing" && (
           <div className="relative mt-4 space-y-3 border-t border-[#e5eeff] pt-4">
             <div className="flex flex-wrap items-end gap-3">
               <label className="space-y-1">
@@ -350,6 +354,7 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
+          {tab === "invoicing" && isOfficer && <InvoicingSection />}
           {tab === "reconciliation" && isOfficer && (
             <ReconciliationSection settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />
           )}

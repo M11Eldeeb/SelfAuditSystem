@@ -22,14 +22,15 @@ export const MAIL_FROM_NAME = "Warranty Department - Jiad Motors";
 
 export class MailError extends Error {}
 
-export function buildMailAuthUrl(redirectUri: string, state: string): string {
+/** `scope`: sending (the e-mail sender) by default; the Warranty Invoicing reader asks for read-only instead. */
+export function buildMailAuthUrl(redirectUri: string, state: string, scope: string = MAIL_SCOPE): string {
   const cfg = driveConfig();
   if (!cfg) throw new MailError("Google sign-in is not configured.");
   const params = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: `openid email ${MAIL_SCOPE}`, // openid + email only to learn which mailbox signed in
+    scope: `openid email ${scope}`, // openid + email only to learn which mailbox signed in
     access_type: "offline",
     prompt: "select_account consent", // always show the account chooser: the sender can be a different mailbox from the one signed in
     hd: DRIVE_ALLOWED_DOMAIN,
@@ -55,7 +56,7 @@ async function tokenRequest(body: Record<string, string>): Promise<TokenResponse
 }
 
 /** Trades the sign-in code for the mailbox's address and a lasting refresh token. */
-export async function exchangeMailCode(code: string, redirectUri: string): Promise<{ refreshToken: string | null; email: string; canSend: boolean }> {
+export async function exchangeMailCode(code: string, redirectUri: string): Promise<{ refreshToken: string | null; email: string; canSend: boolean; scopes: string[] }> {
   const t = await tokenRequest({ code, redirect_uri: redirectUri, grant_type: "authorization_code" });
   // The id_token came straight from Google's token endpoint over TLS, so its payload can be read without checking a signature.
   let email = "";
@@ -65,7 +66,14 @@ export async function exchangeMailCode(code: string, redirectUri: string): Promi
   } catch {
     // email stays empty and the caller reports it
   }
-  return { refreshToken: t.refresh_token ?? null, email, canSend: (t.scope ?? "").split(" ").includes(MAIL_SCOPE) };
+  const scopes = (t.scope ?? "").split(" ");
+  return { refreshToken: t.refresh_token ?? null, email, canSend: scopes.includes(MAIL_SCOPE), scopes };
+}
+
+/** A short-lived access token from a stored refresh token (any of the portal's Google connections). */
+export async function refreshGoogleAccessToken(refreshToken: string): Promise<{ token: string; expiresIn: number }> {
+  const t = await tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
+  return { token: t.access_token, expiresIn: t.expires_in ?? 3600 };
 }
 
 export type MailConnection = { accountEmail: string; connectedAt: string };

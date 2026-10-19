@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth";
 import { DRIVE_ALLOWED_DOMAIN } from "@/lib/google-drive";
 import { exchangeMailCode, saveMailConnection } from "@/lib/gmail";
+import { INVOICING_SCOPE, saveInvoicingConnection } from "@/lib/invoicing/gmail-reader";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,12 @@ function sameState(a: string, b: string): boolean {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
+  const invoicing = request.headers.get("cookie")?.match(/(?:^|;\s*)gm_purpose=([^;]+)/)?.[1] === "invoicing";
   const done = (flag: string, detail?: string) => {
     const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
-    const res = NextResponse.redirect(`${origin}/admin/emails?mail=${flag}${extra}`);
+    const res = NextResponse.redirect(invoicing ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}${extra}` : `${origin}/admin/emails?mail=${flag}${extra}`);
     res.cookies.delete({ name: "gm_state", path: "/api/google-mail" });
+    res.cookies.delete({ name: "gm_purpose", path: "/api/google-mail" });
     return res;
   };
 
@@ -43,6 +46,13 @@ export async function GET(request: Request) {
     if (!result.refreshToken) return done("no-refresh-token");
     step = "checking the mailbox";
     if (!result.email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
+    if (invoicing) {
+      // The Warranty Invoicing reader: read-only access to the mailbox the daily report arrives in.
+      if (!result.scopes.includes(INVOICING_SCOPE)) return done("no-read-permission");
+      step = "saving the connection";
+      await saveInvoicingConnection({ refreshToken: result.refreshToken, accountEmail: result.email, connectedBy: user.id });
+      return done("connected");
+    }
     if (!result.canSend) return done("no-send-permission");
 
     step = "saving the connection";

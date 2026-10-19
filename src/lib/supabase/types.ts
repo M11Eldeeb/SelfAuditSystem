@@ -863,6 +863,71 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_task_reminders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_invoicing_connection: {
+        Row: { id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string };
+        Insert: { id?: number; refresh_token: string; account_email: string; connected_by?: string | null; connected_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_connection"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_invoicing_imports: {
+        Row: {
+          id: string;
+          gmail_message_id: string;
+          subject: string | null;
+          received_at: string | null;
+          file_name: string | null;
+          labor_lines: number;
+          part_lines: number;
+          months: string[];
+          imported_by: string | null;
+          imported_at: string;
+        };
+        Insert: {
+          id?: string;
+          gmail_message_id: string;
+          subject?: string | null;
+          received_at?: string | null;
+          file_name?: string | null;
+          labor_lines?: number;
+          part_lines?: number;
+          months?: string[];
+          imported_by?: string | null;
+          imported_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_imports"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_invoicing_lines: {
+        Row: {
+          id: number;
+          month: string;
+          invoice_date: string | null;
+          source: "labor" | "parts";
+          branch: string;
+          branch_name: string;
+          account_code: string;
+          account_name: string;
+          owing_operator: string;
+          sales_type: string;
+          amount: number;
+          lines: number;
+        };
+        Insert: {
+          month: string;
+          invoice_date?: string | null;
+          source: "labor" | "parts";
+          branch?: string;
+          branch_name?: string;
+          account_code?: string;
+          account_name?: string;
+          owing_operator?: string;
+          sales_type?: string;
+          amount?: number;
+          lines?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_lines"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_verification_requests: {
         Row: {
           id: string;
