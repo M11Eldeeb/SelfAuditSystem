@@ -53,9 +53,10 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           <option value="technical">Technical team</option>
           <option value="workshop_supervisor">Workshop supervisor</option>
           <option value="team_leader">Team leader</option>
+          <option value="service_manager">Service manager (view only)</option>
         </select>
       </div>
-      {(role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader") && (
+      {(role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader" || role === "service_manager") && (
         <div className="space-y-1">
           <label htmlFor="user-branch" className="text-xs font-medium text-neutral-700">
             Branch

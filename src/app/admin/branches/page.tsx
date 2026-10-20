@@ -73,7 +73,7 @@ export default async function BranchesPage() {
                   <td className="px-4 py-2 text-neutral-900">{u.email}</td>
                   <td className="px-4 py-2 text-neutral-600">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-neutral-600">
-                    {{ officer: "Warranty officer", finance: "Finance", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader" }[u.role as string] ?? "Branch admin"}
+                    {{ officer: "Warranty officer", finance: "Finance", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader", service_manager: "Service manager (view only)" }[u.role as string] ?? "Branch admin"}
                   </td>
                   <td className="px-4 py-2 text-neutral-600">
                     {u.branch_id ? (branchNameById.get(u.branch_id) ?? "—") : "—"}

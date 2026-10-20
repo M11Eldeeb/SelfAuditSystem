@@ -6,7 +6,7 @@ import { getMailStatus } from "@/lib/gmail";
 import { MAIL_KEYS, isMailEnabled, sendPlans } from "@/lib/mail/plans";
 import { planInternalAuditNotice } from "@/lib/mail/internal-audit";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
@@ -105,7 +105,7 @@ export async function previewInternalAuditSample(
   _prev: PreviewInternalAuditSampleState,
   formData: FormData
 ): Promise<PreviewInternalAuditSampleState> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const supabase = await createClient();
   const criteria = readCriteria(formData);
 

@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * an in-progress audit of the caller's branch, so a made-up id returns nothing.
  */
 export async function getUpcomingAuditSample(auditId: string) {
-  await requireRole("branch_admin");
+  await requireViewer("branch_admin");
   if (!UUID.test(auditId)) return { error: "Audit not found." as const, rows: [] };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_upcoming_internal_audit_claims", { p_audit_id: auditId });

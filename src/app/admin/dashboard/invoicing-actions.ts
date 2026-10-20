@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getInvoicingConnection } from "@/lib/invoicing/gmail-reader";
@@ -30,7 +30,7 @@ export type InvoicingData = {
 
 /** Officer only: the summed report lines of one month (default: the newest month there is data for). */
 export async function getInvoicingData(month?: string | null): Promise<InvoicingData> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const admin = createAdminClient();
   const [connection, { data: last }, { data: monthRows }] = await Promise.all([
     getInvoicingConnection(),
@@ -74,7 +74,7 @@ export type InvoicingFilter = { type?: string; account?: string; branch?: string
 
 /** Invoiced work orders (distinct WIPs) and line count for the current filters. */
 export async function getInvoicingCounts(month: string, f: InvoicingFilter): Promise<{ workOrders: number; lines: number }> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const supabase = await createClient();
   const { data } = await supabase.rpc("invoicing_counts", { p_month: month, p_type: f.type ?? "", p_account: f.account ?? "", p_branch: f.branch ?? "", p_operator: f.operator ?? "" });
   return { workOrders: Number(data?.[0]?.work_orders ?? 0), lines: Number(data?.[0]?.lines ?? 0) };
@@ -103,7 +103,7 @@ const DETAIL_PAGE = 200;
 
 /** The report lines behind a visual: the dashboard's filters plus what was clicked, biggest amounts first. */
 export async function getInvoicingDetails(month: string, f: InvoicingFilter, page = 0): Promise<{ rows: InvoicingDetailRow[]; total: number; pageSize: number }> {
-  await requireRole("officer");
+  await requireViewer("officer");
   let q = createAdminClient()
     .from("self_audit_invoicing_detail")
     .select("invoice_date, source, branch, account_code, account_name, owing_operator, sales_type, department, wip, invoice_no, vin, item, description, customer, qty, amount", { count: "exact" })
@@ -144,7 +144,7 @@ const DETAIL_COLUMNS = "invoice_date, source, branch, account_code, account_name
 
 /** Export: every line behind the current view (up to 30,000), in the same shape as the drill-down. */
 export async function getInvoicingExport(month: string, f: InvoicingFilter): Promise<InvoicingDetailRow[]> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const out: InvoicingDetailRow[] = [];
   for (let from = 0; from < 30000; from += 1000) {
     let q = createAdminClient().from("self_audit_invoicing_detail").select(DETAIL_COLUMNS).eq("month", month);
@@ -182,7 +182,7 @@ export async function getInvoicingExport(month: string, f: InvoicingFilter): Pro
 
 /** Month totals (labor / parts, per department) for the trend chart - every month imported so far. */
 export async function getInvoicingMonthly(f: InvoicingFilter): Promise<{ month: string; source: string; department: string; amount: number; lines: number }[]> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const supabase = await createClient();
   const { data } = await supabase.rpc("invoicing_monthly", { p_type: f.type ?? "", p_account: f.account ?? "", p_branch: f.branch ?? "", p_operator: f.operator ?? "" });
   return (data ?? []).map((r) => ({ month: String(r.month).slice(0, 10), source: r.source, department: r.department, amount: Number(r.amount), lines: Number(r.lines) }));
@@ -195,7 +195,7 @@ export type UnclaimedLine = InvoicingDetailRow & {
 
 /** Warranty lines invoiced without a claim number (the month's lines, plus any marks made on them). */
 export async function getUnclaimedWarranty(month: string): Promise<UnclaimedLine[]> {
-  await requireRole("officer");
+  await requireViewer("officer");
   const admin = createAdminClient();
   const [{ data: lines }, { data: marks }] = await Promise.all([
     admin.from("self_audit_invoicing_detail").select(`${DETAIL_COLUMNS}, line_key`).eq("month", month).eq("sales_type", "Warranty").eq("claim_no", "").order("invoice_date").limit(2000),

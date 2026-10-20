@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -47,7 +47,7 @@ const SELECT: string =
  * expression index (migration 0069) - ~2,000 claims per order.
  */
 export async function loadReconciliation(settlementOrder: string, branchIds: string[]): Promise<ReconciliationRow[]> {
-  await requireRole("officer");
+  await requireViewer("officer");
   // Service-role read, after the officer check above: under the caller's
   // RLS, Postgres won't use the settlement-order expression index (->> isn't
   // leakproof, so it can't run ahead of the policy) and the lookup becomes

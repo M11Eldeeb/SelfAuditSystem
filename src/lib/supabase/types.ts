@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -41,6 +41,8 @@ export interface Database {
           role: UserRole;
           branch_id: string | null;
           created_at: string;
+          /** Also sees every warranty officer page, read only. */
+          view_all: boolean;
         };
         Insert: {
           id: string;
@@ -49,6 +51,7 @@ export interface Database {
           role: UserRole;
           branch_id?: string | null;
           created_at?: string;
+          view_all?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];
