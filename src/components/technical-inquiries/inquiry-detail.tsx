@@ -36,7 +36,7 @@ import { formatBytes } from "@/lib/feedback-constants";
 import { InquiryCommentForm } from "./comment-form";
 import { ClosePanel } from "./close-panel";
 import { AssignPanel, ReturnedPanel, TeamReturnPanel, VerifyPanel, WorkshopActions } from "./case-actions";
-import { EditCasePanel } from "./edit-case";
+import { EditableCase } from "./edit-case";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
@@ -162,6 +162,25 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
       (role === "team_leader" && inquiry.created_by === user?.id && (withSupervisor || returnedByTeam)));
   const lastReturn = [...(comments ?? [])].reverse().find((c) => c.kind === "returned");
   const versions = versionRows ?? [];
+  const editInitial = {
+            vin: inquiry.vin,
+            plate_number: inquiry.plate_number,
+            vehicle_model: inquiry.vehicle_model,
+            system: inquiry.system,
+            vehicle_location: inquiry.vehicle_location,
+            mileage_km: inquiry.mileage_km,
+            dtc_codes: inquiry.dtc_codes ?? "",
+            software_version: inquiry.software_version ?? "",
+            occurrence: inquiry.occurrence,
+            occurrence_conditions: inquiry.occurrence_conditions ?? "",
+            parts_replaced: inquiry.parts_replaced ?? "",
+            responsible_phone: inquiry.responsible_phone ?? "",
+            concern_first_noticed: inquiry.concern_first_noticed,
+            after_previous_repair: inquiry.after_previous_repair,
+            previous_repair_details: inquiry.previous_repair_details ?? "",
+            fault_complaint: inquiry.fault_complaint,
+            workshop_comments: inquiry.workshop_comments ?? "",
+          };
   const current: Record<string, unknown> = { ...inquiry };
   const late = isLate(inquiry.waiting_since, status);
   const technicians = (techRows ?? []).map((t) => ({ id: t.id, name: t.full_name?.trim() || t.email }));
@@ -191,7 +210,9 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
         </div>
       </div>
 
-      <section className="space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">
+      {(() => {
+        const caseView = (
+          <>
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="Work order">{inquiry.work_order_no}</Fact>
           <Fact label="VIN">
@@ -304,7 +325,75 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
             <Files files={g.files} />
           </div>
         ))}
-      </section>
+          </>
+        );
+        const caseFixed = (
+          <>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-neutral-500">Sent to the technical team because</span>
+          {inquiry.submit_reasons.map((r) => (
+            <span key={r} className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-800 ring-1 ring-neutral-200 ring-inset">
+              {SUBMIT_REASON_LABEL[r] ?? r}
+            </span>
+          ))}
+        </div>
+        {workOrders.map((w) => {
+          const mine = attachments.filter((f) => f.wip_id === w.id);
+          const docs: AttachmentCategory[] = ["vds_report", "work_order_photo", "agreement_photo"];
+          return (
+            <div key={w.id} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+              <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900">
+                Workshop effort - {w.work_order_no}
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200 ring-inset">{w.position === 0 ? "current work order" : "previous work order"}</span>
+              </p>
+              {w.previous_concern && (
+                <div>
+                  <p className="text-xs font-medium text-neutral-500">Customer previous concern</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap text-neutral-900">{w.previous_concern}</p>
+                </div>
+              )}
+              <ol className="space-y-2.5">
+                {w.steps.map((step, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-neutral-900">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">{i + 1}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="whitespace-pre-wrap">{step}</p>
+                      <Files files={mine.filter((f) => f.category === "workshop_effort" && f.step_no === i + 1)} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div className="grid gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-3">
+                {docs.map((cat) => (
+                  <div key={cat}>
+                    <p className="mb-1 text-xs font-medium text-neutral-500">{CATEGORY_LABEL[cat]}</p>
+                    <Files files={mine.filter((f) => f.category === cat)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {caseFileGroups.map((g) => (
+          <div key={g.category}>
+            <p className="mb-1 text-xs font-medium text-neutral-500">{CATEGORY_LABEL[g.category]}</p>
+            <Files files={g.files} />
+          </div>
+        ))}
+          </>
+        );
+        return canEdit ? (
+          <EditableCase
+            inquiryId={inquiry.id}
+            highlight={returned && role === "team_leader"}
+            view={caseView}
+            fixed={caseFixed}
+            initial={editInitial}
+          />
+        ) : (
+          <section className="space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">{caseView}</section>
+        );
+      })()}
 
       {folder && (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
@@ -368,31 +457,6 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
             <p className="mt-1 whitespace-pre-wrap">{[...(comments ?? [])].reverse().find((c) => c.kind === "rejected")?.body}</p>
           )}
         </section>
-      )}
-      {canEdit && (
-        <EditCasePanel
-          inquiryId={inquiry.id}
-          highlight={returned && role === "team_leader"}
-          initial={{
-            vin: inquiry.vin,
-            plate_number: inquiry.plate_number,
-            vehicle_model: inquiry.vehicle_model,
-            system: inquiry.system,
-            vehicle_location: inquiry.vehicle_location,
-            mileage_km: inquiry.mileage_km,
-            dtc_codes: inquiry.dtc_codes ?? "",
-            software_version: inquiry.software_version ?? "",
-            occurrence: inquiry.occurrence,
-            occurrence_conditions: inquiry.occurrence_conditions ?? "",
-            parts_replaced: inquiry.parts_replaced ?? "",
-            responsible_phone: inquiry.responsible_phone ?? "",
-            concern_first_noticed: inquiry.concern_first_noticed,
-            after_previous_repair: inquiry.after_previous_repair,
-            previous_repair_details: inquiry.previous_repair_details ?? "",
-            fault_complaint: inquiry.fault_complaint,
-            workshop_comments: inquiry.workshop_comments ?? "",
-          }}
-        />
       )}
       {isTeam && versions.length > 0 && (
         <details className="rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">

@@ -17,10 +17,25 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
 }
 
 /**
- * Edit the case details (the supervisor / branch admin, the team leader on his own returned or waiting case, officers).
- * The version before the edit is kept; the technical team and officers can see it under "Edit history".
+ * The case details card, editable in place (the supervisor / branch admin, the team leader on his own returned or waiting
+ * case, officers): "Edit" turns the details into fields right where they are; work orders, files and the reasons stay as
+ * they are below. The version before the edit is kept; the technical team and officers see it under "Edit history".
  */
-export function EditCasePanel({ inquiryId, initial, highlight = false }: { inquiryId: string; initial: InquiryEditFields; highlight?: boolean }) {
+export function EditableCase({
+  inquiryId,
+  initial,
+  highlight = false,
+  view,
+  fixed,
+}: {
+  inquiryId: string;
+  initial: InquiryEditFields;
+  highlight?: boolean;
+  /** The card as everyone sees it. */
+  view: React.ReactNode;
+  /** What cannot be edited here (reasons, work orders, files) - shown under the fields while editing. */
+  fixed: React.ReactNode;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(highlight);
   const [f, setF] = useState<InquiryEditFields>(initial);
@@ -37,22 +52,22 @@ export function EditCasePanel({ inquiryId, initial, highlight = false }: { inqui
 
   if (!open) {
     return (
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold text-neutral-900">Edit the case</p>
-          <p className="text-xs text-neutral-500">Correct or complete the details. The previous version is kept.{saved ? " Saved." : ""}</p>
+      <section className="relative space-y-4 rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-end gap-3">
+          {saved && <span className="text-xs text-emerald-700">Saved - the previous version is kept.</span>}
+          <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50">
+            ✎ Edit
+          </button>
         </div>
-        <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50">
-          ✎ Edit the case
-        </button>
+        {view}
       </section>
     );
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-brand/30 bg-white p-4 shadow-sm">
-      <div>
-        <h2 className="text-sm font-semibold text-neutral-900">Edit the case</h2>
+    <section className="space-y-4 rounded-xl border-2 border-brand/40 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-neutral-900">Editing the case details</h2>
         <p className="text-xs text-neutral-500">Work orders and files cannot be changed here - add new files or results as a comment.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -119,7 +134,7 @@ export function EditCasePanel({ inquiryId, initial, highlight = false }: { inqui
           {error}
         </p>
       )}
-      <div className="flex items-center gap-2">
+      <div className="sticky bottom-2 z-10 flex items-center gap-2 rounded-lg bg-white/95 py-1">
         <button
           type="button"
           disabled={pending}
@@ -149,6 +164,7 @@ export function EditCasePanel({ inquiryId, initial, highlight = false }: { inqui
           Cancel
         </button>
       </div>
+      <div className="space-y-4 border-t border-neutral-100 pt-4 opacity-80">{fixed}</div>
     </section>
   );
 }
