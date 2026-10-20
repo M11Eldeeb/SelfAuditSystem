@@ -149,7 +149,8 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
   const rejected = status === "rejected";
   const finished = closed || cancelled || rejected;
   const withSupervisor = awaitingVerification || (returned && !returnedByTeam);
-  // The technical team works on a case (reply, edit, return, close) after "Edit & Reply" or when it is theirs; officers always can.
+  // The technical team works on a case (reply, return, close - not edit its details) after "Edit & Reply" or when it is theirs;
+  // officers always can.
   const working = role === "officer" || (role === "technical" && (reply || inquiry.assigned_to === user?.id));
   // Who may edit: officers and the branch's supervisor / admin while the case is not finished; the team leader on his own case
   // while it waits for, or was returned by, the supervisor (the database checks the same).
@@ -158,8 +159,7 @@ export async function InquiryDetail({ role, id, reply = false }: { role: Inquiry
     (role === "officer" ||
       role === "workshop_supervisor" ||
       role === "branch_admin" ||
-      (role === "team_leader" && inquiry.created_by === user?.id && (withSupervisor || returnedByTeam)) ||
-      (role === "technical" && working && !withSupervisor));
+      (role === "team_leader" && inquiry.created_by === user?.id && (withSupervisor || returnedByTeam)));
   const lastReturn = [...(comments ?? [])].reverse().find((c) => c.kind === "returned");
   const versions = versionRows ?? [];
   const current: Record<string, unknown> = { ...inquiry };
