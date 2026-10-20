@@ -187,7 +187,7 @@ export function statusTabs(role: InquiryRole): { key: string; label: string; sta
   }
   return [
     { key: "open", label: "Needs the technical team", statuses: ["open"] },
-    { key: "awaiting", label: "Waiting for the workshop", statuses: ["awaiting_workshop"] },
+    { key: "awaiting", label: "Waiting for the workshop", statuses: ["awaiting_workshop", "returned"] },
     { key: "closed", label: "Closed", statuses: ["closed"] },
     { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
     { key: "all", label: "All", statuses: null },

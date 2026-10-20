@@ -16,7 +16,7 @@ import { RESPONSIBLE_ROLE_LABEL, SUBMIT_REASON_LABEL, SYSTEM_LABEL, VEHICLE_LOCA
  * side of a case form one thread.
  */
 
-export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "delegated" | "team_reply" | "closed" | "reopened" | "needs_verification" | "verified" | "rejected" | "returned";
+export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "delegated" | "team_reply" | "closed" | "reopened" | "needs_verification" | "verified" | "rejected" | "returned" | "returned_by_team";
 
 const MAIL_FOR: Record<InquiryEvent, MailKey> = {
   created: "inquiry_new",
@@ -29,6 +29,8 @@ const MAIL_FOR: Record<InquiryEvent, MailKey> = {
   rejected: "inquiry_rejected",
   // Returned to complete documents / diagnosis: the same "sent back by the supervisor" mail, with what is missing.
   returned: "inquiry_rejected",
+  // Returned by the technical team: the "technical team answered" mail to the workshop, with what is missing.
+  returned_by_team: "inquiry_answered",
   team_reply: "inquiry_answered",
   closed: "inquiry_closed",
   reopened: "inquiry_reopened",
@@ -43,6 +45,7 @@ const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopene
   verified: "verified",
   rejected: "rejected",
   returned: "returned",
+  returned_by_team: "returned",
   closed: "closed",
   reopened: "reopened",
 };

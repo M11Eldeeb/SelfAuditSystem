@@ -35,7 +35,7 @@ import {
 import { formatBytes } from "@/lib/feedback-constants";
 import { InquiryCommentForm } from "./comment-form";
 import { ClosePanel } from "./close-panel";
-import { AssignPanel, ReturnedPanel, VerifyPanel, WorkshopActions } from "./case-actions";
+import { AssignPanel, ReturnedPanel, TeamReturnPanel, VerifyPanel, WorkshopActions } from "./case-actions";
 import { EditCasePanel } from "./edit-case";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
@@ -106,13 +106,14 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /** One inquiry: the case details, the files (in Google Drive), the conversation, and what this role can do about it. */
-export async function InquiryDetail({ role, id }: { role: InquiryRole; id: string }) {
+export async function InquiryDetail({ role, id, reply = false }: { role: InquiryRole; id: string; reply?: boolean }) {
   const supabase = await createClient();
   const basePath = basePathFor(role);
   const isTeam = role === "technical" || role === "officer";
 
-  // The first technician to open an unassigned case gets it (the database does nothing for anyone else or for a case that has a technician).
-  if (role === "technical") await supabase.rpc("claim_technical_inquiry", { p_inquiry_id: id });
+  // "Edit & Reply": the technical advisor takes the case if nobody has it yet (the database does nothing for a case that has one).
+  // Just viewing a case assigns nothing.
+  if (role === "technical" && reply) await supabase.rpc("claim_technical_inquiry", { p_inquiry_id: id });
 
   // RLS decides what the caller may see: a branch admin gets nothing for another branch's case.
   const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
@@ -144,14 +145,21 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const awaitingVerification = status === "pending_verification";
   const cancelled = status === "cancelled";
   const returned = status === "returned";
+  const returnedByTeam = returned && inquiry.returned_by === "technical";
   const rejected = status === "rejected";
   const finished = closed || cancelled || rejected;
-  const withSupervisor = awaitingVerification || returned;
+  const withSupervisor = awaitingVerification || (returned && !returnedByTeam);
+  // The technical team works on a case (reply, edit, return, close) after "Edit & Reply" or when it is theirs; officers always can.
+  const working = role === "officer" || (role === "technical" && (reply || inquiry.assigned_to === user?.id));
   // Who may edit: officers and the branch's supervisor / admin while the case is not finished; the team leader on his own case
   // while it waits for, or was returned by, the supervisor (the database checks the same).
   const canEdit =
     !finished &&
-    (role === "officer" || role === "workshop_supervisor" || role === "branch_admin" || (role === "team_leader" && inquiry.created_by === user?.id && withSupervisor));
+    (role === "officer" ||
+      role === "workshop_supervisor" ||
+      role === "branch_admin" ||
+      (role === "team_leader" && inquiry.created_by === user?.id && (withSupervisor || returnedByTeam)) ||
+      (role === "technical" && working && !withSupervisor));
   const lastReturn = [...(comments ?? [])].reverse().find((c) => c.kind === "returned");
   const versions = versionRows ?? [];
   const current: Record<string, unknown> = { ...inquiry };
@@ -331,15 +339,28 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
       )}
 
       {awaitingVerification && <VerifyPanel inquiryId={inquiry.id} canVerify={canVerifyRole(role)} submittedBy={inquiry.created_by_name} />}
+      {role === "technical" && !working && !finished && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm">
+          <div>
+            <p className="text-sm font-semibold text-sky-950">You are viewing this case</p>
+            <p className="text-xs text-sky-900">{inquiry.assigned_to_name ? `${inquiry.assigned_to_name} is the technical advisor.` : "Nobody has taken it yet."} Choose Edit &amp; Reply to work on it.</p>
+          </div>
+          <Link href={`${basePath}/${inquiry.id}?reply=1`} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark">
+            Edit &amp; Reply
+          </Link>
+        </section>
+      )}
       {returned && (
         <ReturnedPanel
           inquiryId={inquiry.id}
           reason={lastReturn?.body ?? null}
           returnedBy={lastReturn?.author_name ?? null}
+          byTeam={returnedByTeam}
           canSend={(role === "team_leader" && inquiry.created_by === user?.id) || role === "workshop_supervisor" || role === "branch_admin" || role === "officer"}
-          canReject={canVerifyRole(role)}
+          canReject={!returnedByTeam && canVerifyRole(role)}
         />
       )}
+      {isTeam && working && (status === "open" || status === "awaiting_workshop") && <TeamReturnPanel inquiryId={inquiry.id} />}
       {rejected && (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm">
           <p className="font-semibold">Rejected by the workshop supervisor</p>
@@ -470,7 +491,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         )}
       </section>
 
-      {!finished && (
+      {!finished && (!isTeam || working) && (
         <InquiryCommentForm
           inquiryId={inquiry.id}
           driveReady={drive !== null}
@@ -478,7 +499,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           placeholder={isTeam ? "Answer the workshop, ask for more information or a photo..." : "Reply to the technical team, add the photos or results they asked for..."}
         />
       )}
-      {isTeam && !cancelled && !rejected && !withSupervisor && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
+      {isTeam && working && !cancelled && !rejected && !withSupervisor && !returned && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
       {!isTeam && <WorkshopActions inquiryId={inquiry.id} status={status} />}
       {role === "officer" && !closed && <WorkshopActions inquiryId={inquiry.id} status={status} />}
     </div>

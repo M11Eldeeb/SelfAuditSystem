@@ -294,7 +294,22 @@ export function AssignPanel({
  * A case the supervisor returned to complete documents or diagnosis. The team leader (or anyone on the workshop side) edits
  * it, adds files in a comment, and sends it to the supervisor again; the supervisor can still reject it.
  */
-export function ReturnedPanel({ inquiryId, reason, returnedBy, canSend, canReject }: { inquiryId: string; reason: string | null; returnedBy: string | null; canSend: boolean; canReject: boolean }) {
+export function ReturnedPanel({
+  inquiryId,
+  reason,
+  returnedBy,
+  byTeam,
+  canSend,
+  canReject,
+}: {
+  inquiryId: string;
+  reason: string | null;
+  returnedBy: string | null;
+  /** Returned by the technical team: sending it again goes straight back to them. */
+  byTeam: boolean;
+  canSend: boolean;
+  canReject: boolean;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<"send" | "reject" | null>(null);
   const [text, setText] = useState("");
@@ -315,17 +330,22 @@ export function ReturnedPanel({ inquiryId, reason, returnedBy, canSend, canRejec
   return (
     <section className="space-y-3 rounded-xl border border-orange-300 bg-orange-50 p-4 shadow-sm">
       <div>
-        <h2 className="text-sm font-semibold text-orange-950">Returned{returnedBy ? ` by ${returnedBy}` : ""} to complete documents / diagnosis</h2>
+        <h2 className="text-sm font-semibold text-orange-950">
+          Returned{returnedBy ? ` by ${returnedBy}` : ""}
+          {byTeam ? " (technical team)" : " (workshop supervisor)"} to complete documents / diagnosis
+        </h2>
         {reason && <p className="mt-1 text-sm whitespace-pre-wrap text-orange-950">{reason}</p>}
         <p className="mt-1 text-xs text-orange-900">
-          {canSend ? "Edit the case details below, add the missing files or results as a comment, then send it to the supervisor again." : "Waiting for the team leader to complete it."}
+          {canSend
+            ? `Edit the case details below, add the missing files or results as a comment, then send it ${byTeam ? "back to the technical team" : "to the supervisor again"}.`
+            : "Waiting for the team leader to complete it."}
         </p>
       </div>
       {mode === null ? (
         <div className="flex flex-wrap gap-2">
           {canSend && (
             <button type="button" onClick={() => setMode("send")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark">
-              Send to the supervisor again
+              {byTeam ? "Send back to the technical team" : "Send to the supervisor again"}
             </button>
           )}
           {canReject && (
@@ -352,9 +372,68 @@ export function ReturnedPanel({ inquiryId, reason, returnedBy, canSend, canRejec
               onClick={() => run(() => (mode === "send" ? sendInquiryToSupervisor({ inquiryId, comment: text }) : rejectTechnicalInquiry({ inquiryId, reason: text })))}
               className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${mode === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-brand hover:bg-brand-dark"}`}
             >
-              {pending ? "Saving..." : mode === "send" ? "Send to the supervisor" : "Reject the case"}
+              {pending ? "Saving..." : mode === "send" ? (byTeam ? "Send to the technical team" : "Send to the supervisor") : "Reject the case"}
             </button>
             <button type="button" onClick={() => setMode(null)} disabled={pending} className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** The technical team returns a case to the team leader to complete documents / diagnosis; it comes straight back to them. */
+export function TeamReturnPanel({ inquiryId }: { inquiryId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  return (
+    <section className="space-y-3 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-900">Something missing?</h2>
+          <p className="text-xs text-neutral-500">Return the case to the team leader to complete documents or diagnosis. When he sends it back it comes straight to you.</p>
+        </div>
+        {!open && (
+          <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-900 shadow-sm hover:bg-orange-100">
+            Return to the team leader
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="space-y-2">
+          <label htmlFor="ti-team-return" className="text-xs font-medium text-neutral-700">
+            What is missing?
+          </label>
+          <textarea id="ti-team-return" value={text} onChange={(e) => setText(e.target.value)} maxLength={INQUIRY_TEXT_MAX} rows={3} disabled={pending} className={textareaClass} />
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || !text.trim()}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const res = await returnTechnicalInquiry({ inquiryId, reason: text });
+                  if (res.error) return setError(res.error);
+                  setText("");
+                  setOpen(false);
+                  router.refresh();
+                })
+              }
+              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-700 disabled:opacity-50"
+            >
+              {pending ? "Saving..." : "Return to the team leader"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} disabled={pending} className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
               Not now
             </button>
           </div>

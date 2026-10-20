@@ -558,6 +558,8 @@ export interface Database {
           verified_by: string | null;
           verified_by_name: string | null;
           verified_at: string | null;
+          /** Who returned the case: the workshop supervisor (it goes back to him) or the technical team (straight back to them). */
+          returned_by: "supervisor" | "technical" | null;
         };
         Insert: {
           id?: string;
@@ -1706,7 +1708,7 @@ export interface Database {
       };
       send_inquiry_to_supervisor: {
         Args: { p_inquiry_id: string; p_comment?: string | null };
-        Returns: void;
+        Returns: string;
       };
       edit_technical_inquiry: {
         Args: { p_inquiry_id: string; p_fields: Record<string, string | number | null> };

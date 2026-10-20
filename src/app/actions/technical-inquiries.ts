@@ -558,7 +558,10 @@ export async function findSimilarInquiries(vin: string): Promise<{ cases: Simila
   };
 }
 
-/** The workshop supervisor returns a case to the team leader to complete documents or diagnosis (it is not cancelled). */
+/**
+ * Returns a case to the team leader to complete documents or diagnosis (it is not cancelled): the workshop supervisor while
+ * it waits for verification, or the technical team while they work on it (then it comes straight back to them).
+ */
 export async function returnTechnicalInquiry(input: { inquiryId: string; reason: string }): Promise<{ error?: string }> {
   const who = await inquiryUser();
   if ("error" in who) return { error: who.error };
@@ -569,12 +572,13 @@ export async function returnTechnicalInquiry(input: { inquiryId: string; reason:
   const supabase = await createClient();
   const { error } = await supabase.rpc("return_technical_inquiry", { p_inquiry_id: input.inquiryId, p_reason: reason });
   if (error) return { error: error.message };
-  afterCaseChange("returned", input.inquiryId, await siteOrigin());
+  const { data: after } = await supabase.from("self_audit_technical_inquiries").select("returned_by").eq("id", input.inquiryId).maybeSingle();
+  afterCaseChange(after?.returned_by === "technical" ? "returned_by_team" : "returned", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
 
-/** The team leader sends a returned (and completed) case to the workshop supervisor again. */
+/** The team leader sends a returned (and completed) case back: to the supervisor, or straight to the technical team when they returned it. */
 export async function sendInquiryToSupervisor(input: { inquiryId: string; comment?: string }): Promise<{ error?: string }> {
   const who = await inquiryUser();
   if ("error" in who) return { error: who.error };
@@ -582,9 +586,10 @@ export async function sendInquiryToSupervisor(input: { inquiryId: string; commen
   const comment = (input.comment ?? "").trim();
   if (comment.length > INQUIRY_TEXT_MAX) return { error: `The text can be at most ${INQUIRY_TEXT_MAX} characters.` };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("send_inquiry_to_supervisor", { p_inquiry_id: input.inquiryId, p_comment: comment || null });
+  const { data: newStatus, error } = await supabase.rpc("send_inquiry_to_supervisor", { p_inquiry_id: input.inquiryId, p_comment: comment || null });
   if (error) return { error: error.message };
-  afterCaseChange("needs_verification", input.inquiryId, await siteOrigin());
+  // Returned by the technical team: straight back to them; returned by the supervisor: to the supervisor again.
+  afterCaseChange(newStatus === "open" ? "resubmitted" : "needs_verification", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }

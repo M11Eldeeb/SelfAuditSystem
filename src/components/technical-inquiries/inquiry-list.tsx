@@ -149,11 +149,11 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     countStatus("closed"),
     countStatus("cancelled"),
     isBranch ? countStatus("pending_verification") : Promise.resolve(0),
-    isBranch ? countStatus("returned") : Promise.resolve(0),
+    countStatus("returned"), // for the technical team: only the cases they returned themselves
     isBranch ? countStatus("rejected") : Promise.resolve(0),
   ]);
   const nCancelled = nCancelledOnly + nRejected;
-  const tabCount: Record<string, number> = { open: nOpen, awaiting: nAwaiting, closed: nClosed, cancelled: nCancelled, verify: nVerify, returned: nReturned, all: nOpen + nAwaiting + nClosed + nCancelled + nVerify + nReturned };
+  const tabCount: Record<string, number> = { open: nOpen, awaiting: isBranch ? nAwaiting : nAwaiting + nReturned, closed: nClosed, cancelled: nCancelled, verify: nVerify, returned: nReturned, all: nOpen + nAwaiting + nClosed + nCancelled + nVerify + nReturned };
 
   const ids = (inquiries ?? []).map((i) => i.id);
   const { data: comments } = ids.length ? await supabase.from("self_audit_technical_inquiry_comments").select("inquiry_id").eq("kind", "comment").eq("internal", false).in("inquiry_id", ids) : { data: [] as { inquiry_id: string }[] };
@@ -289,7 +289,7 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
                     <span className="rounded-full bg-neutral-50 px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200 ring-inset">
                       {SYSTEM_LABEL[i.system as InquirySystem] ?? i.system}
                     </span>
-                    {i.waiting_since && !["closed", "cancelled"].includes(status) && (
+                    {i.waiting_since && !["closed", "cancelled", "rejected"].includes(status) && (
                       <span className={`text-[11px] font-medium ${late ? "text-red-600" : "text-neutral-500"}`}>waiting {waitingText(i.waiting_since)}</span>
                     )}
                     <span className="ml-auto text-xs text-neutral-500">{dateLabel(i.updated_at)}</span>
@@ -309,6 +309,16 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
                     )}
                   </p>
                 </Link>
+                {role === "technical" && (
+                  <div className="flex flex-wrap gap-2 px-4 pb-3">
+                    <Link href={`${basePath}/${i.id}`} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50">
+                      View case
+                    </Link>
+                    <Link href={`${basePath}/${i.id}?reply=1`} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-dark">
+                      Edit &amp; Reply
+                    </Link>
+                  </div>
+                )}
               </li>
             );
           })}
