@@ -1,4 +1,4 @@
-import { BarList, C, Donut, GroupedColumns, Meter, Ring, StackedBar, dayShort, monthShort } from "@/components/dashboard/charts";
+import { BarList, C, Donut, GroupedColumns, Meter, StackedBar, dayShort, monthShort } from "@/components/dashboard/charts";
 import { TipCard } from "@/components/dashboard/hover";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
 import type { SectionProps } from "./overview";
@@ -31,7 +31,6 @@ export function FinancialsSection({
     { label: "Sublet", value: cost.sublet, color: C.slate },
   ];
   const biggest = [...costSegments].sort((a, b) => b.value - a.value)[0];
-  const returned = t.submittedCount - t.acceptedFirstTime;
   const topSeries = data.seriesStats.slice(0, 3);
   const acvMax = Math.max(...topSeries.map((s) => (s.count ? s.amount / s.count : 0)), 1);
   const statusTotal = data.statusCounts.reduce((s, x) => s + x.count, 0) || 1;
@@ -40,7 +39,7 @@ export function FinancialsSection({
   return (
     <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card accent={C.red} className="flex flex-col justify-between gap-3">
           <div>
             <Label>Gross claims</Label>
@@ -58,39 +57,6 @@ export function FinancialsSection({
               </span>
             </div>
             <Meter pct={t.totalClaimAmount ? (t.totalAdjustedAmount / t.totalClaimAmount) * 100 : 0} color={C.red} />
-          </div>
-        </Card>
-
-        <Card accent={C.green} className="flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between">
-            <Label>First-pass acceptance</Label>
-            <Pill tone="good">Top box</Pill>
-          </div>
-          <div className="flex items-center gap-3">
-            <Ring pct={t.topBoxPct} size={84} center={fmtPct(t.topBoxPct)} caption="top box" color={C.green} />
-            <div className="w-full space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="flex items-center gap-1 text-[#575e70]">
-                  <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                  Accepted 1st time
-                </span>
-                <span className="font-bold">{fmtInt(t.acceptedFirstTime)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="flex items-center gap-1 text-[#575e70]">
-                  <span className="h-2 w-2 rounded-full bg-[#c4121a]" />
-                  Returned
-                </span>
-                <span className="font-bold">{fmtInt(returned)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="flex items-center gap-1 text-[#575e70]">
-                  <span className="h-2 w-2 rounded-full bg-[#c0c6db]" />
-                  Not submitted
-                </span>
-                <span className="font-bold">{fmtInt(t.claimCount - t.submittedCount)}</span>
-              </div>
-            </div>
           </div>
         </Card>
 
@@ -112,7 +78,7 @@ export function FinancialsSection({
             />
             <div className="mt-1.5 grid grid-cols-3 text-center">
               {[
-                { l: "Labor", v: data.detectedSplit.labor, c: "text-[#0041b0]" },
+                { l: "Labor", v: data.detectedSplit.labor, c: "text-[#2d2d2d]" },
                 { l: "Parts", v: data.detectedSplit.part, c: "text-[#5c6274]" },
                 { l: "Sublet", v: data.detectedSplit.sublet, c: "text-[#9a000d]" },
               ].map((x) => (
@@ -173,7 +139,7 @@ export function FinancialsSection({
               format: (v) => fmtCompact(v),
             }}
           />
-          <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-[#eff4ff] p-3">
+          <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-[#f5f5f5] p-3">
             <div>
               <Label>Claimed</Label>
               <div className="font-display text-lg font-semibold">{fmtMoney(t.totalClaimAmount)}</div>
@@ -247,7 +213,7 @@ export function FinancialsSection({
       <Panel eyebrow="Priority scrutiny" title="High-value claims" subtitle="Top 10 claims by Claim TOL. in this period">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+            <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
               <tr>
                 <th className="px-3 py-2.5">Claim / VIN</th>
                 <th className="px-3 py-2.5">Model & labor</th>
@@ -261,7 +227,7 @@ export function FinancialsSection({
               {data.highValueClaims.map((r) => {
                 const delta = r.adjusted - r.amount;
                 return (
-                  <tr key={r.claimNumber} className="hover:bg-[#eff4ff]/50">
+                  <tr key={r.claimNumber} className="hover:bg-[#f5f5f5]/50">
                     <td className="px-3 py-2.5">
                       <div className="font-bold text-[#0b1c30]">{r.claimNumber}</div>
                       <div className="font-mono text-[11px] text-[#575e70]">{r.vin ?? r.workOrderNo}</div>

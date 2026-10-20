@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-/** Labor / parts / total colours for the invoicing tab - teal and amber read apart for everyone (incl. colour-blind). */
-export const INV = { labor: "#0f766e", parts: "#d97706", total: "#334155", grid: "#e2e8f0", soft: "#f0fdfa" };
-export const INV_SERIES = ["#0f766e", "#d97706", "#6d28d9", "#0891b2", "#be185d", "#65a30d", "#475569", "#ea580c", "#4338ca"];
+/** MG brand colours: labor in MG red, parts in MG black, the total in MG silver. */
+export const INV = { labor: "#c4121a", parts: "#2d2d2d", total: "#8a8d91", grid: "#e5e5e5", soft: "#fdf2f2" };
+export const INV_SERIES = ["#c4121a", "#2d2d2d", "#8a8d91", "#7a0010", "#e2747b", "#55585c", "#b9bcc0", "#d97706", "#0f766e"];
 
 const compact = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3)}K` : String(Math.round(v)));
 const money = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });

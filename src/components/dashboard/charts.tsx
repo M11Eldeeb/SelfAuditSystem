@@ -9,9 +9,10 @@ import { TipCard, useHoverCard } from "@/components/dashboard/hover";
 export const C = {
   primary: "#9a000d",
   red: "#c4121a",
-  blue: "#0041b0",
-  blueLight: "#0c57df",
-  blueSoft: "#b4c5ff",
+  // MG brand: red, charcoal black and silver grey (the "blue" names are kept so every chart picks the new colours up).
+  blue: "#2d2d2d",
+  blueLight: "#6b6e73",
+  blueSoft: "#c9cbcf",
   slate: "#575e70",
   slateSoft: "#c0c6db",
   track: "var(--chart-track)",
@@ -21,17 +22,17 @@ export const C = {
 };
 
 export const SERIES_COLORS = [
-  "#c4121a",
-  "#0c57df",
-  "#059669",
+  "#c4121a", // MG red
+  "#2d2d2d", // MG black
+  "#8a8d91", // MG silver
+  "#7a0010", // deep red
+  "#e2747b", // light red
+  "#55585c", // graphite
+  "#b9bcc0", // light silver
   "#d97706",
-  "#7c3aed",
-  "#0891b2",
-  "#db2777",
-  "#4b5563",
-  "#65a30d",
-  "#9333ea",
-  "#ea580c",
+  "#0f766e",
+  "#6d28d9",
+  "#0369a1",
 ];
 
 export function monthShort(yyyyMM: string): string {

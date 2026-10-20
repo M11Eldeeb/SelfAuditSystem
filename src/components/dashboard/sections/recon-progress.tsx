@@ -40,7 +40,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="rounded-lg bg-[#eff4ff] p-3">
+            <div className="rounded-lg bg-[#f5f5f5] p-3">
               <Label>Total loss</Label>
               <div className="font-display text-xl font-bold text-[#0b1c30]">
                 {fmtNum(lossAmount, 2)} <span className="text-xs font-semibold text-[#575e70]">{data.currency}</span>
@@ -79,7 +79,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#eff4ff] text-[10px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#f5f5f5] text-[10px] font-bold tracking-wider text-[#575e70] uppercase">
                 <tr>
                   <th className="px-3 py-2">Settlement no.</th>
                   <th className="px-3 py-2 text-right">Claims</th>
@@ -93,7 +93,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                 {rows.map((r) => {
                   const p = r.lossAmount ? (r.reviewedAmount / r.lossAmount) * 100 : 0;
                   return (
-                    <tr key={r.order} className="hover:bg-[#eff4ff]/50">
+                    <tr key={r.order} className="hover:bg-[#f5f5f5]/50">
                       <td className="px-3 py-2">
                         <div className="font-semibold text-[#0b1c30]">{r.order}</div>
                         <div className="text-[10px] text-[#575e70]">{settlementDate(r.order)}</div>

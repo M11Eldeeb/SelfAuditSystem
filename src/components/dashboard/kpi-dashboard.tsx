@@ -29,7 +29,6 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   warranty: Icon.box,
   trends: Icon.alert,
   reconciliation: Icon.money,
-  invoicing: Icon.receipt,
 };
 
 const inputClass =
@@ -227,8 +226,6 @@ export function KpiDashboard({
               </div>
               {tab === "reconciliation" ? (
                 <p className="text-sm text-[#575e70]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
-              ) : tab === "invoicing" ? (
-                <p className="text-sm text-[#575e70]">Labor and parts invoicing from the daily report e-mail - filter by sales type, account, branch and owing operator below.</p>
               ) : (
                 <p className="text-sm text-[#575e70]">
                   Claims with repair end date in <strong className="text-[#0b1c30]">{periodLabel}</strong> · {fmtNum(t.workingDays, 1)} working days
@@ -242,7 +239,7 @@ export function KpiDashboard({
             </div>
           </div>
 
-          {tab !== "reconciliation" && tab !== "tasks" && tab !== "invoicing" && (
+          {tab !== "reconciliation" && tab !== "tasks" && (
           <div className="relative mt-4 space-y-3 border-t border-[#e5eeff] pt-4">
             <div className="flex flex-wrap items-end gap-3">
               <label className="space-y-1">
@@ -346,6 +343,11 @@ export function KpiDashboard({
               onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined}
             />
           )}
+          {tab === "financials" && isOfficer && (
+            <div className="space-y-5 border-t-2 border-dashed border-[#e5e5e5] pt-5">
+              <InvoicingSection />
+            </div>
+          )}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
           {tab === "trends" && trends && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
@@ -354,7 +356,6 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
-          {tab === "invoicing" && isOfficer && <InvoicingSection />}
           {tab === "reconciliation" && isOfficer && (
             <ReconciliationSection settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />
           )}

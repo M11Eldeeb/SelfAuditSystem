@@ -115,7 +115,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: INV.soft }}>
           <span className="text-sm font-semibold text-slate-900">{picked.size} selected</span>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) - e.g. claim no. or credit note no." className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm" />
-          <button type="button" disabled={busy} onClick={() => void apply("resolved")} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: INV.labor }}>
+          <button type="button" disabled={busy} onClick={() => void apply("resolved")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
             ✓ Resolved
           </button>
           <button type="button" disabled={busy} onClick={() => void apply("credit_note")} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: INV.parts }}>
@@ -151,7 +151,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
             </thead>
             <tbody className="divide-y divide-slate-100">
               {shown.map((r) => (
-                <tr key={r.key} className={`hover:bg-slate-50 ${picked.has(r.key) ? "bg-teal-50/60" : ""}`}>
+                <tr key={r.key} className={`hover:bg-slate-50 ${picked.has(r.key) ? "bg-red-50/60" : ""}`}>
                   <td className="px-2 py-1.5">
                     <input type="checkbox" checked={picked.has(r.key)} onChange={() => toggle(r.key)} aria-label="Select line" />
                   </td>
@@ -173,7 +173,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
                   <td className="px-2 py-1.5 whitespace-nowrap">
                     {r.mark ? (
                       <span title={`${r.mark.by ?? ""} · ${stamp(r.mark.at)}${r.mark.note ? ` · ${r.mark.note}` : ""}`}>
-                        <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: r.mark.status === "resolved" ? INV.labor : INV.parts }}>
+                        <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: r.mark.status === "resolved" ? "#059669" : INV.parts }}>
                           {STATUS_LABEL[r.mark.status]}
                         </span>
                         {r.mark.note && <span className="ml-1 text-slate-500">{r.mark.note}</span>}

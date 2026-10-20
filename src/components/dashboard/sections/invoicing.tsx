@@ -69,7 +69,7 @@ function Select({ label, value, onChange, options }: { label: string; value: str
   return (
     <label className="flex min-w-0 flex-col gap-1">
       <Label>{label}</Label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-9 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15 focus:outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-9 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -90,7 +90,7 @@ function Breakdown({ title, rows, onPick, onOpen, active, bind }: { title: strin
         {shown.map((r) => {
           const total = r.labor + r.parts;
           return (
-            <div key={r.key} className={`flex items-center gap-1 rounded-lg transition-colors ${active === r.key ? "bg-teal-50 ring-1 ring-teal-700/30" : "hover:bg-slate-50"}`}>
+            <div key={r.key} className={`flex items-center gap-1 rounded-lg transition-colors ${active === r.key ? "bg-red-50 ring-1 ring-red-700/30" : "hover:bg-slate-50"}`}>
               <button
                 type="button"
                 onClick={() => onOpen(r)}
@@ -126,7 +126,7 @@ function Breakdown({ title, rows, onPick, onOpen, active, bind }: { title: strin
                 type="button"
                 onClick={() => onPick(active === r.key ? ALL : r.key)}
                 title={active === r.key ? "Remove this filter" : "Filter the dashboard by this"}
-                className={`shrink-0 rounded-md px-1.5 py-1 text-[11px] font-semibold ${active === r.key ? "text-teal-800" : "text-slate-400 hover:text-teal-800"}`}
+                className={`shrink-0 rounded-md px-1.5 py-1 text-[11px] font-semibold ${active === r.key ? "text-red-800" : "text-slate-400 hover:text-red-800"}`}
               >
                 {active === r.key ? "✕" : "⏷"}
               </button>
@@ -378,7 +378,7 @@ export function InvoicingSection() {
           </div>
         }
       >
-        {note && <p className={`mb-3 rounded-lg px-3 py-2 text-sm ${note.ok ? "bg-teal-50 text-teal-900" : "bg-red-50 text-red-700"}`}>{note.text}</p>}
+        {note && <p className={`mb-3 rounded-lg px-3 py-2 text-sm ${note.ok ? "bg-red-50 text-red-900" : "bg-red-50 text-red-700"}`}>{note.text}</p>}
         {!data?.connectedAs && (
           <p className="mb-3 text-sm text-slate-500">
             Sign in with the Google mailbox the daily report arrives in. The portal can only read it - it searches for the e-mail whose subject contains &quot;Major Service Indicators Daily Report&quot; and
@@ -397,7 +397,7 @@ export function InvoicingSection() {
         {chips.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {chips.map(([k, t]) => (
-              <button key={k} type="button" onClick={() => set(k)(DEFAULT_FILTERS[k])} className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-900 ring-1 ring-teal-700/20 hover:bg-teal-100">
+              <button key={k} type="button" onClick={() => set(k)(DEFAULT_FILTERS[k])} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-900 ring-1 ring-red-700/20 hover:bg-red-100">
                 {t} ✕
               </button>
             ))}

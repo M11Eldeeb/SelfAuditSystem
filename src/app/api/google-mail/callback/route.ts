@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const done = (flag: string, detail?: string) => {
     const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
     const res = NextResponse.redirect(
-      invoicing ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}${extra}` : docs ? `${origin}/admin/documents?mail=${flag}${extra}` : `${origin}/admin/emails?mail=${flag}${extra}`
+      invoicing ? `${origin}/admin/dashboard?tab=financials&mail=${flag}${extra}` : docs ? `${origin}/admin/documents?mail=${flag}${extra}` : `${origin}/admin/emails?mail=${flag}${extra}`
     );
     res.cookies.delete({ name: "gm_state", path: "/api/google-mail" });
     res.cookies.delete({ name: "gm_purpose", path: "/api/google-mail" });

@@ -50,9 +50,9 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
       {layer}
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {f.forecast.map((p, k) => (
-          <div key={p.month} className="rounded-lg bg-[#eff4ff] p-3" {...bind(<TipCard title={`${monthShort(p.month)} (forecast)`} rows={[{ label: "Expected", value: fmtMoney(p.gross), strong: true }, { label: "Likely range", value: `${fmtMoney(p.low)} – ${fmtMoney(p.high)}` }, { label: "vs previous month", value: pct(p.gross, prevOf(k)) }, { label: "vs 12-mo average", value: pct(p.gross, avg12) }]} />)}>
+          <div key={p.month} className="rounded-lg bg-[#f5f5f5] p-3" {...bind(<TipCard title={`${monthShort(p.month)} (forecast)`} rows={[{ label: "Expected", value: fmtMoney(p.gross), strong: true }, { label: "Likely range", value: `${fmtMoney(p.low)} – ${fmtMoney(p.high)}` }, { label: "vs previous month", value: pct(p.gross, prevOf(k)) }, { label: "vs 12-mo average", value: pct(p.gross, avg12) }]} />)}>
             <Label>Month {k + 1} · {monthShort(p.month)}</Label>
-            <div className="font-display text-xl font-bold text-[#0041b0]">{fmtMoney(p.gross)}</div>
+            <div className="font-display text-xl font-bold text-[#2d2d2d]">{fmtMoney(p.gross)}</div>
             <div className="text-[11px] text-[#575e70]">
               range {fmtCompact(p.low)} – {fmtCompact(p.high)} · {pct(p.gross, prevOf(k))} vs {k === 0 ? "last settled" : "prev. month"}
             </div>
@@ -77,12 +77,12 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
           <g key={a.month}>
             <circle cx={x(i)} cy={y(a.value)} r={a.kind === "forecast" ? 4.5 : 3.5} fill="white" stroke={a.kind === "forecast" ? C.blueLight : C.red} strokeWidth={2} />
             {a.kind === "forecast" && (
-              <text x={x(i)} y={y(a.value) - 9} textAnchor={i === all.length - 1 ? "end" : "middle"} className="fill-[#0041b0] text-[10px] font-bold">
+              <text x={x(i)} y={y(a.value) - 9} textAnchor={i === all.length - 1 ? "end" : "middle"} className="fill-[#2d2d2d] text-[10px] font-bold">
                 {fmtCompact(a.value)}
               </text>
             )}
             {(i % 3 === 0 || i === all.length - 1 || i === lastActual) && (
-              <text x={x(i)} y={H - 10} textAnchor="middle" className={`text-[10px] ${a.kind === "forecast" ? "fill-[#0041b0] font-bold" : "fill-neutral-500"}`}>
+              <text x={x(i)} y={H - 10} textAnchor="middle" className={`text-[10px] ${a.kind === "forecast" ? "fill-[#2d2d2d] font-bold" : "fill-neutral-500"}`}>
                 {monthShort(a.month)}
               </text>
             )}
@@ -125,10 +125,10 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
           <span className="h-0.5 w-4 bg-[#c4121a]" /> Settled (actual)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 border-t-2 border-dashed border-[#0c57df]" /> Forecast
+          <span className="h-0.5 w-4 border-t-2 border-dashed border-[#8a8d91]" /> Forecast
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-4 rounded-sm bg-[#0c57df]/20" /> Likely range
+          <span className="h-3 w-4 rounded-sm bg-[#8a8d91]/20" /> Likely range
         </span>
       </div>
     </Panel>

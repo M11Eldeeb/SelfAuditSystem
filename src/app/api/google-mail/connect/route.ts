@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const purpose = url.searchParams.get("purpose") === "invoicing" ? "invoicing" : url.searchParams.get("purpose") === "docs" ? "docs" : "sender";
   const back = (flag: string) =>
     NextResponse.redirect(
-      purpose === "invoicing" ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}` : purpose === "docs" ? `${origin}/admin/documents?mail=${flag}` : `${origin}/admin/emails?mail=${flag}`
+      purpose === "invoicing" ? `${origin}/admin/dashboard?tab=financials&mail=${flag}` : purpose === "docs" ? `${origin}/admin/documents?mail=${flag}` : `${origin}/admin/emails?mail=${flag}`
     );
 
   const user = await getCurrentUser();
