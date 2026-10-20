@@ -1,5 +1,8 @@
 "use server";
 
+import { after } from "next/server";
+import { siteOrigin } from "@/lib/site-origin";
+import { mailScrapEvidence } from "@/lib/mail/scrap-evidence";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
  * approved or returned independently. The videos stay in Drive.
  */
 export async function approveDestroyEvidence(cycleId: string, branchId: string): Promise<{ error?: string; scrappedCount?: number }> {
-  await requireRole("officer");
+  const officer = await requireRole("officer");
   const supabase = await createClient();
 
   const { data: scrappedCount, error: approveError } = await supabase.rpc("approve_destroy_evidence", {
@@ -21,6 +24,9 @@ export async function approveDestroyEvidence(cycleId: string, branchId: string):
   });
   if (approveError) return { error: approveError.message };
 
+  // The branch's admins are told by e-mail (after the response; a failed mail never undoes the approval).
+  const origin = await siteOrigin();
+  after(() => mailScrapEvidence("approved", { cycleId, branchId, by: officer.full_name?.trim() || officer.email, origin, userId: officer.id, scrapped: scrappedCount ?? 0 }));
   revalidatePath(`/admin/warranty-room/destroy-evidence/${cycleId}`);
   revalidatePath("/admin/warranty-room/destroy-evidence");
   return { scrappedCount: scrappedCount ?? undefined };

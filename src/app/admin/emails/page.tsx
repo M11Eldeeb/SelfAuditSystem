@@ -38,6 +38,8 @@ const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
   inquiry_answered: () => "When the technical team replies on a case. Goes to the branch's admins, with the service manager, workshop supervisor and workshop team leader copied.",
   inquiry_closed: () => "When the technical team closes a case with the solution.",
   inquiry_reopened: () => "When the technical team reopens a closed case.",
+  scrap_evidence_submitted: () => "Right when a branch submits its scrap (destroy) evidence videos in the Warranty Room. Goes to the warranty officers.",
+  scrap_evidence_approved: () => "Right when an officer approves a branch's scrap evidence. Goes to the branch's admins (follows the switch of the submitted mail).",
 };
 
 export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ mail?: string; detail?: string }> }) {

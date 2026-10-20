@@ -1,5 +1,7 @@
 "use server";
 
+import { siteOrigin } from "@/lib/site-origin";
+import { mailScrapEvidence } from "@/lib/mail/scrap-evidence";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { headers } from "next/headers";
@@ -191,6 +193,9 @@ export async function submitDestroyEvidence(cycleId: string): Promise<{ error?: 
     .eq("status", "pending");
   if (error) return { error: error.message };
 
+  // The officers are told by e-mail (after the response; a failed mail never undoes the submission).
+  const origin = await siteOrigin();
+  after(() => mailScrapEvidence("submitted", { cycleId, branchId, by: user.full_name?.trim() || user.email, origin, userId: user.id }));
   revalidatePath("/audit/warranty-room");
   return {};
 }

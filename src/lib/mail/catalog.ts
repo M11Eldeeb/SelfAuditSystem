@@ -22,7 +22,9 @@ export type MailKey =
   | "inquiry_closed"
   | "inquiry_reopened"
   | "inquiry_verify"
-  | "inquiry_rejected";
+  | "inquiry_rejected"
+  | "scrap_evidence_submitted"
+  | "scrap_evidence_approved";
 export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "workshop_supervisors" | "workshop_team_leaders" | "technical_team" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
@@ -540,6 +542,52 @@ ${SIGN_OFF}`,
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
     ],
   },
+  scrap_evidence_submitted: {
+    key: "scrap_evidence_submitted",
+    title: "Scrap evidence submitted",
+    to: "The warranty officers",
+    switchKey: "scrap_evidence_mails",
+    defaultSubject: "Scrap evidence submitted - {branch} - {month}",
+    defaultBody: `Dear Warranty Team,
+
+{by} submitted the destroy evidence of {branch} for the {month} warranty room cycle ({videos}).
+
+Please review the videos and approve or return the evidence.
+
+Review the evidence: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "month", help: "The warranty room cycle's month.", sample: "October 2026" },
+      { name: "by", help: "Who submitted the evidence.", sample: "Ahmed Ali" },
+      { name: "videos", help: "How many videos, with the word.", sample: "3 videos" },
+      { name: "link", help: "The evidence review page (becomes a button).", sample: "https://portal.example/admin/warranty-room/destroy-evidence" },
+    ],
+  },
+  scrap_evidence_approved: {
+    key: "scrap_evidence_approved",
+    title: "Scrap evidence approved",
+    to: "The branch's admins",
+    switchKey: "scrap_evidence_mails",
+    defaultSubject: "Scrap evidence approved - {branch} - {month}",
+    defaultBody: `Dear {branch} team,
+
+{by} approved your destroy evidence for the {month} warranty room cycle. {parts} moved to the Scrapped List.
+
+Link to the portal: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "branch", help: "The branch's name.", sample: "Riyadh North" },
+      { name: "month", help: "The warranty room cycle's month.", sample: "October 2026" },
+      { name: "by", help: "The officer who approved it.", sample: "Mostafa Eldeeb" },
+      { name: "parts", help: "How many parts were scrapped, with the word.", sample: "14 parts" },
+      { name: "link", help: "The Warranty Room page (becomes a button).", sample: "https://portal.example/audit/warranty-room" },
+    ],
+  },
   inquiry_rejected: {
     key: "inquiry_rejected",
     title: "Technical inquiry - sent back by the workshop supervisor",
@@ -675,6 +723,8 @@ export const MAIL_KEYS_IN_ORDER: MailKey[] = [
   "inquiry_reopened",
   "inquiry_verify",
   "inquiry_rejected",
+  "scrap_evidence_submitted",
+  "scrap_evidence_approved",
 ];
 
 /** What an officer saved for a mail (all optional - anything missing falls back to the built-in wording). */
