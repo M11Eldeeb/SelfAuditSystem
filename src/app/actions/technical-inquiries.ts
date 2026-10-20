@@ -374,7 +374,9 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     }
     await syncInquiryPdf(input.id);
     // A team leader's case waits for the workshop supervisor; the technical team is told when it is verified.
-    await notifyInquiry(user.role === "team_leader" ? "needs_verification" : "created", input.id, origin);
+    // The database decided: a case waits for the supervisor only when the submitter needs verification and the branch has a supervisor.
+    const { data: placed } = await createAdminClient().from("self_audit_technical_inquiries").select("status").eq("id", input.id).maybeSingle();
+    await notifyInquiry(placed?.status === "pending_verification" ? "needs_verification" : "created", input.id, origin);
   });
 
   revalidateInquiries(input.id);

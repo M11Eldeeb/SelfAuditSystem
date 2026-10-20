@@ -22,7 +22,7 @@ export type InquiryStatus = "pending_verification" | "returned" | "open" | "awai
 export type InquiryRole = "branch_admin" | "workshop_supervisor" | "team_leader" | "technical" | "officer";
 export const isWorkshopRole = (role: string): boolean => role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader";
 /** Who verifies a team leader's case before it reaches the technical team. */
-export const canVerifyRole = (role: string): boolean => role === "workshop_supervisor" || role === "branch_admin" || role === "officer";
+export const canVerifyRole = (role: string): boolean => role === "workshop_supervisor" || role === "officer";
 
 export const STATUS_LABEL: Record<InquiryStatus, string> = {
   pending_verification: "Waiting for the workshop supervisor",
