@@ -16,7 +16,7 @@ import { RESPONSIBLE_ROLE_LABEL, SUBMIT_REASON_LABEL, SYSTEM_LABEL, VEHICLE_LOCA
  * side of a case form one thread.
  */
 
-export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "delegated" | "team_reply" | "closed" | "reopened" | "needs_verification" | "verified" | "rejected";
+export type InquiryEvent = "created" | "workshop_reply" | "resubmitted" | "cancelled" | "delegated" | "team_reply" | "closed" | "reopened" | "needs_verification" | "verified" | "rejected" | "returned";
 
 const MAIL_FOR: Record<InquiryEvent, MailKey> = {
   created: "inquiry_new",
@@ -27,12 +27,14 @@ const MAIL_FOR: Record<InquiryEvent, MailKey> = {
   needs_verification: "inquiry_verify",
   verified: "inquiry_new",
   rejected: "inquiry_rejected",
+  // Returned to complete documents / diagnosis: the same "sent back by the supervisor" mail, with what is missing.
+  returned: "inquiry_rejected",
   team_reply: "inquiry_answered",
   closed: "inquiry_closed",
   reopened: "inquiry_reopened",
 };
 /** The comment row an event leaves behind (the "created" event has none). */
-const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected">> = {
+const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected" | "returned">> = {
   workshop_reply: "comment",
   team_reply: "comment",
   resubmitted: "resubmitted",
@@ -40,6 +42,7 @@ const COMMENT_KIND: Partial<Record<InquiryEvent, "comment" | "closed" | "reopene
   delegated: "assigned",
   verified: "verified",
   rejected: "rejected",
+  returned: "returned",
   closed: "closed",
   reopened: "reopened",
 };
@@ -97,7 +100,7 @@ export async function planInquiryMail(event: InquiryEvent, inquiryId: string, or
     else if (event === "needs_verification") to = people.supervisorAccountsByBranch.get(inquiry.branch_id)?.length ? (people.supervisorAccountsByBranch.get(inquiry.branch_id) ?? []) : (people.adminsByBranch.get(inquiry.branch_id) ?? []);
     else {
       const { data: creator } = inquiry.created_by ? await admin.from("self_audit_users").select("email").eq("id", inquiry.created_by).maybeSingle() : { data: null };
-      to = event === "rejected"
+      to = event === "rejected" || event === "returned"
         ? [creator?.email?.toLowerCase() ?? ""].filter(Boolean)
         : [...new Set([...(people.adminsByBranch.get(inquiry.branch_id) ?? []), ...(people.supervisorAccountsByBranch.get(inquiry.branch_id) ?? []), creator?.email?.toLowerCase() ?? ""].filter(Boolean))];
     }

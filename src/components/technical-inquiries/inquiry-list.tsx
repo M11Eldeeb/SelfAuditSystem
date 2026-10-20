@@ -21,7 +21,6 @@ import {
 } from "@/lib/technical-inquiries";
 import { InquiryForm } from "./inquiry-form";
 import { RoutingEditor } from "./routing-editor";
-import { ServicePicker } from "./service-picker";
 import { VerificationRequestForm } from "@/components/verification-codes/request-form";
 import { VerificationRequestsSection } from "@/components/verification-codes/requests-section";
 import { OcrAccuracy } from "@/components/verification-codes/ocr-accuracy";
@@ -76,11 +75,17 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
       </Link>
     </nav>
   );
-  const inquiryForm = canSubmit ? (
-    <InquiryForm branches={formBranches} fixedBranchId={isBranch ? (user.branch_id ?? undefined) : undefined} basePath={basePath} driveReady={drive !== null} />
+  // The service is chosen by the switch above (inquiries / verification codes): this view files an inquiry. "Escalated by" is the
+  // person submitting - their name and role come from their account.
+  const newRequest = canSubmit ? (
+    <InquiryForm
+      branches={formBranches}
+      fixedBranchId={isBranch ? (user.branch_id ?? undefined) : undefined}
+      basePath={basePath}
+      driveReady={drive !== null}
+      submitter={{ name: user.full_name?.trim() || user.email, role: user.role }}
+    />
   ) : null;
-  // The workshop chooses the service first; the warranty team only files inquiries.
-  const newRequest = isBranch ? <ServicePicker inquiryForm={inquiryForm} codeForm={<VerificationRequestForm />} /> : inquiryForm;
 
   if (showCodes) {
     return (
@@ -137,15 +142,18 @@ export async function InquiryList({ user, role, params }: { user: CurrentUser; r
     const c = withFilters(supabase.from("self_audit_technical_inquiries").select("id", { count: "exact", head: true })).eq("status", status);
     return (await c).count ?? 0;
   };
-  const [{ data: inquiries, count }, nOpen, nAwaiting, nClosed, nCancelled, nVerify] = await Promise.all([
+  const [{ data: inquiries, count }, nOpen, nAwaiting, nClosed, nCancelledOnly, nVerify, nReturned, nRejected] = await Promise.all([
     query,
     countStatus("open"),
     countStatus("awaiting_workshop"),
     countStatus("closed"),
     countStatus("cancelled"),
     isBranch ? countStatus("pending_verification") : Promise.resolve(0),
+    isBranch ? countStatus("returned") : Promise.resolve(0),
+    isBranch ? countStatus("rejected") : Promise.resolve(0),
   ]);
-  const tabCount: Record<string, number> = { open: nOpen, awaiting: nAwaiting, closed: nClosed, cancelled: nCancelled, verify: nVerify, all: nOpen + nAwaiting + nClosed + nCancelled + nVerify };
+  const nCancelled = nCancelledOnly + nRejected;
+  const tabCount: Record<string, number> = { open: nOpen, awaiting: nAwaiting, closed: nClosed, cancelled: nCancelled, verify: nVerify, returned: nReturned, all: nOpen + nAwaiting + nClosed + nCancelled + nVerify + nReturned };
 
   const ids = (inquiries ?? []).map((i) => i.id);
   const { data: comments } = ids.length ? await supabase.from("self_audit_technical_inquiry_comments").select("inquiry_id").eq("kind", "comment").eq("internal", false).in("inquiry_id", ids) : { data: [] as { inquiry_id: string }[] };

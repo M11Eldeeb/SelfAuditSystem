@@ -12,7 +12,6 @@ import {
   INQUIRY_MAX_STEPS,
   INQUIRY_MAX_WORK_ORDERS,
   INQUIRY_MODEL_MAX,
-  INQUIRY_PERSON_MAX,
   INQUIRY_PLATE_MAX,
   INQUIRY_SHORT_TEXT_MAX,
   INQUIRY_STEP_MAX,
@@ -60,12 +59,15 @@ export function InquiryForm({
   fixedBranchId,
   basePath,
   driveReady,
+  submitter,
 }: {
   branches: BranchOption[];
   /** Set for a branch admin: the only branch they can submit for. */
   fixedBranchId?: string;
   basePath: string;
   driveReady: boolean;
+  /** The person submitting - the case is escalated by them (name and role from their account). */
+  submitter: { name: string; role: string };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -73,8 +75,6 @@ export function InquiryForm({
   const [reasons, setReasons] = useState<string[]>([]);
   const [inquiryId] = useState(() => crypto.randomUUID());
   const [branchId, setBranchId] = useState(fixedBranchId ?? "");
-  const [responsibleName, setResponsibleName] = useState("");
-  const [responsibleRole, setResponsibleRole] = useState("");
   const [responsiblePhone, setResponsiblePhone] = useState("");
   const [vehicleLocation, setVehicleLocation] = useState("");
   const [wips, setWips] = useState<WipState[]>(() => [newWip()]);
@@ -138,8 +138,6 @@ export function InquiryForm({
     setError(null);
     if (reasons.length === 0) return setError("Tick at least one of the conditions for sending a case to the technical team.");
     if (!branch) return setError("Choose the branch.");
-    if (responsibleName.trim().length < 2) return setError("Enter the name of the workshop supervisor or delegated responsible.");
-    if (!responsibleRole) return setError("Say whether the case is escalated by the workshop supervisor or a delegated responsible.");
     if (!vehicleLocation) return setError("Say whether the car is in the workshop or out.");
     const woValues: string[] = [];
     for (const [i, w] of wips.entries()) {
@@ -214,8 +212,6 @@ export function InquiryForm({
         occurrence,
         conditionKeys,
         conditions: conditionKeys.includes("other") ? otherCondition : "",
-        responsibleName,
-        responsibleRole,
         responsiblePhone,
         firstNoticed,
         afterRepair,
@@ -283,13 +279,14 @@ export function InquiryForm({
             </button>
           </div>
 
-          <Section number={1} title="Who is escalating this case" hint="The workshop supervisor, or the delegated responsible who has the full picture and will talk to the technical team during the investigation.">
+          <Section number={1} title="Who is escalating this case" hint="You - taken from your account. The technical team will talk to you during the investigation.">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor="ti-resp-name" className="text-xs font-medium text-neutral-700">
-                  Name
-                </label>
-                <input id="ti-resp-name" value={responsibleName} onChange={(e) => setResponsibleName(e.target.value)} maxLength={INQUIRY_PERSON_MAX} disabled={saving} className={inputClass} />
+                <p className="text-xs font-medium text-neutral-700">Escalated by</p>
+                <p className="rounded-lg bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-900 ring-1 ring-neutral-200">
+                  {submitter.name}
+                  <span className="ml-1 font-normal text-neutral-500">· {RESPONSIBLE_ROLE_LABEL[submitter.role] ?? submitter.role}</span>
+                </p>
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="ti-resp-phone" className="text-xs font-medium text-neutral-700">
@@ -297,7 +294,6 @@ export function InquiryForm({
                 </label>
                 <input id="ti-resp-phone" value={responsiblePhone} onChange={(e) => setResponsiblePhone(e.target.value)} maxLength={40} disabled={saving} className={inputClass} />
               </div>
-              <Choice legend="Role" name="ti-resp-role" value={responsibleRole} onChange={setResponsibleRole} disabled={saving} options={Object.entries(RESPONSIBLE_ROLE_LABEL)} />
               <Choice legend="Where is the car?" name="ti-location" value={vehicleLocation} onChange={setVehicleLocation} disabled={saving} options={Object.entries(VEHICLE_LOCATION_LABEL)} />
             </div>
           </Section>

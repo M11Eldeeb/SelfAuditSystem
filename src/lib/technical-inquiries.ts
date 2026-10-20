@@ -17,7 +17,7 @@ export const INQUIRY_LATE_AFTER_DAYS = 2;
 /** A VIN is 17 letters and digits, never I, O or Q. */
 export const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 
-export type InquiryStatus = "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
+export type InquiryStatus = "pending_verification" | "returned" | "open" | "awaiting_workshop" | "closed" | "cancelled" | "rejected";
 /** branch_admin, workshop_supervisor and team_leader are the workshop side of a case; technical and officer are the technical / warranty side. */
 export type InquiryRole = "branch_admin" | "workshop_supervisor" | "team_leader" | "technical" | "officer";
 export const isWorkshopRole = (role: string): boolean => role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader";
@@ -26,14 +26,18 @@ export const canVerifyRole = (role: string): boolean => role === "workshop_super
 
 export const STATUS_LABEL: Record<InquiryStatus, string> = {
   pending_verification: "Waiting for the workshop supervisor",
+  returned: "Returned to complete documents / diagnosis",
   open: "With the technical team",
   awaiting_workshop: "Waiting for the workshop",
   closed: "Closed",
   cancelled: "Cancelled",
+  rejected: "Rejected by the workshop supervisor",
 };
 
 export const STATUS_BADGE: Record<InquiryStatus, string> = {
   pending_verification: "bg-violet-50 text-violet-800 ring-violet-200",
+  returned: "bg-orange-50 text-orange-800 ring-orange-200",
+  rejected: "bg-red-50 text-red-700 ring-red-200",
   open: "bg-amber-50 text-amber-800 ring-amber-200",
   awaiting_workshop: "bg-sky-50 text-sky-800 ring-sky-200",
   closed: "bg-emerald-50 text-emerald-800 ring-emerald-200",
@@ -80,7 +84,13 @@ export const OCCURRENCE_CONDITIONS = [
   { key: "other", label: "Other condition" },
 ] as const;
 export const OCCURRENCE_CONDITION_LABEL: Record<string, string> = Object.fromEntries(OCCURRENCE_CONDITIONS.map((c) => [c.key, c.label]));
-export const RESPONSIBLE_ROLE_LABEL: Record<string, string> = { workshop_supervisor: "Workshop supervisor", delegated: "Delegated responsible" };
+export const RESPONSIBLE_ROLE_LABEL: Record<string, string> = {
+  workshop_supervisor: "Workshop supervisor",
+  delegated: "Delegated responsible",
+  team_leader: "Team leader",
+  branch_admin: "Branch warranty admin",
+  officer: "Warranty officer",
+};
 export const AFTER_REPAIR_LABEL: Record<string, string> = { yes: "Yes - it followed a previous repair", no: "No - it is not related to a previous repair", unknown: "Not sure" };
 export type AttachmentCategory = "concern_media" | "vehicle_history" | "workshop_effort" | "vds_report" | "work_order_photo" | "agreement_photo" | "other";
 export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
@@ -132,13 +142,13 @@ export const driveFolderUrl = (id: string) => `https://drive.google.com/drive/fo
 
 /** Whole days a case has been waiting, or null when it is not waiting for anyone (closed, cancelled). */
 export function waitingDays(waitingSince: string | null, status: InquiryStatus, now = new Date()): number | null {
-  if (!waitingSince || status === "closed" || status === "cancelled") return null;
+  if (!waitingSince || status === "closed" || status === "cancelled" || status === "rejected") return null;
   return Math.max(0, Math.floor((now.getTime() - new Date(waitingSince).getTime()) / 86_400_000));
 }
 
 /** True when a case has been waiting for someone for more than INQUIRY_LATE_AFTER_DAYS (shown in red). */
 export function isLate(waitingSince: string | null, status: InquiryStatus, now = new Date()): boolean {
-  if (!waitingSince || status === "closed" || status === "cancelled") return false;
+  if (!waitingSince || status === "closed" || status === "cancelled" || status === "rejected") return false;
   return now.getTime() - new Date(waitingSince).getTime() > INQUIRY_LATE_AFTER_DAYS * 86_400_000;
 }
 
@@ -165,11 +175,13 @@ export function statusTabs(role: InquiryRole): { key: string; label: string; sta
   if (isWorkshopRole(role)) {
     return [
       ...(canVerifyRole(role) ? [{ key: "verify", label: "To verify", statuses: ["pending_verification"] as InquiryStatus[] }] : []),
+      ...(canVerifyRole(role) ? [] : [{ key: "returned", label: "Returned to me", statuses: ["returned"] as InquiryStatus[] }]),
       { key: "awaiting", label: "Needs your reply", statuses: ["awaiting_workshop"] },
       { key: "open", label: "With the technical team", statuses: ["open"] },
+      ...(canVerifyRole(role) ? [{ key: "returned", label: "Returned to the team leader", statuses: ["returned"] as InquiryStatus[] }] : []),
       ...(canVerifyRole(role) ? [] : [{ key: "verify", label: "Waiting for my supervisor", statuses: ["pending_verification"] as InquiryStatus[] }]),
       { key: "closed", label: "Closed", statuses: ["closed"] },
-      { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
+      { key: "cancelled", label: "Cancelled / rejected", statuses: ["cancelled", "rejected"] },
       { key: "all", label: "All", statuses: null },
     ];
   }

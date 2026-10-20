@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { assignTechnicalInquiry, cancelTechnicalInquiry, rejectTechnicalInquiry, resubmitTechnicalInquiry, verifyTechnicalInquiry } from "@/app/actions/technical-inquiries";
+import { assignTechnicalInquiry, cancelTechnicalInquiry, rejectTechnicalInquiry, resubmitTechnicalInquiry, returnTechnicalInquiry, sendInquiryToSupervisor, verifyTechnicalInquiry } from "@/app/actions/technical-inquiries";
 import { INQUIRY_TEXT_MAX, type InquiryStatus } from "@/lib/technical-inquiries";
 
 const textareaClass =
@@ -18,7 +18,7 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const canCancel = status === "open" || status === "awaiting_workshop" || status === "pending_verification";
+  const canCancel = status === "open" || status === "awaiting_workshop" || status === "pending_verification" || status === "returned";
   const canResubmit = status === "closed" || status === "cancelled";
   if (!canCancel && !canResubmit) return null;
 
@@ -102,7 +102,7 @@ export function WorkshopActions({ inquiryId, status }: { inquiryId: string; stat
  */
 export function VerifyPanel({ inquiryId, canVerify, submittedBy }: { inquiryId: string; canVerify: boolean; submittedBy: string | null }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"verify" | "reject" | null>(null);
+  const [mode, setMode] = useState<"verify" | "return" | "reject" | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -139,14 +139,21 @@ export function VerifyPanel({ inquiryId, canVerify, submittedBy }: { inquiryId: 
           <button type="button" onClick={() => setMode("verify")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark">
             Verify and send to the technical team
           </button>
-          <button type="button" onClick={() => setMode("reject")} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
-            Send back with a reason
+          <button type="button" onClick={() => setMode("return")} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
+            Return to complete documents / diagnosis
+          </button>
+          <button type="button" onClick={() => setMode("reject")} className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50">
+            Reject with a reason
           </button>
         </div>
       ) : (
         <div className="space-y-2">
           <label htmlFor="ti-verify-text" className="text-xs font-medium text-neutral-700">
-            {mode === "verify" ? "A note for the technical team (optional)" : "Why is it sent back? The team leader will see this."}
+            {mode === "verify"
+              ? "A note for the technical team (optional)"
+              : mode === "return"
+                ? "What is missing? The team leader completes it and sends the case to you again (it is not cancelled)."
+                : "Why is the case rejected? The team leader will see this - a rejected case is finished."}
           </label>
           <textarea
             id="ti-verify-text"
@@ -165,11 +172,19 @@ export function VerifyPanel({ inquiryId, canVerify, submittedBy }: { inquiryId: 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={pending || (mode === "reject" && !text.trim())}
-              onClick={() => run(() => (mode === "verify" ? verifyTechnicalInquiry({ inquiryId, comment: text }) : rejectTechnicalInquiry({ inquiryId, reason: text })))}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark disabled:opacity-50"
+              disabled={pending || (mode !== "verify" && !text.trim())}
+              onClick={() =>
+                run(() =>
+                  mode === "verify"
+                    ? verifyTechnicalInquiry({ inquiryId, comment: text })
+                    : mode === "return"
+                      ? returnTechnicalInquiry({ inquiryId, reason: text })
+                      : rejectTechnicalInquiry({ inquiryId, reason: text })
+                )
+              }
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${mode === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-brand shadow-brand/25 hover:bg-brand-dark"}`}
             >
-              {pending ? "Saving..." : mode === "verify" ? "Verify and send" : "Send it back"}
+              {pending ? "Saving..." : mode === "verify" ? "Verify and send" : mode === "return" ? "Return to the team leader" : "Reject the case"}
             </button>
             <button type="button" onClick={() => setMode(null)} disabled={pending} className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
               Not now
@@ -270,6 +285,80 @@ export function AssignPanel({
         <p role="alert" className="w-full text-sm text-red-600">
           {error}
         </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A case the supervisor returned to complete documents or diagnosis. The team leader (or anyone on the workshop side) edits
+ * it, adds files in a comment, and sends it to the supervisor again; the supervisor can still reject it.
+ */
+export function ReturnedPanel({ inquiryId, reason, returnedBy, canSend, canReject }: { inquiryId: string; reason: string | null; returnedBy: string | null; canSend: boolean; canReject: boolean }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"send" | "reject" | null>(null);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(action: () => Promise<{ error?: string }>) {
+    setError(null);
+    startTransition(async () => {
+      const res = await action();
+      if (res.error) return setError(res.error);
+      setText("");
+      setMode(null);
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-orange-300 bg-orange-50 p-4 shadow-sm">
+      <div>
+        <h2 className="text-sm font-semibold text-orange-950">Returned{returnedBy ? ` by ${returnedBy}` : ""} to complete documents / diagnosis</h2>
+        {reason && <p className="mt-1 text-sm whitespace-pre-wrap text-orange-950">{reason}</p>}
+        <p className="mt-1 text-xs text-orange-900">
+          {canSend ? "Edit the case details below, add the missing files or results as a comment, then send it to the supervisor again." : "Waiting for the team leader to complete it."}
+        </p>
+      </div>
+      {mode === null ? (
+        <div className="flex flex-wrap gap-2">
+          {canSend && (
+            <button type="button" onClick={() => setMode("send")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark">
+              Send to the supervisor again
+            </button>
+          )}
+          {canReject && (
+            <button type="button" onClick={() => setMode("reject")} className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50">
+              Reject with a reason
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label htmlFor="ti-returned-text" className="text-xs font-medium text-neutral-700">
+            {mode === "send" ? "What did you complete? (optional)" : "Why is the case rejected?"}
+          </label>
+          <textarea id="ti-returned-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={INQUIRY_TEXT_MAX} rows={3} disabled={pending} className={textareaClass} />
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || (mode === "reject" && !text.trim())}
+              onClick={() => run(() => (mode === "send" ? sendInquiryToSupervisor({ inquiryId, comment: text }) : rejectTechnicalInquiry({ inquiryId, reason: text })))}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${mode === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-brand hover:bg-brand-dark"}`}
+            >
+              {pending ? "Saving..." : mode === "send" ? "Send to the supervisor" : "Reject the case"}
+            </button>
+            <button type="button" onClick={() => setMode(null)} disabled={pending} className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
+              Not now
+            </button>
+          </div>
+        </div>
       )}
     </section>
   );

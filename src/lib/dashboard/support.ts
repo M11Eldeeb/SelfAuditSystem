@@ -56,7 +56,7 @@ export async function getSupportLeadTimes(branchIds: string[], from: string, to:
       .in("branch_id", branchIds)
       .gte("created_at", start)
       .lt("created_at", end)
-      .neq("status", "pending_verification"),
+      .not("status", "in", "(pending_verification,returned,rejected)"),
     admin
       .from("self_audit_verification_requests")
       .select("created_at, closed_at, status")

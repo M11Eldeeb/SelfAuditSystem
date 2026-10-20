@@ -31,7 +31,7 @@ export async function inquiriesBadge(user: CurrentUser): Promise<string | undefi
     if (access === "locked") return "Soon";
     if (access !== "full") return undefined;
     // What waits for THIS role: the workshop - a reply (and, for the people who verify, a case to verify); the technical team - an open case.
-    const statuses: InquiryStatus[] = isWorkshopRole(user.role) ? (canVerifyRole(user.role) ? ["awaiting_workshop", "pending_verification"] : ["awaiting_workshop"]) : ["open"];
+    const statuses: InquiryStatus[] = isWorkshopRole(user.role) ? (canVerifyRole(user.role) ? ["awaiting_workshop", "pending_verification"] : ["awaiting_workshop", "returned"]) : ["open"];
     const supabase = await createClient();
     const { count } = await supabase.from("self_audit_technical_inquiries").select("id", { count: "exact", head: true }).in("status", statuses);
     return count && count > 0 ? String(count) : undefined;

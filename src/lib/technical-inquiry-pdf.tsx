@@ -64,6 +64,11 @@ const EVENT_TEXT: Record<string, string> = {
   cancelled: "Case cancelled by the workshop",
   resubmitted: "Case sent again by the workshop",
   assigned: "Case assigned",
+  verified: "Verified by the workshop supervisor",
+  rejected: "Rejected by the workshop supervisor",
+  returned: "Returned to complete documents / diagnosis",
+  sent_to_supervisor: "Completed and sent to the supervisor again",
+  edited: "Case details edited",
 };
 
 function caseDocument(s: Inquiry, folderUrl: string) {
@@ -178,6 +183,12 @@ function caseDocument(s: Inquiry, folderUrl: string) {
         return files.length > 0 ? h(View, { key: category, style: { marginBottom: 8 } }, h(Text, { style: { fontSize: 9, color: MUTED } }, CATEGORY_LABEL[category]), filesList(files)) : null;
       }),
       h(Text, { style: { fontSize: 12, fontWeight: 700, marginTop: 6, marginBottom: 8 } }, `Conversation (${s.comments.length})`),
+      // The log starts with the submission itself.
+      h(
+        Text,
+        { style: { fontSize: 9, color: MUTED, marginBottom: 8 } },
+        `Case submitted - ${q.created_by_name ?? "Unknown"} (${RESPONSIBLE_ROLE_LABEL[q.responsible_role] ?? q.responsible_role}) - ${stamp(q.created_at)}`
+      ),
       s.comments.length === 0
         ? h(Text, { style: { color: MUTED, fontSize: 10 } }, "No replies yet.")
         : h(

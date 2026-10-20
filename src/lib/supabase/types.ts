@@ -507,6 +507,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_mail_settings"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_technical_inquiry_versions: {
+        Row: { id: string; inquiry_id: string; version_no: number; snapshot: Record<string, unknown>; edited_by: string | null; edited_by_name: string | null; edited_role: string | null; edited_at: string };
+        Insert: { inquiry_id: string; version_no: number; snapshot: Record<string, unknown>; edited_by?: string | null; edited_by_name?: string | null; edited_role?: string | null; edited_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiry_versions"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_technical_inquiries: {
         Row: {
           id: string;
@@ -518,7 +524,7 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments: string | null;
-          status: "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
+          status: "pending_verification" | "returned" | "open" | "awaiting_workshop" | "closed" | "cancelled" | "rejected";
           resolution: string | null;
           created_by: string | null;
           created_by_name: string | null;
@@ -562,7 +568,7 @@ export interface Database {
           fault_complaint: string;
           actions_taken: string;
           workshop_comments?: string | null;
-          status?: "pending_verification" | "open" | "awaiting_workshop" | "closed" | "cancelled";
+          status?: "pending_verification" | "returned" | "open" | "awaiting_workshop" | "closed" | "cancelled" | "rejected";
           pdf_drive_file_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_technical_inquiries"]["Insert"]>;
@@ -572,7 +578,7 @@ export interface Database {
         Row: {
           id: string;
           inquiry_id: string;
-          kind: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected";
+          kind: "comment" | "closed" | "reopened" | "cancelled" | "resubmitted" | "assigned" | "verified" | "rejected" | "returned" | "sent_to_supervisor" | "edited";
           author_id: string | null;
           author_name: string | null;
           author_role: string | null;
@@ -1692,6 +1698,18 @@ export interface Database {
       };
       reject_technical_inquiry: {
         Args: { p_inquiry_id: string; p_reason: string };
+        Returns: void;
+      };
+      return_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_reason: string };
+        Returns: void;
+      };
+      send_inquiry_to_supervisor: {
+        Args: { p_inquiry_id: string; p_comment?: string | null };
+        Returns: void;
+      };
+      edit_technical_inquiry: {
+        Args: { p_inquiry_id: string; p_fields: Record<string, string | number | null> };
         Returns: void;
       };
       claim_technical_inquiry: {

@@ -35,7 +35,8 @@ import {
 import { formatBytes } from "@/lib/feedback-constants";
 import { InquiryCommentForm } from "./comment-form";
 import { ClosePanel } from "./close-panel";
-import { AssignPanel, VerifyPanel, WorkshopActions } from "./case-actions";
+import { AssignPanel, ReturnedPanel, VerifyPanel, WorkshopActions } from "./case-actions";
+import { EditCasePanel } from "./edit-case";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
@@ -46,7 +47,10 @@ const EVENT_LABEL: Record<string, string> = {
   reopened: "Case reopened",
   cancelled: "Case cancelled",
   verified: "Verified by the workshop supervisor - sent to the technical team",
-  rejected: "Sent back by the workshop supervisor",
+  rejected: "Rejected by the workshop supervisor",
+  returned: "Returned to complete documents / diagnosis",
+  sent_to_supervisor: "Completed and sent to the workshop supervisor again",
+  edited: "Case details edited",
   resubmitted: "Case sent again",
   assigned: "Case assigned",
 };
@@ -70,6 +74,28 @@ function Files({ files }: { files: Attachment[] }) {
   );
 }
 
+/** The fields kept in each saved version, with their labels (for "Edit history"). */
+const VERSION_FIELDS: [string, string][] = [
+  ["vin", "VIN"],
+  ["plate_number", "Plate number"],
+  ["vehicle_model", "Vehicle model"],
+  ["system", "System"],
+  ["vehicle_location", "Where is the car"],
+  ["mileage_km", "Mileage"],
+  ["dtc_codes", "Fault codes"],
+  ["software_version", "Software version"],
+  ["occurrence", "Permanent / intermittent"],
+  ["occurrence_conditions", "Other condition"],
+  ["concern_first_noticed", "First noticed"],
+  ["after_previous_repair", "After a previous repair"],
+  ["previous_repair_details", "Previous repair details"],
+  ["fault_complaint", "Customer concern"],
+  ["parts_replaced", "Parts already replaced"],
+  ["responsible_phone", "Phone"],
+  ["workshop_comments", "Comments of the workshop"],
+];
+const show = (v: unknown) => (v == null || v === "" ? "—" : Array.isArray(v) ? v.join(", ") : String(v));
+
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -92,7 +118,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const { data: inquiry } = await supabase.from("self_audit_technical_inquiries").select("*").eq("id", id).maybeSingle();
   if (!inquiry) notFound();
 
-  const [user, { data: branch }, { data: comments }, { data: attachmentRows }, { data: wipRows }, drive, { data: folder }, { data: techRows }] = await Promise.all([
+  const [user, { data: branch }, { data: comments }, { data: attachmentRows }, { data: wipRows }, drive, { data: folder }, { data: techRows }, { data: versionRows }] = await Promise.all([
     getCurrentUser(),
     supabase.from("self_audit_branches").select("name").eq("id", inquiry.branch_id).maybeSingle(),
     // Internal notes come back only for the technical team and officers (the database hides them from the workshop).
@@ -102,6 +128,10 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
     getDriveStatus(),
     createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `inquiry:case:${id}`).maybeSingle(),
     isTeam ? createAdminClient().from("self_audit_users").select("id, full_name, email").eq("role", "technical").order("full_name") : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string }[] }),
+    // The versions before each edit: the technical team and officers see what the case said before it was changed.
+    isTeam
+      ? supabase.from("self_audit_technical_inquiry_versions").select("version_no, snapshot, edited_by_name, edited_role, edited_at").eq("inquiry_id", id).order("version_no")
+      : Promise.resolve({ data: [] as { version_no: number; snapshot: Record<string, unknown>; edited_by_name: string | null; edited_role: string | null; edited_at: string }[] }),
   ]);
   const attachments = (attachmentRows ?? []) as Attachment[];
   const caseFiles = attachments.filter((a) => a.comment_id === null && a.wip_id === null);
@@ -113,7 +143,18 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
   const closed = status === "closed";
   const awaitingVerification = status === "pending_verification";
   const cancelled = status === "cancelled";
-  const finished = closed || cancelled;
+  const returned = status === "returned";
+  const rejected = status === "rejected";
+  const finished = closed || cancelled || rejected;
+  const withSupervisor = awaitingVerification || returned;
+  // Who may edit: officers and the branch's supervisor / admin while the case is not finished; the team leader on his own case
+  // while it waits for, or was returned by, the supervisor (the database checks the same).
+  const canEdit =
+    !finished &&
+    (role === "officer" || role === "workshop_supervisor" || role === "branch_admin" || (role === "team_leader" && inquiry.created_by === user?.id && withSupervisor));
+  const lastReturn = [...(comments ?? [])].reverse().find((c) => c.kind === "returned");
+  const versions = versionRows ?? [];
+  const current: Record<string, unknown> = { ...inquiry };
   const late = isLate(inquiry.waiting_since, status);
   const technicians = (techRows ?? []).map((t) => ({ id: t.id, name: t.full_name?.trim() || t.email }));
   const timeToFirstAnswer = inquiry.first_response_at ? new Date(inquiry.first_response_at).getTime() - new Date(inquiry.created_at).getTime() : null;
@@ -290,8 +331,86 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
       )}
 
       {awaitingVerification && <VerifyPanel inquiryId={inquiry.id} canVerify={canVerifyRole(role)} submittedBy={inquiry.created_by_name} />}
+      {returned && (
+        <ReturnedPanel
+          inquiryId={inquiry.id}
+          reason={lastReturn?.body ?? null}
+          returnedBy={lastReturn?.author_name ?? null}
+          canSend={(role === "team_leader" && inquiry.created_by === user?.id) || role === "workshop_supervisor" || role === "branch_admin" || role === "officer"}
+          canReject={canVerifyRole(role)}
+        />
+      )}
+      {rejected && (
+        <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm">
+          <p className="font-semibold">Rejected by the workshop supervisor</p>
+          {[...(comments ?? [])].reverse().find((c) => c.kind === "rejected")?.body && (
+            <p className="mt-1 whitespace-pre-wrap">{[...(comments ?? [])].reverse().find((c) => c.kind === "rejected")?.body}</p>
+          )}
+        </section>
+      )}
+      {canEdit && (
+        <EditCasePanel
+          inquiryId={inquiry.id}
+          highlight={returned && role === "team_leader"}
+          initial={{
+            vin: inquiry.vin,
+            plate_number: inquiry.plate_number,
+            vehicle_model: inquiry.vehicle_model,
+            system: inquiry.system,
+            vehicle_location: inquiry.vehicle_location,
+            mileage_km: inquiry.mileage_km,
+            dtc_codes: inquiry.dtc_codes ?? "",
+            software_version: inquiry.software_version ?? "",
+            occurrence: inquiry.occurrence,
+            occurrence_conditions: inquiry.occurrence_conditions ?? "",
+            parts_replaced: inquiry.parts_replaced ?? "",
+            responsible_phone: inquiry.responsible_phone ?? "",
+            concern_first_noticed: inquiry.concern_first_noticed,
+            after_previous_repair: inquiry.after_previous_repair,
+            previous_repair_details: inquiry.previous_repair_details ?? "",
+            fault_complaint: inquiry.fault_complaint,
+            workshop_comments: inquiry.workshop_comments ?? "",
+          }}
+        />
+      )}
+      {isTeam && versions.length > 0 && (
+        <details className="rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+            Edit history <span className="font-normal text-neutral-500">- {versions.length} earlier version{versions.length === 1 ? "" : "s"}</span>
+          </summary>
+          <ol className="mt-3 space-y-3">
+            {versions.map((v, i) => {
+              const after = i + 1 < versions.length ? versions[i + 1].snapshot : current;
+              const changes = VERSION_FIELDS.filter(([k]) => show(v.snapshot[k]) !== show(after[k]));
+              return (
+                <li key={v.version_no} className="rounded-lg bg-neutral-50 p-3 text-sm">
+                  <p className="text-xs text-neutral-500">
+                    Version {v.version_no} - before the edit by <span className="font-semibold text-neutral-800">{v.edited_by_name ?? "Unknown"}</span>
+                    {v.edited_role ? ` (${ROLE_LABEL[v.edited_role] ?? v.edited_role})` : ""} · {stamp(v.edited_at)}
+                  </p>
+                  {changes.length === 0 ? (
+                    <p className="mt-1 text-xs text-neutral-500">No visible change.</p>
+                  ) : (
+                    <dl className="mt-2 space-y-2">
+                      {changes.map(([k, label]) => (
+                        <div key={k}>
+                          <dt className="text-xs font-medium text-neutral-500">{label}</dt>
+                          <dd className="grid gap-1 sm:grid-cols-2">
+                            <span className="rounded bg-red-50 px-2 py-1 whitespace-pre-wrap text-red-900 line-through decoration-red-300">{show(v.snapshot[k])}</span>
+                            <span className="rounded bg-emerald-50 px-2 py-1 whitespace-pre-wrap text-emerald-900">{show(after[k])}</span>
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </details>
+      )}
 
-      {isTeam && !finished && !awaitingVerification && <AssignPanel inquiryId={inquiry.id} assignedTo={inquiry.assigned_to} assignedName={inquiry.assigned_to_name} technicians={technicians} meId={user?.role === "technical" ? user.id : null} />}
+      {isTeam && !finished && !withSupervisor && <AssignPanel inquiryId={inquiry.id} assignedTo={inquiry.assigned_to} assignedName={inquiry.assigned_to_name} technicians={technicians} meId={user?.role === "technical" ? user.id : null} />}
 
       {closed && inquiry.resolution && (
         <section className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -308,6 +427,10 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
         <h2 className="text-sm font-semibold text-neutral-700">
           Conversation <span className="font-normal text-neutral-500">({(comments ?? []).filter((c) => c.kind === "comment").length})</span>
         </h2>
+        <p className="rounded-lg bg-neutral-100 px-4 py-2 text-xs text-neutral-600">
+          <span className="font-semibold text-neutral-800">Case submitted</span> by {inquiry.created_by_name ?? "Unknown"}
+          {inquiry.responsible_role ? ` (${RESPONSIBLE_ROLE_LABEL[inquiry.responsible_role] ?? inquiry.responsible_role})` : ""} · {stamp(inquiry.created_at)}
+        </p>
         {(comments ?? []).length === 0 ? (
           <p className="rounded-xl border border-neutral-200/70 bg-white p-4 text-sm text-neutral-500 shadow-sm">No replies yet.</p>
         ) : (
@@ -355,7 +478,7 @@ export async function InquiryDetail({ role, id }: { role: InquiryRole; id: strin
           placeholder={isTeam ? "Answer the workshop, ask for more information or a photo..." : "Reply to the technical team, add the photos or results they asked for..."}
         />
       )}
-      {isTeam && !cancelled && !awaitingVerification && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
+      {isTeam && !cancelled && !rejected && !withSupervisor && <ClosePanel inquiryId={inquiry.id} closed={closed} />}
       {!isTeam && <WorkshopActions inquiryId={inquiry.id} status={status} />}
       {role === "officer" && !closed && <WorkshopActions inquiryId={inquiry.id} status={status} />}
     </div>

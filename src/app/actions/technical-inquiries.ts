@@ -199,9 +199,7 @@ export type CreateInquiryInput = {
   conditionKeys: string[];
   conditions?: string;
   partsReplaced?: string;
-  /** Who is escalating: the workshop supervisor or a delegated responsible, who speaks to the technical team. */
-  responsibleName: string;
-  responsibleRole: string;
+  /** A phone number for the technical team to reach the person escalating (who is the submitter themselves). */
   responsiblePhone?: string;
   /** When the customer first noticed the concern (from the customer interview), and whether it follows a previous repair. */
   firstNoticed: string;
@@ -275,10 +273,9 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
   const plate = input.plate.trim().replace(/\s+/g, " ").toUpperCase();
   if (!plate) return { error: "Enter the plate number." };
   if (plate.length < 2 || plate.length > INQUIRY_PLATE_MAX) return { error: `The plate number must be between 2 and ${INQUIRY_PLATE_MAX} characters.` };
-  const responsibleName = input.responsibleName.trim();
-  if (responsibleName.length < 2) return { error: "Enter the name of the workshop supervisor or delegated responsible." };
-  if (responsibleName.length > INQUIRY_PERSON_MAX) return { error: `The name can be at most ${INQUIRY_PERSON_MAX} characters.` };
-  if (input.responsibleRole !== "workshop_supervisor" && input.responsibleRole !== "delegated") return { error: "Say whether the case is escalated by the workshop supervisor or a delegated responsible." };
+  // The case is escalated by the person submitting it: their name and role come from their account.
+  const responsibleName = (user.full_name?.trim() || user.email).slice(0, INQUIRY_PERSON_MAX);
+  const responsibleRole = ["workshop_supervisor", "team_leader", "branch_admin", "officer"].includes(user.role) ? user.role : "delegated";
   const responsiblePhone = (input.responsiblePhone ?? "").trim();
   if (responsiblePhone.length > 40) return { error: "The phone number can be at most 40 characters." };
   const firstNoticed = input.firstNoticed.trim();
@@ -334,7 +331,7 @@ export async function createTechnicalInquiry(input: CreateInquiryInput): Promise
     p_conditions: conditionKeys.includes("other") ? conditions : null,
     p_parts: partsReplaced || null,
     p_responsible_name: responsibleName,
-    p_responsible_role: input.responsibleRole,
+    p_responsible_role: responsibleRole,
     p_responsible_phone: responsiblePhone || null,
     p_first_noticed: firstNoticed,
     p_after_repair: input.afterRepair,
@@ -419,7 +416,7 @@ export async function addInquiryComment(input: { id: string; inquiryId: string; 
   }
   // An internal note is for the technical team only: no case-sheet update, no mail.
   // (A comment on a case that is still waiting for verification is a talk inside the workshop: no mail.)
-  if (!input.internal && !error && newStatus !== "pending_verification") afterCaseChange(isWorkshopRole(who.user.role) ? "workshop_reply" : "team_reply", input.inquiryId, await siteOrigin());
+  if (!input.internal && !error && newStatus !== "pending_verification" && newStatus !== "returned") afterCaseChange(isWorkshopRole(who.user.role) ? "workshop_reply" : "team_reply", input.inquiryId, await siteOrigin());
   revalidateInquiries(input.inquiryId);
   return {};
 }
@@ -559,4 +556,86 @@ export async function findSimilarInquiries(vin: string): Promise<{ cases: Simila
   return {
     cases: (data ?? []).map((i) => ({ id: i.id, no: i.inquiry_no, status: i.status, workOrder: i.work_order_no, system: i.system, createdAt: i.created_at, resolution: i.resolution })),
   };
+}
+
+/** The workshop supervisor returns a case to the team leader to complete documents or diagnosis (it is not cancelled). */
+export async function returnTechnicalInquiry(input: { inquiryId: string; reason: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const reason = input.reason.trim();
+  if (!reason) return { error: "Say what is missing, so the team leader can complete it." };
+  if (reason.length > INQUIRY_TEXT_MAX) return { error: `The text can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("return_technical_inquiry", { p_inquiry_id: input.inquiryId, p_reason: reason });
+  if (error) return { error: error.message };
+  afterCaseChange("returned", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+/** The team leader sends a returned (and completed) case to the workshop supervisor again. */
+export async function sendInquiryToSupervisor(input: { inquiryId: string; comment?: string }): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(input.inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const comment = (input.comment ?? "").trim();
+  if (comment.length > INQUIRY_TEXT_MAX) return { error: `The text can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("send_inquiry_to_supervisor", { p_inquiry_id: input.inquiryId, p_comment: comment || null });
+  if (error) return { error: error.message };
+  afterCaseChange("needs_verification", input.inquiryId, await siteOrigin());
+  revalidateInquiries(input.inquiryId);
+  return {};
+}
+
+export type InquiryEditFields = {
+  vin: string;
+  plate_number: string;
+  vehicle_model: string;
+  system: string;
+  vehicle_location: string;
+  mileage_km: number;
+  dtc_codes: string;
+  software_version: string;
+  occurrence: string;
+  occurrence_conditions: string;
+  parts_replaced: string;
+  responsible_phone: string;
+  concern_first_noticed: string;
+  after_previous_repair: string;
+  previous_repair_details: string;
+  fault_complaint: string;
+  workshop_comments: string;
+};
+
+/**
+ * Edits a case's details. Allowed: the branch's workshop supervisor / branch admin, the team leader on his own case while
+ * it waits for (or was returned by) the supervisor, and officers - the database checks it. The version before the edit is
+ * kept for the technical team and officers.
+ */
+export async function editTechnicalInquiry(inquiryId: string, f: InquiryEditFields): Promise<{ error?: string }> {
+  const who = await inquiryUser();
+  if ("error" in who) return { error: who.error };
+  if (!UUID.test(inquiryId)) return { error: "Something went wrong - please reload the page and try again." };
+  const vin = f.vin.trim().toUpperCase().replace(/\s+/g, "");
+  if (!VIN_PATTERN.test(vin)) return { error: "The VIN must be 17 letters and digits (no I, O or Q)." };
+  if (!f.plate_number.trim()) return { error: "Enter the plate number." };
+  if (!f.vehicle_model.trim()) return { error: "Enter the vehicle model." };
+  if (!SYSTEMS.includes(f.system as never)) return { error: "Choose the vehicle system." };
+  if (f.vehicle_location !== "in_workshop" && f.vehicle_location !== "out") return { error: "Say whether the car is in the workshop or out." };
+  if (!Number.isInteger(f.mileage_km) || f.mileage_km < 0 || f.mileage_km > 2_000_000) return { error: "Enter a valid mileage." };
+  if (f.occurrence !== "permanent" && f.occurrence !== "intermittent") return { error: "Say whether the concern is permanent or intermittent." };
+  if (!["yes", "no", "unknown"].includes(f.after_previous_repair)) return { error: "Say whether it follows a previous repair." };
+  if (f.after_previous_repair === "yes" && !f.previous_repair_details.trim()) return { error: "Say which previous repair it follows." };
+  if (!f.fault_complaint.trim()) return { error: "Describe the customer concern." };
+  if (!f.concern_first_noticed.trim()) return { error: "Say when the customer first noticed the concern." };
+  for (const v of [f.fault_complaint, f.workshop_comments, f.parts_replaced, f.previous_repair_details, f.occurrence_conditions])
+    if (v.length > INQUIRY_TEXT_MAX) return { error: `A text can be at most ${INQUIRY_TEXT_MAX} characters.` };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("edit_technical_inquiry", { p_inquiry_id: inquiryId, p_fields: { ...f, vin } });
+  if (error) return { error: error.message };
+  afterCaseChange(null, inquiryId, await siteOrigin()); // rewrite the case report with the new details
+  revalidateInquiries(inquiryId);
+  return {};
 }
