@@ -863,6 +863,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_task_reminders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_docs_connection: {
+        Row: { id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string };
+        Insert: { id?: number; refresh_token: string; account_email: string; connected_by?: string | null; connected_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_docs_connection"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_docs_index: {
+        Row: {
+          drive_id: string;
+          library: "warranty" | "technical";
+          parent_id: string | null;
+          name: string;
+          mime_type: string;
+          is_folder: boolean;
+          size_bytes: number | null;
+          modified_at: string | null;
+          path: string;
+          synced_at: string;
+        };
+        Insert: {
+          drive_id: string;
+          library: "warranty" | "technical";
+          parent_id?: string | null;
+          name: string;
+          mime_type: string;
+          is_folder?: boolean;
+          size_bytes?: number | null;
+          modified_at?: string | null;
+          path?: string;
+          synced_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_docs_index"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_docs_sync: {
+        Row: { id: number; synced_at: string | null; files: number | null; error: string | null };
+        Insert: { id?: number; synced_at?: string | null; files?: number | null; error?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_docs_sync"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_invoicing_connection: {
         Row: { id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string };
         Insert: { id?: number; refresh_token: string; account_email: string; connected_by?: string | null; connected_at?: string };

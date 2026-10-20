@@ -16,6 +16,7 @@ const ADMIN_LINKS = [
   { href: "/admin/part-returns", label: "Part Return" },
   { href: "/admin/rejected-claims", label: "Rejected Claims" },
   { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
+  { href: "/admin/documents", label: "Warranty and Technical Documents" },
   { href: "/admin/feedbacks", label: "Feedbacks" },
 ];
 

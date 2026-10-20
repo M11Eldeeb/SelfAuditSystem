@@ -13,6 +13,7 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/part-returns", label: "Part Return" },
   { href: "/audit/rejected-claims", label: "Rejected Claims" },
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
+  { href: "/audit/documents", label: "Warranty and Technical Documents" },
   { href: "/audit/feedback", label: "Feedback" },
 ];
 

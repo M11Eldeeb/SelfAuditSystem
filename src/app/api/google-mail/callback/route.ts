@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { DRIVE_ALLOWED_DOMAIN } from "@/lib/google-drive";
 import { exchangeMailCode, saveMailConnection } from "@/lib/gmail";
 import { INVOICING_SCOPE, saveInvoicingConnection } from "@/lib/invoicing/gmail-reader";
+import { DOCS_SCOPE, saveDocsConnection } from "@/lib/documents/drive-docs";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,14 @@ function sameState(a: string, b: string): boolean {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
-  const invoicing = request.headers.get("cookie")?.match(/(?:^|;\s*)gm_purpose=([^;]+)/)?.[1] === "invoicing";
+  const purpose = request.headers.get("cookie")?.match(/(?:^|;\s*)gm_purpose=([^;]+)/)?.[1];
+  const invoicing = purpose === "invoicing";
+  const docs = purpose === "docs";
   const done = (flag: string, detail?: string) => {
     const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
-    const res = NextResponse.redirect(invoicing ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}${extra}` : `${origin}/admin/emails?mail=${flag}${extra}`);
+    const res = NextResponse.redirect(
+      invoicing ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}${extra}` : docs ? `${origin}/admin/documents?mail=${flag}${extra}` : `${origin}/admin/emails?mail=${flag}${extra}`
+    );
     res.cookies.delete({ name: "gm_state", path: "/api/google-mail" });
     res.cookies.delete({ name: "gm_purpose", path: "/api/google-mail" });
     return res;
@@ -46,6 +51,13 @@ export async function GET(request: Request) {
     if (!result.refreshToken) return done("no-refresh-token");
     step = "checking the mailbox";
     if (!result.email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
+    if (docs) {
+      // Warranty and Technical Documents: the Drive account that holds the two folders.
+      if (!result.scopes.includes(DOCS_SCOPE)) return done("no-read-permission");
+      step = "saving the connection";
+      await saveDocsConnection({ refreshToken: result.refreshToken, accountEmail: result.email, connectedBy: user.id });
+      return done("connected");
+    }
     if (invoicing) {
       // The Warranty Invoicing reader: read-only access to the mailbox the daily report arrives in.
       if (!result.scopes.includes(INVOICING_SCOPE)) return done("no-read-permission");

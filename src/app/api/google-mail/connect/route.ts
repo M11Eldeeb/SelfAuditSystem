@@ -4,18 +4,23 @@ import { getCurrentUser } from "@/lib/auth";
 import { driveConfig } from "@/lib/google-drive";
 import { buildMailAuthUrl } from "@/lib/gmail";
 import { INVOICING_SCOPE } from "@/lib/invoicing/gmail-reader";
+import { DOCS_SCOPE } from "@/lib/documents/drive-docs";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Starts connecting a mailbox. Officers only. Default: the mailbox the portal sends e-mail from (send only).
  * `?purpose=invoicing`: the mailbox the daily invoicing report arrives in (read only) - same Google callback.
+ * `?purpose=docs`: the Google account whose Drive holds the Warranty and Technical Documents folders.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
-  const invoicing = url.searchParams.get("purpose") === "invoicing";
-  const back = (flag: string) => NextResponse.redirect(invoicing ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}` : `${origin}/admin/emails?mail=${flag}`);
+  const purpose = url.searchParams.get("purpose") === "invoicing" ? "invoicing" : url.searchParams.get("purpose") === "docs" ? "docs" : "sender";
+  const back = (flag: string) =>
+    NextResponse.redirect(
+      purpose === "invoicing" ? `${origin}/admin/dashboard?tab=invoicing&mail=${flag}` : purpose === "docs" ? `${origin}/admin/documents?mail=${flag}` : `${origin}/admin/emails?mail=${flag}`
+    );
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.redirect(`${origin}/login`);
@@ -24,7 +29,7 @@ export async function GET(request: Request) {
 
   // A random value that must come back unchanged from Google, so a forged callback is rejected.
   const state = randomBytes(24).toString("hex");
-  const response = NextResponse.redirect(buildMailAuthUrl(`${origin}/api/google-mail/callback`, state, invoicing ? INVOICING_SCOPE : undefined));
+  const response = NextResponse.redirect(buildMailAuthUrl(`${origin}/api/google-mail/callback`, state, purpose === "invoicing" ? INVOICING_SCOPE : purpose === "docs" ? DOCS_SCOPE : undefined));
   response.cookies.set("gm_state", state, {
     httpOnly: true,
     secure: origin.startsWith("https://"),
@@ -32,7 +37,7 @@ export async function GET(request: Request) {
     path: "/api/google-mail",
     maxAge: 600,
   });
-  response.cookies.set("gm_purpose", invoicing ? "invoicing" : "sender", {
+  response.cookies.set("gm_purpose", purpose, {
     httpOnly: true,
     secure: origin.startsWith("https://"),
     sameSite: "lax",
