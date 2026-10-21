@@ -387,6 +387,14 @@ export function ClaimsUploadForm({ branches, onUploaded }: { branches: Branch[];
         timer.mark("Upload part details");
       }
 
+      // Brings the main part names (Trends, KPI dashboard) up to date with the Part Details just uploaded. Never fails the upload.
+      try {
+        await supabase.rpc("refresh_claim_main_part_names");
+      } catch {
+        // The names catch up on the next upload.
+      }
+      timer.mark("Refresh main part names");
+
       setState({
         success: `${finishResult.success as string} Wrote ${toWrite.length} new or changed claim(s); ${keptIds.length} were identical and left untouched.`,
         skipped,

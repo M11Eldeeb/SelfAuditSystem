@@ -1351,6 +1351,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_claim_parts"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_part_names: {
+        Row: { part_no: string; part_name: string };
+        Insert: { part_no: string; part_name: string };
+        Update: Partial<{ part_no: string; part_name: string }>;
+        Relationships: [];
+      };
+      self_audit_claim_main_part: {
+        Row: { claim_id: string; branch_id: string; part_no: string; part_name: string | null };
+        Insert: { claim_id: string; branch_id: string; part_no: string; part_name?: string | null };
+        Update: Partial<{ claim_id: string; branch_id: string; part_no: string; part_name: string | null }>;
+        Relationships: [
+          {
+            foreignKeyName: "self_audit_claim_main_part_claim_id_fkey";
+            columns: ["claim_id"];
+            isOneToOne: true;
+            referencedRelation: "self_audit_claims";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       self_audit_scrapped_parts: {
         Row: {
           id: string;
@@ -1870,6 +1890,10 @@ export interface Database {
           audit_date: string | null;
           claim_count: number;
         }[];
+      };
+      refresh_claim_main_part_names: {
+        Args: Record<string, never>;
+        Returns: undefined;
       };
       claims_main_part_names: {
         Args: { p_claim_ids: string[] };

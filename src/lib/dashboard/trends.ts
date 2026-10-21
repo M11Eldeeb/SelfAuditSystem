@@ -24,7 +24,7 @@ type TrendClaim = {
 };
 
 const TREND_SELECT =
-  "branch_id, claim_number, work_order_no, vin, vehicle_model, mileage, labor_code, main_part_name, repair_end_date, claim_amount";
+  "branch_id, claim_number, work_order_no, vin, vehicle_model, mileage, labor_code, main_part_name, repair_end_date, claim_amount, main:self_audit_claim_main_part(part_name, part_no)";
 
 /** Months of history each code is compared against. */
 export const BASELINE_MONTHS = 6;
@@ -69,6 +69,14 @@ export type TrendData = {
 
 const PAGE = 1000;
 
+type MainPart = { part_name: string | null; part_no: string | null };
+
+/** The claim's main part from self_audit_claim_main_part: its name, or its number when no name is known. */
+function mainPartLabel(main: MainPart | MainPart[] | null | undefined): string | null {
+  const m = Array.isArray(main) ? main[0] : main;
+  return m?.part_name || m?.part_no || null;
+}
+
 async function fetchSlice(supabase: Client, branchId: string, month: string): Promise<TrendClaim[]> {
   const [y, m] = month.split("-").map(Number);
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -85,8 +93,8 @@ async function fetchSlice(supabase: Client, branchId: string, month: string): Pr
           .order("id")
           .range(from, from + PAGE - 1),
       "claims"
-    )) as TrendClaim[];
-    rows.push(...page);
+    )) as unknown as (TrendClaim & { main?: MainPart | MainPart[] | null })[];
+    rows.push(...page.map(({ main, ...c }) => ({ ...c, main_part_name: mainPartLabel(main) ?? c.main_part_name })));
     if (page.length < PAGE) break;
   }
   return rows;

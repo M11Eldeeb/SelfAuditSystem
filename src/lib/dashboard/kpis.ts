@@ -35,6 +35,8 @@ type DashboardClaim = {
   labor_name: string | null;
   part_name: string | null;
   part_no: string | null;
+  main_part_name?: string | null;
+  main?: { part_name: string | null; part_no: string | null } | { part_name: string | null; part_no: string | null }[] | null;
   vehicle_model: string | null;
   series: string | null;
   currency: string | null;
@@ -62,8 +64,8 @@ const CLAIM_SELECT = [
   'sublet_before:raw_row->>"Sublet TOL.Before Adjustment"',
   'sublet_adjusted:raw_row->>"Adjusted Sublet TOL."',
   'labor_name:raw_row->>"Main Labor Name"',
-  "part_name:main_part_name",
-  'part_no:raw_row->>"Main Part"',
+  "main_part_name",
+  "main:self_audit_claim_main_part(part_name, part_no)",
   "vehicle_model",
   'series:raw_row->>"Vehicle Series"',
   "currency:raw_row->>currency",
@@ -133,7 +135,7 @@ const CONCURRENCY = 4;
 async function fetchClaims(supabase: Client, branchIds: string[], months: string[]): Promise<DashboardClaim[]> {
   const tasks = branchIds.flatMap((branchId) =>
     months.map((m) => async () => {
-      const rows = await fetchPaged<DashboardClaim>(
+      const raw = await fetchPaged<DashboardClaim>(
         (from, to) =>
           supabase
             .from("self_audit_claims")
@@ -145,6 +147,11 @@ async function fetchClaims(supabase: Client, branchIds: string[], months: string
             .range(from, to),
         "claims"
       );
+      // The main part comes from self_audit_claim_main_part (the claims sheet has no part-name column).
+      const rows = raw.map(({ main, main_part_name, ...c }) => {
+        const m = Array.isArray(main) ? main[0] : main;
+        return { ...c, part_name: m?.part_name ?? m?.part_no ?? main_part_name ?? null, part_no: m?.part_no ?? null };
+      });
       return rows;
     })
   );
