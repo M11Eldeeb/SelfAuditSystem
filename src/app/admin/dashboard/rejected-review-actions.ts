@@ -33,7 +33,7 @@ export async function getRejectedClaimsForReview(): Promise<RejectedReviewRow[]>
     admin
       .from("self_audit_claims")
       .select('id, branch_id, claim_number, work_order_no, vin, claim_amount, main_part_name, verification_date, status:raw_row->>Status, fault:raw_row->>"Fault Description", labor:raw_row->>"Main Labor Name"')
-      .ilike("raw_row->>Status", "Rejected%")
+      .like("raw_row->>Status", "Rejected%")
       .order("verification_date", { ascending: false })
       .limit(2000),
     admin.from("self_audit_branches").select("id, name"),
