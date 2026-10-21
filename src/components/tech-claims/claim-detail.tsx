@@ -95,6 +95,7 @@ export function TechClaimDetailView({
 
       {canEdit ? (
         <TechClaimForm
+          who={claim.technician}
           claimId={claim.id}
           initial={{ vin: claim.vin, workOrder: claim.workOrder, endOfRepair: claim.endOfRepair, notes: claim.notes }}
           existing={claim.fileList.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size }))}

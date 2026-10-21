@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addTechClaimFiles, finishTechClaim, removeTechClaimFile, startTechClaim, type ClaimFields } from "@/app/actions/tech-claims";
 import { fmtBytes, uploadToSession } from "./upload";
+import { stampPhoto, stampVideo } from "./stamp";
 
 type Existing = { id: string; name: string; mimeType: string; size: number };
 
@@ -22,10 +23,13 @@ function localValue(iso: string | null | undefined): string {
  * Files go from the phone straight to Google Drive, one after another, with a progress bar.
  */
 export function TechClaimForm({
+  who,
   claimId,
   initial,
   existing = [],
 }: {
+  /** Technician name, printed in the date stamp. */
+  who: string;
   claimId?: string;
   initial?: { vin: string; workOrder: string; endOfRepair: string; notes: string | null };
   existing?: Existing[];
@@ -39,6 +43,8 @@ export function TechClaimForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: string; sent: number; total: number } | null>(null);
+  const [stamping, setStamping] = useState<string | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
   const photo = useRef<HTMLInputElement>(null);
   const video = useRef<HTMLInputElement>(null);
   const pick = useRef<HTMLInputElement>(null);
@@ -55,7 +61,26 @@ export function TechClaimForm({
     const next = typed.filter((f) => /^(image\/|video\/|application\/pdf$)/.test(f.type));
     if (next.length < list.length) setError("Only photos, videos and PDF files can be added.");
     else setError(null);
-    setFiles((cur) => [...cur, ...next]);
+    // Every photo and video gets the date stamp before it is added (one at a time; a video takes as long as it lasts).
+    for (const f of next) {
+      queue.current = queue.current.then(async () => {
+        try {
+          let out = f;
+          if (f.type.startsWith("image/")) {
+            setStamping(`Adding the date stamp to ${f.name}...`);
+            out = await stampPhoto(f, who);
+          } else if (f.type.startsWith("video/")) {
+            setStamping(`Adding the date stamp to ${f.name}... 0%`);
+            out = await stampVideo(f, who, (pct) => setStamping(`Adding the date stamp to ${f.name}... ${pct}% (keep the screen on)`));
+          }
+          setFiles((cur) => [...cur, out]);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : `Could not add "${f.name}".`);
+        } finally {
+          setStamping(null);
+        }
+      });
+    }
   };
 
   async function removeExisting(f: Existing) {
@@ -68,6 +93,7 @@ export function TechClaimForm({
   }
 
   async function submit() {
+    if (stamping) return setError("Wait until the date stamp is added to every file.");
     setError(null);
     const fields: ClaimFields = { vin, workOrder, endOfRepair: endOfRepair ? new Date(endOfRepair).toISOString() : "", notes };
     if (!claimId && !files.length) return setError("Add at least one photo, video or PDF.");
@@ -201,6 +227,8 @@ export function TechClaimForm({
             ))}
           </ul>
         )}
+        {stamping && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">{stamping}</p>}
+        <p className="text-xs text-neutral-500">Every photo and video gets a date stamp (date and time taken, your name).</p>
         {files.length > 0 && <p className="text-xs text-neutral-500">To send: {files.length} file{files.length === 1 ? "" : "s"}, {fmtBytes(files.reduce((s, f) => s + f.size, 0))}</p>}
       </div>
 
@@ -218,7 +246,7 @@ export function TechClaimForm({
       )}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <button type="button" disabled={busy} onClick={submit} className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
+      <button type="button" disabled={busy || !!stamping} onClick={submit} className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
         {busy ? "Sending..." : claimId ? "Send to warranty admin" : "Submit claim"}
       </button>
     </div>
