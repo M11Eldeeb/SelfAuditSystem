@@ -12,7 +12,7 @@ export function RejectedClaimsComingSoon() {
       <p className="mb-2 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold tracking-wider text-amber-800 uppercase ring-1 ring-amber-200 ring-inset">
         Coming soon
       </p>
-      <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Rejected Claims Diary</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Rejected Claims From The Branch</h1>
       <p className="mt-2 text-sm text-neutral-600">
         A log book for the work orders your workshop rejects, with the reason, comments and attachments, so nothing is
         forgotten if the customer complains later. It is not open to branch admins yet - you will be told when it is.

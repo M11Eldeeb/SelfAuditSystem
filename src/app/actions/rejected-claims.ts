@@ -42,8 +42,8 @@ async function diaryUser(): Promise<{ user: CurrentUser } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: "Please sign in again." };
   const access = await getRejectedClaimsAccess(user);
-  if (access === "locked") return { error: "The Rejected Claims Diary is coming soon for branch admins." };
-  if (access !== "full") return { error: "You do not have access to the Rejected Claims Diary." };
+  if (access === "locked") return { error: "Rejected Claims From The Branch is coming soon for branch admins." };
+  if (access !== "full") return { error: "You do not have access to Rejected Claims From The Branch." };
   return { user };
 }
 

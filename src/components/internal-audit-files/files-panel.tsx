@@ -131,7 +131,7 @@ export function InternalAuditFilesPanel({
       </div>
 
       {!driveConnected && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Google Drive is not connected yet - connect it from the Rejected Claims Diary settings.</p>
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Google Drive is not connected yet - connect it from the Rejected Claims From The Branch settings.</p>
       )}
       {status && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">{status}</p>}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

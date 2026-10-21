@@ -76,7 +76,7 @@ export function RejectedClaimsPanel({ rejected, from, to, diaryPath, showBranche
   const avg = prevMonths.length ? prevMonths.reduce((s, t) => s + t.value, 0) / prevMonths.length : 0;
 
   return (
-    <Panel eyebrow="Rejected claims" title="Rejected Claims Diary" subtitle="Claims rejected in the selected months - click any number or bar to see the entries" action={<Link href={diaryPath} className="text-xs font-semibold text-[#9a000d] underline">Open the diary</Link>}>
+    <Panel eyebrow="Rejected claims" title="Rejected Claims From The Branch" subtitle="Claims rejected in the selected months - click any number or bar to see the entries" action={<Link href={diaryPath} className="text-xs font-semibold text-[#9a000d] underline">Open Rejected Claims From The Branch</Link>}>
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <button type="button" onClick={() => setPick({ title: "All rejected claims in the period", rows: period })} className="text-left">

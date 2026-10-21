@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     const email = await accountEmailFor(tokens.access_token);
     if (!email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
 
-    step = "creating the folder in the Rejected Claims Diary Shared Drive";
+    step = "creating the folder in the Rejected Claims From The Branch Shared Drive";
     // Reuse the folder if it is already there (a reconnect must not start a second one).
     const rootFolderId =
       (await findFolderWithToken(tokens.access_token, DRIVE_ROOT_FOLDER_NAME, DRIVE_SHARED_DRIVE_ID)) ??

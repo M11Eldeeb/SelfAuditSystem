@@ -333,7 +333,7 @@ export function EntryForm({
                 disabled={saving}
                 className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark hover:shadow-md disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save to diary"}
+                {saving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

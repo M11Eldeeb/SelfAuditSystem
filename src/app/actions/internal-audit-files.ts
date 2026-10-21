@@ -18,7 +18,7 @@ import {
 import { loadInternalAuditReport } from "@/lib/internal-audit-report-data";
 import { buildInternalAuditPdf, internalAuditPdfName } from "@/lib/internal-audit-pdf";
 
-const NOT_CONNECTED = "Google Drive is not connected yet - connect it from the Rejected Claims Diary settings first.";
+const NOT_CONNECTED = "Google Drive is not connected yet - connect it from the Rejected Claims From The Branch settings first.";
 const IA_MAX_FILE_BYTES = 50 * 1024 * 1024;
 const IA_MAX_FILES = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
