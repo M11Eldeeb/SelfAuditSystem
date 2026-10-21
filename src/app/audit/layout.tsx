@@ -5,12 +5,14 @@ import { ViewOnlyBanner } from "@/components/view-only-banner";
 import { getNotifications } from "@/lib/notifications";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
+import { techClaimsWaiting } from "@/lib/tech-claims/server";
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
   { href: "/audit", label: "My Audits" },
   { href: "/audit/results", label: "Results" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
+  { href: "/audit/technician-claims", label: "Technician Claims" },
   { href: "/audit/part-returns", label: "Part Return" },
   { href: "/audit/rejected-claims", label: "Rejected Claims" },
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
@@ -20,14 +22,16 @@ const BRANCH_ADMIN_LINKS = [
 
 export default async function AuditLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("branch_admin");
-  const [notifications, diaryAccess, inquiryBadge] = await Promise.all([getNotifications(user), getRejectedClaimsAccess(user), inquiriesBadge(user)]);
+  const [notifications, diaryAccess, inquiryBadge, claimsWaiting] = await Promise.all([getNotifications(user), getRejectedClaimsAccess(user), inquiriesBadge(user), techClaimsWaiting(user)]);
   // Until the diary is unlocked for branch admins its tab carries a "Soon" tag.
   const links = BRANCH_ADMIN_LINKS.map((l) =>
     l.href === "/audit/rejected-claims" && diaryAccess !== "full"
       ? { ...l, badge: "Soon" }
       : l.href === "/audit/technical-inquiries"
         ? { ...l, badge: inquiryBadge } // "Soon" while locked, otherwise the number of cases waiting for this workshop's reply
-        : l
+        : l.href === "/audit/technician-claims" && claimsWaiting
+          ? { ...l, badge: String(claimsWaiting) } // technician claims waiting for review
+          : l
   );
 
   return (

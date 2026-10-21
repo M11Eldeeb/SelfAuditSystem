@@ -14,6 +14,7 @@ const ADMIN_LINKS = [
     match: ["/admin/cycles", "/admin/internal-audit", "/admin/results", "/admin/review"],
   },
   { href: "/admin/warranty-room", label: "Warranty Room" },
+  { href: "/admin/technician-claims", label: "Technician Claims" },
   { href: "/admin/part-returns", label: "Part Return" },
   { href: "/admin/rejected-claims", label: "Rejected Claims" },
   { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes" },

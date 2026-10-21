@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -43,6 +43,8 @@ export interface Database {
           created_at: string;
           /** Also sees every warranty officer page, read only. */
           view_all: boolean;
+          /** Technicians: employee number (they may sign in with it). */
+          employee_no: string | null;
         };
         Insert: {
           id: string;
@@ -52,6 +54,7 @@ export interface Database {
           branch_id?: string | null;
           created_at?: string;
           view_all?: boolean;
+          employee_no?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];
@@ -665,6 +668,64 @@ export interface Database {
         Row: { key: string; drive_id: string; created_at: string };
         Insert: { key: string; drive_id: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_drive_folders"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_tech_claims: {
+        Row: {
+          id: string;
+          claim_no: string;
+          branch_id: string;
+          technician_id: string | null;
+          technician_name: string;
+          vin: string;
+          work_order: string;
+          end_of_repair: string;
+          notes: string | null;
+          status: "uploading" | "submitted" | "returned" | "approved" | "rejected";
+          review_comment: string | null;
+          reviewed_by: string | null;
+          reviewed_by_name: string | null;
+          reviewed_at: string | null;
+          drive_folder_id: string | null;
+          submitted_at: string | null;
+          times_submitted: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          claim_no?: string;
+          branch_id: string;
+          technician_id?: string | null;
+          technician_name: string;
+          vin: string;
+          work_order: string;
+          end_of_repair: string;
+          notes?: string | null;
+          status?: "uploading" | "submitted" | "returned" | "approved" | "rejected";
+          review_comment?: string | null;
+          reviewed_by?: string | null;
+          reviewed_by_name?: string | null;
+          reviewed_at?: string | null;
+          drive_folder_id?: string | null;
+          submitted_at?: string | null;
+          times_submitted?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_tech_claims"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_tech_claim_files: {
+        Row: { id: string; claim_id: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; created_at: string };
+        Insert: { id?: string; claim_id: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_tech_claim_files"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_tech_claim_events: {
+        Row: { id: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited"; body: string | null; author_id: string | null; author_name: string | null; created_at: string };
+        Insert: { id?: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited"; body?: string | null; author_id?: string | null; author_name?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_tech_claim_events"]["Insert"]>;
         Relationships: [];
       };
       self_audit_rejected_claim_reviews: {

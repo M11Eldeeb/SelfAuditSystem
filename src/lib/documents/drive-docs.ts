@@ -90,6 +90,9 @@ export async function syncDocsIndex(): Promise<{ files: number }> {
     synced_at: string;
   }[] = [];
   try {
+    // Technician claim folders (Warranty Documents / <Branch> / ...) hold thousands of claim photos: not part of the library.
+    const { data: claimFolders } = await admin.from("self_audit_drive_folders").select("drive_id").like("key", "tc:branch:%");
+    const skip = new Set((claimFolders ?? []).map((f) => f.drive_id));
     for (const [library, { label, rootId }] of Object.entries(LIBRARIES) as [Library, (typeof LIBRARIES)[Library]][]) {
       let queue: { id: string; path: string }[] = [{ id: rootId, path: label }];
       const seen = new Set<string>([rootId]);
@@ -100,7 +103,7 @@ export async function syncDocsIndex(): Promise<{ files: number }> {
           for (const item of lists[i]) {
             const id = item.shortcutDetails?.targetId ?? item.id;
             const mime = item.shortcutDetails?.targetMimeType ?? item.mimeType;
-            if (seen.has(id)) continue;
+            if (seen.has(id) || skip.has(id)) continue;
             seen.add(id);
             const isFolder = mime === FOLDER_MIME;
             rows.push({

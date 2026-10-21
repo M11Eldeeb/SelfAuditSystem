@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BranchForm } from "./branch-form";
 import { UserForm } from "./user-form";
+import { TechnicianImport } from "./technician-import";
 import { ResetPasswordButton } from "./reset-password-button";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
@@ -56,6 +57,9 @@ export default async function BranchesPage() {
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <UserForm branches={branchList.filter((b) => b.active)} />
         </div>
+        <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
+          <TechnicianImport />
+        </div>
         <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
@@ -71,9 +75,12 @@ export default async function BranchesPage() {
               {(users ?? []).map((u) => (
                 <tr key={u.id}>
                   <td className="px-4 py-2 text-neutral-900">{u.email}</td>
-                  <td className="px-4 py-2 text-neutral-600">{u.full_name ?? "—"}</td>
                   <td className="px-4 py-2 text-neutral-600">
-                    {{ officer: "Warranty officer", finance: "Finance", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader", service_manager: "Service manager (view only)" }[u.role as string] ?? "Branch admin"}
+                    {u.full_name ?? "—"}
+                    {u.employee_no && <span className="ml-1 text-xs text-neutral-400">#{u.employee_no}</span>}
+                  </td>
+                  <td className="px-4 py-2 text-neutral-600">
+                    {{ officer: "Warranty officer", finance: "Finance", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader", service_manager: "Service manager (view only)", technician: "Technician" }[u.role as string] ?? "Branch admin"}
                   </td>
                   <td className="px-4 py-2 text-neutral-600">
                     {u.branch_id ? (branchNameById.get(u.branch_id) ?? "—") : "—"}

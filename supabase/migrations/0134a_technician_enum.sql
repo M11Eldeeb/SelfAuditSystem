@@ -1,0 +1,2 @@
+-- Enum value applied separately as migration technician_enum:
+-- alter type user_role add value if not exists 'technician';

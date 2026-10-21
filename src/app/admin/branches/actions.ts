@@ -98,7 +98,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const role = String(formData.get("role") ?? "");
   const branchId = String(formData.get("branch_id") ?? "");
 
-  const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager"];
+  const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician"];
   if (!email || (role !== "officer" && role !== "finance" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
@@ -124,7 +124,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role: role as "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager",
+    role: role as "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician",
     branch_id: WORKSHOP_ROLES.includes(role) ? branchId : null,
   });
 
@@ -210,4 +210,63 @@ export async function deleteUser(_prev: ActionState, formData: FormData): Promis
 
   revalidatePath("/admin/branches");
   return { success: `${email} deleted.` };
+}
+
+export type TechnicianRow = { name: string; employeeNo: string; branch: string; email: string };
+export type TechnicianResult = { row: number; name: string; employeeNo: string; branch: string; login: string; tempPassword?: string; error?: string };
+
+/** Technicians without a company e-mail get this sign-in address (never mailed); they sign in with the employee number. */
+const technicianEmail = (employeeNo: string) => `${employeeNo.toLowerCase().replace(/[^a-z0-9._-]/g, "")}@technicians.jiadmotors.local`;
+
+/**
+ * Creates technician accounts from the imported list (the page sends it 25 rows at a time). The branch is matched by
+ * name or code. A row whose employee number or e-mail already has an account is skipped and reported.
+ */
+export async function importTechnicians(rows: (TechnicianRow & { row: number })[]): Promise<{ results: TechnicianResult[]; error?: string }> {
+  await requireRole("officer");
+  if (rows.length > 50) return { results: [], error: "Send at most 50 rows at a time." };
+  const admin = createAdminClient();
+  const [{ data: branches }, { data: existing }] = await Promise.all([
+    admin.from("self_audit_branches").select("id, name, code"),
+    admin.from("self_audit_users").select("email, employee_no"),
+  ]);
+  const branchOf = new Map<string, string>();
+  for (const b of branches ?? []) {
+    branchOf.set(b.name.trim().toLowerCase(), b.id);
+    branchOf.set(b.code.trim().toLowerCase(), b.id);
+  }
+  const takenEmails = new Set((existing ?? []).map((u) => u.email.toLowerCase()));
+  const takenNos = new Set((existing ?? []).map((u) => u.employee_no?.toLowerCase()).filter(Boolean));
+
+  const one = async (r: TechnicianRow & { row: number }): Promise<TechnicianResult> => {
+    const name = r.name.trim();
+    const employeeNo = r.employeeNo.trim();
+    const base = { row: r.row, name, employeeNo, branch: r.branch.trim(), login: "" };
+    const branchId = branchOf.get(r.branch.trim().toLowerCase());
+    if (!name) return { ...base, error: "Name is missing." };
+    if (!employeeNo) return { ...base, error: "Employee number is missing." };
+    if (!/^[A-Za-z0-9._-]{1,30}$/.test(employeeNo)) return { ...base, error: "Employee number: letters, digits, . _ - only." };
+    if (!branchId) return { ...base, error: `Branch "${r.branch}" not found.` };
+    const email = (r.email.trim().toLowerCase() || technicianEmail(employeeNo));
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ...base, error: "E-mail is not valid." };
+    if (takenNos.has(employeeNo.toLowerCase())) return { ...base, login: employeeNo, error: "Already has an account." };
+    if (takenEmails.has(email)) return { ...base, login: email, error: "This e-mail already has an account." };
+    takenNos.add(employeeNo.toLowerCase());
+    takenEmails.add(email);
+
+    const tempPassword = generateTempPassword();
+    const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: tempPassword, email_confirm: true });
+    if (createError || !created.user) return { ...base, error: createError?.message ?? "Could not create the account." };
+    const { error } = await admin.from("self_audit_users").insert({ id: created.user.id, email, full_name: name, role: "technician", branch_id: branchId, employee_no: employeeNo });
+    if (error) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      return { ...base, error: error.message };
+    }
+    return { ...base, login: employeeNo, tempPassword };
+  };
+
+  const results: TechnicianResult[] = [];
+  for (let i = 0; i < rows.length; i += 5) results.push(...(await Promise.all(rows.slice(i, i + 5).map(one))));
+  revalidatePath("/admin/branches");
+  return { results };
 }
