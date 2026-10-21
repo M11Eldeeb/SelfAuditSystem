@@ -8,6 +8,8 @@ import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getTasks } from "@/lib/tasks";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
+import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
+import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 
 export default async function BranchDashboardPage({
   searchParams,
@@ -29,6 +31,9 @@ export default async function BranchDashboardPage({
 
   const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support.catch(() => {});
+  // The diary's numbers only once the Rejected Claims Diary is open for this branch admin.
+  const rejected = (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
+  rejected?.catch(() => {});
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
@@ -47,6 +52,7 @@ export default async function BranchDashboardPage({
         rangeClamped={clamped}
         tasks={await tasksPromise}
         support={support}
+        rejected={rejected}
       />
     </div>
   );

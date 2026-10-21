@@ -8,6 +8,8 @@ import { C, Meter } from "@/components/dashboard/charts";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
+import { RejectedClaimsPanel } from "@/components/dashboard/sections/rejected-claims";
+import type { RejectedEntry } from "@/lib/dashboard/rejected";
 import { InvoicingSection } from "@/components/dashboard/sections/invoicing";
 import type { SupportLeadTimes } from "@/lib/dashboard/support";
 import { OverviewSection } from "@/components/dashboard/sections/overview";
@@ -80,6 +82,7 @@ export function KpiDashboard({
   settlementOrders = [],
   tasks,
   support,
+  rejected,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -100,6 +103,8 @@ export function KpiDashboard({
   tasks?: TaskData;
   /** Technical Inquiries / Verification Codes closure lead time (Cycle Times tab), streamed in. */
   support?: Promise<SupportLeadTimes>;
+  /** Rejected Claims Diary entries (Overview tab), streamed in; absent while the diary is locked for this user. */
+  rejected?: Promise<RejectedEntry[]>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -328,6 +333,13 @@ export function KpiDashboard({
         <div className={`space-y-5 transition-opacity duration-200 ${isPending ? "pointer-events-none opacity-50" : ""}`}>
           {tab === "tasks" && (tasks ? <TaskTracker data={tasks} isOfficer={isOfficer} /> : null)}
           {tab === "overview" && <OverviewSection {...sectionProps} />}
+          {tab === "overview" && rejected && (
+            <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+              <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5e5]" />}>
+                <RejectedClaimsPanel rejected={rejected} from={from} to={to} diaryPath={isOfficer ? "/admin/rejected-claims" : "/audit/rejected-claims"} showBranches={isOfficer} />
+              </Suspense>
+            </SectionErrorBoundary>
+          )}
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
           {tab === "cycle" && support && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>

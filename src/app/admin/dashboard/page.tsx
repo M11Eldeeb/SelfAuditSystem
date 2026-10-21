@@ -8,6 +8,7 @@ import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getTasks } from "@/lib/tasks";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
+import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { requireRole } from "@/lib/auth";
 
 // The Warranty Invoicing refresh reads the report e-mail and its ~11 MB Excel file.
@@ -48,6 +49,8 @@ export default async function AdminDashboardPage({
   forecast.catch(() => {});
   const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support.catch(() => {});
+  const rejected = getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
+  rejected.catch(() => {});
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
@@ -67,6 +70,7 @@ export default async function AdminDashboardPage({
         trends={trends}
         forecast={forecast}
         support={support}
+        rejected={rejected}
         tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
