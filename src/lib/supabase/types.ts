@@ -668,8 +668,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_rejected_claim_reviews: {
-        Row: { claim_id: string; status: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note: string | null; updated_by: string | null; updated_by_name: string | null; updated_at: string };
-        Insert: { claim_id: string; status?: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note?: string | null; updated_by?: string | null; updated_by_name?: string | null; updated_at?: string };
+        Row: { claim_id: string; status: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note: string | null; close_date: string | null; updated_by: string | null; updated_by_name: string | null; updated_at: string };
+        Insert: { claim_id: string; status?: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note?: string | null; close_date?: string | null; updated_by?: string | null; updated_by_name?: string | null; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claim_reviews"]["Insert"]>;
         Relationships: [];
       };

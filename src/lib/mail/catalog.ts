@@ -24,7 +24,9 @@ export type MailKey =
   | "inquiry_verify"
   | "inquiry_rejected"
   | "scrap_evidence_submitted"
-  | "scrap_evidence_approved";
+  | "scrap_evidence_approved"
+  | "rejected_monthly"
+  | "rejected_weekend";
 export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "workshop_supervisors" | "workshop_team_leaders" | "technical_team" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
@@ -542,6 +544,53 @@ ${SIGN_OFF}`,
       { name: "link", help: "The address of the case in the portal (becomes a button).", sample: "https://portal.example/technical/technical-inquiries/123" },
     ],
   },
+  rejected_monthly: {
+    key: "rejected_monthly",
+    title: "Rejected claims - monthly summary",
+    to: "The warranty officers",
+    switchKey: "rejected_claims_mails",
+    defaultSubject: "Rejected claims to handle - {month}: {count}",
+    defaultBody: `Dear Warranty Team,
+
+There {are} {count} rejected by SAIC and not handled yet. After the close date a claim is closed and cannot be appealed.
+
+{list}
+
+Review them in Dashboard → Reconciliation → Rejected claims: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "month", help: "The month.", sample: "November 2026" },
+      { name: "count", help: "How many claims, with the word.", sample: "3 claims" },
+      { name: "are", help: '"is" or "are" to match the number.', sample: "are" },
+      { name: "list", help: "One line per claim: claim, work order, branch, close date. Keep it on its own line.", sample: "- WSA6P20260914022 - HER-12345 - Jeddah Heraa - closes Thu 29 Oct 2026" },
+      { name: "link", help: "The Rejected claims tab (becomes a button).", sample: "https://portal.example/admin/dashboard?tab=reconciliation" },
+    ],
+  },
+  rejected_weekend: {
+    key: "rejected_weekend",
+    title: "Rejected claims - closing on the weekend",
+    to: "The warranty officers",
+    switchKey: "rejected_claims_mails",
+    defaultSubject: "Reminder: {count} closing this weekend",
+    defaultBody: `Dear Warranty Team,
+
+{count} {closes} on Friday or Saturday - today is the last working day to review and appeal.
+
+{list}
+
+Review them now: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "count", help: "How many claims, with the word.", sample: "2 rejected claims" },
+      { name: "closes", help: '"closes" or "close" to match the number.', sample: "close" },
+      { name: "list", help: "One line per claim. Keep it on its own line.", sample: "- WSA6P20260914022 - HER-12345 - Jeddah Heraa - closes Fri 30 Oct 2026" },
+      { name: "link", help: "The Rejected claims tab (becomes a button).", sample: "https://portal.example/admin/dashboard?tab=reconciliation" },
+    ],
+  },
   scrap_evidence_submitted: {
     key: "scrap_evidence_submitted",
     title: "Scrap evidence submitted",
@@ -725,6 +774,8 @@ export const MAIL_KEYS_IN_ORDER: MailKey[] = [
   "inquiry_rejected",
   "scrap_evidence_submitted",
   "scrap_evidence_approved",
+  "rejected_monthly",
+  "rejected_weekend",
 ];
 
 /** What an officer saved for a mail (all optional - anything missing falls back to the built-in wording). */

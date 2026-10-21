@@ -39,6 +39,8 @@ const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
   inquiry_closed: () => "When the technical team closes a case with the solution.",
   inquiry_reopened: () => "When the technical team reopens a closed case.",
   scrap_evidence_submitted: () => "Right when a branch submits its scrap (destroy) evidence videos in the Warranty Room. Goes to the warranty officers.",
+  rejected_monthly: () => "On the first working morning of every month (about 9:00): the rejected claims not handled yet, each with its estimated close date.",
+  rejected_weekend: () => "On Thursday morning when one or more open rejected claims close on the Friday or Saturday after (follows the switch of the monthly mail).",
   scrap_evidence_approved: () => "Right when an officer approves a branch's scrap evidence. Goes to the branch's admins (follows the switch of the submitted mail).",
 };
 

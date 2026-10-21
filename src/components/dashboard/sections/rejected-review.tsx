@@ -18,25 +18,28 @@ const copy = (t: string) => void navigator.clipboard?.writeText(t).catch(() => {
 function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => void; currency: string }) {
   const [status, setStatus] = useState<RejectedReviewStatus | null>(r.review?.status ?? null);
   const [note, setNote] = useState(r.review?.note ?? "");
+  const [closeDate, setCloseDate] = useState(r.deadline ?? "");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const dirty = status !== (r.review?.status ?? null) || note !== (r.review?.note ?? "");
+  const dirty = status !== (r.review?.status ?? null) || note !== (r.review?.note ?? "") || closeDate !== (r.deadline ?? "");
   const expired = r.daysLeft != null && r.daysLeft < 0;
+  const weekend = r.deadline ? [5, 6].includes(new Date(`${r.deadline}T00:00:00Z`).getUTCDay()) : false;
   const badge =
     r.daysLeft == null ? (
-      <Pill tone="muted">no verification date</Pill>
+      <Pill tone="warn">enter the estimated close date</Pill>
     ) : expired ? (
       <Pill tone="muted">closed {fmtDay(r.deadline)} - cannot appeal</Pill>
     ) : (
       <Pill tone={r.daysLeft <= 5 ? "bad" : r.daysLeft <= 10 ? "warn" : "good"}>
-        {r.daysLeft === 0 ? "last day today" : `${r.daysLeft} day${r.daysLeft === 1 ? "" : "s"} left`} · until {fmtDay(r.deadline)}
+        {r.daysLeft === 0 ? "last day today" : `${r.daysLeft} day${r.daysLeft === 1 ? "" : "s"} left`} · closes {fmtDay(r.deadline)}
+        {weekend ? " (weekend)" : ""}
       </Pill>
     );
 
   async function save(next: RejectedReviewStatus | null) {
     setSaving(true);
     setMsg(null);
-    const res = await saveRejectedClaimReview(r.claimId, next, note);
+    const res = await saveRejectedClaimReview(r.claimId, next, note, closeDate || null);
     setSaving(false);
     if (res.error) setMsg(res.error);
     else onSaved();
@@ -77,6 +80,15 @@ function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => vo
             {STATUS[k].label}
           </button>
         ))}
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#575e70]">
+          Est. close date
+          <input
+            type="date"
+            value={closeDate}
+            onChange={(e) => setCloseDate(e.target.value)}
+            className={`h-8 rounded-lg border px-2 text-xs focus:border-[#2d2d2d] focus:outline-none ${closeDate ? "border-[#d4d4d4]" : "border-amber-400 bg-amber-50"}`}
+          />
+        </label>
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -97,8 +109,8 @@ function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => vo
 }
 
 /**
- * Reconciliation → Rejected claims: every claim SAIC rejected, with the 30 days after its verification date in which it
- * can still be appealed. The officer marks each one resolved, appeal submitted or confirmed rejection, with notes.
+ * Reconciliation → Rejected claims: every claim SAIC rejected. The officer enters the estimated claim close date (after it
+ * no appeal is possible) and marks each one resolved, appeal submitted or confirmed rejection, with notes.
  */
 export function RejectedReviewSection({ currency }: { currency: string }) {
   const [rows, setRows] = useState<RejectedReviewRow[] | null>(null);
@@ -131,7 +143,7 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
           <Card accent={C.red} className="h-full hover:shadow-md">
             <Label>To review</Label>
             <Metric value={fmtInt(todo.length)} unit={`${sum(todo).toLocaleString("en-US", { maximumFractionDigits: 0 })} ${currency}`} tone="red" />
-            <div className="text-xs text-[#575e70]">still inside the 30 days</div>
+            <div className="text-xs text-[#575e70]">not handled, close date not passed</div>
           </Card>
         </button>
         <button type="button" onClick={() => setView("todo")} className="text-left">
@@ -154,14 +166,14 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
           <Card accent={C.slate} className="h-full hover:shadow-md">
             <Label>Missed (window closed)</Label>
             <Metric value={fmtInt(expired.length)} />
-            <div className="text-xs text-[#575e70]">not reviewed within 30 days</div>
+            <div className="text-xs text-[#575e70]">close date passed before a review</div>
           </Card>
         </button>
       </div>
 
       <Panel
         title="Rejected claims"
-        subtitle="30 days from the verification date to review and appeal - after that the claim is closed"
+        subtitle="Enter each claim's estimated close date - after it the claim is closed and cannot be appealed. A monthly summary and a weekend-deadline reminder are e-mailed to the officers."
         action={
           <button
             type="button"
@@ -176,7 +188,7 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
                   { header: "VIN", value: (r) => r.vin, width: 20 },
                   { header: "Export status", value: (r) => r.status },
                   { header: "Verification date", value: (r) => r.verificationDate },
-                  { header: "Appeal deadline", value: (r) => r.deadline },
+                  { header: "Estimated close date", value: (r) => r.deadline },
                   { header: "Days left", value: (r) => r.daysLeft },
                   { header: `Claim amount (${currency})`, value: (r) => r.amount, money: true },
                   { header: "Main labor", value: (r) => r.labor, width: 30 },

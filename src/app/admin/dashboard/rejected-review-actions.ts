@@ -3,9 +3,6 @@
 import { requireRole, requireViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** Days after the verification date in which a rejected claim can still be appealed. */
-const APPEAL_DAYS = 30;
-
 export type RejectedReviewStatus = "resolved" | "appeal_submitted" | "confirmed_rejection";
 
 export type RejectedReviewRow = {
@@ -16,6 +13,7 @@ export type RejectedReviewRow = {
   branch: string;
   status: string; // the claims export status (Rejected / Rejected from chief agent)
   verificationDate: string | null;
+  /** The estimated claim close date the officer entered (the appeal deadline), or null while not entered. */
   deadline: string | null;
   daysLeft: number | null;
   amount: number;
@@ -25,7 +23,7 @@ export type RejectedReviewRow = {
   review: { status: RejectedReviewStatus | null; note: string | null; by: string | null; at: string } | null;
 };
 
-/** Every claim the claims export shows as rejected, with its 30-day appeal window and the officer's review. */
+/** Every claim the claims export shows as rejected, with the close date the officer entered and the officer's review. */
 export async function getRejectedClaimsForReview(): Promise<RejectedReviewRow[]> {
   await requireViewer("officer");
   const admin = createAdminClient();
@@ -40,15 +38,15 @@ export async function getRejectedClaimsForReview(): Promise<RejectedReviewRow[]>
   ]);
   const ids = (claims ?? []).map((c) => c.id);
   const { data: reviews } = ids.length
-    ? await admin.from("self_audit_rejected_claim_reviews").select("claim_id, status, note, updated_by_name, updated_at").in("claim_id", ids)
-    : { data: [] as { claim_id: string; status: string | null; note: string | null; updated_by_name: string | null; updated_at: string }[] };
+    ? await admin.from("self_audit_rejected_claim_reviews").select("claim_id, status, note, close_date, updated_by_name, updated_at").in("claim_id", ids)
+    : { data: [] as { claim_id: string; status: string | null; note: string | null; close_date: string | null; updated_by_name: string | null; updated_at: string }[] };
   const reviewOf = new Map((reviews ?? []).map((r) => [r.claim_id, r]));
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const today = Date.parse(new Date().toISOString().slice(0, 10));
   return (claims ?? []).map((c) => {
     const v = c.verification_date as string | null;
-    const deadline = v ? new Date(Date.parse(v) + APPEAL_DAYS * 86_400_000).toISOString().slice(0, 10) : null;
     const r = reviewOf.get(c.id);
+    const deadline = r?.close_date ?? null;
     return {
       claimId: c.id,
       claimNumber: c.claim_number,
@@ -69,12 +67,13 @@ export async function getRejectedClaimsForReview(): Promise<RejectedReviewRow[]>
 }
 
 /** Saves the officer's review of a rejected claim: the outcome (or none yet) and notes. */
-export async function saveRejectedClaimReview(claimId: string, status: RejectedReviewStatus | null, note: string): Promise<{ error?: string }> {
+export async function saveRejectedClaimReview(claimId: string, status: RejectedReviewStatus | null, note: string, closeDate: string | null): Promise<{ error?: string }> {
   const officer = await requireRole("officer");
   if (status !== null && !["resolved", "appeal_submitted", "confirmed_rejection"].includes(status)) return { error: "Unknown status." };
   const clean = note.trim().slice(0, 2000) || null;
+  const close = closeDate && /^\d{4}-\d{2}-\d{2}$/.test(closeDate) ? closeDate : null;
   const admin = createAdminClient();
-  if (!status && !clean) {
+  if (!status && !clean && !close) {
     const { error } = await admin.from("self_audit_rejected_claim_reviews").delete().eq("claim_id", claimId);
     return error ? { error: error.message } : {};
   }
@@ -82,6 +81,7 @@ export async function saveRejectedClaimReview(claimId: string, status: RejectedR
     claim_id: claimId,
     status,
     note: clean,
+    close_date: close,
     updated_by: officer.id,
     updated_by_name: officer.full_name ?? officer.email,
     updated_at: new Date().toISOString(),

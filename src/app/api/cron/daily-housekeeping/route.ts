@@ -5,6 +5,7 @@ import { GET as syncSharing } from "../sync-drive-sharing/route";
 import { getMailStatus } from "@/lib/gmail";
 import { MAIL_KEYS, isMailEnabled, planPodium, sendPlans } from "@/lib/mail/plans";
 import { importLatestInvoicingReport } from "@/lib/invoicing/import";
+import { sendRejectedClaimMails } from "@/lib/mail/rejected-claims";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,6 +37,12 @@ export async function GET(request: Request) {
     results.invoicing = await importLatestInvoicingReport();
   } catch (e) {
     results.invoicing = { error: e instanceof Error ? e.message : "failed" };
+  }
+  // Rejected claims: the monthly summary (first run of the month) and the Thursday reminder for weekend close dates.
+  try {
+    results.rejectedClaims = await sendRejectedClaimMails(new URL(request.url).origin);
+  } catch (e) {
+    results.rejectedClaims = { error: e instanceof Error ? e.message : "failed" };
   }
   for (const [name, task] of [["cleanup", cleanupFiles], ["driveSharing", syncSharing]] as const) {
     try {

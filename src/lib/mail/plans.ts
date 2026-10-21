@@ -19,6 +19,7 @@ export const MAIL_KEYS = {
   podium: "podium_congrats",
   internalAuditNotice: "internal_audit_notice",
   scrapEvidence: "scrap_evidence_mails",
+  rejectedClaims: "rejected_claims_mails",
 } as const;
 
 export type PlannedMail = {
