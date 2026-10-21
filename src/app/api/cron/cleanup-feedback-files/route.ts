@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cron-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEEDBACK_BUCKET } from "@/lib/feedback-constants";
 import { REJECTED_BUCKET } from "@/lib/rejected-claims";
@@ -7,15 +8,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Daily job (vercel.json): deletes feedback and Rejected Claims Diary files
+ * Daily job (started by daily-housekeeping): deletes feedback and Rejected Claims Diary files
  * that nothing points at and are more than 24 hours old - what a failed or
  * abandoned send leaves behind. Referenced files and anything newer are never touched, so running
- * it more often or by hand is harmless. If CRON_SECRET is set (Vercel then
- * sends it as a bearer token on cron calls) it must match.
+ * it more often or by hand is harmless. The caller must send the cron secret (lib/cron-auth).
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

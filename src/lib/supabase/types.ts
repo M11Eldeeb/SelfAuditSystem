@@ -1351,6 +1351,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_claim_parts"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_cron_secret: {
+        Row: { id: number; secret: string };
+        Insert: { id?: number; secret?: string };
+        Update: Partial<{ id: number; secret: string }>;
+        Relationships: [];
+      };
       self_audit_part_names: {
         Row: { part_no: string; part_name: string };
         Insert: { part_no: string; part_name: string };
