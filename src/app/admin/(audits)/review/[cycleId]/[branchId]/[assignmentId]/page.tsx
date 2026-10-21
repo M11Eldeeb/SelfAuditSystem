@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ReviewForm } from "./review-form";
 import { buildPhotoStatusMap } from "@/lib/photo-status";
 import { PhotoLinks } from "@/components/photo-links";
+import { loadMainPartNames } from "@/lib/claim-main-part";
 
 export default async function ClaimReviewPage({
   params,
@@ -53,6 +54,7 @@ export default async function ClaimReviewPage({
   );
 
   const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
+  const mainPartName = (await loadMainPartNames(supabase, [assignment.claim_id])).get(assignment.claim_id) ?? claim?.main_part_name ?? null;
 
   const locked = assignment.status === "reviewed";
 
@@ -78,7 +80,7 @@ export default async function ClaimReviewPage({
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Main part</dt>
-          <dd className="text-neutral-900">{claim?.main_part_name ?? "—"}</dd>
+          <dd className="text-neutral-900">{mainPartName ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Mileage (claims data)</dt>

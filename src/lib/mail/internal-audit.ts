@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadMainPartNames } from "@/lib/claim-main-part";
 import { loadInternalAuditReport } from "@/lib/internal-audit-report-data";
 import { buildInternalAuditPdf, internalAuditPdfName } from "@/lib/internal-audit-pdf";
 import { buildSampleWorkbook, type SampleExcelRow } from "@/lib/internal-audit-sample-excel";
@@ -26,9 +27,10 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
     admin.from("self_audit_branches").select("name").eq("id", audit.branch_id).maybeSingle(),
   ]);
   const byId = new Map((claims ?? []).map((c) => [c.id, c]));
+  const mainPartNames = await loadMainPartNames(admin, claimIds);
   const rows: SampleExcelRow[] = claimIds.flatMap((id) => {
     const c = byId.get(id);
-    return c ? [{ claim_number: c.claim_number, work_order_no: c.work_order_no, vin: c.vin, main_part_name: c.main_part_name, creation_date: c.creation_date, repair_end_date: c.repair_end_date }] : [];
+    return c ? [{ claim_number: c.claim_number, work_order_no: c.work_order_no, vin: c.vin, main_part_name: mainPartNames.get(id) ?? c.main_part_name, creation_date: c.creation_date, repair_end_date: c.repair_end_date }] : [];
   });
   if (rows.length === 0) return null;
 

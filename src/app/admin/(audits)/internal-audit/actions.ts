@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
+import { loadMainPartNames } from "@/lib/claim-main-part";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
 import { isExcludedClaimStatus } from "@/lib/excluded-claim-statuses";
 import { shuffle } from "@/lib/shuffle";
@@ -122,10 +123,12 @@ export async function previewInternalAuditSample(
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const branchCodeById = new Map((branches ?? []).map((b) => [b.id, b.code]));
 
+  const mainPartNames = await loadMainPartNames(supabase, sample.map((c) => c.id));
   const claims: InternalAuditPreviewClaim[] = sample.map((c) => {
     const { _flag, ...claim } = c;
     return {
       ...claim,
+      main_part_name: mainPartNames.get(claim.id) ?? claim.main_part_name,
       branch_name: branchNameById.get(claim.branch_id) ?? "Unknown branch",
       flag_score: _flag ?? null,
     };

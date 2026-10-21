@@ -1865,6 +1865,10 @@ export interface Database {
           claim_count: number;
         }[];
       };
+      claims_main_part_names: {
+        Args: { p_claim_ids: string[] };
+        Returns: { claim_id: string; main_part_name: string | null }[];
+      };
       get_upcoming_internal_audit_claims: {
         Args: { p_audit_id: string };
         Returns: {

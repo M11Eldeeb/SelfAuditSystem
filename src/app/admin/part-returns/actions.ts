@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { flagsFor, getPartFlags, type PartFlag } from "@/lib/part-return-flags";
+import { loadMainPartNames } from "@/lib/claim-main-part";
+
+/** The claims sheet lists a claim's part numbers in one cell ("#10856926;10321431"); the first is the main part. */
+function firstPartNo(raw: string | null): string | null {
+  return raw?.split(";")[0]?.replace(/^s*#/, "").trim() || null;
+}
 
 export type LookupPart = {
   claimPartId: string | null;
@@ -46,7 +52,7 @@ export async function lookupClaims(
 
   let q = supabase
     .from("self_audit_claims")
-    .select('id, claim_number, branch_id, work_order_no, vin, vehicle_model, claim_amount, repair_end_date, main_part_name, labor_name:raw_row->>"Main Labor Name", main_part:raw_row->>"Main Part"' as string)
+    .select('id, claim_number, branch_id, work_order_no, vin, vehicle_model, claim_amount, repair_end_date, main_part_name, labor_name:raw_row->>"Main Labor Name", main_part:raw_row->>"Part No"' as string)
     .in("claim_number", numbers);
   if (branchId) q = q.eq("branch_id", branchId);
   const { data, error } = await q;
@@ -67,6 +73,7 @@ export async function lookupClaims(
   }[];
 
   const ids = rows.map((r) => r.id);
+  const mainPartNames = await loadMainPartNames(supabase, ids);
   const [{ data: parts }, { data: branches }, flags] = await Promise.all([
     ids.length
       ? supabase.from("self_audit_claim_parts").select("id, claim_id, part_no, part_name, quantity").in("claim_id", ids)
@@ -91,8 +98,8 @@ export async function lookupClaims(
       repairEndDate: r.repair_end_date,
       parts: own.length
         ? own.map((p) => ({ claimPartId: p.id, partNo: p.part_no, partName: p.part_name, quantity: p.quantity, flags: flagsFor(flags, r.id, p.part_no) }))
-        : r.main_part || r.main_part_name
-          ? [{ claimPartId: null, partNo: r.main_part, partName: r.main_part_name, quantity: 1, flags: flagsFor(flags, r.id, r.main_part) }]
+        : firstPartNo(r.main_part) || mainPartNames.get(r.id) || r.main_part_name
+          ? [{ claimPartId: null, partNo: firstPartNo(r.main_part), partName: mainPartNames.get(r.id) ?? r.main_part_name, quantity: 1, flags: flagsFor(flags, r.id, firstPartNo(r.main_part)) }]
           : [],
     };
   });

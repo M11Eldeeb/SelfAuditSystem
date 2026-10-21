@@ -7,6 +7,7 @@ import { WorkOrderSearch } from "./work-order-search";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 import { SHARED_WIP_DEPARTMENT, firstClaimOfWip, orderReceptionQuestions } from "@/lib/internal-audit-wip";
 import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
+import { loadMainPartNames } from "@/lib/claim-main-part";
 
 export default async function InternalAuditClaimPage({
   params,
@@ -67,6 +68,7 @@ export default async function InternalAuditClaimPage({
 
   const claimById = new Map((allClaims ?? []).map((c) => [c.id, c]));
   const claim = claimById.get(current.claim_id) ?? null;
+  const mainPartName = (await loadMainPartNames(supabase, [current.claim_id])).get(current.claim_id) ?? claim?.main_part_name ?? null;
   const noteText = (allNotes ?? []).find((n) => n.internal_audit_claim_id === current.id)?.note_text ?? "";
   const answersMap = new Map(
     (allAnswers ?? [])
@@ -223,7 +225,7 @@ export default async function InternalAuditClaimPage({
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Main part name</dt>
-          <dd className="text-neutral-900">{claim?.main_part_name ?? "—"}</dd>
+          <dd className="text-neutral-900">{mainPartName ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Mileage</dt>

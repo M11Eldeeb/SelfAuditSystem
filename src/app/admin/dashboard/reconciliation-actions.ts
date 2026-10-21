@@ -3,6 +3,7 @@
 import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadMainPartNames } from "@/lib/claim-main-part";
 
 export type ReconciliationRow = {
   claimId: string;
@@ -81,6 +82,7 @@ export async function loadReconciliation(settlementOrder: string, branchIds: str
     for (const r of data ?? []) reviews.set(r.claim_id, r);
   }
 
+  const mainPartNames = await loadMainPartNames(supabase, ids);
   return rows.map((r) => {
     const claimAmount = Number(r.claim_amount) || 0;
     const adjusted = r.adjusted != null && r.adjusted !== "" ? Number(r.adjusted) : claimAmount;
@@ -96,7 +98,7 @@ export async function loadReconciliation(settlementOrder: string, branchIds: str
       lossAmount: Math.round((claimAmount - adjusted) * 100) / 100,
       firstSubmitDate: r.first_submit ? r.first_submit.replace(/\//g, "-").slice(0, 10) : null,
       laborName: r.labor_name,
-      partName: r.main_part_name,
+      partName: mainPartNames.get(r.id) ?? r.main_part_name,
       deductionType: review?.deduction_type ?? null,
       outcome: review?.outcome ?? null,
       notes: review?.notes ?? null,
