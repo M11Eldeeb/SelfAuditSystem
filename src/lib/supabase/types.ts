@@ -667,6 +667,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_drive_folders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_rejected_claim_reviews: {
+        Row: { claim_id: string; status: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note: string | null; updated_by: string | null; updated_by_name: string | null; updated_at: string };
+        Insert: { claim_id: string; status?: "resolved" | "appeal_submitted" | "confirmed_rejection" | null; note?: string | null; updated_by?: string | null; updated_by_name?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_rejected_claim_reviews"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_rejected_claims: {
         Row: {
           id: string;

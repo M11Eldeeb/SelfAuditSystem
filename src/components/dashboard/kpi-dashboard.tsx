@@ -22,6 +22,7 @@ import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { TaskTracker } from "@/components/tasks/task-list";
 import type { TaskData } from "@/lib/tasks";
 import { ReconciliationSection } from "@/components/dashboard/sections/reconciliation";
+import { RejectedReviewSection } from "@/components/dashboard/sections/rejected-review";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
   tasks: Icon.check,
@@ -32,6 +33,28 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   trends: Icon.alert,
   reconciliation: Icon.money,
 };
+
+/** Reconciliation has two tabs: settled claims per settlement number, and SAIC-rejected claims to review within 30 days. */
+function ReconciliationTabs(props: { settlementOrders: string[]; branches: { id: string; name: string }[]; currency: string }) {
+  const [view, setView] = useState<"settlement" | "rejected">("settlement");
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 rounded-xl bg-[#ececec] p-1 text-sm font-semibold">
+        {(
+          [
+            ["settlement", "Settled claims"],
+            ["rejected", "Rejected claims"],
+          ] as const
+        ).map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setView(k)} className={`flex-1 rounded-lg px-3 py-1.5 ${view === k ? "bg-white text-[#0b1c30] shadow-sm" : "text-[#575e70] hover:text-[#0b1c30]"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "settlement" ? <ReconciliationSection {...props} /> : <RejectedReviewSection currency={props.currency} />}
+    </div>
+  );
+}
 
 const inputClass =
   "rounded-lg border-0 bg-[#eff4ff] px-3 py-1.5 text-sm font-medium text-[#0b1c30] ring-1 ring-[#dce9ff] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
@@ -368,9 +391,7 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
-          {tab === "reconciliation" && isOfficer && (
-            <ReconciliationSection settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />
-          )}
+          {tab === "reconciliation" && isOfficer && <ReconciliationTabs settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />}
 
           {multiBranch && tab === "overview" && (
             <Panel
