@@ -5,6 +5,7 @@ import { composeMail } from "@/lib/mail/catalog";
 import { loadPeople, loadTemplates, recipientsFor } from "@/lib/mail/people";
 import { MAIL_KEYS, isMailEnabled, sendPlans, type PlannedMail } from "@/lib/mail/plans";
 import { linkScheduledAudits, todayKsa } from "@/lib/ia-schedule";
+import { auditDays } from "@/lib/ia-schedule-days";
 
 const dayLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const daysFrom = (today: string, d: string) => Math.round((Date.parse(d) - Date.parse(today)) / 86_400_000);
@@ -23,13 +24,15 @@ export async function sendIaScheduleMails(origin: string): Promise<{ reminders: 
   const admin = createAdminClient();
   const from = new Date(Date.parse(today) - 14 * 86_400_000).toISOString().slice(0, 10);
   const to = new Date(Date.parse(today) + 7 * 86_400_000).toISOString().slice(0, 10);
-  const [{ data: slots }, { data: branches }, people, templates] = await Promise.all([
-    admin.from("self_audit_ia_schedule").select("id, branch_id, planned_date").is("internal_audit_id", null).gte("planned_date", from).lte("planned_date", to),
+  const [{ data: slots }, { data: branches }, { data: holidays }, people, templates] = await Promise.all([
+    admin.from("self_audit_ia_schedule").select("id, branch_id, planned_date, days").is("internal_audit_id", null).gte("planned_date", from).lte("planned_date", to),
     admin.from("self_audit_branches").select("id, name, active"),
+    admin.from("self_audit_holidays").select("day").gte("day", from),
     loadPeople(),
     loadTemplates(),
   ]);
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const holidaySet = new Set((holidays ?? []).map((h) => h.day));
   const plans: PlannedMail[] = [];
 
   for (const s of slots ?? []) {
@@ -44,7 +47,10 @@ export async function sendIaScheduleMails(origin: string): Promise<{ reminders: 
       branchId: s.branch_id,
       branchName: branch,
       ...recipientsFor(t, people, { to: people.officers }),
-      ...composeMail(t, { branch, date: dayLabel(s.planned_date!), when, link: `${origin}/admin/internal-audit?branch=${s.branch_id}&date=${s.planned_date}` }),
+      ...composeMail(t, { branch, date: (() => {
+          const range = auditDays(s.planned_date!, s.days, holidaySet);
+          return range.length > 1 ? `${dayLabel(range[0])} to ${dayLabel(range[range.length - 1])} (${range.length} working days)` : dayLabel(range[0]);
+        })(), when, link: `${origin}/admin/internal-audit?branch=${s.branch_id}&date=${s.planned_date}` }),
       label: `Internal audit ${when} - ${branch}`,
     });
   }

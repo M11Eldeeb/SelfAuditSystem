@@ -609,7 +609,7 @@ ${SIGN_OFF}`,
     defaultCc: [],
     placeholders: [
       { name: "branch", help: "The branch.", sample: "Jeddah Heraa" },
-      { name: "date", help: "The planned date.", sample: "Sun 8 Nov 2026" },
+      { name: "date", help: "The planned audit days.", sample: "Sun 8 Nov 2026 to Mon 9 Nov 2026 (2 working days)" },
       { name: "when", help: '"in 7 days", "in 2 days", "tomorrow" or "was planned and has passed".', sample: "in 7 days" },
       { name: "link", help: "Internal Audit with the branch and date filled in (becomes a button).", sample: "https://portal.example/admin/internal-audit?branch=1&date=2026-11-08" },
     ],

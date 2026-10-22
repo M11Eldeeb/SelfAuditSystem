@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { auditDays, auditDaysProblem } from "@/lib/ia-schedule-days";
 
 const PATH = "/admin/internal-audit/schedule";
 const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d));
@@ -27,15 +28,24 @@ export async function setBranchAuditCount(year: number, branchId: string, count:
   return {};
 }
 
-/** The planned date of one audit (null clears it). */
-export async function setAuditDate(slotId: string, date: string | null): Promise<{ error?: string }> {
+/**
+ * One audit's first day (null clears it) and length in working days (Fridays, Saturdays and holidays skipped).
+ * No audit day may be in the last week of a month.
+ */
+export async function setAuditDate(slotId: string, date: string | null, days: number): Promise<{ error?: string }> {
   const officer = await requireRole("officer");
   if (date && !isDate(date)) return { error: "Invalid date." };
+  if (!Number.isInteger(days) || days < 1 || days > 10) return { error: "An audit lasts 1 to 10 days." };
   const admin = createAdminClient();
   const { data: slot } = await admin.from("self_audit_ia_schedule").select("year").eq("id", slotId).maybeSingle();
   if (!slot) return { error: "Not found." };
-  if (date && Number(date.slice(0, 4)) !== slot.year) return { error: `Pick a date in ${slot.year}.` };
-  const { error } = await admin.from("self_audit_ia_schedule").update({ planned_date: date, updated_by: officer.id, updated_at: new Date().toISOString() }).eq("id", slotId);
+  if (date) {
+    if (Number(date.slice(0, 4)) !== slot.year) return { error: `Pick a date in ${slot.year}.` };
+    const { data: hol } = await admin.from("self_audit_holidays").select("day").gte("day", date).lte("day", `${slot.year + 1}-01-31`);
+    const problem = auditDaysProblem(auditDays(date, days, new Set((hol ?? []).map((h) => h.day))));
+    if (problem) return { error: problem };
+  }
+  const { error } = await admin.from("self_audit_ia_schedule").update({ planned_date: date, days, updated_by: officer.id, updated_at: new Date().toISOString() }).eq("id", slotId);
   if (error) return { error: error.message };
   revalidatePath(PATH);
   return {};

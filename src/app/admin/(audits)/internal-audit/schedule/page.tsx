@@ -16,7 +16,7 @@ export default async function InternalAuditSchedulePage({ searchParams }: { sear
   const admin = createAdminClient();
   const [{ data: branches }, { data: slots }, { data: holidays }] = await Promise.all([
     admin.from("self_audit_branches").select("id, name, code").eq("active", true).order("name"),
-    admin.from("self_audit_ia_schedule").select("id, branch_id, slot, planned_date, internal_audit_id").eq("year", year).order("slot"),
+    admin.from("self_audit_ia_schedule").select("id, branch_id, slot, planned_date, days, internal_audit_id").eq("year", year).order("slot"),
     admin.from("self_audit_holidays").select("id, day, name, official").gte("day", `${year}-01-01`).lte("day", `${year}-12-31`).order("day"),
   ]);
   const auditIds = (slots ?? []).map((s) => s.internal_audit_id).filter((id): id is string => !!id);
@@ -29,7 +29,7 @@ export default async function InternalAuditSchedulePage({ searchParams }: { sear
     branches: (branches ?? []).map((b) => ({ id: b.id, name: b.name, code: b.code })),
     slots: (slots ?? []).map((s) => {
       const a = s.internal_audit_id ? auditOf.get(s.internal_audit_id) : null;
-      return { id: s.id, branchId: s.branch_id, slot: s.slot, date: s.planned_date, audit: a ? { id: a.id, name: a.name ?? "Internal audit", finalized: a.status === "finalized" } : null };
+      return { id: s.id, branchId: s.branch_id, slot: s.slot, date: s.planned_date, days: s.days, audit: a ? { id: a.id, name: a.name ?? "Internal audit", finalized: a.status === "finalized" } : null };
     }),
     holidays: (holidays ?? []).map((h) => ({ id: h.id, day: h.day, name: h.name, official: h.official })),
   };

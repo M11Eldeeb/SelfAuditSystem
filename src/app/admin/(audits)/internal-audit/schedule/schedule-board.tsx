@@ -4,20 +4,19 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addHoliday, removeHoliday, setAuditDate, setBranchAuditCount } from "./actions";
+import { auditDays, auditDaysProblem, isLastWeek, isWeekend, weekdayOf } from "@/lib/ia-schedule-days";
 
 export type ScheduleData = {
   year: number;
   today: string;
   branches: { id: string; name: string; code: string }[];
-  slots: { id: string; branchId: string; slot: number; date: string | null; audit: { id: string; name: string; finalized: boolean } | null }[];
+  slots: { id: string; branchId: string; slot: number; date: string | null; days: number; audit: { id: string; name: string; finalized: boolean } | null }[];
   holidays: { id: string; day: string; name: string; official: boolean }[];
 };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const iso = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const weekday = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay();
-const isWeekend = (day: string) => weekday(day) === 5 || weekday(day) === 6;
 const fmt = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const inputCls = "rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm shadow-sm focus:border-brand focus:outline-none";
 
@@ -30,7 +29,7 @@ function monthCells(year: number, month: number): (string | null)[] {
 
 type Marks = { holiday: Map<string, string>; audits: Map<string, string[]> };
 
-/** One month as a grid. Fridays / Saturdays grey, holidays red, planned audits in the brand colour (branch codes). */
+/** One month as a grid. Fridays / Saturdays grey, holidays red, last week of the month struck out, audit days in the brand colour. */
 function Month({ year, month, marks, selected, onPick, today }: { year: number; month: number; marks: Marks; selected?: string | null; onPick?: (d: string) => void; today: string }) {
   return (
     <div>
@@ -45,17 +44,20 @@ function Month({ year, month, marks, selected, onPick, today }: { year: number; 
           if (!d) return <div key={`b${i}`} />;
           const holiday = marks.holiday.get(d);
           const audits = marks.audits.get(d);
+          const lastWeek = isLastWeek(d);
           const cls = audits
             ? "bg-brand text-white font-semibold"
             : holiday
               ? "bg-red-100 text-red-800"
               : isWeekend(d)
                 ? "bg-neutral-200/80 text-neutral-500"
-                : "text-neutral-800";
-          const title = [fmt(d), holiday, isWeekend(d) ? "Weekend" : null, audits ? `Audit: ${audits.join(", ")}` : null].filter(Boolean).join(" · ");
+                : lastWeek
+                  ? "bg-[repeating-linear-gradient(135deg,#f5f5f5_0,#f5f5f5_3px,#e5e5e5_3px,#e5e5e5_5px)] text-neutral-400"
+                  : "text-neutral-800";
+          const title = [fmt(d), holiday, isWeekend(d) ? "Weekend" : null, lastWeek ? "Last week of the month - no audits" : null, audits ? `Audit: ${audits.join(", ")}` : null].filter(Boolean).join(" · ");
           const ring = d === selected ? "ring-2 ring-offset-1 ring-amber-500" : d === today ? "ring-1 ring-neutral-500" : "";
           return onPick ? (
-            <button key={d} type="button" title={title} onClick={() => onPick(d)} className={`rounded py-1 hover:ring-2 hover:ring-brand/50 ${cls} ${ring}`}>
+            <button key={d} type="button" title={title} disabled={lastWeek} onClick={() => onPick(d)} className={`rounded py-1 enabled:hover:ring-2 enabled:hover:ring-brand/50 disabled:cursor-not-allowed ${cls} ${ring}`}>
               {Number(d.slice(8))}
             </button>
           ) : (
@@ -74,24 +76,34 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => (slot.date ? Number(slot.date.slice(5, 7)) - 1 : today.startsWith(String(year)) ? Number(today.slice(5, 7)) - 1 : 0));
   const [busy, setBusy] = useState(false);
+  const [days, setDays] = useState(slot.days);
+  const [problem, setProblem] = useState<string | null>(null);
+  const holidaySet = useMemo(() => new Set(marks.holiday.keys()), [marks.holiday]);
 
-  async function pick(d: string | null) {
+  async function pick(d: string | null, length = days) {
+    setProblem(null);
     if (d) {
-      const why = [marks.holiday.get(d), isWeekend(d) ? (weekday(d) === 5 ? "a Friday" : "a Saturday") : null].filter(Boolean).join(" and ");
-      if (why && !window.confirm(`${fmt(d)} is ${why}. Plan the audit on this day anyway?`)) return;
+      const issue = auditDaysProblem(auditDays(d, length, holidaySet));
+      if (issue) return setProblem(issue);
+      const why = [marks.holiday.get(d), isWeekend(d) ? (weekdayOf(d) === 5 ? "a Friday" : "a Saturday") : null].filter(Boolean).join(" and ");
+      if (why && !window.confirm(`${fmt(d)} is ${why}. Start the audit on this day anyway?`)) return;
     }
     setBusy(true);
-    const r = await setAuditDate(slot.id, d);
+    const r = await setAuditDate(slot.id, d, length);
     setBusy(false);
+    if (r.error) return setProblem(r.error);
     setOpen(false);
-    onSaved(r.error);
+    onSaved();
   }
+
+  const range = slot.date ? auditDays(slot.date, slot.days, holidaySet) : [];
+  const end = range[range.length - 1];
 
   const status = slot.audit
     ? { label: slot.audit.finalized ? "Done" : "List created", cls: "bg-emerald-50 text-emerald-800" }
     : !slot.date
       ? { label: "No date", cls: "bg-amber-50 text-amber-800" }
-      : slot.date < today
+      : end < today
         ? { label: "Overdue", cls: "bg-red-50 text-red-700" }
         : { label: "Planned", cls: "bg-blue-50 text-blue-800" };
 
@@ -104,7 +116,17 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
         className={`w-full rounded-lg border px-2 py-1.5 text-left text-sm shadow-sm ${slot.date ? "border-neutral-300 bg-white" : "border-dashed border-amber-400 bg-amber-50/40 text-amber-800"} ${slot.date && (marks.holiday.has(slot.date) || isWeekend(slot.date)) ? "text-red-700" : ""}`}
       >
         <span className="block text-[10px] font-semibold tracking-wide text-neutral-400 uppercase">Audit {slot.slot}</span>
-        {slot.date ? fmt(slot.date) : "Pick date"}
+        {slot.date ? (
+          <>
+            {fmt(slot.date)}
+            {end !== slot.date && <span className="text-neutral-500"> – {fmt(end)}</span>}
+            <span className="block text-[11px] text-neutral-400">
+              {slot.days} day{slot.days === 1 ? "" : "s"}
+            </span>
+          </>
+        ) : (
+          "Pick date"
+        )}
       </button>
       <div className="flex flex-wrap items-center gap-1">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
@@ -123,7 +145,26 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setOpen(false)}>
         <div className="w-72 space-y-2 rounded-xl bg-white p-4 shadow-xl ring-1 ring-neutral-200" onClick={(e) => e.stopPropagation()}>
-          <div className="text-sm font-semibold text-neutral-900">Audit {slot.slot} date</div>
+          <div className="text-sm font-semibold text-neutral-900">Audit {slot.slot} - first day</div>
+          <label className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-600">
+            Lasts
+            <select
+              value={days}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setDays(n);
+                if (slot.date) void pick(slot.date, n);
+              }}
+              className="rounded border border-neutral-300 px-1.5 py-0.5 text-xs"
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            working day{days === 1 ? "" : "s"} (Fri, Sat and holidays skipped)
+          </label>
           <div className="flex items-center justify-between">
             <button type="button" disabled={month === 0} onClick={() => setMonth((m) => m - 1)} className="rounded px-2 text-lg text-neutral-600 disabled:opacity-30">
               ‹
@@ -134,6 +175,7 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
             </button>
           </div>
           <Month year={year} month={month} marks={marks} selected={slot.date} onPick={(d) => void pick(d)} today={today} />
+          {problem && <p className="rounded-lg bg-red-50 px-2 py-1.5 text-xs text-red-700">{problem}</p>}
           <div className="flex justify-between text-xs">
             {slot.date && !slot.audit ? (
               <button type="button" onClick={() => void pick(null)} className="text-red-600 hover:underline">
@@ -171,7 +213,8 @@ export function ScheduleBoard({ data }: { data: ScheduleData }) {
     const holiday = new Map<string, string>();
     for (const h of data.holidays) holiday.set(h.day, holiday.has(h.day) ? `${holiday.get(h.day)}, ${h.name}` : h.name);
     const audits = new Map<string, string[]>();
-    for (const s of data.slots) if (s.date) audits.set(s.date, [...(audits.get(s.date) ?? []), codeOf.get(s.branchId) ?? ""]);
+    const holidaySet = new Set(holiday.keys());
+    for (const s of data.slots) if (s.date) for (const d of auditDays(s.date, s.days, holidaySet)) audits.set(d, [...(audits.get(d) ?? []), codeOf.get(s.branchId) ?? ""]);
     return { holiday, audits };
   }, [data.holidays, data.slots, codeOf]);
 
@@ -291,6 +334,9 @@ export function ScheduleBoard({ data }: { data: ScheduleData }) {
             </span>
             <span className="flex items-center gap-1">
               <span className="h-3 w-3 rounded bg-neutral-200" /> Friday / Saturday
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-3 w-3 rounded bg-[repeating-linear-gradient(135deg,#f5f5f5_0,#f5f5f5_3px,#e5e5e5_3px,#e5e5e5_5px)] ring-1 ring-neutral-200" /> Last week of the month - no audits
             </span>
           </div>
         </div>

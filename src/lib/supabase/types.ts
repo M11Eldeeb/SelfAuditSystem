@@ -671,8 +671,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_ia_schedule: {
-        Row: { id: string; year: number; branch_id: string; slot: number; planned_date: string | null; internal_audit_id: string | null; updated_by: string | null; updated_at: string };
-        Insert: { id?: string; year: number; branch_id: string; slot: number; planned_date?: string | null; internal_audit_id?: string | null; updated_by?: string | null; updated_at?: string };
+        Row: { id: string; year: number; branch_id: string; slot: number; planned_date: string | null; days: number; internal_audit_id: string | null; updated_by: string | null; updated_at: string };
+        Insert: { id?: string; year: number; branch_id: string; slot: number; planned_date?: string | null; days?: number; internal_audit_id?: string | null; updated_by?: string | null; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_ia_schedule"]["Insert"]>;
         Relationships: [];
       };
