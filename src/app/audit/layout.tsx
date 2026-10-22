@@ -11,6 +11,7 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
   { href: "/audit", label: "My Audits" },
   { href: "/audit/results", label: "Results" },
+  { href: "/audit/audit-schedule", label: "Audit Schedule" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
   { href: "/audit/technician-claims", label: "Technician Claims" },
   { href: "/audit/part-returns", label: "Part Return" },

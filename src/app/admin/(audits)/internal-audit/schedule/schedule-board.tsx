@@ -14,10 +14,10 @@ export type ScheduleData = {
   holidays: { id: string; day: string; name: string; official: boolean }[];
 };
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const iso = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const fmt = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+export const fmt = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const inputCls = "rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm shadow-sm focus:border-brand focus:outline-none";
 
 /** The cells of one month (Sunday first), null for the blanks. */
@@ -27,10 +27,10 @@ function monthCells(year: number, month: number): (string | null)[] {
   return [...Array<null>(first).fill(null), ...Array.from({ length: days }, (_, i) => iso(year, month, i + 1))];
 }
 
-type Marks = { holiday: Map<string, string>; audits: Map<string, string[]> };
+export type Marks = { holiday: Map<string, string>; audits: Map<string, string[]> };
 
 /** One month as a grid. Fridays / Saturdays grey, holidays red, last week of the month struck out, audit days in the brand colour. */
-function Month({ year, month, marks, selected, onPick, today }: { year: number; month: number; marks: Marks; selected?: string | null; onPick?: (d: string) => void; today: string }) {
+export function Month({ year, month, marks, selected, onPick, today }: { year: number; month: number; marks: Marks; selected?: string | null; onPick?: (d: string) => void; today: string }) {
   return (
     <div>
       <div className="mb-1 text-center text-xs font-semibold text-neutral-700">{MONTHS[month]}</div>

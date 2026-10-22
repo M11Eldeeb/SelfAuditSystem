@@ -2,6 +2,8 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { CurrentUser } from "@/lib/auth";
 import { getTasks } from "@/lib/tasks";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { auditDays } from "@/lib/ia-schedule-days";
 
 export type NotificationItem = {
   id: string;
@@ -39,14 +41,17 @@ export async function getNotifications(
   user: CurrentUser,
   { includeTasks = false }: { includeTasks?: boolean } = {}
 ): Promise<Notifications> {
+  // A service manager sees what the branch's warranty admin sees.
+  if (user.role === "service_manager") user = { ...user, role: "branch_admin", viewOnly: true };
   if (user.role !== "officer" && user.role !== "branch_admin") return EMPTY;
 
-  const [feedback, tasks] = await Promise.all([
+  const [feedback, tasks, planned] = await Promise.all([
     user.role === "officer" ? getOfficerFeedback() : getBranchAdminMessages(),
     includeTasks ? getTaskItems(user) : Promise.resolve(EMPTY),
+    user.role === "branch_admin" ? getScheduledAuditItems(user.branch_id) : Promise.resolve([]),
   ]);
 
-  return { count: feedback.count + tasks.count, items: [...feedback.items, ...tasks.items] };
+  return { count: planned.length + feedback.count + tasks.count, items: [...planned, ...feedback.items, ...tasks.items] };
 }
 
 async function getTaskItems(user: CurrentUser): Promise<Notifications> {
@@ -114,6 +119,44 @@ async function getOfficerFeedback(): Promise<Notifications> {
 async function getBranchAdminMessages(): Promise<Notifications> {
   const [replies, audits] = await Promise.all([getBranchAdminReplies(), getUpcomingAuditItems()]);
   return { count: replies.count + audits.count, items: [...audits.items, ...replies.items] };
+}
+
+/**
+ * From the first day of the month an internal audit is planned in (Internal Audit Schedule) until its last day: the
+ * branch admin (and service manager) see it in the bell.
+ */
+async function getScheduledAuditItems(branchId: string | null): Promise<NotificationItem[]> {
+  if (!branchId) return [];
+  try {
+    const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const nextMonth = new Date(`${monthStart}T00:00:00Z`);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    const admin = createAdminClient();
+    const [{ data: slots }, { data: holidays }] = await Promise.all([
+      admin.from("self_audit_ia_schedule").select("id, slot, planned_date, days").eq("branch_id", branchId).gte("planned_date", monthStart).lt("planned_date", nextMonth.toISOString().slice(0, 10)),
+      admin.from("self_audit_holidays").select("day").gte("day", monthStart),
+    ]);
+    const holidaySet = new Set((holidays ?? []).map((h) => h.day));
+    const label = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    return (slots ?? []).flatMap((s) => {
+      const range = auditDays(s.planned_date!, s.days, holidaySet);
+      const end = range[range.length - 1];
+      if (end < today) return [];
+      return [
+        {
+          id: `audit-plan:${s.id}`,
+          kind: "audit" as const,
+          title: "Internal audit this month",
+          detail: `${label(range[0])}${range.length > 1 ? ` – ${label(end)}` : ""} · ${range.length} working day${range.length === 1 ? "" : "s"}`,
+          href: "/audit/audit-schedule",
+          at: `${monthStart}T06:00:00Z`,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function getUpcomingAuditItems(): Promise<Notifications> {
