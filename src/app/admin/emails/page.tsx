@@ -41,6 +41,8 @@ const WHEN: Record<MailKey, (t: ResolvedTemplate) => string> = {
   scrap_evidence_submitted: () => "Right when a branch submits its scrap (destroy) evidence videos in the Warranty Room. Goes to the warranty officers.",
   rejected_monthly: () => "On the first working morning of every month (about 9:00): the rejected claims not handled yet, each with its estimated close date.",
   rejected_weekend: () => "On Thursday morning when one or more open rejected claims close on the Friday or Saturday after (follows the switch of the monthly mail).",
+  ia_schedule_reminder: () => "Morning reminder to the officers, 7 days and 2 days before a planned internal audit (Internal Audit → Schedule) whose audit list is not created yet - and once the day after, if the date passed without it.",
+  ia_plan_missing: () => "In the first two weeks of January (this year) and of December (next year) when the year's internal audit schedule has no audits or audits without a date (follows the switch of the reminder).",
   scrap_evidence_approved: () => "Right when an officer approves a branch's scrap evidence. Goes to the branch's admins (follows the switch of the submitted mail).",
 };
 

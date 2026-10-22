@@ -1,5 +1,6 @@
 "use server";
 
+import { linkScheduledAudits } from "@/lib/ia-schedule";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getMailStatus } from "@/lib/gmail";
@@ -250,6 +251,8 @@ export async function startInternalAudit(
     }
   });
 
+  // Link it to the planned audit of this branch (Internal Audit -> Schedule), if one is near its date.
+  await linkScheduledAudits().catch(() => undefined);
   revalidatePath("/admin/internal-audit");
   redirect(`/admin/internal-audit/${audit.id}?claim=0`);
 }

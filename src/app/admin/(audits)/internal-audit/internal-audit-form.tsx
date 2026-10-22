@@ -42,7 +42,18 @@ function buildAuditEmail({
   return { to: branchAdminEmail.split(/[,;]/).map((e) => e.trim()).filter(Boolean), subject, text: body };
 }
 
-export function InternalAuditForm({ branches, officerName }: { branches: Branch[]; officerName: string }) {
+export function InternalAuditForm({
+  branches,
+  officerName,
+  defaultBranchId = "",
+  defaultAuditDate = "",
+}: {
+  branches: Branch[];
+  officerName: string;
+  /** From the schedule's "Create list" link: the branch and the planned date. */
+  defaultBranchId?: string;
+  defaultAuditDate?: string;
+}) {
   const [previewState, previewAction, previewPending] = useActionState(previewInternalAuditSample, undefined);
 
   const claims = previewState?.claims ?? [];
@@ -58,7 +69,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
             <select
               id="branch_id"
               name="branch_id"
-              defaultValue=""
+              defaultValue={defaultBranchId}
               className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
             >
               <option value="">All branches</option>
@@ -164,6 +175,7 @@ export function InternalAuditForm({ branches, officerName }: { branches: Branch[
           sampleMode={previewState?.sampleMode ?? "random"}
           maxPerPart={previewState?.maxPerPart ?? null}
           officerName={officerName}
+          defaultAuditDate={defaultAuditDate}
         />
       )}
     </div>
@@ -182,6 +194,7 @@ function SamplePreviewPanel({
   sampleMode,
   maxPerPart,
   officerName,
+  defaultAuditDate,
 }: {
   claims: InternalAuditPreviewClaim[];
   branchId: string | null;
@@ -194,12 +207,13 @@ function SamplePreviewPanel({
   sampleMode: "flagged" | "random";
   maxPerPart: number | null;
   officerName: string;
+  defaultAuditDate: string;
 }) {
   const [startState, startAction, startPending] = useActionState(startInternalAudit, undefined);
   const [auditName, setAuditName] = useState(() => defaultAuditName(branchCode, branchLabel));
   const [auditorName, setAuditorName] = useState(officerName);
   const [managerName, setManagerName] = useState("");
-  const [auditDate, setAuditDate] = useState("");
+  const [auditDate, setAuditDate] = useState(defaultAuditDate);
   const showFlag = sampleMode === "flagged";
   const [mailState, setMailState] = useState<{ sending?: boolean; ok?: string; error?: string }>({});
 

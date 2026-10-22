@@ -20,6 +20,7 @@ export const MAIL_KEYS = {
   internalAuditNotice: "internal_audit_notice",
   scrapEvidence: "scrap_evidence_mails",
   rejectedClaims: "rejected_claims_mails",
+  iaSchedule: "ia_schedule_mails",
 } as const;
 
 export type PlannedMail = {

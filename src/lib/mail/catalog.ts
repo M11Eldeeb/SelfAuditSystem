@@ -26,7 +26,9 @@ export type MailKey =
   | "scrap_evidence_submitted"
   | "scrap_evidence_approved"
   | "rejected_monthly"
-  | "rejected_weekend";
+  | "rejected_weekend"
+  | "ia_schedule_reminder"
+  | "ia_plan_missing";
 export type CcGroup = "head" | "aftersales_head" | "officers" | "service_managers" | "workshop_supervisors" | "workshop_team_leaders" | "technical_team" | "standing";
 
 /** In the order they appear in the Cc line (the extra addresses come right after the warranty head). */
@@ -591,6 +593,49 @@ ${SIGN_OFF}`,
       { name: "link", help: "The Rejected claims tab (becomes a button).", sample: "https://portal.example/admin/dashboard?tab=reconciliation" },
     ],
   },
+  ia_schedule_reminder: {
+    key: "ia_schedule_reminder",
+    title: "Internal audit - create the audit list",
+    to: "The warranty officers",
+    switchKey: "ia_schedule_mails",
+    defaultSubject: "Internal audit {when}: create the audit list - {branch}",
+    defaultBody: `Dear Warranty Team,
+
+The internal audit of {branch} is planned on {date} ({when}) and its audit list is not created yet.
+
+Create it in Audits → Internal Audit (the branch and date are filled in): {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "branch", help: "The branch.", sample: "Jeddah Heraa" },
+      { name: "date", help: "The planned date.", sample: "Sun 8 Nov 2026" },
+      { name: "when", help: '"in 7 days", "in 2 days", "tomorrow" or "was planned and has passed".', sample: "in 7 days" },
+      { name: "link", help: "Internal Audit with the branch and date filled in (becomes a button).", sample: "https://portal.example/admin/internal-audit?branch=1&date=2026-11-08" },
+    ],
+  },
+  ia_plan_missing: {
+    key: "ia_plan_missing",
+    title: "Internal audit - set the year's schedule",
+    to: "The warranty officers",
+    switchKey: "ia_schedule_mails",
+    defaultSubject: "Set the internal audit schedule for {year}",
+    defaultBody: `Dear Warranty Team,
+
+The internal audit schedule for {year} is not complete:
+
+{list}
+
+Set how many audits each branch gets (up to 4) and pick the dates: {link}
+
+${SIGN_OFF}`,
+    defaultCc: [],
+    placeholders: [
+      { name: "year", help: "The year.", sample: "2027" },
+      { name: "list", help: "What is missing. Keep it on its own line.", sample: "- No audits planned yet for 2027." },
+      { name: "link", help: "The schedule page (becomes a button).", sample: "https://portal.example/admin/internal-audit/schedule?year=2027" },
+    ],
+  },
   scrap_evidence_submitted: {
     key: "scrap_evidence_submitted",
     title: "Scrap evidence submitted",
@@ -776,6 +821,8 @@ export const MAIL_KEYS_IN_ORDER: MailKey[] = [
   "scrap_evidence_approved",
   "rejected_monthly",
   "rejected_weekend",
+  "ia_schedule_reminder",
+  "ia_plan_missing",
 ];
 
 /** What an officer saved for a mail (all optional - anything missing falls back to the built-in wording). */

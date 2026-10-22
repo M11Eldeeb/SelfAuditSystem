@@ -670,6 +670,18 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_drive_folders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_ia_schedule: {
+        Row: { id: string; year: number; branch_id: string; slot: number; planned_date: string | null; internal_audit_id: string | null; updated_by: string | null; updated_at: string };
+        Insert: { id?: string; year: number; branch_id: string; slot: number; planned_date?: string | null; internal_audit_id?: string | null; updated_by?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_ia_schedule"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_holidays: {
+        Row: { id: string; day: string; name: string; official: boolean; created_by: string | null; created_at: string };
+        Insert: { id?: string; day: string; name: string; official?: boolean; created_by?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_holidays"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_tech_claims: {
         Row: {
           id: string;

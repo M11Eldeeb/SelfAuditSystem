@@ -24,7 +24,8 @@ export function AuditsNav() {
     if (starts(pathname, "/admin/internal-audit") || starts(pathname, "/admin/results/internal-audit")) {
       return {
         name: "Internal Audit",
-        work: { label: "Audits", href: "/admin/internal-audit", active: !starts(pathname, "/admin/results/internal-audit") },
+        work: { label: "Audits", href: "/admin/internal-audit", active: !starts(pathname, "/admin/results/internal-audit") && !starts(pathname, "/admin/internal-audit/schedule") },
+        schedule: { label: "Schedule", href: "/admin/internal-audit/schedule", active: starts(pathname, "/admin/internal-audit/schedule") },
         results: { label: "Results", href: "/admin/results/internal-audit", active: starts(pathname, "/admin/results/internal-audit") },
       };
     }
@@ -41,7 +42,7 @@ export function AuditsNav() {
       <span className="h-4 w-px bg-neutral-200" aria-hidden="true" />
       <span className="text-sm font-semibold text-neutral-900">{folder.name}</span>
       <div role="tablist" aria-label={`${folder.name} sections`} className="inline-flex gap-1 rounded-lg bg-neutral-100 p-1">
-        {[folder.work, folder.results].map((t) => (
+        {("schedule" in folder && folder.schedule ? [folder.work, folder.schedule, folder.results] : [folder.work, folder.results]).map((t) => (
           <Link
             key={t.href}
             href={t.href}

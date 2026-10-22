@@ -6,8 +6,9 @@ import { DeleteInternalAuditButton } from "./delete-internal-audit-button";
 import { scoreBadgeClasses } from "@/lib/score-color";
 import { SendNoticeButton } from "./send-notice-button";
 
-export default async function InternalAuditPage() {
+export default async function InternalAuditPage({ searchParams }: { searchParams: Promise<{ branch?: string; date?: string }> }) {
   const officer = await requireRole("officer");
+  const { branch: planBranch, date: planDate } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: branches }, { data: audits }, { data: officers }] = await Promise.all([
@@ -33,7 +34,12 @@ export default async function InternalAuditPage() {
           resampled by the other.
         </p>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
-          <InternalAuditForm branches={branches ?? []} officerName={officer.full_name ?? ""} />
+          <InternalAuditForm
+            branches={branches ?? []}
+            officerName={officer.full_name ?? ""}
+            defaultBranchId={planBranch && (branches ?? []).some((b) => b.id === planBranch) ? planBranch : ""}
+            defaultAuditDate={planDate && /^\d{4}-\d{2}-\d{2}$/.test(planDate) ? planDate : ""}
+          />
         </div>
       </section>
 
