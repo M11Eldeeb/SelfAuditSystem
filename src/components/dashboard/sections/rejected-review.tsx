@@ -6,6 +6,7 @@ import { Card, Label, Metric, Panel, Pill, fmtInt } from "@/components/dashboard
 import { C } from "@/components/dashboard/charts";
 import { downloadXlsx } from "./invoicing-export";
 import { Glyph } from "@/components/ui/glyph";
+import { CarLoaderCard } from "@/components/spinner";
 
 const STATUS: Record<RejectedReviewStatus, { label: string; cls: string }> = {
   resolved: { label: "Resolved", cls: "bg-emerald-600 text-white" },
@@ -135,7 +136,7 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
   );
   const sum = (l: RejectedReviewRow[]) => l.reduce((s, r) => s + r.amount, 0);
 
-  if (!rows) return error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : <div className="h-64 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5e5]" />;
+  if (!rows) return error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : <CarLoaderCard label="Loading rejected claims…" />;
 
   return (
     <div className="space-y-4">

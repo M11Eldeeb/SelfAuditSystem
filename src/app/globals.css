@@ -924,3 +924,58 @@ html.no-welcome .welcome-intro {
     display: block;
   }
 }
+.car-loader__label {
+  font-size: 14px;
+  color: var(--color-neutral-500);
+}
+.car-loader--compact {
+  gap: 8px;
+}
+.car-loader--compact .car-loader__steps,
+.car-loader--compact .car-loader__label,
+.car-loader--compact .car-loader__static {
+  font-size: 13px;
+}
+
+/* A tiny car driving across the top edge while something updates. */
+.car-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  height: 30px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: var(--color-neutral-800);
+}
+.car-progress--on {
+  opacity: 1;
+}
+.car-progress::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 2px 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--brand) 20%, var(--brand) 80%, transparent);
+  opacity: 0.35;
+}
+.car-progress__car {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  animation: car-cross 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes car-cross {
+  from {
+    transform: translateX(-60px);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .car-progress__car {
+    animation: none;
+    left: 50%;
+  }
+}

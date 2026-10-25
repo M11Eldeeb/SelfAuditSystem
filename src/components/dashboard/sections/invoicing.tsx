@@ -21,6 +21,7 @@ import { INV, INV_SERIES, MoneyLine } from "./invoicing-charts";
 import { downloadXlsx, LINE_COLUMNS } from "./invoicing-export";
 import { UnclaimedWarranty } from "./invoicing-unclaimed";
 import { Glyph } from "@/components/ui/glyph";
+import { CarLoaderCard } from "@/components/spinner";
 
 /** Fixed peg. */
 const SAR_PER_USD = 3.75;
@@ -333,7 +334,7 @@ export function InvoicingSection() {
     }
   }
 
-  if (loading && !data) return <div className="h-80 animate-pulse rounded-xl bg-white ring-1 ring-slate-200" />;
+  if (loading && !data) return <CarLoaderCard height="h-80" label="Loading warranty invoicing…" />;
   const chips = (
     [
       ["type", f.type !== DEFAULT_FILTERS.type ? `Sales type: ${f.type || "All"}` : ""],

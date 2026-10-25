@@ -7,6 +7,7 @@ import { Sar } from "@/components/dashboard/riyal";
 import { downloadXlsx, LINE_COLUMNS, type ExportColumn } from "./invoicing-export";
 import { INV } from "./invoicing-charts";
 import { Glyph } from "@/components/ui/glyph";
+import { CarLoader } from "@/components/spinner";
 
 type View = "open" | "done" | "all";
 const STATUS_LABEL = { resolved: "Resolved", credit_note: "Credit note" } as const;
@@ -132,7 +133,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
       {msg && <p className={`mb-3 rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>{msg.text}</p>}
 
       {!rows ? (
-        <div className="h-24 animate-pulse rounded-lg bg-slate-50" />
+        <div className="flex h-24 items-center justify-center"><CarLoader compact label="Loading…" /></div>
       ) : shown.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-500">{view === "open" ? "Nothing open - every warranty line has a claim number or is marked." : "No lines."}</p>
       ) : (

@@ -5,6 +5,7 @@ import type { SettlementForecast } from "@/lib/dashboard/forecast";
 import { C, monthShort } from "@/components/dashboard/charts";
 import { TipCard, useHoverCard } from "@/components/dashboard/hover";
 import { Label, Panel, Pill, fmtCompact, fmtInt, fmtMoney } from "@/components/dashboard/ui";
+import { CarLoaderCard } from "@/components/spinner";
 
 /** Officer-only: gross Claim TOL. per monthly settlement, last 18 months + next 3 forecast. */
 export function ForecastPanel({ forecast, currency }: { forecast: Promise<SettlementForecast>; currency: string }) {
@@ -136,5 +137,5 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
 }
 
 export function ForecastSkeleton() {
-  return <div className="h-80 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5ea]/60" />;
+  return <CarLoaderCard height="h-80" label="Loading the forecast…" />;
 }

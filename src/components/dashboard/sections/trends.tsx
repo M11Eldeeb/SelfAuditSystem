@@ -5,7 +5,8 @@ import { Hover, TipCard } from "@/components/dashboard/hover";
 import type { RepeatRow, TrendData, TrendItem } from "@/lib/dashboard/trends";
 import type { DashboardData } from "@/lib/dashboard/kpis";
 import { C, monthShort } from "@/components/dashboard/charts";
-import { Card, Icon, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
+import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
+import { CarLoaderCard } from "@/components/spinner";
 
 const SPIKES = [
   { label: "≥ 1.5×", value: 1.5 },
@@ -385,11 +386,7 @@ export function TrendsSkeleton() {
           <div key={i} className="h-28 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5ea]/60" />
         ))}
       </div>
-      <div className="flex h-96 animate-pulse items-center justify-center rounded-xl bg-white text-sm text-[#6e6e73] ring-1 ring-[#e5e5ea]/60">
-        <span className="flex items-center gap-2">
-          <Icon.timer size={16} /> Comparing this period with the previous 6 months…
-        </span>
-      </div>
+      <CarLoaderCard height="h-96" label="Comparing this period with the previous 6 months…" />
     </div>
   );
 }

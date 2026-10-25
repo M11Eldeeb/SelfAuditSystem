@@ -23,6 +23,7 @@ import { TaskTracker } from "@/components/tasks/task-list";
 import type { TaskData } from "@/lib/tasks";
 import { ReconciliationSection } from "@/components/dashboard/sections/reconciliation";
 import { RejectedReviewSection } from "@/components/dashboard/sections/rejected-review";
+import { CarLoaderCard, CarProgress } from "@/components/spinner";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
   tasks: Icon.check,
@@ -201,9 +202,7 @@ export function KpiDashboard({
   return (
     <div className="space-y-5">
       {/* Loading bar while a filter change is fetching */}
-      <div className={`fixed inset-x-0 top-0 z-50 h-1 overflow-hidden transition-opacity ${isPending ? "opacity-100" : "opacity-0"}`}>
-        <div className="h-full w-1/3 animate-[dash-load_1s_ease-in-out_infinite] bg-[#c4121a]" />
-      </div>
+      <CarProgress active={isPending} />
 
       {/* Title: what you are looking at, for which branches and period. */}
       <header className="flex flex-wrap items-end justify-between gap-4 px-1">
@@ -347,7 +346,7 @@ export function KpiDashboard({
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "overview" && rejected && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
-              <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5e5]" />}>
+              <Suspense fallback={<CarLoaderCard label="Loading rejected claims…" />}>
                 <RejectedClaimsPanel rejected={rejected} from={from} to={to} diaryPath={isOfficer ? "/admin/rejected-claims" : "/audit/rejected-claims"} showBranches={isOfficer} />
               </Suspense>
             </SectionErrorBoundary>
@@ -355,7 +354,7 @@ export function KpiDashboard({
           {tab === "cycle" && <CycleTimesSection {...sectionProps} />}
           {tab === "cycle" && support && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
-              <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5ea]/60" />}>
+              <Suspense fallback={<CarLoaderCard label="Loading lead times…" />}>
                 <SupportLeadTimesPanel support={support} />
               </Suspense>
             </SectionErrorBoundary>
