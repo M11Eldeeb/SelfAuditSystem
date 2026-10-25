@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDocumentFolder, prepareDocumentUploads, registerDocumentUploads, syncDocuments } from "@/app/actions/documents";
+import { Glyph, type GlyphName } from "@/components/ui/glyph";
 
 export type DocItem = { id: string; lib: "warranty" | "technical"; parent: string | null; name: string; mime: string; folder: boolean; size: number | null; modified: string | null };
 type Lib = { key: "warranty" | "technical"; label: string; rootId: string };
@@ -12,20 +13,20 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 const fmtStamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Riyadh" }) : "never");
 const fmtSize = (b: number | null) => (b == null ? "" : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
-function kind(mime: string, name: string): { icon: string; label: string; preview: "pdf" | "image" | "video" | "audio" | "none" } {
-  if (mime === "application/vnd.google-apps.folder") return { icon: "📁", label: "Folder", preview: "none" };
-  if (mime === "application/pdf") return { icon: "📕", label: "PDF", preview: "pdf" };
-  if (mime === "application/vnd.google-apps.document") return { icon: "📝", label: "Google Doc", preview: "pdf" };
-  if (mime === "application/vnd.google-apps.spreadsheet") return { icon: "📊", label: "Google Sheet", preview: "pdf" };
-  if (mime === "application/vnd.google-apps.presentation") return { icon: "📽️", label: "Google Slides", preview: "pdf" };
-  if (/^image\/(png|jpe?g|gif|webp|bmp)/.test(mime)) return { icon: "🖼️", label: "Image", preview: "image" };
-  if (mime.startsWith("video/")) return { icon: "🎬", label: "Video", preview: "video" };
-  if (mime.startsWith("audio/")) return { icon: "🎧", label: "Audio", preview: "audio" };
-  if (/sheet|excel|csv/i.test(mime) || /\.(xlsx?|csv)$/i.test(name)) return { icon: "📊", label: "Excel", preview: "none" };
-  if (/word|document/i.test(mime) || /\.docx?$/i.test(name)) return { icon: "📝", label: "Word", preview: "none" };
-  if (/presentation|powerpoint/i.test(mime) || /\.pptx?$/i.test(name)) return { icon: "📽️", label: "PowerPoint", preview: "none" };
-  if (/zip|rar|7z/i.test(mime)) return { icon: "🗜️", label: "Archive", preview: "none" };
-  return { icon: "📄", label: "File", preview: "none" };
+function kind(mime: string, name: string): { icon: GlyphName; label: string; preview: "pdf" | "image" | "video" | "audio" | "none" } {
+  if (mime === "application/vnd.google-apps.folder") return { icon: "folder", label: "Folder", preview: "none" };
+  if (mime === "application/pdf") return { icon: "pdf", label: "PDF", preview: "pdf" };
+  if (mime === "application/vnd.google-apps.document") return { icon: "file", label: "Google Doc", preview: "pdf" };
+  if (mime === "application/vnd.google-apps.spreadsheet") return { icon: "sheet", label: "Google Sheet", preview: "pdf" };
+  if (mime === "application/vnd.google-apps.presentation") return { icon: "slides", label: "Google Slides", preview: "pdf" };
+  if (/^image\/(png|jpe?g|gif|webp|bmp)/.test(mime)) return { icon: "image", label: "Image", preview: "image" };
+  if (mime.startsWith("video/")) return { icon: "video", label: "Video", preview: "video" };
+  if (mime.startsWith("audio/")) return { icon: "audio", label: "Audio", preview: "audio" };
+  if (/sheet|excel|csv/i.test(mime) || /\.(xlsx?|csv)$/i.test(name)) return { icon: "sheet", label: "Excel", preview: "none" };
+  if (/word|document/i.test(mime) || /\.docx?$/i.test(name)) return { icon: "file", label: "Word", preview: "none" };
+  if (/presentation|powerpoint/i.test(mime) || /\.pptx?$/i.test(name)) return { icon: "slides", label: "PowerPoint", preview: "none" };
+  if (/zip|rar|7z/i.test(mime)) return { icon: "archive", label: "Archive", preview: "none" };
+  return { icon: "file", label: "File", preview: "none" };
 }
 
 const fileUrl = (id: string, download = false) => `/api/documents/file/${id}${download ? "?download=1" : ""}`;
@@ -43,7 +44,8 @@ function Preview({ item, onClose, canManage }: { item: DocItem; onClose: () => v
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-4 py-3">
           <div className="min-w-0">
             <div className="truncate font-semibold text-neutral-900" title={item.name}>
-              {k.icon} {item.name}
+              <Glyph name={k.icon} className="mr-1.5 text-neutral-500" />
+              {item.name}
             </div>
             <div className="text-xs text-neutral-500">
               {k.label} {item.size != null && `· ${fmtSize(item.size)}`} {item.modified && `· updated ${fmtDate(item.modified)}`}
@@ -51,7 +53,8 @@ function Preview({ item, onClose, canManage }: { item: DocItem; onClose: () => v
           </div>
           <div className="flex items-center gap-2">
             <a href={fileUrl(item.id, true)} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark">
-              ⬇ Download
+              <Glyph name="download" className="mr-1.5" />
+              Download
             </a>
             {canManage && (
               <a href={`https://drive.google.com/file/d/${item.id}/view`} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">
@@ -79,10 +82,11 @@ function Preview({ item, onClose, canManage }: { item: DocItem; onClose: () => v
           )}
           {k.preview === "none" && (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-neutral-600">
-              <div className="text-5xl">{k.icon}</div>
+              <Glyph name={k.icon} size={44} className="text-neutral-400" />
               This file type cannot be shown in the browser.
               <a href={fileUrl(item.id, true)} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
-                ⬇ Download {item.name}
+                <Glyph name="download" className="mr-1.5" />
+                Download {item.name}
               </a>
             </div>
           )}
@@ -264,7 +268,8 @@ export function DocumentsBrowser({
             }}
             className={`flex-1 rounded-lg px-3 py-2 ${libKey === l.key ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800"}`}
           >
-            {l.key === "warranty" ? "🛡️" : "🔧"} {l.label} <span className="ml-1 text-xs font-normal text-neutral-400">{counts[l.key] ?? 0}</span>
+            <Glyph name={l.key === "warranty" ? "shield" : "wrench"} className="mr-1.5 text-brand" />
+            {l.label} <span className="ml-1 text-xs font-normal text-neutral-400">{counts[l.key] ?? 0}</span>
           </button>
         ))}
       </div>
@@ -285,7 +290,8 @@ export function DocumentsBrowser({
           <>
             <input ref={fileInput} type="file" multiple hidden onChange={(e) => void upload(e.target.files).finally(() => (e.target.value = ""))} />
             <button type="button" disabled={!!busy} onClick={() => fileInput.current?.click()} className="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
-              ⬆ Upload here
+              <Glyph name="upload" className="mr-1.5" />
+              Upload here
             </button>
             <button type="button" disabled={!!busy} onClick={() => void newFolder()} className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 disabled:opacity-50">
               + Folder
@@ -313,7 +319,7 @@ export function DocumentsBrowser({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {recent.map((r) => (
               <button key={r.id} type="button" onClick={() => setPreview(r)} className="flex items-center gap-3 rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-neutral-200/70 hover:ring-brand/40">
-                <span className="text-2xl">{kind(r.mime, r.name).icon}</span>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600"><Glyph name={kind(r.mime, r.name).icon} size={18} /></span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-neutral-900">{r.name}</span>
                   <span className="block truncate text-xs text-neutral-500">
@@ -344,7 +350,7 @@ export function DocumentsBrowser({
                     }}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    <span className="text-xl">{k.icon}</span>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${i.folder ? "text-brand" : "bg-neutral-100 text-neutral-600"}`}><Glyph name={k.icon} size={i.folder ? 22 : 17} /></span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-neutral-900">{i.name}</span>
                       <span className="block truncate text-xs text-neutral-500">
@@ -356,7 +362,7 @@ export function DocumentsBrowser({
                   </button>
                   {!i.folder && (
                     <a href={fileUrl(i.id, true)} title="Download" className="shrink-0 rounded-lg px-2 py-1 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">
-                      ⬇
+                      <Glyph name="download" label="Download" />
                     </a>
                   )}
                 </div>

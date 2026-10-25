@@ -64,7 +64,7 @@ export function InvoicingDrill({ month, drill, onClose, onFilter }: { month: str
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => void exportAll()} disabled={exporting || !state?.total} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40">
-              {exporting ? "Exporting..." : "⬇ Export to Excel"}
+              {exporting ? "Exporting..." : "Export to Excel"}
             </button>
             {onFilter && (
               <button type="button" onClick={onFilter} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-slate-50">

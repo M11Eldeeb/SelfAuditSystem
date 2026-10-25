@@ -2,18 +2,18 @@ import type { StandingsEntry } from "@/lib/standings";
 
 const RANK_STYLE = [
   {
-    badge: "bg-linear-to-b from-amber-300 to-amber-500 text-amber-950 shadow-sm shadow-amber-500/40",
-    bar: "bg-linear-to-t from-amber-400 to-amber-300",
+    badge: "bg-amber-400 text-amber-950",
+    bar: "bg-amber-300",
     height: "h-28",
   },
   {
-    badge: "bg-linear-to-b from-neutral-200 to-neutral-400 text-neutral-800 shadow-sm shadow-neutral-400/40",
-    bar: "bg-linear-to-t from-neutral-300 to-neutral-200",
+    badge: "bg-neutral-300 text-neutral-800",
+    bar: "bg-neutral-200",
     height: "h-20",
   },
   {
-    badge: "bg-linear-to-b from-orange-200 to-orange-400 text-orange-950 shadow-sm shadow-orange-400/40",
-    bar: "bg-linear-to-t from-orange-300 to-orange-200",
+    badge: "bg-orange-300 text-orange-950",
+    bar: "bg-orange-200",
     height: "h-14",
   },
 ];

@@ -8,6 +8,7 @@ import {
   saveInternalAuditFiles,
   uploadInternalAuditReportToDrive,
 } from "@/app/actions/internal-audit-files";
+import { Glyph } from "@/components/ui/glyph";
 
 export type AuditFile = {
   id: string;
@@ -115,7 +116,7 @@ export function InternalAuditFilesPanel({
             onClick={() => input.current?.click()}
             className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark disabled:opacity-50"
           >
-            ⬆ Upload files
+            <Glyph name="upload" className="mr-1.5" />Upload files
           </button>
           {finalized && (
             <button
@@ -138,7 +139,7 @@ export function InternalAuditFilesPanel({
 
       {finalized && (
         <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm">
-          <span className="font-medium text-emerald-900">📄 Audit result PDF</span>
+          <span className="font-medium text-emerald-900"><Glyph name="pdf" className="mr-1.5" />Audit result PDF</span>
           {report ? (
             <span className="flex items-center gap-3 text-xs text-emerald-800">
               saved {fmtDate(report.created_at)}

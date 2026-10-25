@@ -79,8 +79,8 @@ export function SettingsMenu({ links }: { links: { href: string; label: string }
         aria-label="Settings"
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`flex h-9 w-9 items-center justify-center rounded-md transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-          open ? "bg-white/10 text-white" : "text-neutral-300 hover:bg-white/10 hover:text-white"
+        className={`flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+          open ? "bg-neutral-900/[0.07] text-neutral-900" : "text-neutral-600 hover:bg-neutral-900/[0.05] hover:text-neutral-900"
         }`}
       >
         <svg

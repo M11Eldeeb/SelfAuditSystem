@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ClaimsUploadForm } from "./claims-upload-form";
 import { SupplierPartsUploadForm } from "./supplier-parts-upload-form";
+import { Glyph } from "@/components/ui/glyph";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -118,7 +119,7 @@ export function UploadWizard({
                     isActive ? "bg-white/25" : isDone ? "bg-emerald-600 text-white" : "bg-neutral-300 text-white"
                   }`}
                 >
-                  {isDone ? "✓" : n}
+                  {isDone ? <Glyph name="check" size={14} /> : n}
                 </span>
                 {label}
               </button>

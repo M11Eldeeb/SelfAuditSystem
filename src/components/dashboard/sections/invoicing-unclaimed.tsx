@@ -6,6 +6,7 @@ import { Panel, Pill } from "@/components/dashboard/ui";
 import { Sar } from "@/components/dashboard/riyal";
 import { downloadXlsx, LINE_COLUMNS, type ExportColumn } from "./invoicing-export";
 import { INV } from "./invoicing-charts";
+import { Glyph } from "@/components/ui/glyph";
 
 type View = "open" | "done" | "all";
 const STATUS_LABEL = { resolved: "Resolved", credit_note: "Credit note" } as const;
@@ -93,7 +94,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
             onClick={() => void downloadXlsx(`Warranty without claim ${month.slice(0, 7)}.xlsx`, "No claim number", exportCols, shown)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40"
           >
-            ⬇ Export
+            <Glyph name="download" className="mr-1" />Export
           </button>
         </div>
       }
@@ -116,7 +117,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
           <span className="text-sm font-semibold text-slate-900">{picked.size} selected</span>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) - e.g. claim no. or credit note no." className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm" />
           <button type="button" disabled={busy} onClick={() => void apply("resolved")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-            ✓ Resolved
+            <Glyph name="check" className="mr-0.5" />Resolved
           </button>
           <button type="button" disabled={busy} onClick={() => void apply("credit_note")} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: INV.parts }}>
             Credit note

@@ -5,6 +5,7 @@ import { getRejectedClaimsForReview, saveRejectedClaimReview, type RejectedRevie
 import { Card, Label, Metric, Panel, Pill, fmtInt } from "@/components/dashboard/ui";
 import { C } from "@/components/dashboard/charts";
 import { downloadXlsx } from "./invoicing-export";
+import { Glyph } from "@/components/ui/glyph";
 
 const STATUS: Record<RejectedReviewStatus, { label: string; cls: string }> = {
   resolved: { label: "Resolved", cls: "bg-emerald-600 text-white" },
@@ -201,7 +202,7 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
             }
             className="rounded-lg border border-[#d4d4d4] bg-white px-3 py-1.5 text-xs font-semibold text-[#2d2d2d] shadow-sm hover:bg-[#f5f5f5]"
           >
-            ⬇ Export
+            <Glyph name="download" className="mr-1" />Export
           </button>
         }
       >

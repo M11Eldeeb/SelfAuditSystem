@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createVerificationRequest } from "@/app/actions/verification-requests";
 import { readMileage, readVin } from "./ocr";
 import { CopyText } from "./copy-text";
+import { Glyph } from "@/components/ui/glyph";
 
 type Photo = { base64: string; mimeType: string; preview: string };
 
@@ -66,7 +67,7 @@ function PhotoField({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photo.preview} alt="" className="h-24 rounded-md object-cover" />
         ) : (
-          <span>📷 Take photo</span>
+          <span className="flex items-center gap-2"><Glyph name="camera" size={20} className="text-brand" /> Take photo</span>
         )}
         {photo && <span className="text-xs">Retake</span>}
       </label>

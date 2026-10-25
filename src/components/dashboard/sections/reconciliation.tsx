@@ -436,7 +436,7 @@ export function ReconciliationSection({
                             r.notes ? "bg-[#fff7e6] text-amber-800 ring-amber-200" : "bg-white text-[#6e6e73] ring-[#e5e5ea] hover:bg-[#f5f5f7]"
                           }`}
                         >
-                          {r.notes ? `📝 ${r.notes}` : "+ Notes"}
+                          {r.notes ? r.notes : "+ Notes"}
                         </button>
                         {r.notes && (
                           <div className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden w-64 rounded-lg bg-[#1d1d1f] px-3 py-2 text-[11px] whitespace-pre-wrap text-white shadow-lg group-hover:block">

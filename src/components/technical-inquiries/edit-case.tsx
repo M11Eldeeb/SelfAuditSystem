@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editTechnicalInquiry, type InquiryEditFields } from "@/app/actions/technical-inquiries";
 import { AFTER_REPAIR_LABEL, INQUIRY_TEXT_MAX, OCCURRENCE_LABEL, SYSTEMS, SYSTEM_LABEL, VEHICLE_LOCATION_LABEL } from "@/lib/technical-inquiries";
+import { Glyph } from "@/components/ui/glyph";
 
 const inputClass = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none disabled:opacity-60";
 
@@ -56,7 +57,7 @@ export function EditableCase({
         <div className="flex items-center justify-end gap-3">
           {saved && <span className="text-xs text-emerald-700">Saved - the previous version is kept.</span>}
           <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50">
-            ✎ Edit
+            <Glyph name="pencil" className="mr-1" />Edit
           </button>
         </div>
         {view}

@@ -20,6 +20,7 @@ import { InvoicingDrill, type Drill } from "./invoicing-drill";
 import { INV, INV_SERIES, MoneyLine } from "./invoicing-charts";
 import { downloadXlsx, LINE_COLUMNS } from "./invoicing-export";
 import { UnclaimedWarranty } from "./invoicing-unclaimed";
+import { Glyph } from "@/components/ui/glyph";
 
 /** Fixed peg. */
 const SAR_PER_USD = 3.75;
@@ -128,7 +129,7 @@ function Breakdown({ title, rows, onPick, onOpen, active, bind }: { title: strin
                 title={active === r.key ? "Remove this filter" : "Filter the dashboard by this"}
                 className={`shrink-0 rounded-md px-1.5 py-1 text-[11px] font-semibold ${active === r.key ? "text-red-800" : "text-slate-400 hover:text-red-800"}`}
               >
-                {active === r.key ? "✕" : "⏷"}
+                <Glyph name={active === r.key ? "close" : "chevronDown"} size={14} />
               </button>
             </div>
           );
@@ -372,7 +373,7 @@ export function InvoicingSection() {
             )}
             {month && (
               <button type="button" onClick={() => void exportView()} disabled={exporting} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60">
-                {exporting ? "Exporting..." : "⬇ Export lines"}
+                {exporting ? "Exporting..." : "Export lines"}
               </button>
             )}
           </div>
@@ -398,7 +399,7 @@ export function InvoicingSection() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {chips.map(([k, t]) => (
               <button key={k} type="button" onClick={() => set(k)(DEFAULT_FILTERS[k])} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-900 ring-1 ring-red-700/20 hover:bg-red-100">
-                {t} ✕
+                {t} <Glyph name="close" size={12} />
               </button>
             ))}
             <button type="button" onClick={() => setF(DEFAULT_FILTERS)} className="text-xs font-medium text-slate-500 underline">

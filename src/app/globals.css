@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
 
   /* MG brand palette */
-  --brand: #e4002b;
-  --brand-dark: #b4001f;
-  --brand-light: #ff3355;
+  --brand: #c4121a;
+  --brand-dark: #a50f16;
+  --brand-light: #ff453a;
   --brand-ink: #0b0b0c;
   --brand-ink-soft: #17171a;
 }
@@ -23,6 +23,28 @@
   --font-sans: var(--font-inter);
 }
 
+/* Apple system greys (light) - a plain @theme (not inline) so dark mode can redefine the variables. */
+@theme {
+  --color-neutral-50: #f9f9fb;
+  --color-neutral-100: #f2f2f7;
+  --color-neutral-200: #e5e5ea;
+  --color-neutral-300: #d1d1d6;
+  --color-neutral-400: #aeaeb2;
+  --color-neutral-500: #6e6e73;
+  --color-neutral-600: #545458;
+  --color-neutral-700: #3a3a3c;
+  --color-neutral-800: #2c2c2e;
+  --color-neutral-900: #1d1d1f;
+  --color-neutral-950: #111113;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 1px rgb(0 0 0 / 0.02);
+  --shadow-md: 0 4px 14px -4px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 48px -12px rgb(0 0 0 / 0.18), 0 4px 10px rgb(0 0 0 / 0.05);
+}
+
 /*
  * The theme follows the device until someone picks Light or Dark in the Settings menu. It is
  * driven by the "dark" class on <html> (set before first paint by THEME_INIT_SCRIPT), so
@@ -34,6 +56,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.45;
   /* Apple devices get the system font (San Francisco); everything else keeps Inter. */
   font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), "Segoe UI", Roboto, Arial, sans-serif;
   font-variant-numeric: tabular-nums;
@@ -44,7 +68,7 @@ body {
    used by the admin/audit layout shells and the login screen background. */
 .app-shell-bg {
   /* Apple's grouped background: flat light grey, white cards on top. */
-  background-color: #f5f5f7;
+  background-color: var(--background);
 }
 
 /* Browser surfaces - theme what we didn't draw ourselves. */
@@ -265,17 +289,17 @@ html.is-scrolling * {
   --color-violet-800: oklch(43.2% 0.232 292.759);
   --color-violet-900: oklch(38% 0.189 293.745);
   --color-violet-950: oklch(28.3% 0.141 291.089);
-  --color-neutral-50: oklch(98.5% 0 none);
-  --color-neutral-100: oklch(97% 0 none);
-  --color-neutral-200: oklch(92.2% 0 none);
-  --color-neutral-300: oklch(87% 0 none);
-  --color-neutral-400: oklch(70.8% 0 none);
-  --color-neutral-500: oklch(55.6% 0 none);
-  --color-neutral-600: oklch(43.9% 0 none);
-  --color-neutral-700: oklch(37.1% 0 none);
-  --color-neutral-800: oklch(26.9% 0 none);
-  --color-neutral-900: oklch(20.5% 0 none);
-  --color-neutral-950: oklch(14.5% 0 none);
+  --color-neutral-50: #f9f9fb;
+  --color-neutral-100: #f2f2f7;
+  --color-neutral-200: #e5e5ea;
+  --color-neutral-300: #d1d1d6;
+  --color-neutral-400: #aeaeb2;
+  --color-neutral-500: #6e6e73;
+  --color-neutral-600: #545458;
+  --color-neutral-700: #3a3a3c;
+  --color-neutral-800: #2c2c2e;
+  --color-neutral-900: #1d1d1f;
+  --color-neutral-950: #111113;
 }
 
 @media screen {
@@ -283,23 +307,23 @@ html.is-scrolling * {
   html.dark,
   html.dark .theme-follow {
     color-scheme: dark;
-    --background: #0b0e12;
-    --foreground: #e8ecf1;
-    --surface: #12161c;
-    --chart-grid: #2a313b;
-    --chart-track: #222c3d;
-    --chart-cursor: #e6edf7;
-    --color-neutral-50: #171b21;
-    --color-neutral-100: #1e232b;
-    --color-neutral-200: #2a313b;
-    --color-neutral-300: #3a434f;
-    --color-neutral-400: #8791a0;
-    --color-neutral-500: #98a2b0;
-    --color-neutral-600: #b0b8c4;
-    --color-neutral-700: #c8cfd9;
-    --color-neutral-800: #dde2e9;
-    --color-neutral-900: #eef1f5;
-    --color-neutral-950: #f7f9fb;
+    --background: #000000;
+    --foreground: #f5f5f7;
+    --surface: #1c1c1e;
+    --chart-grid: #2c2c2e;
+    --chart-track: #2c2c2e;
+    --chart-cursor: #f2f2f7;
+    --color-neutral-50: #1c1c1e;
+    --color-neutral-100: #2c2c2e;
+    --color-neutral-200: #38383a;
+    --color-neutral-300: #48484a;
+    --color-neutral-400: #8e8e93;
+    --color-neutral-500: #98989d;
+    --color-neutral-600: #aeaeb2;
+    --color-neutral-700: #c7c7cc;
+    --color-neutral-800: #e5e5ea;
+    --color-neutral-900: #f2f2f7;
+    --color-neutral-950: #ffffff;
     --color-red-50: #2b1317;
     --color-red-100: #3b161b;
     --color-red-200: #5c1f26;
@@ -391,10 +415,7 @@ html.is-scrolling * {
   }
 
   html.dark .app-shell-bg {
-    background-color: #0b0e12;
-    background-image:
-      radial-gradient(60rem 24rem at 12% -10%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 60%),
-      radial-gradient(40rem 20rem at 100% 0%, color-mix(in srgb, var(--brand) 6%, transparent), transparent 55%);
+    background-color: #000000;
   }
   html.dark.is-scrolling,
   html.dark.is-scrolling * {
@@ -657,5 +678,41 @@ html.is-scrolling * {
   textarea {
     min-height: 44px;
     font-size: 16px;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   House style (Apple HIG: typography.md, color.md, branding.md). Unlayered on purpose so it wins over utilities.
+   --------------------------------------------------------------------------------------------------------------------- */
+/* Labels and table headers in sentence case, not SHOUTED capitals with wide letter-spacing. (.keep-case opts out.) */
+.uppercase:not(.keep-case) {
+  text-transform: none;
+}
+.uppercase:not(.keep-case)[class*="tracking-"] {
+  letter-spacing: 0;
+}
+/* No coloured glow under buttons - a primary button is a flat MG red shape. */
+[class*="shadow-brand"] {
+  --tw-shadow-color: rgb(0 0 0 / 0.08) !important;
+}
+/* Headings: tighter, system weight. */
+h1 {
+  letter-spacing: -0.015em;
+}
+/* Translucent chrome (top bar, sidebar): Apple's light / dark glass. */
+.app-glass {
+  background-color: rgb(255 255 255 / 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+html.dark .app-glass {
+  background-color: rgb(28 28 30 / 0.72);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app-glass {
+    background-color: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }

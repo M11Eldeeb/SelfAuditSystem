@@ -6,19 +6,20 @@ import { useRouter } from "next/navigation";
 import type { Task, TaskData } from "@/lib/tasks";
 import { logTaskReminders } from "@/app/actions/task-reminders";
 import { sendDirectMail } from "@/app/actions/direct-mail";
+import { Glyph, type GlyphName } from "@/components/ui/glyph";
 
 const FOLLOW_UP_AFTER_DAYS = 5;
 
-const KIND_ICON: Record<Task["kind"], string> = {
-  self_audit: "📋",
-  branch_ops: "🏢",
-  scrap_evidence: "🗑️",
-  part_return: "📦",
-  reconciliation: "💰",
-  part_return_close: "🚚",
-  deductions: "➖",
-  review: "🔍",
-  evidence_approval: "✅",
+const KIND_ICON: Record<Task["kind"], GlyphName> = {
+  self_audit: "clipboard",
+  branch_ops: "building",
+  scrap_evidence: "trash",
+  part_return: "box",
+  reconciliation: "money",
+  part_return_close: "truck",
+  deductions: "minus",
+  review: "search",
+  evidence_approval: "checkCircle",
 };
 
 const fmtDate = (iso: string | null) =>
@@ -32,8 +33,8 @@ export function AgeBadge({ days }: { days: number }) {
 export function TaskRow({ task, compact = false }: { task: Task; compact?: boolean }) {
   return (
     <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-neutral-50">
-      <span className="text-lg" aria-hidden="true">
-        {KIND_ICON[task.kind]}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
+        <Glyph name={KIND_ICON[task.kind]} size={17} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -109,7 +110,7 @@ function ReminderButton({ branchId, branchName, tasks, emails }: { branchId: str
         due ? "bg-red-600 text-white hover:bg-red-700" : "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
       }`}
     >
-      ✉ {isPending ? "Sending..." : due ? "Send reminder (due)" : "Send reminder"}
+      <Glyph name="mail" className="mr-1" /> {isPending ? "Sending..." : due ? "Send reminder (due)" : "Send reminder"}
       </button>
     </span>
   );
@@ -180,7 +181,7 @@ export function TaskTracker({ data, isOfficer }: { data: TaskData; isOfficer: bo
       <section className="rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
         <h2 className="border-b border-neutral-100 px-4 py-3 font-semibold text-neutral-900">{isOfficer ? "My tasks" : "Your tasks"}</h2>
         <div className="divide-y divide-neutral-100 p-1">
-          {mine.length ? mine.map((t) => <TaskRow key={t.key} task={t} />) : <p className="px-3 py-6 text-center text-sm text-neutral-500">Nothing pending. 🎉</p>}
+          {mine.length ? mine.map((t) => <TaskRow key={t.key} task={t} />) : <p className="px-3 py-6 text-center text-sm text-neutral-500">Nothing pending.</p>}
         </div>
       </section>
 

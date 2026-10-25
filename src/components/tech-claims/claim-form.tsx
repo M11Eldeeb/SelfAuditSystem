@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { addTechClaimFiles, finishTechClaim, removeTechClaimFile, startTechClaim, type ClaimFields } from "@/app/actions/tech-claims";
 import { fmtBytes, uploadToSession } from "./upload";
 import { stampPhoto, stampVideo } from "./stamp";
+import { Glyph } from "@/components/ui/glyph";
 
 type Existing = { id: string; name: string; mimeType: string; size: number };
 
 const inputCls = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
-const icon = (type: string) => (type.startsWith("video/") ? "🎬" : type === "application/pdf" ? "📄" : "📷");
+const icon = (type: string) => <Glyph name={type.startsWith("video/") ? "video" : type === "application/pdf" ? "pdf" : "image"} className="text-neutral-500" />;
 
 /** datetime-local value (local time) from an ISO date. */
 function localValue(iso: string | null | undefined): string {
@@ -186,9 +187,9 @@ export function TechClaimForm({
         <input ref={pick} type="file" accept="image/*,video/*,application/pdf" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
         <div className="grid grid-cols-3 gap-2">
           {[
-            { ref: photo, label: "📷 Take photo" },
-            { ref: video, label: "🎬 Record video" },
-            { ref: pick, label: "📎 Choose files" },
+            { ref: photo, label: "Take photo", glyph: "camera" as const },
+            { ref: video, label: "Record video", glyph: "video" as const },
+            { ref: pick, label: "Choose files", glyph: "paperclip" as const },
           ].map((b) => (
             <button
               key={b.label}
@@ -197,6 +198,7 @@ export function TechClaimForm({
               onClick={() => b.ref.current?.click()}
               className="rounded-lg border-2 border-dashed border-neutral-300 px-2 py-4 text-sm font-medium text-neutral-700 hover:border-brand hover:text-brand disabled:opacity-50"
             >
+              <Glyph name={b.glyph} size={22} className="mx-auto mb-1 block text-brand" />
               {b.label}
             </button>
           ))}
