@@ -4,7 +4,7 @@ import { CycleForm } from "./cycle-form";
 import { SendReadyMailCard } from "./send-ready-mail-card";
 import { DeleteCycleButton } from "./delete-cycle-button";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
-import { daysRemaining } from "@/lib/cycle";
+import { deadlineCountdown } from "@/lib/cycle";
 
 export default async function CyclesPage() {
   await expireOverdueAssignments();
@@ -101,19 +101,17 @@ export default async function CyclesPage() {
             <tbody className="divide-y divide-neutral-100">
               {(cycles ?? []).map((c) => {
                 const stat = statsByCycle.get(c.id) ?? { total: 0, submitted: 0, reviewed: 0 };
-                const remaining = c.status === "open" ? daysRemaining(c.deadline_at) : null;
+                const countdown = c.status === "open" ? deadlineCountdown(c.deadline_at) : null;
                 return (
                   <tr key={c.id}>
                     <td className="px-4 py-2 text-neutral-900">{c.cycle_month.slice(0, 7)}</td>
                     <td className="px-4 py-2 text-neutral-600">{c.claims_month.slice(0, 7)}</td>
                     <td className="px-4 py-2 text-neutral-600 capitalize">{c.status}</td>
                     <td className="px-4 py-2">
-                      {remaining === null ? (
+                      {countdown === null ? (
                         <span className="text-neutral-300">—</span>
-                      ) : remaining > 0 ? (
-                        <span className={remaining <= 5 ? "font-medium text-red-600" : "text-neutral-600"}>
-                          {remaining} day{remaining === 1 ? "" : "s"} left
-                        </span>
+                      ) : !countdown.passed ? (
+                        <span className={countdown.days <= 5 ? "font-medium text-red-600" : "text-neutral-600"}>{countdown.text}</span>
                       ) : (
                         <span className="font-medium text-red-600">Deadline passed</span>
                       )}

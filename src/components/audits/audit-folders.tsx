@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { daysUntil } from "@/lib/cycle";
+import { deadlineCountdown } from "@/lib/cycle";
 
 const monthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -39,7 +39,7 @@ export async function AuditFolders() {
     totalBranches = byBranch.size;
     submittedBranches = [...byBranch.values()].filter(Boolean).length;
   }
-  const daysLeft = daysUntil(openCycle?.deadline_at ?? null);
+  const countdown = deadlineCountdown(openCycle?.deadline_at ?? null);
 
   return (
     <section aria-label="Audit folders" className="grid gap-4 md:grid-cols-2">
@@ -52,7 +52,7 @@ export async function AuditFolders() {
             ? [
                 { label: `${monthLabel(openCycle.cycle_month)} cycle`, tone: "good" },
                 { label: `${submittedBranches} of ${totalBranches} branches submitted` },
-                daysLeft == null ? null : daysLeft >= 0 ? { label: `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` } : { label: "Past deadline", tone: "warn" as const },
+                countdown == null ? null : !countdown.passed ? { label: countdown.text! } : { label: "Past deadline", tone: "warn" as const },
               ]
             : [{ label: "No open cycle" }]
         }
