@@ -89,7 +89,7 @@ const ROLE_LABEL: Record<string, string> = {
  */
 function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHref?: string; animateIn?: boolean | null }) {
   return (
-    <ul className="space-y-px">
+    <ul className="space-y-1">
       {links.map((link, i) => {
         const active = link.href === activeHref;
         return (
@@ -101,15 +101,15 @@ function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHre
             <Link
               href={link.href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-8 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] leading-snug transition-colors ${
+              className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[15px] leading-snug transition-colors ${
                 active ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
               }`}
             >
               <span className="text-brand">
-                <NavIcon href={link.href} label={link.label} />
+                <NavIcon href={link.href} label={link.label} size={20} />
               </span>
               <span className="min-w-0 flex-1">{link.label}</span>
-              {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-1.5 py-px text-[11px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
+              {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
             </Link>
           </li>
         );
@@ -180,22 +180,22 @@ export function NavBar({
 
   const brand = (
     <Link href="/" className="flex min-w-0 items-center gap-2.5">
-      <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-7 w-auto shrink-0" />
+      <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-9 w-auto shrink-0" />
       <span className="min-w-0 leading-tight">
-        <span className="block truncate text-[14px] font-semibold text-neutral-900">MG Warranty</span>
-        <span className="block truncate text-[12px] text-neutral-500">Management</span>
+        <span className="block truncate text-[16px] font-semibold text-neutral-900">MG Warranty</span>
+        <span className="block truncate text-[13px] text-neutral-500">Management</span>
       </span>
     </Link>
   );
 
   const account = (
-    <div className="flex items-center gap-2.5 px-2.5 py-2">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-900/[0.07] text-[11px] font-semibold text-neutral-700">{initials}</span>
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900/[0.07] text-[13px] font-semibold text-neutral-700">{initials}</span>
       <span className="min-w-0 leading-tight">
-        <span className="block truncate text-[13px] font-medium text-neutral-900" title={user.email}>
+        <span className="block truncate text-[14px] font-medium text-neutral-900" title={user.email}>
           {displayName}
         </span>
-        {roleLabel && <span className="block truncate text-[12px] text-neutral-500">{roleLabel}</span>}
+        {roleLabel && <span className="block truncate text-[13px] text-neutral-500">{roleLabel}</span>}
       </span>
     </div>
   );
@@ -205,9 +205,9 @@ export function NavBar({
       {/* Docked sidebar (wide screens): a floating glass panel, as on iPad and Mac. Hidden with its own button or the top bar's. */}
       <aside
         aria-label="Main menu"
-        className="app-sidebar app-glass fixed top-2 bottom-2 left-2 z-30 hidden w-60 flex-col rounded-2xl shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] ring-1 ring-neutral-900/[0.06] print:hidden xl:flex"
+        className="app-sidebar fixed top-3 bottom-3 left-3 z-30 hidden w-72 flex-col rounded-[22px] bg-[var(--surface)] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_48px_-16px_rgba(0,0,0,0.22)] ring-1 ring-neutral-900/[0.07] print:hidden xl:flex"
       >
-        <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5 pb-3">
+        <div className="flex items-center justify-between gap-2 px-5 pt-5 pb-4">
           {brand}
           <button
             type="button"
@@ -219,15 +219,16 @@ export function NavBar({
             <SidebarIcon />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 pb-2">
+        <p className="px-6 pb-1.5 text-[12px] font-medium text-neutral-500">Menu</p>
+        <nav className="flex-1 overflow-y-auto px-3 pb-3">
           <NavList links={links} activeHref={activeHref} />
         </nav>
-        <div className="border-t border-neutral-900/[0.06] p-1.5">{account}</div>
+        <div className="mx-3 mb-3 rounded-2xl bg-neutral-900/[0.035] p-1">{account}</div>
       </aside>
 
       {/* Top bar: a floating glass toolbar lined up with the sidebar panel - the page title on the left, the account
           controls grouped in one capsule on the right (Apple toolbars: few items, grouped, quiet). */}
-      <header className="sticky top-0 z-20 px-2 pt-2 print:hidden">
+      <header className="sticky top-0 z-20 px-3 pt-3 print:hidden">
         <div className="app-glass flex h-[52px] items-center justify-between gap-3 rounded-2xl pr-1.5 pl-2 shadow-[0_6px_24px_-12px_rgba(0,0,0,0.14)] ring-1 ring-neutral-900/[0.06]">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -276,7 +277,7 @@ export function NavBar({
                 className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium whitespace-nowrap text-neutral-600 transition hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M14.5 4.5h3a1.5 1.5 0 011.5 1.5v12a1.5 1.5 0 01-1.5 1.5h-3M10 16.5L14.5 12 10 7.5M14.5 12H4.5" />
+                  <path d="M9.5 4.5h-3A1.5 1.5 0 005 6v12a1.5 1.5 0 001.5 1.5h3M14.5 16.5L19 12l-4.5-4.5M19 12H9.5" />
                 </svg>
                 <span className="hidden md:inline">Sign out</span>
               </button>

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ScrollActivity } from "@/components/scroll-activity";
 import { THEME_INIT_SCRIPT } from "@/components/theme";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/site";
+import { WELCOME_INIT_SCRIPT, WelcomeIntro } from "@/components/welcome-intro";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,8 +24,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Keeps the desktop sidebar hidden from the first paint when it was hidden before. */}
         <script dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }} />
+        {/* The welcome intro plays once per browser session (and never with Reduce Motion). */}
+        <script dangerouslySetInnerHTML={{ __html: WELCOME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
+        <WelcomeIntro />
         <ScrollActivity />
         {children}
       </body>

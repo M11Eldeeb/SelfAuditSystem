@@ -615,10 +615,10 @@ html.is-scrolling * {
    full-width blocks (the dashboards) subtract it. */
 @media (min-width: 1280px) {
   html:not([data-sidebar="closed"]):has(.app-sidebar) {
-    --sidebar-w: 16rem;
+    --sidebar-w: 19.5rem;
   }
   :has(> .app-sidebar) {
-    padding-left: 16rem;
+    padding-left: 19.5rem;
     transition: padding-left 0.2s ease;
   }
   html[data-sidebar="closed"] :has(> .app-sidebar) {
@@ -714,5 +714,213 @@ html.dark .app-glass {
     background-color: var(--surface);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Welcome intro (components/welcome-intro.tsx) - once per session, never with Reduce Motion.
+   --------------------------------------------------------------------------------------------------------------------- */
+.welcome-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  color: var(--color-neutral-900);
+  animation: welcome-out 0.7s cubic-bezier(0.4, 0, 0.2, 1) 2.7s forwards;
+}
+html.no-welcome .welcome-intro {
+  display: none;
+}
+.welcome-intro__stack {
+  display: flex;
+  width: min(640px, 86vw);
+  flex-direction: column;
+  align-items: center;
+}
+.welcome-intro__logo {
+  height: 64px;
+  width: auto;
+  opacity: 0;
+  animation: welcome-logo 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+.welcome-intro__kicker {
+  margin-top: 28px;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-neutral-500);
+  opacity: 0;
+  animation: welcome-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.55s forwards;
+}
+.welcome-intro__word {
+  width: 100%;
+  height: auto;
+  margin-top: -2px;
+  overflow: visible;
+}
+.welcome-intro__word text {
+  font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), "Segoe UI", sans-serif;
+  font-size: 84px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  fill: currentColor;
+  fill-opacity: 0;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-dasharray: 520;
+  stroke-dashoffset: 520;
+  animation:
+    welcome-draw 1.35s cubic-bezier(0.65, 0, 0.35, 1) 0.75s forwards,
+    welcome-fill 0.6s ease-out 1.75s forwards;
+}
+.welcome-intro__rule {
+  margin-top: 10px;
+  height: 3px;
+  width: 56px;
+  border-radius: 3px;
+  background: var(--brand);
+  transform: scaleX(0);
+  animation: welcome-rule 0.6s cubic-bezier(0.22, 1, 0.36, 1) 2.05s forwards;
+}
+@keyframes welcome-logo {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes welcome-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes welcome-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes welcome-fill {
+  to {
+    fill-opacity: 1;
+    stroke-opacity: 0;
+  }
+}
+@keyframes welcome-rule {
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes welcome-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@media print {
+  .welcome-intro {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Page loader (components/spinner.tsx): a car rolling along the road, the workshop's steps cycling underneath.
+   --------------------------------------------------------------------------------------------------------------------- */
+.car-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: var(--color-neutral-800);
+}
+.car-loader__body {
+  animation: car-bob 0.6s ease-in-out infinite alternate;
+}
+.car-loader__wheel {
+  animation: car-wheel 0.55s linear infinite;
+}
+.car-loader__road {
+  animation: car-road 0.55s linear infinite;
+}
+.car-loader__steps {
+  position: relative;
+  height: 20px;
+  width: 220px;
+  overflow: hidden;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-neutral-500);
+}
+.car-loader__steps span {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: car-step 6s ease-in-out infinite;
+}
+.car-loader__steps span:nth-child(2) {
+  animation-delay: 1.5s;
+}
+.car-loader__steps span:nth-child(3) {
+  animation-delay: 3s;
+}
+.car-loader__steps span:nth-child(4) {
+  animation-delay: 4.5s;
+}
+.car-loader__static {
+  display: none;
+  font-size: 14px;
+  color: var(--color-neutral-500);
+}
+@keyframes car-bob {
+  to {
+    transform: translateY(-0.8px);
+  }
+}
+@keyframes car-wheel {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes car-road {
+  to {
+    stroke-dashoffset: 18;
+  }
+}
+@keyframes car-step {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  6%,
+  22% {
+    opacity: 1;
+    transform: none;
+  }
+  28%,
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .car-loader__body,
+  .car-loader__wheel,
+  .car-loader__road {
+    animation: none;
+  }
+  .car-loader__steps {
+    display: none;
+  }
+  .car-loader__static {
+    display: block;
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState, useTransition } from "react";
+import { Suspense, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchRow, DashboardData } from "@/lib/dashboard/kpis";
 import type { TrendData } from "@/lib/dashboard/trends";
@@ -135,6 +135,26 @@ export function KpiDashboard({
   // is instant - only the URL is updated (for sharing / reload).
   const [tab, setTab] = useState<DashboardTab>(initialTab);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "claimCount", desc: true });
+  // The section bar slides away while scrolling down (more room to read) and comes back on the first scroll up.
+  const [barHidden, setBarHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    let queued = false;
+    const onScroll = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        if (Math.abs(y - last) > 6) {
+          setBarHidden(y > last && y > 240);
+          last = y;
+        }
+        queued = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const t = data.totals;
   const multiBranch = scopeBranches.length > 1;
@@ -207,7 +227,13 @@ export function KpiDashboard({
       </header>
 
       {/* Sections: a segmented control that stays on screen while scrolling. */}
-      <nav aria-label="Dashboard sections" className="sticky top-[68px] z-10 -mx-1 px-1 py-1">
+      <nav
+        aria-label="Dashboard sections"
+        onFocusCapture={() => setBarHidden(false)}
+        className={`sticky top-[72px] z-10 -mx-1 px-1 py-1 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none ${
+          barHidden ? "pointer-events-none -translate-y-[calc(100%+80px)] opacity-0" : ""
+        }`}
+      >
         <div className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl backdrop-saturate-150">
           {tabs.map((x) => {
             const active = x.id === tab;

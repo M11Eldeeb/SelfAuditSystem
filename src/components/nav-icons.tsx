@@ -40,9 +40,9 @@ function keyFor(href: string, label: string): string {
   return "home";
 }
 
-export function NavIcon({ href, label }: { href: string; label: string }) {
+export function NavIcon({ href, label, size = 18 }: { href: string; label: string; size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 opacity-90">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 opacity-90">
       <path d={P[keyFor(href, label)]} />
     </svg>
   );
