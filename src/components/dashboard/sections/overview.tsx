@@ -65,8 +65,8 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
         <Card className="flex flex-col justify-between gap-3 xl:col-span-4" accent={C.red}>
           <div className="flex items-start justify-between gap-2">
             <div>
+              <div className="text-[15px] font-semibold text-[#1d1d1f]">Total claim amount</div>
               <Label>Claims in period</Label>
-              <div className="font-display text-base font-semibold text-[#1d1d1f]">Total claim amount</div>
             </div>
             <IconBadge>
               <Icon.check />
@@ -82,7 +82,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           <div className="space-y-1 border-t border-[#ececf0] pt-2">
             <div className="flex justify-between text-[11px]">
               <span className="text-[#6e6e73]">Avg daily claims (Sat–Wed full, Thu half)</span>
-              <span className="font-bold text-[#9a000d]">{fmtNum(t.avgDailyClaims)} / day</span>
+              <span className="font-semibold text-[#1d1d1f]">{fmtNum(t.avgDailyClaims)} / day</span>
             </div>
             <div className="flex justify-between text-[11px] text-[#6e6e73]">
               <span>{fmtNum(t.workingDays, 1)} working days</span>
@@ -93,15 +93,15 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
 
         <Card className="flex flex-col justify-between gap-3 xl:col-span-3" accent={C.green}>
           <div>
-            <Label>Quality acceptance</Label>
-            <div className="font-display text-base font-semibold text-[#1d1d1f]">Warranty claim top box</div>
+            <div className="text-[15px] font-semibold text-[#1d1d1f]">Warranty claim top box</div>
+            <Label>Accepted first time</Label>
           </div>
           <div className="flex items-center gap-3">
             <Ring
               pct={t.topBoxPct}
               center={fmtPct(t.topBoxPct)}
               caption="first pass"
-              color={(t.topBoxPct ?? 0) >= 90 ? C.green : (t.topBoxPct ?? 0) >= 75 ? C.amber : C.red}
+              color={(t.topBoxPct ?? 0) >= 90 ? C.green : (t.topBoxPct ?? 0) >= 75 ? C.amber : C.bad}
             />
             <div className="min-w-0 flex-1 space-y-1 text-xs">
               <div className="flex justify-between">
@@ -113,7 +113,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                 height="h-1.5"
                 segments={[
                   { label: "Accepted first time", value: t.acceptedFirstTime, color: C.green },
-                  { label: "Returned", value: returned, color: C.red },
+                  { label: "Returned", value: returned, color: C.bad },
                 ]}
               />
               <div className="flex justify-between text-[11px] text-[#6e6e73]">
@@ -127,8 +127,8 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
         <Card className="flex flex-col justify-between gap-3 xl:col-span-3" accent={C.blue}>
           <div className="flex items-start justify-between gap-2">
             <div>
+              <div className="text-[15px] font-semibold text-[#1d1d1f]">Detected amount</div>
               <Label>Audit reconciliation</Label>
-              <div className="font-display text-base font-semibold text-[#1d1d1f]">Detected amount</div>
             </div>
             <IconBadge tone="blue">
               <Icon.money />
@@ -144,32 +144,29 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
             segments={[
               { label: "Labor", value: Math.abs(data.detectedSplit.labor), color: C.blue },
               { label: "Parts", value: Math.abs(data.detectedSplit.part), color: C.blueSoft },
-              { label: "Sublet", value: Math.abs(data.detectedSplit.sublet), color: C.red },
+              { label: "Sublet", value: Math.abs(data.detectedSplit.sublet), color: C.slate },
             ]}
           />
         </Card>
 
-        <div className="relative flex flex-col justify-between gap-3 overflow-hidden rounded-xl bg-[#9a000d] p-4 text-white shadow-md md:col-span-2 xl:col-span-2">
-          <div className="pointer-events-none absolute -right-5 -bottom-5 h-24 w-24 rounded-full bg-white/10" />
-          <div className="relative flex items-center justify-between">
-            <span className="text-[11px] font-bold tracking-[0.08em] text-white/80 uppercase">Pending tasks</span>
-            <Icon.alert />
+        {/* The one place that asks for attention: open work, its number in MG red. */}
+        <Card className="flex flex-col justify-between gap-3 md:col-span-2 xl:col-span-2">
+          <div className="text-[15px] font-semibold text-[#1d1d1f]">Pending tasks</div>
+          <div className="flex items-baseline gap-1.5">
+            <span className={`font-display text-[2.25rem] leading-none font-bold ${pendingTotal ? "text-[#c4121a]" : "text-[#1d1d1f]"}`}>{fmtInt(pendingTotal)}</span>
+            <span className="text-[13px] text-[#6e6e73]">open</span>
           </div>
-          <div className="relative flex items-baseline gap-1.5">
-            <span className="font-display text-4xl leading-none font-bold">{fmtInt(pendingTotal)}</span>
-            <span className="text-xs text-white/85">open</span>
-          </div>
-          <div className="relative space-y-1 rounded-lg bg-white/10 p-2 text-xs">
-            <div className="flex justify-between">
-              <span>Self audit claims</span>
-              <span className="rounded bg-white px-1.5 text-[11px] font-bold text-[#9a000d]">{pendingSelfAudit}</span>
+          <div className="divide-y divide-black/[0.06] text-[13px]">
+            <div className="flex justify-between py-1.5">
+              <span className="text-[#3a3a3c]">Self audit claims</span>
+              <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingSelfAudit}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Scrap evidence</span>
-              <span className="rounded bg-white px-1.5 text-[11px] font-bold text-[#9a000d]">{pendingEvidence}</span>
+            <div className="flex justify-between py-1.5">
+              <span className="text-[#3a3a3c]">Scrap evidence</span>
+              <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingEvidence}</span>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Daily pace + cycle times */}
@@ -178,7 +175,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           className="lg:col-span-7"
           title="Daily claims pace"
           subtitle="Average claims repaired per day of the work week · Thursday is a half day"
-          action={<Pill tone="muted">Sat – Thu</Pill>}
+
         >
           <div className="grid h-52 grid-cols-6 items-end gap-3 px-1">
             {data.weekdays.map((d) => {
@@ -203,17 +200,20 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                     />
                   }
                 >
-                  <Pill tone={diff >= 0 ? "good" : "warn"}>{fmtNum(avg)}</Pill>
-                  <div className="relative flex h-full w-full items-end overflow-hidden rounded-t-lg bg-[#f5f5f7] p-1">
+                  <span className="flex items-center gap-1 text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
+                    {fmtNum(avg)}
+                    {diff < 0 && <span className="text-[11px] text-[#c93400]" aria-label="below average">▼</span>}
+                  </span>
+                  <div className="relative flex h-full w-full items-end">
                     <div
-                      className="w-full rounded transition-[filter] group-hover:brightness-110"
-                      style={{
-                        height: `${(avg / max) * 100}%`,
-                        background: thu ? `repeating-linear-gradient(45deg, ${C.red}, ${C.red} 6px, ${C.primary} 6px, ${C.primary} 12px)` : C.red,
-                      }}
+                      className="w-full rounded-lg transition-opacity group-hover:opacity-80"
+                      style={{ height: `${(avg / max) * 100}%`, background: thu ? C.slateSoft : C.red }}
                     />
                   </div>
-                  <span className={`text-xs font-bold ${thu ? "text-[#9a000d]" : "text-[#1d1d1f]"}`}>{d.label.toUpperCase()}</span>
+                  <span className="text-[12px] font-medium text-[#6e6e73]">
+                    {d.label}
+                    {thu && " ½"}
+                  </span>
                 </Hover>
               );
             })}
@@ -222,14 +222,14 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
             <span>
               Full-day average: <strong>{fmtNum(fullDayAvg)}</strong> claims · Weighted average: <strong>{fmtNum(t.avgDailyClaims)}</strong> per working day
             </span>
-            <span className="text-[#6e6e73]">Green = at or above the full-day (or half-day) average</span>
+            <span className="text-[#6e6e73]">▼ = below the full-day (Thursday: half-day) average</span>
           </div>
         </Panel>
 
-        <Panel className="lg:col-span-5" title="Cycle times" subtitle="Average days per stage in this period" action={<IconBadge tone="blue"><Icon.timer /></IconBadge>}>
+        <Panel className="lg:col-span-5" title="Cycle times" subtitle="Average days per stage in this period" >
           <div className="space-y-2.5">
             {cycleRows.map((r) => (
-              <div key={r.label} className="space-y-1.5 rounded-lg bg-[#f5f5f7] p-2.5">
+              <div key={r.label} className="space-y-1.5 border-b border-black/[0.06] pb-2.5 last:border-0">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-[#1d1d1f]">{r.label}</div>

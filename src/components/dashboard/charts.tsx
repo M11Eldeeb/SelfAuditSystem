@@ -6,24 +6,33 @@ import { TipCard, useHoverCard } from "@/components/dashboard/hover";
 // Dependency-free SVG/CSS charts for the KPI dashboard. Server-rendered;
 // hover details come from native <title> tooltips.
 
+/**
+ * Colour roles (Apple HIG color.md - one colour means one thing):
+ *  - data:    MG graphite and silver for ordinary values (`red` / `primary` are kept as names so every chart moves to
+ *             graphite; the strongest series is graphite, the secondary silver);
+ *  - accent:  MG red - only for what needs attention (`bad`, `accent`);
+ *  - status:  Apple's accessible green / orange / red, used only for good / watch / bad.
+ * All fills keep at least 3:1 against white.
+ */
 export const C = {
-  primary: "#9a000d",
-  red: "#c4121a",
-  // MG brand: red, charcoal black and silver grey (the "blue" names are kept so every chart picks the new colours up).
-  blue: "#2d2d2d",
-  blueLight: "#6b6e73",
-  blueSoft: "#c9cbcf",
-  slate: "#6e6e73",
-  slateSoft: "#c7c7cc",
+  primary: "#1d1d1f",
+  red: "#3a3a3c",
+  blue: "#3a3a3c",
+  blueLight: "#8e8e93",
+  blueSoft: "#c7c7cc",
+  slate: "#8e8e93",
+  slateSoft: "#d1d1d6",
   track: "var(--chart-track)",
   grid: "var(--chart-grid)",
-  green: "#059669",
-  amber: "#d97706",
+  accent: "#c4121a",
+  bad: "#d70015",
+  green: "#248a3d",
+  amber: "#c93400",
 };
 
 export const SERIES_COLORS = [
+  "#1d1d1f", // MG black
   "#c4121a", // MG red
-  "#2d2d2d", // MG black
   "#8a8d91", // MG silver
   "#7a0010", // deep red
   "#e2747b", // light red

@@ -38,16 +38,11 @@ export function fmtDate(iso: string | null): string {
 export const card = "rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.05]";
 
 export function Label({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <span className={`text-[11px] font-semibold tracking-[0.06em] text-[#6e6e73] uppercase ${className}`}>{children}</span>;
+  return <span className={`text-[12px] font-medium text-[#6e6e73] ${className}`}>{children}</span>;
 }
 
-export function Card({ children, className = "", accent }: { children: ReactNode; className?: string; accent?: string }) {
-  return (
-    <div className={`${card} relative overflow-hidden p-4 ${className}`}>
-      {accent && <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: accent }} />}
-      {children}
-    </div>
-  );
+export function Card({ children, className = "" }: { children: ReactNode; className?: string; accent?: string }) {
+  return <div className={`${card} relative overflow-hidden p-5 ${className}`}>{children}</div>;
 }
 
 export function Panel({
@@ -69,7 +64,7 @@ export function Panel({
     <section className={`${card} p-5 sm:p-6 ${className}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          {eyebrow && <Label className="text-[#9a000d]">{eyebrow}</Label>}
+          {eyebrow && <Label>{eyebrow}</Label>}
           <h2 className="text-[17px] font-semibold tracking-tight text-[#1d1d1f]">{title}</h2>
           {subtitle && <p className="mt-0.5 text-[13px] text-[#6e6e73]">{subtitle}</p>}
         </div>
@@ -81,7 +76,7 @@ export function Panel({
 }
 
 export function Metric({ value, unit, tone }: { value: string; unit?: string; tone?: "red" | "blue" | "green" }) {
-  const color = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : tone === "green" ? "text-emerald-600" : "text-[#1d1d1f]";
+  const color = tone === "red" ? "text-[#d70015]" : tone === "green" ? "text-[#248a3d]" : "text-[#1d1d1f]";
   return (
     <div className="flex items-baseline gap-1.5">
       <CountText value={value} className={`font-display text-[1.75rem] leading-tight font-bold tracking-tight tabular-nums ${color}`} />
@@ -92,18 +87,18 @@ export function Metric({ value, unit, tone }: { value: string; unit?: string; to
 
 export function Pill({ tone, children }: { tone: "good" | "warn" | "bad" | "muted" | "blue"; children: ReactNode }) {
   const cls = {
-    good: "bg-emerald-50 text-emerald-700",
-    warn: "bg-amber-50 text-amber-700",
-    bad: "bg-[#ffdad6] text-[#93000a]",
+    good: "bg-[#248a3d]/10 text-[#1f7a35]",
+    warn: "bg-[#c93400]/10 text-[#a52a00]",
+    bad: "bg-[#d70015]/10 text-[#b10012]",
     muted: "bg-[#f5f5f7] text-[#6e6e73]",
-    blue: "bg-[#dbe1ff] text-[#00174b]",
+    blue: "bg-[#f5f5f7] text-[#1d1d1f]",
   }[tone];
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${cls}`}>{children}</span>;
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold whitespace-nowrap ${cls}`}>{children}</span>;
 }
 
 export function IconBadge({ children, tone = "red" }: { children: ReactNode; tone?: "red" | "blue" | "slate" }) {
-  const cls = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : "text-[#6e6e73]";
-  return <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f5f7] ${cls}`}>{children}</span>;
+  void tone;
+  return <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[#8e8e93]">{children}</span>;
 }
 
 // --- icons (inline, stroke-based) ---------------------------------------------

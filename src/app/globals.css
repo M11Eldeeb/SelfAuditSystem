@@ -43,10 +43,8 @@ body {
 /* Shared page-shell wash: a faint brand-tinted gradient instead of flat gray,
    used by the admin/audit layout shells and the login screen background. */
 .app-shell-bg {
-  background-color: #fafafa;
-  background-image:
-    radial-gradient(60rem 24rem at 12% -10%, color-mix(in srgb, var(--brand) 6%, transparent), transparent 60%),
-    radial-gradient(40rem 20rem at 100% 0%, color-mix(in srgb, var(--brand) 4%, transparent), transparent 55%);
+  /* Apple's grouped background: flat light grey, white cards on top. */
+  background-color: #f5f5f7;
 }
 
 /* Browser surfaces - theme what we didn't draw ourselves. */
@@ -76,8 +74,10 @@ html.is-scrolling * {
 /* KPI dashboard: headings and big numbers (Space Grotesk, loaded by the
    dashboard component itself via next/font). */
 .font-display {
-  font-family: var(--font-display), var(--font-sans), Arial, sans-serif;
+  /* One family (Apple HIG typography): the system font, with tabular figures for numbers. */
+  font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), "Segoe UI", Roboto, Arial, sans-serif;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 @keyframes dash-load {

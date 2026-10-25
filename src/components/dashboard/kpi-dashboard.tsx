@@ -4,7 +4,6 @@ import { Suspense, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchRow, DashboardData } from "@/lib/dashboard/kpis";
 import type { TrendData } from "@/lib/dashboard/trends";
-import { C, Meter } from "@/components/dashboard/charts";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
@@ -189,7 +188,7 @@ export function KpiDashboard({
       {/* Title: what you are looking at, for which branches and period. */}
       <header className="flex flex-wrap items-end justify-between gap-4 px-1">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-[#c4121a]">KPI Dashboard</p>
+          <p className="text-[13px] font-semibold text-[#6e6e73]">KPI Dashboard</p>
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{current.title}</h1>
           {tab === "reconciliation" ? (
             <p className="mt-1 text-[15px] text-[#6e6e73]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
@@ -204,18 +203,12 @@ export function KpiDashboard({
           <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1d1d1f] shadow-sm ring-1 ring-black/[0.05]">
             {fmtInt(t.claimCount)} claims · {fmtMoney(t.totalClaimAmount)} {data.currency}
           </span>
-          <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1d1d1f] shadow-sm ring-1 ring-black/[0.05]" title="Share of claims scored in the top box">
-            Top box {t.topBoxPct == null ? "—" : `${t.topBoxPct.toFixed(1)}%`}
-            <span className="w-14">
-              <Meter pct={t.topBoxPct ?? 0} color={C.red} />
-            </span>
-          </span>
         </div>
       </header>
 
       {/* Sections: a segmented control that stays on screen while scrolling. */}
       <nav aria-label="Dashboard sections" className="sticky top-16 z-10 -mx-1 px-1 py-1">
-        <div className="flex gap-1 overflow-x-auto rounded-2xl bg-white/80 p-1 shadow-sm ring-1 ring-black/[0.05] backdrop-blur-xl backdrop-saturate-150">
+        <div className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl backdrop-saturate-150">
           {tabs.map((x) => {
             const active = x.id === tab;
             const TabIcon = TAB_ICONS[x.id];
@@ -225,8 +218,8 @@ export function KpiDashboard({
                 type="button"
                 onClick={() => switchTab(x.id)}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-[14px] font-semibold whitespace-nowrap transition-colors ${
-                  active ? "bg-[#1d1d1f] text-white shadow-sm" : "text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                className={`flex min-h-9 flex-1 shrink-0 items-center justify-center gap-2 rounded-[11px] px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-all ${
+                  active ? "bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.04)]" : "text-[#3a3a3c] hover:bg-white/50"
                 }`}
               >
                 <TabIcon size={17} />
