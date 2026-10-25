@@ -87,7 +87,7 @@ export function RequestBuilder({ branches }: { branches: { id: string; name: str
     startSend(async () => {
       const res = await createPartReturns(items, note);
       if (res.error) setError(res.error);
-      else router.push("/admin/part-returns?status=open");
+      else router.push("/admin/warranty-room/part-returns?status=open");
     });
   };
 

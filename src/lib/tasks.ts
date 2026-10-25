@@ -213,7 +213,7 @@ export async function getTasks(supabase: Client, user: CurrentUser): Promise<Tas
         branchName: branchName.get(r.branch_id) ?? null,
         title: `Part return ${requestLabel(r.request_no)}`,
         detail: "Parts requested back - ship and enter the waybill",
-        href: isOfficer ? `/admin/part-returns/${r.id}` : `/audit/part-returns/${r.id}`,
+        href: isOfficer ? `/admin/warranty-room/part-returns/${r.id}` : `/audit/warranty-room/part-returns/${r.id}`,
         startedAt: r.created_at,
         dueAt: null,
       });
@@ -226,7 +226,7 @@ export async function getTasks(supabase: Client, user: CurrentUser): Promise<Tas
         branchName: branchName.get(r.branch_id) ?? null,
         title: `Receive part return ${requestLabel(r.request_no)}`,
         detail: "Dispatched by branch - add invoice, shipping company and waybill to the manufacturer",
-        href: `/admin/part-returns/${r.id}`,
+        href: `/admin/warranty-room/part-returns/${r.id}`,
         startedAt: r.branch_closed_at ?? r.created_at,
         dueAt: null,
       });
@@ -276,7 +276,7 @@ export async function getTasks(supabase: Client, user: CurrentUser): Promise<Tas
         branchName: null,
         title: "Deduct missing parts",
         detail: `${deductions.length} missing parts waiting for a deduction decision`,
-        href: "/admin/part-returns",
+        href: "/admin/warranty-room/part-returns",
         startedAt: oldest,
         dueAt: null,
       });

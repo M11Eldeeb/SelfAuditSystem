@@ -14,7 +14,6 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/audit-schedule", label: "Audit Schedule" },
   { href: "/audit/warranty-room", label: "Warranty Room" },
   { href: "/audit/technician-claims", label: "Technician Claims" },
-  { href: "/audit/part-returns", label: "Part Return" },
   { href: "/audit/rejected-claims", label: "Rejected Claims" },
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
   { href: "/audit/documents", label: "Warranty and Technical Documents" },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WarrantyRoomTabs } from "@/components/warranty-room-tabs";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
@@ -81,6 +82,7 @@ export default async function WarrantyRoomPage() {
 
   return (
     <div className="space-y-8">
+      <WarrantyRoomTabs area="admin" active="room" />
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">

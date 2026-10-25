@@ -70,7 +70,7 @@ export async function closeBranchPartReturn(
     .eq("status", "open");
   if (error) return { error: error.message };
 
-  revalidatePath("/audit/part-returns", "layout");
-  revalidatePath("/admin/part-returns", "layout");
+  revalidatePath("/audit/warranty-room/part-returns", "layout");
+  revalidatePath("/admin/warranty-room/part-returns", "layout");
   return {};
 }

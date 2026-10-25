@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_TONE, requestLabel, type PartReturn } from "@/lib/part-returns";
 import { DeductionButtons } from "./deduction-buttons";
 import { DeleteRequestButton } from "./delete-request-button";
+import { WarrantyRoomTabs } from "@/components/warranty-room-tabs";
 
 const TABS: { id: PartReturn["status"] | "all"; label: string }[] = [
   { id: "open", label: "Waiting for branch" },
@@ -56,13 +57,14 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
 
   return (
     <div className="space-y-6">
+      <WarrantyRoomTabs area="admin" active="returns" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Part Return</h1>
           <p className="text-sm text-neutral-600">Parts the manufacturer asked back: request from branches, track dispatch and forward to the manufacturer.</p>
         </div>
         <Link
-          href="/admin/part-returns/new"
+          href="/admin/warranty-room/part-returns/new"
           className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark"
         >
           + New request
@@ -76,7 +78,7 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
           return (
             <Link
               key={t.id}
-              href={`/admin/part-returns?status=${t.id}`}
+              href={`/admin/warranty-room/part-returns?status=${t.id}`}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${active ? "bg-brand text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
             >
               {t.label} <span className={active ? "text-white/80" : "text-neutral-400"}>({n})</span>
@@ -118,7 +120,7 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
                   <td className="px-4 py-2.5 text-neutral-600">{fmtDate(r.created_at)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{r.branch_waybill ?? "—"}</td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                    <Link href={`/admin/part-returns/${r.id}`} className="text-sm font-medium text-brand hover:underline">
+                    <Link href={`/admin/warranty-room/part-returns/${r.id}`} className="text-sm font-medium text-brand hover:underline">
                       {r.status === "dispatched" ? "Receive & close" : "Open"}
                     </Link>
                     <span className="mx-2 text-neutral-300">|</span>
@@ -148,7 +150,7 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
             </p>
           </div>
           <Link
-            href={`/admin/part-returns?status=${status}${showDeducted ? "" : "&deductions=all"}`}
+            href={`/admin/warranty-room/part-returns?status=${status}${showDeducted ? "" : "&deductions=all"}`}
             className="text-sm text-neutral-500 hover:text-neutral-800"
           >
             {showDeducted ? "Hide deducted" : "Show deducted too"}
@@ -183,7 +185,7 @@ export default async function AdminPartReturnsPage({ searchParams }: { searchPar
                       {req && (
                         <>
                           {branchName.get(req.branch_id)} ·{" "}
-                          <Link href={`/admin/part-returns/${d.request_id}`} className="text-brand hover:underline">
+                          <Link href={`/admin/warranty-room/part-returns/${d.request_id}`} className="text-brand hover:underline">
                             {requestLabel(req.request_no)}
                           </Link>
                         </>

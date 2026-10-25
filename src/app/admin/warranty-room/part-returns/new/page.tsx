@@ -11,7 +11,7 @@ export default async function NewPartReturnPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/part-returns" className="text-sm text-neutral-500 hover:text-neutral-800">
+        <Link href="/admin/warranty-room/part-returns" className="text-sm text-neutral-500 hover:text-neutral-800">
           ← Part Return
         </Link>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">New part return request</h1>

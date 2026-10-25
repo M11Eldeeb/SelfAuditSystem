@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { WarrantyRoomTabs } from "@/components/warranty-room-tabs";
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_TONE, requestLabel } from "@/lib/part-returns";
 
 export default async function BranchPartReturnsPage() {
@@ -21,7 +22,7 @@ export default async function BranchPartReturnsPage() {
     return (
       <Link
         key={r.id}
-        href={`/audit/part-returns/${r.id}`}
+        href={`/audit/warranty-room/part-returns/${r.id}`}
         className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-white px-4 py-3 shadow-sm transition hover:border-brand/40"
       >
         <div>
@@ -41,6 +42,7 @@ export default async function BranchPartReturnsPage() {
 
   return (
     <div className="space-y-6">
+      <WarrantyRoomTabs area="audit" active="returns" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Part Return</h1>
         <p className="text-sm text-neutral-600">Parts the warranty team needs back. Pack them, print the label, and enter the waybill.</p>

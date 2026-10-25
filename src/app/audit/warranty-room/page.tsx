@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { WarrantyRoomTabs } from "@/components/warranty-room-tabs";
 import { createClient } from "@/lib/supabase/server";
 import { getFirstSubmitDate, computeHoldingPeriodDays } from "@/lib/warranty-room/claim-dates";
 import { daysUntil } from "@/lib/cycle";
@@ -125,6 +126,7 @@ export default async function BranchWarrantyRoomPage() {
 
   return (
     <div className="space-y-8">
+      <WarrantyRoomTabs area="audit" active="room" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">Claims flagged to have their removed parts scrapped, or reserved for the manufacturer&apos;s supplier to collect.</p>

@@ -34,7 +34,7 @@ export default async function AdminPartReturnPage({ params }: { params: Promise<
   return (
     <div className="space-y-6">
       <div>
-        <Link href={`/admin/part-returns?status=${request.status}`} className="text-sm text-neutral-500 hover:text-neutral-800">
+        <Link href={`/admin/warranty-room/part-returns?status=${request.status}`} className="text-sm text-neutral-500 hover:text-neutral-800">
           ← Part Return
         </Link>
         <div className="flex flex-wrap items-center gap-3">

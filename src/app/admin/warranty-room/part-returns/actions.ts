@@ -156,7 +156,7 @@ export async function createPartReturns(items: NewItem[], note: string): Promise
     }
   }
 
-  revalidatePath("/admin/part-returns");
+  revalidatePath("/admin/warranty-room/part-returns");
   return { created: byBranch.size };
 }
 
@@ -173,7 +173,7 @@ export async function setDeduction(itemId: string, status: "none" | "pending" | 
     })
     .eq("id", itemId);
   if (error) return { error: error.message };
-  revalidatePath("/admin/part-returns", "layout");
+  revalidatePath("/admin/warranty-room/part-returns", "layout");
   return {};
 }
 
@@ -202,7 +202,7 @@ export async function closePartReturn(
     .eq("id", requestId)
     .eq("status", "dispatched");
   if (error) return { error: error.message };
-  revalidatePath("/admin/part-returns", "layout");
+  revalidatePath("/admin/warranty-room/part-returns", "layout");
   return {};
 }
 
@@ -216,6 +216,6 @@ export async function deletePartReturn(requestId: string): Promise<{ error?: str
   const { data, error } = await supabase.from("self_audit_part_returns").delete().eq("id", requestId).select("id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Request not found - it may already be deleted." };
-  revalidatePath("/admin/part-returns", "layout");
+  revalidatePath("/admin/warranty-room/part-returns", "layout");
   return {};
 }

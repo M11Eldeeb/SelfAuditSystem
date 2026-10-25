@@ -31,7 +31,7 @@ export function OfficerRequestActions({ requestId, status, itemIds }: { requestI
     startTransition(async () => {
       const res = await deletePartReturn(requestId);
       if (res.error) setError(res.error);
-      else router.push("/admin/part-returns");
+      else router.push("/admin/warranty-room/part-returns");
     });
   };
 
@@ -39,7 +39,7 @@ export function OfficerRequestActions({ requestId, status, itemIds }: { requestI
     <div className="space-y-3">
       <div className="flex flex-wrap gap-3">
         <a
-          href={`/admin/part-returns/${requestId}/print?items=${itemIds.join(",")}`}
+          href={`/admin/warranty-room/part-returns/${requestId}/print?items=${itemIds.join(",")}`}
           target="_blank"
           className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
         >

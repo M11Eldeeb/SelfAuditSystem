@@ -134,7 +134,7 @@ export function BranchRequestForm({ requestId, items, flags = {} }: { requestId:
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
         <a
-          href={printIds.length ? `/audit/part-returns/${requestId}/print?items=${printIds.join(",")}` : undefined}
+          href={printIds.length ? `/audit/warranty-room/part-returns/${requestId}/print?items=${printIds.join(",")}` : undefined}
           target="_blank"
           aria-disabled={!printIds.length}
           className={`rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium shadow-sm ${
