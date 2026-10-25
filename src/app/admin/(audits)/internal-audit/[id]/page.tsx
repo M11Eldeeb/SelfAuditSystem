@@ -27,7 +27,7 @@ export default async function InternalAuditClaimPage({
     supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single(),
     supabase
       .from("self_audit_internal_audit_claims")
-      .select("id, claim_id, sort_order")
+      .select("id, claim_id, sort_order, announced")
       .eq("internal_audit_id", auditId)
       .order("sort_order"),
   ]);
@@ -137,6 +137,11 @@ export default async function InternalAuditClaimPage({
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
           Claim {claim?.claim_number ?? current.claim_id}
+          {!current.announced && (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-900" title="Not in the list sent to the branch - ask for it at the visit">
+              Unannounced
+            </span>
+          )}
           {claim?.work_order_no && (
             <span className="ml-2 text-lg font-medium text-neutral-500">&middot; WO {claim.work_order_no}</span>
           )}

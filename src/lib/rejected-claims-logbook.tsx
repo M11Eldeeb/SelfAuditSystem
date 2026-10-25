@@ -321,7 +321,7 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
 function logbookDocument(s: Snapshot, folderUrl: string) {
   return h(
     Document,
-    { title: `Logbook Report - ${s.entry.work_order_no}`, author: "Warranty Management Portal", subject: "Rejected Claims From The Branch" },
+    { title: `Logbook Report - ${s.entry.work_order_no}`, author: "MG Warranty Management", subject: "Rejected Claims From The Branch" },
     reportPage(s, folderUrl, "en"),
     reportPage(s, folderUrl, "ar")
   );

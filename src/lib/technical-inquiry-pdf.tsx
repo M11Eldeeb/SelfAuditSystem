@@ -105,7 +105,7 @@ function caseDocument(s: Inquiry, folderUrl: string) {
 
   return h(
     Document,
-    { title: `Technical inquiry ${label}`, author: "Warranty Management Portal", subject: "Technical Inquiries" },
+    { title: `Technical inquiry ${label}`, author: "MG Warranty Management", subject: "Technical Inquiries" },
     h(
       Page,
       { size: "A4", style: { paddingTop: 26, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },

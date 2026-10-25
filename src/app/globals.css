@@ -587,3 +587,30 @@ html.is-scrolling * {
     animation: none;
   }
 }
+
+/* Docked sidebar (desktop, see nav-bar.tsx): the page makes room for it; <html data-sidebar="closed"> hides it. */
+@media (min-width: 1024px) {
+  :has(> .app-sidebar) {
+    padding-left: 16rem;
+    transition: padding-left 0.2s ease;
+  }
+  html[data-sidebar="closed"] :has(> .app-sidebar) {
+    padding-left: 0;
+  }
+  html[data-sidebar="closed"] .app-sidebar {
+    display: none;
+  }
+  html:not([data-sidebar="closed"]) .app-topbar-brand {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :has(> .app-sidebar) {
+    transition: none;
+  }
+}
+@media print {
+  :has(> .app-sidebar) {
+    padding-left: 0 !important;
+  }
+}

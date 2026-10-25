@@ -29,6 +29,8 @@ type SampleCriteria = {
   sampleSize: number;
   sampleMode: "flagged" | "random";
   maxPerPart: number | null;
+  /** Extra claims picked at random that the branch is not told about (asked for at the visit). */
+  unannouncedSize: number;
 };
 
 function readCriteria(formData: FormData): SampleCriteria {
@@ -39,12 +41,14 @@ function readCriteria(formData: FormData): SampleCriteria {
   const sampleMode = String(formData.get("sample_mode") ?? "random") === "flagged" ? "flagged" : "random";
   const maxPerPartRaw = Number(formData.get("max_per_part"));
   const maxPerPart = maxPerPartRaw > 0 ? maxPerPartRaw : null;
-  return { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart };
+  const unannouncedRaw = Number(formData.get("unannounced_size"));
+  const unannouncedSize = Number.isInteger(unannouncedRaw) && unannouncedRaw > 0 ? unannouncedRaw : 0;
+  return { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart, unannouncedSize };
 }
 
 async function sampleEligibleClaims(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart }: SampleCriteria
+  { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart, unannouncedSize }: SampleCriteria
 ) {
   let query = supabase.from("self_audit_claims").select("*").eq("has_parts", true);
   if (branchId) query = query.eq("branch_id", branchId);
@@ -73,12 +77,18 @@ async function sampleEligibleClaims(
     ordered = shuffle(eligible);
   }
 
-  return selectWithPartCap(ordered, sampleSize, maxPerPart);
+  const announced = selectWithPartCap(ordered, sampleSize, maxPerPart);
+  // Unannounced claims: always random, from the eligible claims not already in the announced sample.
+  const picked = new Set(announced.map((c) => c.id));
+  const unannounced: typeof announced = unannouncedSize ? shuffle(eligible.filter((c) => !picked.has(c.id))).slice(0, unannouncedSize) : [];
+  return { announced, unannounced };
 }
 
 export type InternalAuditPreviewClaim = Database["public"]["Tables"]["self_audit_claims"]["Row"] & {
   branch_name: string;
   flag_score: number | null;
+  /** false = unannounced: not in the list sent to the branch, asked for at the visit. */
+  announced: boolean;
 };
 
 export type PreviewInternalAuditSampleState =
@@ -94,6 +104,7 @@ export type PreviewInternalAuditSampleState =
       sampleSize?: number;
       sampleMode?: "flagged" | "random";
       maxPerPart?: number | null;
+      unannouncedSize?: number;
     }
   | undefined;
 
@@ -115,8 +126,10 @@ export async function previewInternalAuditSample(
     return { error: "Enter a sample size of at least 1." };
   }
 
-  const sample = await sampleEligibleClaims(supabase, criteria);
-  if (sample.length === 0) {
+  const { announced, unannounced } = await sampleEligibleClaims(supabase, criteria);
+  const hidden = new Set(unannounced.map((c) => c.id));
+  const sample = [...announced, ...unannounced];
+  if (announced.length === 0) {
     return { error: "No eligible claims match these filters (or every matching claim has already been audited)." };
   }
 
@@ -132,6 +145,7 @@ export async function previewInternalAuditSample(
       main_part_name: mainPartNames.get(claim.id) ?? claim.main_part_name,
       branch_name: branchNameById.get(claim.branch_id) ?? "Unknown branch",
       flag_score: _flag ?? null,
+      announced: !hidden.has(claim.id),
     };
   });
 
@@ -158,6 +172,7 @@ export async function previewInternalAuditSample(
     sampleSize: criteria.sampleSize,
     sampleMode: criteria.sampleMode,
     maxPerPart: criteria.maxPerPart,
+    unannouncedSize: criteria.unannouncedSize,
   };
 }
 
@@ -180,6 +195,7 @@ export async function startInternalAudit(
   const criteria = readCriteria(formData);
 
   const claimIds = formData.getAll("claim_id").map(String).filter(Boolean);
+  const unannouncedIds = new Set(formData.getAll("unannounced_id").map(String).filter(Boolean));
   if (claimIds.length === 0) {
     return { error: "Generate a sample first." };
   }
@@ -232,6 +248,7 @@ export async function startInternalAudit(
       internal_audit_id: audit.id,
       claim_id: claimId,
       sort_order: i,
+      announced: !unannouncedIds.has(claimId),
     }))
   );
   if (claimsError) {

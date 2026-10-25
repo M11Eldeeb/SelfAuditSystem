@@ -12,7 +12,7 @@ export async function sendTestEmail(): Promise<{ error?: string; sentTo?: string
     kind: "test",
     to: [officer.email],
     sentBy: officer.id,
-    subject: "Test e-mail from the Warranty Management Portal",
+    subject: "Test e-mail from MG Warranty Management",
     text: `Hello ${officer.full_name ?? ""},\n\nThis is a test message. If you can read it, the portal can send e-mail as ${status.accountEmail}.\n\nWarranty Department`.replace("Hello ,", "Hello,"),
     html: `<p>Hello${officer.full_name ? " " + officer.full_name : ""},</p><p>This is a test message. If you can read it, the portal can send e-mail as <strong>${status.accountEmail}</strong>.</p><p>Warranty Department</p>`,
   });

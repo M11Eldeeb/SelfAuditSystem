@@ -18,7 +18,8 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
   const { data: audit } = await admin.from("self_audit_internal_audits").select("id, branch_id, audit_date").eq("id", auditId).maybeSingle();
   if (!audit?.branch_id) return null;
 
-  const { data: internalClaims } = await admin.from("self_audit_internal_audit_claims").select("claim_id, sort_order").eq("internal_audit_id", auditId).order("sort_order");
+  // Announced claims only: the unannounced ones are asked for at the visit.
+  const { data: internalClaims } = await admin.from("self_audit_internal_audit_claims").select("claim_id, sort_order").eq("internal_audit_id", auditId).eq("announced", true).order("sort_order");
   const claimIds = (internalClaims ?? []).map((c) => c.claim_id);
   const [{ data: claims }, people, templates, { data: branch }] = await Promise.all([
     claimIds.length ? admin.from("self_audit_claims").select("id, claim_number, work_order_no, vin, main_part_name, creation_date, repair_end_date").in("id", claimIds) : Promise.resolve({ data: [] }),

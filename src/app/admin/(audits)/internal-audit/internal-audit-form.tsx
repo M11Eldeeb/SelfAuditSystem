@@ -117,6 +117,19 @@ export function InternalAuditForm({
             />
           </div>
           <div className="space-y-1">
+            <label htmlFor="unannounced_size" className="text-xs font-medium text-neutral-700" title="Picked at random and not sent to the branch - you ask for them at the visit. Scored the same.">
+              Unannounced claims
+            </label>
+            <input
+              id="unannounced_size"
+              name="unannounced_size"
+              type="number"
+              min={0}
+              defaultValue={0}
+              className="w-24 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm text-neutral-900"
+            />
+          </div>
+          <div className="space-y-1">
             <label htmlFor="sample_mode" className="text-xs font-medium text-neutral-700">
               Sample mode
             </label>
@@ -152,7 +165,9 @@ export function InternalAuditForm({
           </button>
         </div>
         <p className="text-xs text-neutral-500">
-          Caps how many sampled claims can share the same repair (grouped by labor code) so the sample
+          Sample size = the claims announced to the branch (their list is sent). Unannounced claims are extra claims
+          picked at random that the branch is not told about - ask for them at the visit; they are scored the same.
+          Max per labor code caps how many sampled claims can share the same repair (grouped by labor code) so the sample
           isn&apos;t dominated by one repair type. Claims already covered by self-audit or a past
           internal audit are automatically excluded. Review the sample below before starting the audit.
         </p>
@@ -174,6 +189,7 @@ export function InternalAuditForm({
           sampleSize={previewState?.sampleSize ?? claims.length}
           sampleMode={previewState?.sampleMode ?? "random"}
           maxPerPart={previewState?.maxPerPart ?? null}
+          unannouncedSize={previewState?.unannouncedSize ?? 0}
           officerName={officerName}
           defaultAuditDate={defaultAuditDate}
         />
@@ -193,6 +209,7 @@ function SamplePreviewPanel({
   sampleSize,
   sampleMode,
   maxPerPart,
+  unannouncedSize,
   officerName,
   defaultAuditDate,
 }: {
@@ -206,9 +223,12 @@ function SamplePreviewPanel({
   sampleSize: number;
   sampleMode: "flagged" | "random";
   maxPerPart: number | null;
+  unannouncedSize: number;
   officerName: string;
   defaultAuditDate: string;
 }) {
+  const announced = claims.filter((c) => c.announced);
+  const unannounced = claims.filter((c) => !c.announced);
   const [startState, startAction, startPending] = useActionState(startInternalAudit, undefined);
   const [auditName, setAuditName] = useState(() => defaultAuditName(branchCode, branchLabel));
   const [auditorName, setAuditorName] = useState(officerName);
@@ -221,7 +241,8 @@ function SamplePreviewPanel({
     if (!branchAdminEmail) return;
     setMailState({ sending: true });
     try {
-      const bytes = new Uint8Array(await buildSampleWorkbook(claims));
+      // The branch only gets the announced claims.
+      const bytes = new Uint8Array(await buildSampleWorkbook(announced));
       let bin = "";
       for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
       const mail = buildAuditEmail({ branchAdminEmail, branchLabel, auditDate, auditorName });
@@ -244,16 +265,31 @@ function SamplePreviewPanel({
     <div className="space-y-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-neutral-900">
-          Proposed sample - {claims.length} claim{claims.length === 1 ? "" : "s"} ({branchLabel})
+          Proposed sample - {announced.length} announced
+          {unannounced.length > 0 && <span className="text-amber-700"> + {unannounced.length} unannounced</span>} ({branchLabel})
         </h3>
-        <button
-          type="button"
-          onClick={() => generateSamplePreviewExcel(claims)}
-          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-        >
-          Download as Excel
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => generateSamplePreviewExcel(announced)}
+            className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+          >
+            {unannounced.length ? "Excel - announced (for the branch)" : "Download as Excel"}
+          </button>
+          {unannounced.length > 0 && (
+            <button
+              type="button"
+              onClick={() => generateSamplePreviewExcel(unannounced, `Internal_Audit_UNANNOUNCED_${new Date().toISOString().slice(0, 10)}.xlsx`)}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm transition hover:bg-amber-100"
+            >
+              Excel - unannounced (keep it to yourself)
+            </button>
+          )}
+        </div>
       </div>
+      {unannouncedSize > unannounced.length && (
+        <p className="text-xs text-amber-800">Only {unannounced.length} more eligible claims were left for the unannounced part (you asked for {unannouncedSize}).</p>
+      )}
 
       <div className="overflow-x-auto rounded-md border border-neutral-200 bg-white">
         <table className="w-full text-xs">
@@ -266,11 +302,12 @@ function SamplePreviewPanel({
               <th className="px-3 py-2">Submit date</th>
               <th className="px-3 py-2">Main part name</th>
               {showFlag && <th className="px-3 py-2">Risk</th>}
+              {unannounced.length > 0 && <th className="px-3 py-2">Branch told</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {claims.map((c) => (
-              <tr key={c.id}>
+            {[...announced, ...unannounced].map((c) => (
+              <tr key={c.id} className={c.announced ? undefined : "bg-amber-50/60"}>
                 <td className="px-3 py-1.5 text-neutral-900">{c.claim_number}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.work_order_no ?? "—"}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.vin ?? "—"}</td>
@@ -278,6 +315,15 @@ function SamplePreviewPanel({
                 <td className="px-3 py-1.5 text-neutral-600">{c.dealer_submit_date ?? "—"}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.main_part_name ?? "—"}</td>
                 {showFlag && <td className="px-3 py-1.5 text-neutral-600">{c.flag_score ?? "—"}</td>}
+                {unannounced.length > 0 && (
+                  <td className="px-3 py-1.5">
+                    {c.announced ? (
+                      <span className="text-neutral-500">Announced</span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">Unannounced</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -349,7 +395,10 @@ function SamplePreviewPanel({
         ) : mailState.error ? (
           <p className="text-xs text-red-600">{mailState.error}</p>
         ) : (
-          <p className="text-xs text-neutral-500">Sends the notice straight to the branch admin from the warranty mailbox, with the sample Excel attached.</p>
+          <p className="text-xs text-neutral-500">
+            Sends the notice straight to the branch admin from the warranty mailbox, with the Excel of the {announced.length} announced claims attached
+            {unannounced.length > 0 && " - the unannounced claims are not in it"}.
+          </p>
         )}
       </div>
 
@@ -360,12 +409,16 @@ function SamplePreviewPanel({
         <input type="hidden" name="sample_size" value={sampleSize} />
         <input type="hidden" name="sample_mode" value={sampleMode} />
         <input type="hidden" name="max_per_part" value={maxPerPart ?? ""} />
+        <input type="hidden" name="unannounced_size" value={unannouncedSize} />
         <input type="hidden" name="name" value={auditName} />
         <input type="hidden" name="auditor_name" value={auditorName} />
         <input type="hidden" name="manager_name" value={managerName} />
         <input type="hidden" name="audit_date" value={auditDate} />
-        {claims.map((c) => (
+        {[...announced, ...unannounced].map((c) => (
           <input key={c.id} type="hidden" name="claim_id" value={c.id} />
+        ))}
+        {unannounced.map((c) => (
+          <input key={`u${c.id}`} type="hidden" name="unannounced_id" value={c.id} />
         ))}
         <button
           type="submit"

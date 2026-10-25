@@ -1330,12 +1330,14 @@ export interface Database {
           internal_audit_id: string;
           claim_id: string;
           sort_order: number;
+          announced: boolean;
         };
         Insert: {
           id?: string;
           internal_audit_id: string;
           claim_id: string;
           sort_order?: number;
+          announced?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_claims"]["Insert"]>;
         Relationships: [];
