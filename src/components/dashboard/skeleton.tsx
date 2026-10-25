@@ -3,7 +3,7 @@
 export function DashboardSkeleton() {
   const block = "animate-pulse rounded-xl bg-white ring-1 ring-[#dce9ff]/60";
   return (
-    <div className="relative left-1/2 grid w-[min(96rem,calc(100vw-2rem))] -translate-x-1/2 grid-cols-1 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="relative left-1/2 grid w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 grid-cols-1 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <div className={`${block} h-72`} />
       <div className="space-y-5">
         <div className={`${block} h-36`} />

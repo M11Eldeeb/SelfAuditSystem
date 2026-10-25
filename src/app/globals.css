@@ -589,8 +589,13 @@ html.is-scrolling * {
   }
 }
 
-/* Docked sidebar (desktop, see nav-bar.tsx): the page makes room for it; <html data-sidebar="closed"> hides it. */
-@media (min-width: 1024px) {
+/* Docked sidebar (wide screens, see nav-bar.tsx): the page makes room for it; <html data-sidebar="closed"> hides it.
+   Below 1280 px it is not docked (the menu slides in instead) so the content keeps its width. --sidebar-w lets
+   full-width blocks (the dashboards) subtract it. */
+@media (min-width: 1280px) {
+  html:not([data-sidebar="closed"]):has(.app-sidebar) {
+    --sidebar-w: 16rem;
+  }
   :has(> .app-sidebar) {
     padding-left: 16rem;
     transition: padding-left 0.2s ease;

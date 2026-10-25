@@ -55,7 +55,7 @@ export default async function AdminDashboardPage({
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
   return (
-    <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-2rem))] -translate-x-1/2`}>
+    <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
         tab={parseTab(params.tab, true)}

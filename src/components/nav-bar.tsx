@@ -38,7 +38,7 @@ type NavNotifications = {
  * The <html data-sidebar="closed"> attribute drives the layout (globals.css) and is set before first paint by
  * SIDEBAR_INIT_SCRIPT (root layout), so the page never jumps.
  */
-const DESKTOP = "(min-width: 1024px)";
+const DESKTOP = "(min-width: 1280px)"; // keep in sync with globals.css (docked sidebar)
 
 // Longest matching href wins, so a parent index route (e.g. "/admin") does
 // not stay highlighted once you're on a more specific nested route (e.g.
@@ -162,7 +162,7 @@ export function NavBar({
   return (
     <>
       {/* Docked sidebar (desktop). Hidden with the top bar's sidebar button or its own. */}
-      <aside aria-label="Main menu" className="app-sidebar chrome-dark fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/10 bg-linear-to-b from-brand-ink-soft to-brand-ink print:hidden lg:flex">
+      <aside aria-label="Main menu" className="app-sidebar chrome-dark fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/10 bg-linear-to-b from-brand-ink-soft to-brand-ink print:hidden xl:flex">
         <div className="h-[3px] bg-linear-to-r from-brand via-brand-light to-brand" />
         <div className="flex items-center justify-between gap-2 px-4 py-3.5">
           <Link href="/" className="flex min-w-0 items-center gap-2.5">
@@ -205,12 +205,12 @@ export function NavBar({
               title="Show / hide menu"
               className="app-menu-toggle flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
-              <span className="lg:hidden">
+              <span className="xl:hidden">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                 </svg>
               </span>
-              <span className="hidden lg:block">
+              <span className="hidden xl:block">
                 <SidebarIcon />
               </span>
             </button>
@@ -251,7 +251,7 @@ export function NavBar({
       {/* Phone / tablet drawer: always mounted so it can animate both in and out; inert while closed keeps it out of tab
           order and from assistive tech. It sits outside <header> on purpose: the header's backdrop-filter would
           otherwise become the containing block of this fixed overlay and shrink it to the bar. */}
-      <div className={`chrome-dark fixed inset-0 z-40 lg:hidden print:hidden ${open ? "" : "pointer-events-none"}`} inert={!open}>
+      <div className={`chrome-dark fixed inset-0 z-40 xl:hidden print:hidden ${open ? "" : "pointer-events-none"}`} inert={!open}>
         <button
           type="button"
           tabIndex={-1}
