@@ -80,7 +80,7 @@ export function SettingsMenu({ links }: { links: { href: string; label: string }
         aria-expanded={open}
         aria-haspopup="menu"
         className={`flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-          open ? "bg-neutral-900/[0.07] text-neutral-900" : "text-neutral-600 hover:bg-neutral-900/[0.05] hover:text-neutral-900"
+          open ? "bg-[var(--surface)] text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
         }`}
       >
         <svg

@@ -225,9 +225,11 @@ export function NavBar({
         <div className="border-t border-neutral-900/[0.06] p-1.5">{account}</div>
       </aside>
 
-      <header className="app-glass sticky top-0 z-20 border-b border-neutral-900/[0.06] print:hidden">
-        <div className="flex h-[52px] items-center justify-between gap-3 px-4">
-          <div className="flex min-w-0 items-center gap-2.5">
+      {/* Top bar: a floating glass toolbar lined up with the sidebar panel - the page title on the left, the account
+          controls grouped in one capsule on the right (Apple toolbars: few items, grouped, quiet). */}
+      <header className="sticky top-0 z-20 px-2 pt-2 print:hidden">
+        <div className="app-glass flex h-[52px] items-center justify-between gap-3 rounded-2xl pr-1.5 pl-2 shadow-[0_6px_24px_-12px_rgba(0,0,0,0.14)] ring-1 ring-neutral-900/[0.06]">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={toggleMenu}
@@ -235,7 +237,7 @@ export function NavBar({
               aria-expanded={open}
               aria-controls="app-drawer"
               title="Show / hide menu"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900"
             >
               <span className="xl:hidden">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -247,15 +249,15 @@ export function NavBar({
               </span>
             </button>
             {/* The brand shows here only while the sidebar (which carries it) is not on screen. */}
-            <span className="app-topbar-brand flex min-w-0 items-center">{brand}</span>
+            <span className="app-topbar-brand flex min-w-0 items-center pr-1">{brand}</span>
             {activeLabel && (
-              <span className="hidden min-w-0 items-center gap-2.5 truncate text-[15px] font-semibold text-neutral-900 sm:flex">
-                <span className="app-topbar-brand h-4 w-px bg-neutral-300" aria-hidden="true" />
-                {activeLabel}
+              <span className="hidden min-w-0 items-center gap-3 sm:flex">
+                <span className="app-topbar-brand h-5 w-px shrink-0 bg-neutral-900/10" aria-hidden="true" />
+                <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em] text-neutral-900">{activeLabel}</h2>
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-neutral-900/[0.04] p-0.5">
             {notifications && (
               <NotificationBell
                 initial={notifications}
@@ -265,9 +267,18 @@ export function NavBar({
               />
             )}
             <SettingsMenu links={settingsLinksFor(user)} />
+            <span className="mx-0.5 h-5 w-px bg-neutral-900/10" aria-hidden="true" />
             <form action={logout}>
-              <button type="submit" className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium whitespace-nowrap text-neutral-600 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900">
-                Sign out
+              <button
+                type="submit"
+                aria-label="Sign out"
+                title="Sign out"
+                className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium whitespace-nowrap text-neutral-600 transition hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14.5 4.5h3a1.5 1.5 0 011.5 1.5v12a1.5 1.5 0 01-1.5 1.5h-3M10 16.5L14.5 12 10 7.5M14.5 12H4.5" />
+                </svg>
+                <span className="hidden md:inline">Sign out</span>
               </button>
             </form>
           </div>

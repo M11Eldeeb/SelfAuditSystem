@@ -207,7 +207,7 @@ export function KpiDashboard({
       </header>
 
       {/* Sections: a segmented control that stays on screen while scrolling. */}
-      <nav aria-label="Dashboard sections" className="sticky top-[60px] z-10 -mx-1 px-1 py-1">
+      <nav aria-label="Dashboard sections" className="sticky top-[68px] z-10 -mx-1 px-1 py-1">
         <div className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl backdrop-saturate-150">
           {tabs.map((x) => {
             const active = x.id === tab;

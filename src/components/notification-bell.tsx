@@ -197,7 +197,7 @@ export function NotificationBell({
         aria-expanded={open}
         aria-haspopup="menu"
         className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-          open ? "bg-neutral-900/[0.07] text-neutral-900" : "text-neutral-600 hover:bg-neutral-900/[0.05] hover:text-neutral-900"
+          open ? "bg-[var(--surface)] text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
         }`}
       >
         <svg key={rings} width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className={rings > 0 ? "bell-ring" : undefined}>
@@ -212,7 +212,7 @@ export function NotificationBell({
         {data.count > 0 && (
           <span
             key={data.count}
-            className="badge-pop absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] leading-none font-bold text-white ring-2 ring-brand-ink"
+            className="badge-pop absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[11px] leading-none font-semibold text-white ring-2 ring-[var(--surface)]"
           >
             {label}
           </span>
