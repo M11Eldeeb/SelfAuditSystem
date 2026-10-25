@@ -53,7 +53,7 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
           <div key={p.month} className="rounded-lg bg-[#f5f5f5] p-3" {...bind(<TipCard title={`${monthShort(p.month)} (forecast)`} rows={[{ label: "Expected", value: fmtMoney(p.gross), strong: true }, { label: "Likely range", value: `${fmtMoney(p.low)} – ${fmtMoney(p.high)}` }, { label: "vs previous month", value: pct(p.gross, prevOf(k)) }, { label: "vs 12-mo average", value: pct(p.gross, avg12) }]} />)}>
             <Label>Month {k + 1} · {monthShort(p.month)}</Label>
             <div className="font-display text-xl font-bold text-[#2d2d2d]">{fmtMoney(p.gross)}</div>
-            <div className="text-[11px] text-[#575e70]">
+            <div className="text-[11px] text-[#6e6e73]">
               range {fmtCompact(p.low)} – {fmtCompact(p.high)} · {pct(p.gross, prevOf(k))} vs {k === 0 ? "last settled" : "prev. month"}
             </div>
           </div>
@@ -120,7 +120,7 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
           </g>
         ))}
       </svg>
-      <div className="mt-2 flex flex-wrap gap-4 text-xs text-[#575e70]">
+      <div className="mt-2 flex flex-wrap gap-4 text-xs text-[#6e6e73]">
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 bg-[#c4121a]" /> Settled (actual)
         </span>
@@ -136,5 +136,5 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
 }
 
 export function ForecastSkeleton() {
-  return <div className="h-80 animate-pulse rounded-xl bg-white ring-1 ring-[#dce9ff]/60" />;
+  return <div className="h-80 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5ea]/60" />;
 }

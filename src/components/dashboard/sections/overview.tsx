@@ -66,7 +66,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           <div className="flex items-start justify-between gap-2">
             <div>
               <Label>Claims in period</Label>
-              <div className="font-display text-base font-semibold text-[#0b1c30]">Total claim amount</div>
+              <div className="font-display text-base font-semibold text-[#1d1d1f]">Total claim amount</div>
             </div>
             <IconBadge>
               <Icon.check />
@@ -74,17 +74,17 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           </div>
           <div>
             <Metric value={fmtMoney(t.totalClaimAmount)} unit={cur} />
-            <div className="text-xs text-[#575e70]">
-              <strong className="text-[#0b1c30]">{fmtInt(t.claimCount)}</strong> claims · {fmtInt(t.wipCount)} job cards ·{" "}
+            <div className="text-xs text-[#6e6e73]">
+              <strong className="text-[#1d1d1f]">{fmtInt(t.claimCount)}</strong> claims · {fmtInt(t.wipCount)} job cards ·{" "}
               {fmtNum(t.claimsPerWip, 2)} claims per WIP
             </div>
           </div>
-          <div className="space-y-1 border-t border-[#e5eeff] pt-2">
+          <div className="space-y-1 border-t border-[#ececf0] pt-2">
             <div className="flex justify-between text-[11px]">
-              <span className="text-[#575e70]">Avg daily claims (Sat–Wed full, Thu half)</span>
+              <span className="text-[#6e6e73]">Avg daily claims (Sat–Wed full, Thu half)</span>
               <span className="font-bold text-[#9a000d]">{fmtNum(t.avgDailyClaims)} / day</span>
             </div>
-            <div className="flex justify-between text-[11px] text-[#575e70]">
+            <div className="flex justify-between text-[11px] text-[#6e6e73]">
               <span>{fmtNum(t.workingDays, 1)} working days</span>
               <span>Avg claim value {fmtMoney(t.avgClaimValue ?? 0)}</span>
             </div>
@@ -94,7 +94,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
         <Card className="flex flex-col justify-between gap-3 xl:col-span-3" accent={C.green}>
           <div>
             <Label>Quality acceptance</Label>
-            <div className="font-display text-base font-semibold text-[#0b1c30]">Warranty claim top box</div>
+            <div className="font-display text-base font-semibold text-[#1d1d1f]">Warranty claim top box</div>
           </div>
           <div className="flex items-center gap-3">
             <Ring
@@ -105,7 +105,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
             />
             <div className="min-w-0 flex-1 space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-[#575e70]">Accepted 1st time</span>
+                <span className="text-[#6e6e73]">Accepted 1st time</span>
                 <span className="font-bold">{fmtInt(t.acceptedFirstTime)}</span>
               </div>
               <StackedBar
@@ -116,7 +116,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                   { label: "Returned", value: returned, color: C.red },
                 ]}
               />
-              <div className="flex justify-between text-[11px] text-[#575e70]">
+              <div className="flex justify-between text-[11px] text-[#6e6e73]">
                 <span>Returned: {fmtInt(returned)}</span>
                 <span>of {fmtInt(t.submittedCount)} submitted</span>
               </div>
@@ -128,7 +128,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           <div className="flex items-start justify-between gap-2">
             <div>
               <Label>Audit reconciliation</Label>
-              <div className="font-display text-base font-semibold text-[#0b1c30]">Detected amount</div>
+              <div className="font-display text-base font-semibold text-[#1d1d1f]">Detected amount</div>
             </div>
             <IconBadge tone="blue">
               <Icon.money />
@@ -136,7 +136,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           </div>
           <div>
             <Metric value={fmtMoney(t.detectedAmount)} unit={cur} tone={t.detectedAmount < 0 ? "red" : undefined} />
-            <div className="text-[11px] text-[#575e70]">Adjusted claim TOL. − Claim TOL. · {fmtInt(t.adjustedClaimCount)} claims adjusted</div>
+            <div className="text-[11px] text-[#6e6e73]">Adjusted claim TOL. − Claim TOL. · {fmtInt(t.adjustedClaimCount)} claims adjusted</div>
           </div>
           <StackedBar
             height="h-2"
@@ -204,7 +204,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                   }
                 >
                   <Pill tone={diff >= 0 ? "good" : "warn"}>{fmtNum(avg)}</Pill>
-                  <div className="relative flex h-full w-full items-end overflow-hidden rounded-t-lg bg-[#eff4ff] p-1">
+                  <div className="relative flex h-full w-full items-end overflow-hidden rounded-t-lg bg-[#f5f5f7] p-1">
                     <div
                       className="w-full rounded transition-[filter] group-hover:brightness-110"
                       style={{
@@ -213,30 +213,30 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                       }}
                     />
                   </div>
-                  <span className={`text-xs font-bold ${thu ? "text-[#9a000d]" : "text-[#0b1c30]"}`}>{d.label.toUpperCase()}</span>
+                  <span className={`text-xs font-bold ${thu ? "text-[#9a000d]" : "text-[#1d1d1f]"}`}>{d.label.toUpperCase()}</span>
                 </Hover>
               );
             })}
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#eff4ff] px-3 py-2 text-xs text-[#0b1c30]">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-2 text-xs text-[#1d1d1f]">
             <span>
               Full-day average: <strong>{fmtNum(fullDayAvg)}</strong> claims · Weighted average: <strong>{fmtNum(t.avgDailyClaims)}</strong> per working day
             </span>
-            <span className="text-[#575e70]">Green = at or above the full-day (or half-day) average</span>
+            <span className="text-[#6e6e73]">Green = at or above the full-day (or half-day) average</span>
           </div>
         </Panel>
 
         <Panel className="lg:col-span-5" title="Cycle times" subtitle="Average days per stage in this period" action={<IconBadge tone="blue"><Icon.timer /></IconBadge>}>
           <div className="space-y-2.5">
             {cycleRows.map((r) => (
-              <div key={r.label} className="space-y-1.5 rounded-lg bg-[#eff4ff] p-2.5">
+              <div key={r.label} className="space-y-1.5 rounded-lg bg-[#f5f5f7] p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#0b1c30]">{r.label}</div>
-                    <div className="truncate text-[11px] text-[#575e70]">{r.formula}</div>
+                    <div className="text-xs font-semibold text-[#1d1d1f]">{r.label}</div>
+                    <div className="truncate text-[11px] text-[#6e6e73]">{r.formula}</div>
                   </div>
-                  <div className="font-display text-lg leading-none font-semibold whitespace-nowrap text-[#0b1c30]">
-                    {fmtDays(r.v)} <span className="text-[11px] font-medium text-[#575e70]">days</span>
+                  <div className="font-display text-lg leading-none font-semibold whitespace-nowrap text-[#1d1d1f]">
+                    {fmtDays(r.v)} <span className="text-[11px] font-medium text-[#6e6e73]">days</span>
                   </div>
                 </div>
                 <Meter pct={((r.v ?? 0) / cycleMax) * 100} color={r.color} tip={<TipCard title={r.label} rows={[{ label: "Average", value: `${fmtDays(r.v)} days`, strong: true }]} note={r.formula} />} />
@@ -266,7 +266,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
         >
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
                 <tr>
                   <th className="px-3 py-2.5">Branch</th>
                   <th className="px-3 py-2.5">Self audit</th>
@@ -274,13 +274,13 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                   <th className="px-3 py-2.5">Scrap evidence</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e5eeff]">
+              <tbody className="divide-y divide-[#ececf0]">
                 {data.pending.map((p) => {
                   const sa = p.selfAudit;
                   const done = sa ? sa.total - sa.pending : 0;
                   return (
-                    <tr key={p.branchId} className="hover:bg-[#eff4ff]/50">
-                      <td className="px-3 py-2.5 font-semibold text-[#0b1c30]">{p.name}</td>
+                    <tr key={p.branchId} className="hover:bg-[#f5f5f7]/50">
+                      <td className="px-3 py-2.5 font-semibold text-[#1d1d1f]">{p.name}</td>
                       <td className="px-3 py-2.5">
                         {sa ? (
                           sa.pending === 0 ? (
@@ -293,7 +293,7 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                                 {sa.pending} of {sa.total} pending · {isOfficer ? "Review" : "Complete"} →
                               </Pill>
                               {sa.deadline && (
-                                <div className="text-[11px] text-[#575e70]">
+                                <div className="text-[11px] text-[#6e6e73]">
                                   {sa.cycleLabel} · due{" "}
                                   {new Date(sa.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Riyadh" })}
                                 </div>
@@ -309,12 +309,12 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
                           <div className="w-32 space-y-1">
                             <div className="flex justify-between text-[11px] font-semibold">
                               <span>{done}/{sa.total}</span>
-                              <span className="text-[#575e70]">{Math.round((done / sa.total) * 100)}%</span>
+                              <span className="text-[#6e6e73]">{Math.round((done / sa.total) * 100)}%</span>
                             </div>
                             <Meter pct={(done / sa.total) * 100} color={sa.pending ? C.amber : C.green} />
                           </div>
                         ) : (
-                          <span className="text-[#c0c6db]">—</span>
+                          <span className="text-[#c7c7cc]">—</span>
                         )}
                       </td>
                       <td className="px-3 py-2.5">
@@ -345,20 +345,20 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
             <div className="flex items-start justify-between">
               <div>
                 <Label>Parts in custody</Label>
-                <div className="font-display text-base font-semibold text-[#0b1c30]">Warranty room tally</div>
+                <div className="font-display text-base font-semibold text-[#1d1d1f]">Warranty room tally</div>
               </div>
               <IconBadge>
                 <Icon.box />
               </IconBadge>
             </div>
-            <div className="my-3 flex items-center gap-3 rounded-lg bg-[#eff4ff] p-3">
+            <div className="my-3 flex items-center gap-3 rounded-lg bg-[#f5f5f7] p-3">
               <Metric value={fmtInt(data.warrantyRoom.parts)} unit="parts held" />
             </div>
             <StackedBar
               height="h-2"
               segments={data.warrantyRoom.aging.map((b, i) => ({ label: b.label, value: b.count, color: [C.green, C.amber, C.red][i] }))}
             />
-            <div className="mt-2 border-t border-[#e5eeff] pt-2 text-[11px] text-[#575e70]">
+            <div className="mt-2 border-t border-[#ececf0] pt-2 text-[11px] text-[#6e6e73]">
               Do-not-scrap parts, by days into the 90-day holding period · {fmtInt(t.flaggedToScrap)} claims flagged to scrap
             </div>
           </Card>
@@ -366,14 +366,14 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           <Panel title="Top repaired models" subtitle={`Share of ${fmtInt(t.claimCount)} claims`} className="flex-1">
             <div className="space-y-2">
               {topModels.map((m, i) => (
-                <div key={m.label} className="space-y-1 rounded-lg bg-[#eff4ff] p-2">
+                <div key={m.label} className="space-y-1 rounded-lg bg-[#f5f5f7] p-2">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="flex items-center gap-2">
-                      <span className={`flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold ${i === 0 ? "bg-[#9a000d] text-white" : "bg-[#dce9ff]"}`}>
+                      <span className={`flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold ${i === 0 ? "bg-[#9a000d] text-white" : "bg-[#e5e5ea]"}`}>
                         {String(i + 1).padStart(2, "0")}
                       </span>
-                      <span className="font-bold text-[#0b1c30]">{m.label}</span>
-                      <span className="text-[#575e70]">{fmtInt(m.count)} claims</span>
+                      <span className="font-bold text-[#1d1d1f]">{m.label}</span>
+                      <span className="text-[#6e6e73]">{fmtInt(m.count)} claims</span>
                     </span>
                     <span className="font-bold text-[#9a000d]">{((m.count / modelTotal) * 100).toFixed(1)}%</span>
                   </div>

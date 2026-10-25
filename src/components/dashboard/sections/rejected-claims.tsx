@@ -31,8 +31,8 @@ function Ranked({ title, rows, onPick, limit = 8 }: { title: string; rows: Group
           {shown.map((g) => (
             <button key={g.key} type="button" onClick={() => onPick(g)} className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-[#f5f5f5]" title="Click to see the entries">
               <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate font-medium text-[#0b1c30]">{g.key}</span>
-                <span className="shrink-0 text-xs font-bold text-[#0b1c30]">{fmtInt(g.count)}</span>
+                <span className="min-w-0 truncate font-medium text-[#1d1d1f]">{g.key}</span>
+                <span className="shrink-0 text-xs font-bold text-[#1d1d1f]">{fmtInt(g.count)}</span>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#ececec]">
                 <div className="h-full rounded-full" style={{ width: `${(g.count / max) * 100}%`, backgroundColor: C.red }} />
@@ -40,7 +40,7 @@ function Ranked({ title, rows, onPick, limit = 8 }: { title: string; rows: Group
             </button>
           ))}
           {rows.length > limit && (
-            <button type="button" onClick={() => setAll((v) => !v)} className="mt-1 text-xs font-medium text-[#575e70] underline">
+            <button type="button" onClick={() => setAll((v) => !v)} className="mt-1 text-xs font-medium text-[#6e6e73] underline">
               {all ? "Show fewer" : `Show all ${rows.length}`}
             </button>
           )}
@@ -83,20 +83,20 @@ export function RejectedClaimsPanel({ rejected, from, to, diaryPath, showBranche
             <Card accent={C.red} className="h-full hover:shadow-md">
               <Label>Rejected claims</Label>
               <Metric value={fmtInt(period.length)} unit="in the period" tone="red" />
-              <div className="text-xs text-[#575e70]">{avg ? `avg ${avg.toFixed(1)} / month over the last year` : "no earlier months"}</div>
+              <div className="text-xs text-[#6e6e73]">{avg ? `avg ${avg.toFixed(1)} / month over the last year` : "no earlier months"}</div>
             </Card>
           </button>
           <button type="button" onClick={() => open("Repeated rejections (same work order rejected before)", (r) => r.repeat)} className="text-left">
             <Card accent={C.blue} className="h-full hover:shadow-md">
               <Label>Repeated work orders</Label>
               <Metric value={fmtInt(repeats)} unit={period.length ? `${((repeats / period.length) * 100).toFixed(0)}%` : ""} />
-              <div className="text-xs text-[#575e70]">rejected again after an earlier entry</div>
+              <div className="text-xs text-[#6e6e73]">rejected again after an earlier entry</div>
             </Card>
           </button>
           <Card accent={C.slate} className="h-full">
             <Label>{showBranches ? "Branches affected" : "Service advisors involved"}</Label>
             <Metric value={fmtInt(showBranches ? branches.length : advisors.length)} />
-            <div className="text-xs text-[#575e70]">{showBranches && branches[0] ? `most: ${branches[0].key} (${branches[0].count})` : advisors[0] ? `most: ${advisors[0].key} (${advisors[0].count})` : "—"}</div>
+            <div className="text-xs text-[#6e6e73]">{showBranches && branches[0] ? `most: ${branches[0].key} (${branches[0].count})` : advisors[0] ? `most: ${advisors[0].key} (${advisors[0].count})` : "—"}</div>
           </Card>
         </div>
 
@@ -104,8 +104,8 @@ export function RejectedClaimsPanel({ rejected, from, to, diaryPath, showBranche
           <LineChart series={[{ name: "Rejected claims", color: C.red, points: trend }]} yMax={Math.max(4, ...trend.map((t) => t.value)) * 1.15} unit="" />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {trend.map((t) => (
-              <button key={t.month} type="button" onClick={() => setPick({ title: `Rejected in ${t.month}`, rows: all.filter((r) => monthOf(r.date) === t.month) })} className="rounded-md bg-[#f5f5f5] px-2 py-0.5 text-[11px] text-[#575e70] hover:bg-[#ececec]">
-                {t.month.slice(2)}: <span className="font-bold text-[#0b1c30]">{t.value}</span>
+              <button key={t.month} type="button" onClick={() => setPick({ title: `Rejected in ${t.month}`, rows: all.filter((r) => monthOf(r.date) === t.month) })} className="rounded-md bg-[#f5f5f5] px-2 py-0.5 text-[11px] text-[#6e6e73] hover:bg-[#ececec]">
+                {t.month.slice(2)}: <span className="font-bold text-[#1d1d1f]">{t.value}</span>
               </button>
             ))}
           </div>

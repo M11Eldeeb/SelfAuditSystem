@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CountText } from "@/components/dashboard/motion";
 
 // --- formatting -------------------------------------------------------------
 
@@ -34,10 +35,10 @@ export function fmtDate(iso: string | null): string {
 
 // --- building blocks --------------------------------------------------------
 
-export const card = "rounded-xl bg-white shadow-[0_1px_2px_0_rgba(17,24,39,0.05)] ring-1 ring-[#dce9ff]/60";
+export const card = "rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.05]";
 
 export function Label({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <span className={`text-[11px] font-bold tracking-[0.08em] text-[#575e70] uppercase ${className}`}>{children}</span>;
+  return <span className={`text-[11px] font-semibold tracking-[0.06em] text-[#6e6e73] uppercase ${className}`}>{children}</span>;
 }
 
 export function Card({ children, className = "", accent }: { children: ReactNode; className?: string; accent?: string }) {
@@ -65,12 +66,12 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`${card} p-5 ${className}`}>
+    <section className={`${card} p-5 sm:p-6 ${className}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {eyebrow && <Label className="text-[#9a000d]">{eyebrow}</Label>}
-          <h2 className="font-display text-lg font-semibold tracking-tight text-[#0b1c30]">{title}</h2>
-          {subtitle && <p className="text-xs text-[#575e70]">{subtitle}</p>}
+          <h2 className="text-[17px] font-semibold tracking-tight text-[#1d1d1f]">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-[13px] text-[#6e6e73]">{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -80,11 +81,11 @@ export function Panel({
 }
 
 export function Metric({ value, unit, tone }: { value: string; unit?: string; tone?: "red" | "blue" | "green" }) {
-  const color = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : tone === "green" ? "text-emerald-600" : "text-[#0b1c30]";
+  const color = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : tone === "green" ? "text-emerald-600" : "text-[#1d1d1f]";
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className={`font-display text-[1.75rem] leading-tight font-bold tracking-tight tabular-nums ${color}`}>{value}</span>
-      {unit && <span className="text-xs font-semibold text-[#575e70]">{unit}</span>}
+      <CountText value={value} className={`font-display text-[1.75rem] leading-tight font-bold tracking-tight tabular-nums ${color}`} />
+      {unit && <span className="text-xs font-semibold text-[#6e6e73]">{unit}</span>}
     </div>
   );
 }
@@ -94,15 +95,15 @@ export function Pill({ tone, children }: { tone: "good" | "warn" | "bad" | "mute
     good: "bg-emerald-50 text-emerald-700",
     warn: "bg-amber-50 text-amber-700",
     bad: "bg-[#ffdad6] text-[#93000a]",
-    muted: "bg-[#eff4ff] text-[#575e70]",
+    muted: "bg-[#f5f5f7] text-[#6e6e73]",
     blue: "bg-[#dbe1ff] text-[#00174b]",
   }[tone];
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${cls}`}>{children}</span>;
 }
 
 export function IconBadge({ children, tone = "red" }: { children: ReactNode; tone?: "red" | "blue" | "slate" }) {
-  const cls = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : "text-[#575e70]";
-  return <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eff4ff] ${cls}`}>{children}</span>;
+  const cls = tone === "red" ? "text-[#9a000d]" : tone === "blue" ? "text-[#0041b0]" : "text-[#6e6e73]";
+  return <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f5f7] ${cls}`}>{children}</span>;
 }
 
 // --- icons (inline, stroke-based) ---------------------------------------------

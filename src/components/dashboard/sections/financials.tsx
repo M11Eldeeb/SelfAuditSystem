@@ -44,14 +44,14 @@ export function FinancialsSection({
           <div>
             <Label>Gross claims</Label>
             <Metric value={fmtMoney(t.totalClaimAmount)} unit={cur} />
-            <div className="flex justify-between text-xs text-[#575e70]">
+            <div className="flex justify-between text-xs text-[#6e6e73]">
               <span>{fmtInt(t.claimCount)} claims</span>
-              <span className="font-semibold text-[#0b1c30]">Adjusted {fmtMoney(t.totalAdjustedAmount)}</span>
+              <span className="font-semibold text-[#1d1d1f]">Adjusted {fmtMoney(t.totalAdjustedAmount)}</span>
             </div>
           </div>
           <div className="space-y-1">
             <div className="flex justify-between text-[11px]">
-              <span className="text-[#575e70]">Kept after SAIC adjustment</span>
+              <span className="text-[#6e6e73]">Kept after SAIC adjustment</span>
               <span className="font-bold text-[#9a000d]">
                 {t.totalClaimAmount ? fmtPct((t.totalAdjustedAmount / t.totalClaimAmount) * 100) : "—"}
               </span>
@@ -83,7 +83,7 @@ export function FinancialsSection({
                 { l: "Sublet", v: data.detectedSplit.sublet, c: "text-[#9a000d]" },
               ].map((x) => (
                 <div key={x.l}>
-                  <div className="text-[11px] font-bold text-[#575e70] uppercase">{x.l}</div>
+                  <div className="text-[11px] font-bold text-[#6e6e73] uppercase">{x.l}</div>
                   <div className={`text-xs font-bold ${x.c}`}>{fmtCompact(x.v)}</div>
                 </div>
               ))}
@@ -105,7 +105,7 @@ export function FinancialsSection({
               return (
                 <div key={s.series} className="space-y-0.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-[#575e70]">{s.series}</span>
+                    <span className="text-[#6e6e73]">{s.series}</span>
                     <span className="font-bold">{fmtMoney(acv)}</span>
                   </div>
                   <Meter pct={(acv / acvMax) * 100} color={[C.red, C.blue, C.slate][i]} height="h-1.5" />
@@ -185,8 +185,8 @@ export function FinancialsSection({
               <div key={s.label} className="space-y-1">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <Pill tone={STATUS_TONE[s.label] ?? (s.label.toLowerCase().includes("return") ? "warn" : "muted")}>{s.label}</Pill>
-                  <span className="text-[#575e70]">
-                    <strong className="text-[#0b1c30]">{fmtInt(s.count)}</strong> · {fmtCompact(s.amount)}
+                  <span className="text-[#6e6e73]">
+                    <strong className="text-[#1d1d1f]">{fmtInt(s.count)}</strong> · {fmtCompact(s.amount)}
                   </span>
                 </div>
                 <Meter pct={(s.count / statusTotal) * 100} color={STATUS_TONE[s.label] === "good" ? C.green : STATUS_TONE[s.label] === "bad" ? C.red : C.blue} height="h-1.5" tip={<TipCard title={s.label} rows={[{ label: "Claims", value: fmtInt(s.count), strong: true }, { label: "Share", value: `${((s.count / statusTotal) * 100).toFixed(1)}%` }, { label: "Claim amount", value: fmtMoney(s.amount) }]} />} />
@@ -213,7 +213,7 @@ export function FinancialsSection({
       <Panel eyebrow="Priority scrutiny" title="High-value claims" subtitle="Top 10 claims by Claim TOL. in this period">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+            <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
               <tr>
                 <th className="px-3 py-2.5">Claim / VIN</th>
                 <th className="px-3 py-2.5">Model & labor</th>
@@ -223,17 +223,17 @@ export function FinancialsSection({
                 <th className="px-3 py-2.5 text-right">Detected</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#e5eeff]">
+            <tbody className="divide-y divide-[#ececf0]">
               {data.highValueClaims.map((r) => {
                 const delta = r.adjusted - r.amount;
                 return (
                   <tr key={r.claimNumber} className="hover:bg-[#f5f5f5]/50">
                     <td className="px-3 py-2.5">
-                      <div className="font-bold text-[#0b1c30]">{r.claimNumber}</div>
-                      <div className="font-mono text-[11px] text-[#575e70]">{r.vin ?? r.workOrderNo}</div>
+                      <div className="font-bold text-[#1d1d1f]">{r.claimNumber}</div>
+                      <div className="font-mono text-[11px] text-[#6e6e73]">{r.vin ?? r.workOrderNo}</div>
                     </td>
                     <td className="px-3 py-2.5">
-                      <div className="font-semibold">{r.series ?? "—"} · <span className="text-[11px] font-normal text-[#575e70]">{r.branch}</span></div>
+                      <div className="font-semibold">{r.series ?? "—"} · <span className="text-[11px] font-normal text-[#6e6e73]">{r.branch}</span></div>
                       <div className="max-w-64 truncate text-[11px] text-[#9a000d]" title={r.laborName ?? undefined}>{r.laborName ?? "—"}</div>
                     </td>
                     <td className="max-w-48 truncate px-3 py-2.5 text-xs" title={r.partName ?? undefined}>

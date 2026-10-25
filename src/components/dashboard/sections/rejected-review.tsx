@@ -48,26 +48,26 @@ function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => vo
   return (
     <li className={`space-y-2 px-4 py-3 ${expired && !r.review?.status ? "bg-neutral-50" : ""}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <button type="button" onClick={() => copy(r.claimNumber)} title="Copy" className="font-mono font-semibold text-[#0b1c30] hover:underline">
+        <button type="button" onClick={() => copy(r.claimNumber)} title="Copy" className="font-mono font-semibold text-[#1d1d1f] hover:underline">
           {r.claimNumber}
         </button>
         {r.workOrder && (
-          <button type="button" onClick={() => copy(r.workOrder!.replace(/^[A-Z]+-/i, "").replace(/-\d+$/, ""))} title="Copy the number" className="text-[#575e70] hover:underline">
+          <button type="button" onClick={() => copy(r.workOrder!.replace(/^[A-Z]+-/i, "").replace(/-\d+$/, ""))} title="Copy the number" className="text-[#6e6e73] hover:underline">
             {r.workOrder}
           </button>
         )}
-        <span className="text-xs text-[#575e70]">{r.branch}</span>
+        <span className="text-xs text-[#6e6e73]">{r.branch}</span>
         <Pill tone="bad">{r.status}</Pill>
         {badge}
-        <span className="ml-auto text-sm font-bold text-[#0b1c30] tabular-nums">{r.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })} {currency}</span>
+        <span className="ml-auto text-sm font-bold text-[#1d1d1f] tabular-nums">{r.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })} {currency}</span>
       </div>
-      <div className="text-xs text-[#575e70]">
+      <div className="text-xs text-[#6e6e73]">
         Verified {fmtDay(r.verificationDate)}
         {r.vin && <> · VIN <span className="font-mono">{r.vin}</span></>}
         {r.labor && <> · {r.labor}</>}
         {r.part && <> · {r.part}</>}
       </div>
-      {r.fault && <p className="line-clamp-2 text-xs text-[#0b1c30]">{r.fault}</p>}
+      {r.fault && <p className="line-clamp-2 text-xs text-[#1d1d1f]">{r.fault}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {(Object.keys(STATUS) as RejectedReviewStatus[]).map((k) => (
           <button
@@ -75,12 +75,12 @@ function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => vo
             type="button"
             disabled={saving}
             onClick={() => setStatus(status === k ? null : k)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${status === k ? `${STATUS[k].cls} ring-transparent` : "bg-white text-[#575e70] ring-[#d4d4d4] hover:bg-[#f5f5f5]"}`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${status === k ? `${STATUS[k].cls} ring-transparent` : "bg-white text-[#6e6e73] ring-[#d4d4d4] hover:bg-[#f5f5f5]"}`}
           >
             {STATUS[k].label}
           </button>
         ))}
-        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#575e70]">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#6e6e73]">
           Est. close date
           <input
             type="date"
@@ -100,7 +100,7 @@ function Row({ r, onSaved, currency }: { r: RejectedReviewRow; onSaved: () => vo
         </button>
       </div>
       {(r.review || msg) && (
-        <p className="text-[11px] text-[#575e70]">
+        <p className="text-[11px] text-[#6e6e73]">
           {msg ? <span className="text-red-600">{msg}</span> : r.review ? `Saved by ${r.review.by ?? "?"} · ${new Date(r.review.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Riyadh" })}` : ""}
         </p>
       )}
@@ -143,21 +143,21 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
           <Card accent={C.red} className="h-full hover:shadow-md">
             <Label>To review</Label>
             <Metric value={fmtInt(todo.length)} unit={`${sum(todo).toLocaleString("en-US", { maximumFractionDigits: 0 })} ${currency}`} tone="red" />
-            <div className="text-xs text-[#575e70]">not handled, close date not passed</div>
+            <div className="text-xs text-[#6e6e73]">not handled, close date not passed</div>
           </Card>
         </button>
         <button type="button" onClick={() => setView("todo")} className="text-left">
           <Card accent={C.amber} className="h-full hover:shadow-md">
             <Label>Due in 5 days or less</Label>
             <Metric value={fmtInt(dueSoon.length)} />
-            <div className="text-xs text-[#575e70]">act first on these</div>
+            <div className="text-xs text-[#6e6e73]">act first on these</div>
           </Card>
         </button>
         <button type="button" onClick={() => setView("done")} className="text-left">
           <Card accent={C.green} className="h-full hover:shadow-md">
             <Label>Reviewed</Label>
             <Metric value={fmtInt(done.length)} />
-            <div className="text-xs text-[#575e70]">
+            <div className="text-xs text-[#6e6e73]">
               {(Object.keys(STATUS) as RejectedReviewStatus[]).map((k) => `${done.filter((r) => r.review?.status === k).length} ${STATUS[k].label.toLowerCase()}`).join(" · ")}
             </div>
           </Card>
@@ -166,7 +166,7 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
           <Card accent={C.slate} className="h-full hover:shadow-md">
             <Label>Missed (window closed)</Label>
             <Metric value={fmtInt(expired.length)} />
-            <div className="text-xs text-[#575e70]">close date passed before a review</div>
+            <div className="text-xs text-[#6e6e73]">close date passed before a review</div>
           </Card>
         </button>
       </div>
@@ -214,14 +214,14 @@ export function RejectedReviewSection({ currency }: { currency: string }) {
               ["all", `All (${all.length})`],
             ] as [View, string][]
           ).map(([k, label]) => (
-            <button key={k} type="button" onClick={() => setView(k)} className={`rounded-full px-3 py-1 text-xs font-semibold ${view === k ? "bg-[#2d2d2d] text-white" : "bg-white text-[#575e70] ring-1 ring-[#d4d4d4]"}`}>
+            <button key={k} type="button" onClick={() => setView(k)} className={`rounded-full px-3 py-1 text-xs font-semibold ${view === k ? "bg-[#2d2d2d] text-white" : "bg-white text-[#6e6e73] ring-1 ring-[#d4d4d4]"}`}>
               {label}
             </button>
           ))}
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search claim, work order, VIN, branch" className="ml-auto h-8 w-64 max-w-full rounded-lg border border-[#d4d4d4] px-2.5 text-xs" />
         </div>
         {list.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[#575e70]">{view === "todo" ? "Nothing to review - every rejected claim is handled." : "No claims here."}</p>
+          <p className="py-8 text-center text-sm text-[#6e6e73]">{view === "todo" ? "Nothing to review - every rejected claim is handled." : "No claims here."}</p>
         ) : (
           <ul className="divide-y divide-[#ececec] rounded-lg ring-1 ring-[#ececec]">
             {list.map((r) => (

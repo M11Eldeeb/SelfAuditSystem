@@ -16,8 +16,8 @@ export class SectionErrorBoundary extends Component<{ children: ReactNode; onRet
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl bg-white p-10 text-center ring-1 ring-[#dce9ff]/60">
-        <p className="text-sm font-semibold text-[#0b1c30]">This section couldn&apos;t load - the database was busy.</p>
+      <div className="flex flex-col items-center gap-3 rounded-xl bg-white p-10 text-center ring-1 ring-[#e5e5ea]/60">
+        <p className="text-sm font-semibold text-[#1d1d1f]">This section couldn&apos;t load - the database was busy.</p>
         <button
           type="button"
           onClick={() => {

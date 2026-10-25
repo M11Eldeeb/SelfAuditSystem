@@ -27,7 +27,7 @@ export function WarrantyRoomSection({ data }: SectionProps) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <Metric value={fmtInt(wr.parts)} />
-              <div className="text-xs text-[#575e70]">parts on {fmtInt(wr.claims)} claims</div>
+              <div className="text-xs text-[#6e6e73]">parts on {fmtInt(wr.claims)} claims</div>
             </div>
             <Ring
               pct={wr.parts ? ((wr.parts - nearingEnd) / wr.parts) * 100 : 0}
@@ -37,7 +37,7 @@ export function WarrantyRoomSection({ data }: SectionProps) {
               color={C.red}
             />
           </div>
-          <div className="text-[11px] text-[#575e70]">Parts the branch holds and must not scrap until told to.</div>
+          <div className="text-[11px] text-[#6e6e73]">Parts the branch holds and must not scrap until told to.</div>
         </Card>
 
         <Card accent={C.primary} className="flex flex-col justify-between gap-3">
@@ -55,7 +55,7 @@ export function WarrantyRoomSection({ data }: SectionProps) {
                 { label: "Flagged to scrap", value: t.flaggedToScrap, color: C.red },
               ]}
             />
-            <div className="flex justify-between text-[11px] text-[#575e70]">
+            <div className="flex justify-between text-[11px] text-[#6e6e73]">
               <span>Held {fmtInt(wr.parts)}</span>
               <span className="font-bold text-[#9a000d]">To scrap {fmtInt(t.flaggedToScrap)}</span>
             </div>
@@ -76,17 +76,17 @@ export function WarrantyRoomSection({ data }: SectionProps) {
                 <div
                   key={i}
                   className="h-full rounded"
-                  style={{ backgroundColor: e.status === "approved" ? C.blue : e.status === "submitted" ? C.blueSoft : "#dce9ff" }}
+                  style={{ backgroundColor: e.status === "approved" ? C.blue : e.status === "submitted" ? C.blueSoft : "#e5e5ea" }}
                 />
               ))}
             </div>
-            <div className="flex justify-between text-[11px] text-[#575e70]">
+            <div className="flex justify-between text-[11px] text-[#6e6e73]">
               <span className="font-semibold text-[#0041b0]">{evidenceApproved} approved</span>
               <span>{evidenceDone - evidenceApproved} awaiting review</span>
               <span>{evidence.length - evidenceDone} missing</span>
             </div>
           </div>
-          <div className="text-[11px] text-[#575e70]">Avg submission: {fmtDays(t.avgScrapEvidenceDays)} days after cycle generated</div>
+          <div className="text-[11px] text-[#6e6e73]">Avg submission: {fmtDays(t.avgScrapEvidenceDays)} days after cycle generated</div>
         </Card>
 
         <Card accent={C.amber} className="flex flex-col justify-between gap-3">
@@ -118,16 +118,16 @@ export function WarrantyRoomSection({ data }: SectionProps) {
             {branchRows.map((r) => {
               const total = r.warrantyRoomParts + r.flaggedToScrap;
               return (
-                <div key={r.branchId} className="space-y-2 rounded-xl bg-[#eff4ff] p-3">
+                <div key={r.branchId} className="space-y-2 rounded-xl bg-[#f5f5f7] p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-sm font-bold text-[#0b1c30]">{r.name}</div>
-                      <div className="text-[11px] text-[#575e70]">{fmtInt(r.warrantyRoomParts)} held · {fmtInt(r.flaggedToScrap)} flagged</div>
+                      <div className="text-sm font-bold text-[#1d1d1f]">{r.name}</div>
+                      <div className="text-[11px] text-[#6e6e73]">{fmtInt(r.warrantyRoomParts)} held · {fmtInt(r.flaggedToScrap)} flagged</div>
                     </div>
                     <span className="font-display text-lg font-bold text-[#9a000d]">{fmtInt(r.warrantyRoomParts)}</span>
                   </div>
                   <Meter pct={(total / branchMax) * 100} color={C.slate} />
-                  <div className="flex justify-between text-[11px] text-[#575e70]">
+                  <div className="flex justify-between text-[11px] text-[#6e6e73]">
                     <span>Held: {fmtInt(r.warrantyRoomParts)}</span>
                     <span className="font-semibold text-[#9a000d]">To scrap: {fmtInt(r.flaggedToScrap)}</span>
                   </div>

@@ -28,7 +28,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
           <button
             type="button"
             onClick={onOpen}
-            className="rounded-lg bg-[#0b1c30] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#9a000d]"
+            className="rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#9a000d]"
           >
             Open reconciliation →
           </button>
@@ -36,33 +36,33 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
       }
     >
       {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[#575e70]">No settled claims with a loss since {RECON_FROM_ORDER}.</p>
+        <p className="py-6 text-center text-sm text-[#6e6e73]">No settled claims with a loss since {RECON_FROM_ORDER}.</p>
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-lg bg-[#f5f5f5] p-3">
               <Label>Total loss</Label>
-              <div className="font-display text-xl font-bold text-[#0b1c30]">
-                {fmtNum(lossAmount, 2)} <span className="text-xs font-semibold text-[#575e70]">{data.currency}</span>
+              <div className="font-display text-xl font-bold text-[#1d1d1f]">
+                {fmtNum(lossAmount, 2)} <span className="text-xs font-semibold text-[#6e6e73]">{data.currency}</span>
               </div>
-              <div className="text-[11px] text-[#575e70]">{fmtInt(lossCount)} claims</div>
+              <div className="text-[11px] text-[#6e6e73]">{fmtInt(lossCount)} claims</div>
             </div>
             <div className="rounded-lg bg-emerald-50 p-3">
               <Label className="text-emerald-700">Reviewed</Label>
               <div className="font-display text-xl font-bold text-emerald-700">{fmtNum(reviewedAmount, 2)}</div>
-              <div className="text-[11px] text-[#575e70]">{fmtInt(reviewedCount)} claims</div>
+              <div className="text-[11px] text-[#6e6e73]">{fmtInt(reviewedCount)} claims</div>
             </div>
             <div className="rounded-lg bg-[#ffdad6]/50 p-3">
               <Label className="text-[#9a000d]">Pending</Label>
               <div className="font-display text-xl font-bold text-[#9a000d]">{fmtNum(pendingAmount, 2)}</div>
-              <div className="text-[11px] text-[#575e70]">{fmtInt(pendingCount)} claims</div>
+              <div className="text-[11px] text-[#6e6e73]">{fmtInt(pendingCount)} claims</div>
             </div>
           </div>
 
           <div className="space-y-1">
             <div className="flex flex-wrap justify-between gap-2 text-xs">
-              <span className="font-semibold text-[#0b1c30]">{pct.toFixed(1)}% of the loss amount reviewed</span>
-              <span className="text-[#575e70]">
+              <span className="font-semibold text-[#1d1d1f]">{pct.toFixed(1)}% of the loss amount reviewed</span>
+              <span className="text-[#6e6e73]">
                 Reinvoiced {fmtNum(sum((r) => r.reinvoicedAmount), 2)} · Overdue {fmtNum(sum((r) => r.overdueAmount), 2)} · SAIC{" "}
                 {fmtNum(sum((r) => r.saicAmount), 2)} · Internal {fmtNum(sum((r) => r.internalAmount), 2)} · GW {fmtNum(sum((r) => r.gwAmount), 2)}
               </span>
@@ -79,7 +79,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
                 <tr>
                   <th className="px-3 py-2">Settlement no.</th>
                   <th className="px-3 py-2 text-right">Claims</th>
@@ -89,14 +89,14 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                   <th className="w-48 px-3 py-2">Progress</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e5eeff] tabular-nums">
+              <tbody className="divide-y divide-[#ececf0] tabular-nums">
                 {rows.map((r) => {
                   const p = r.lossAmount ? (r.reviewedAmount / r.lossAmount) * 100 : 0;
                   return (
                     <tr key={r.order} className="hover:bg-[#f5f5f5]/50">
                       <td className="px-3 py-2">
-                        <div className="font-semibold text-[#0b1c30]">{r.order}</div>
-                        <div className="text-[11px] text-[#575e70]">{settlementDate(r.order)}</div>
+                        <div className="font-semibold text-[#1d1d1f]">{r.order}</div>
+                        <div className="text-[11px] text-[#6e6e73]">{settlementDate(r.order)}</div>
                       </td>
                       <td className="px-3 py-2 text-right">{fmtInt(r.lossCount)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmtNum(r.lossAmount, 2)}</td>
@@ -112,7 +112,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                           {p >= 99.995 ? (
                             <Pill tone="good">Done</Pill>
                           ) : (
-                            <span className="w-9 text-right text-[11px] text-[#575e70]">{Math.round(p)}%</span>
+                            <span className="w-9 text-right text-[11px] text-[#6e6e73]">{Math.round(p)}%</span>
                           )}
                         </div>
                       </td>

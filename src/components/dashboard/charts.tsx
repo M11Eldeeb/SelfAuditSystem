@@ -13,8 +13,8 @@ export const C = {
   blue: "#2d2d2d",
   blueLight: "#6b6e73",
   blueSoft: "#c9cbcf",
-  slate: "#575e70",
-  slateSoft: "#c0c6db",
+  slate: "#6e6e73",
+  slateSoft: "#c7c7cc",
   track: "var(--chart-track)",
   grid: "var(--chart-grid)",
   green: "#059669",
@@ -142,7 +142,7 @@ export function LineChart({
         </svg>
         {hover != null && hoverValues.length > 0 && (
           <div
-            className="pointer-events-none absolute top-2 z-10 min-w-36 rounded-lg bg-[#0b1c30] px-3 py-2 text-xs text-white shadow-lg"
+            className="pointer-events-none absolute top-2 z-10 min-w-36 rounded-lg bg-[#1d1d1f] px-3 py-2 text-xs text-white shadow-lg"
             style={x(hover) > W * 0.6 ? { right: `${((W - x(hover)) / W) * 100 + 2}%` } : { left: `${(x(hover) / W) * 100 + 2}%` }}
           >
             <div className="mb-1 font-bold">{monthShort(months[hover])}</div>
@@ -177,9 +177,9 @@ export function LineChart({
                     return n;
                   })
                 }
-                className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs ring-1 ring-[#dce9ff] transition ${off ? "text-neutral-400 line-through" : "bg-white text-neutral-700 hover:bg-[#eff4ff]"}`}
+                className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs ring-1 ring-[#e5e5ea] transition ${off ? "text-neutral-400 line-through" : "bg-white text-neutral-700 hover:bg-[#f5f5f7]"}`}
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: off ? "#c0c6db" : s.color }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: off ? "#c7c7cc" : s.color }} />
                 {s.name}
               </button>
             );
@@ -251,7 +251,7 @@ export function StackedBar({ segments, height = "h-2.5", legend = true, format }
   return (
     <div className="space-y-1.5">
       {layer}
-      <div className={`flex w-full gap-0.5 overflow-hidden rounded-full bg-[#e5eeff] ${height}`}>
+      <div className={`flex w-full gap-0.5 overflow-hidden rounded-full bg-[#ececf0] ${height}`}>
         {total > 0 &&
           segments.map((s) =>
             s.value > 0 ? (
@@ -292,7 +292,7 @@ export function StackedBar({ segments, height = "h-2.5", legend = true, format }
 export function Meter({ pct, color = C.red, height = "h-2", tip }: { pct: number; color?: string; height?: string; tip?: ReactNode }) {
   const { bind, layer } = useHoverCard();
   return (
-    <div className={`w-full overflow-hidden rounded-full bg-[#e5eeff] ${height}`} {...(tip ? bind(tip) : {})}>
+    <div className={`w-full overflow-hidden rounded-full bg-[#ececf0] ${height}`} {...(tip ? bind(tip) : {})}>
       {layer}
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, backgroundColor: color }} />
     </div>
@@ -388,11 +388,11 @@ export function GroupedColumns({
         )}
       </div>
       <div className="relative">
-        <div className="flex h-52 items-end gap-2 border-b border-[#dce9ff] px-1">
+        <div className="flex h-52 items-end gap-2 border-b border-[#e5e5ea] px-1">
           {groups.map((g, i) => (
             <div
               key={g.label}
-              className={`group flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end rounded-t-lg pt-5 transition-colors hover:bg-[#eff4ff] ${highlight?.(i) ? "bg-[#ffdad6]/30" : ""}`}
+              className={`group flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end rounded-t-lg pt-5 transition-colors hover:bg-[#f5f5f7] ${highlight?.(i) ? "bg-[#ffdad6]/30" : ""}`}
               {...bind(
                 <TipCard
                   title={`${g.label}${g.sub ? ` · ${g.sub}` : ""}`}
@@ -466,7 +466,7 @@ export function ColumnChart({
       {points.map((p, i) => (
         <div
           key={p.label}
-          className="flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end gap-1 rounded-t-md transition-colors hover:bg-[#eff4ff]"
+          className="flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end gap-1 rounded-t-md transition-colors hover:bg-[#f5f5f7]"
           {...bind(
             <TipCard
               title={monthShort(p.label)}
@@ -526,12 +526,12 @@ export function BarList({
         >
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold ${
-              idx === 0 ? "bg-[#9a000d] text-white" : "bg-[#dce9ff] text-neutral-800"
+              idx === 0 ? "bg-[#9a000d] text-white" : "bg-[#e5e5ea] text-neutral-800"
             }`}
           >
             {String(idx + 1).padStart(2, "0")}
           </span>
-          <div className="relative min-w-0 flex-1 overflow-hidden rounded-md bg-[#eff4ff]">
+          <div className="relative min-w-0 flex-1 overflow-hidden rounded-md bg-[#f5f5f7]">
             <div className="absolute inset-y-0 left-0 rounded-md opacity-15 transition-opacity group-hover:opacity-25" style={{ width: `${(item.value / max) * 100}%`, backgroundColor: color }} />
             <div className="relative flex min-w-0 items-baseline gap-2 px-2.5 py-1.5">
               <span className="shrink-0 font-semibold text-neutral-900">{item.label}</span>

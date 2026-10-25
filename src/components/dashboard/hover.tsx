@@ -34,7 +34,7 @@ function Layer({ state }: { state: Pos }) {
   return (
     <div
       role="tooltip"
-      className="pointer-events-none fixed z-[60] rounded-lg bg-[#0b1c30]/95 px-3 py-2 text-xs text-white shadow-xl ring-1 ring-white/10"
+      className="pointer-events-none fixed z-[60] rounded-lg bg-[#1d1d1f]/95 px-3 py-2 text-xs text-white shadow-xl ring-1 ring-white/10"
       style={{
         left: state.x + (flipX ? -14 : 14),
         top: state.y + (flipY ? -14 : 14),

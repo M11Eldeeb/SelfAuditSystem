@@ -28,18 +28,18 @@ function CycleCard({
           <span style={{ color: accent }}>{icon}</span>
         </div>
         <Metric value={fmtDays(metric.avg)} unit="days avg" />
-        <div className="text-[11px] text-[#575e70]">
-          Median <strong className="text-[#0b1c30]">{fmtDays(metric.median)}d</strong> · {fmtInt(n)} records
+        <div className="text-[11px] text-[#6e6e73]">
+          Median <strong className="text-[#1d1d1f]">{fmtDays(metric.median)}d</strong> · {fmtInt(n)} records
         </div>
       </div>
-      <div className="rounded-lg bg-[#eff4ff] p-2">
-        <div className="mb-1 text-[11px] font-semibold tracking-wider text-[#575e70] uppercase">{formula}</div>
+      <div className="rounded-lg bg-[#f5f5f7] p-2">
+        <div className="mb-1 text-[11px] font-semibold tracking-wider text-[#6e6e73] uppercase">{formula}</div>
         <StackedBar
           height="h-2.5"
           legend={false}
           segments={metric.buckets.map((b, i) => ({ label: b.label, value: b.count, color: BUCKET_COLORS[i] }))}
         />
-        <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[11px] text-[#575e70]">
+        <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[11px] text-[#6e6e73]">
           {metric.buckets.map((b, i) => (
             <span key={b.label} className="truncate">
               <span className="font-semibold" style={{ color: BUCKET_COLORS[i] }}>
@@ -85,18 +85,18 @@ export function CycleTimesSection({ data }: SectionProps) {
               <div key={s.stage} className="group grid grid-cols-12 items-center gap-3">
                 <div className="col-span-12 flex items-center justify-between gap-2 sm:col-span-4">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold ${longest ? "bg-[#9a000d] text-white" : "bg-[#dce9ff] text-[#575e70]"}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold ${longest ? "bg-[#9a000d] text-white" : "bg-[#e5e5ea] text-[#6e6e73]"}`}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <div className="min-w-0">
-                      <div className={`text-sm font-semibold ${longest ? "text-[#9a000d]" : "text-[#0b1c30]"}`}>{s.stage}</div>
-                      <div className="truncate text-[11px] text-[#575e70]">{s.detail}</div>
+                      <div className={`text-sm font-semibold ${longest ? "text-[#9a000d]" : "text-[#1d1d1f]"}`}>{s.stage}</div>
+                      <div className="truncate text-[11px] text-[#6e6e73]">{s.detail}</div>
                     </div>
                   </div>
                 </div>
                 <div className="col-span-10 sm:col-span-7">
                   <Hover
-                    className="relative h-7 cursor-default overflow-hidden rounded-lg bg-[#eff4ff]"
+                    className="relative h-7 cursor-default overflow-hidden rounded-lg bg-[#f5f5f7]"
                     tip={
                       <TipCard
                         title={s.stage}
@@ -118,13 +118,13 @@ export function CycleTimesSection({ data }: SectionProps) {
                   </Hover>
                 </div>
                 <div className="col-span-2 text-right sm:col-span-1">
-                  <span className="text-[11px] font-semibold text-[#575e70]">{fmtInt(s.claims)}</span>
+                  <span className="text-[11px] font-semibold text-[#6e6e73]">{fmtInt(s.claims)}</span>
                 </div>
               </div>
             );
           })}
         </div>
-        <p className="mt-3 text-[11px] text-[#575e70]">
+        <p className="mt-3 text-[11px] text-[#6e6e73]">
           Right-hand number = claims with both dates. Verification and settlement only count claims SAIC has already processed. The longest stage is highlighted.
         </p>
       </Panel>
@@ -152,9 +152,9 @@ export function CycleTimesSection({ data }: SectionProps) {
               { label: "Claims submitted", value: fmtInt(data.weekdays.reduce((s, d) => s + d.submitted, 0)) },
               { label: "Avg claims / working day", value: fmtDays(data.totals.avgDailyClaims) },
             ].map((x) => (
-              <div key={x.label} className="rounded-lg bg-[#eff4ff] p-2.5">
+              <div key={x.label} className="rounded-lg bg-[#f5f5f7] p-2.5">
                 <Label>{x.label}</Label>
-                <div className="font-display text-lg font-semibold text-[#0b1c30]">{x.value}</div>
+                <div className="font-display text-lg font-semibold text-[#1d1d1f]">{x.value}</div>
               </div>
             ))}
           </div>
@@ -165,11 +165,11 @@ export function CycleTimesSection({ data }: SectionProps) {
             {series.map((s) => {
               const slow = overall != null && (s.avgRepairDays ?? 0) > overall;
               return (
-                <div key={s.series} className="rounded-lg bg-[#eff4ff] p-2">
+                <div key={s.series} className="rounded-lg bg-[#f5f5f7] p-2">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-[#0b1c30]">{s.series}</span>
+                    <span className="text-sm font-bold text-[#1d1d1f]">{s.series}</span>
                     <span className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold ${slow ? "text-[#9a000d]" : "text-[#0b1c30]"}`}>{fmtDays(s.avgRepairDays)}d avg</span>
+                      <span className={`text-xs font-semibold ${slow ? "text-[#9a000d]" : "text-[#1d1d1f]"}`}>{fmtDays(s.avgRepairDays)}d avg</span>
                       <Pill tone="muted">{fmtInt(s.count)} claims</Pill>
                     </span>
                   </div>
@@ -192,9 +192,9 @@ export function CycleTimesSection({ data }: SectionProps) {
               );
             })}
           </div>
-          <div className="mt-3 flex items-center justify-between rounded-lg bg-[#eff4ff] px-3 py-2 text-xs">
-            <span className="text-[#575e70]">All models average</span>
-            <span className="font-bold text-[#0b1c30]">{fmtDays(overall)} days</span>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-[#f5f5f7] px-3 py-2 text-xs">
+            <span className="text-[#6e6e73]">All models average</span>
+            <span className="font-bold text-[#1d1d1f]">{fmtDays(overall)} days</span>
           </div>
         </Panel>
       </div>
@@ -206,7 +206,7 @@ export function CycleTimesSection({ data }: SectionProps) {
       >
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+            <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
               <tr>
                 <th className="px-3 py-2.5">Job card / VIN</th>
                 <th className="px-3 py-2.5">Model</th>
@@ -217,23 +217,23 @@ export function CycleTimesSection({ data }: SectionProps) {
                 <th className="px-3 py-2.5">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#e5eeff]">
+            <tbody className="divide-y divide-[#ececf0]">
               {data.slowestClaims.map((r) => {
                 const total = (r.repairDays ?? 0) + (r.submitDays ?? 0);
                 return (
-                  <tr key={r.claimNumber} className="hover:bg-[#eff4ff]/50">
+                  <tr key={r.claimNumber} className="hover:bg-[#f5f5f7]/50">
                     <td className="px-3 py-2.5">
-                      <div className="font-bold text-[#0b1c30]">{r.workOrderNo ?? r.claimNumber}</div>
-                      <div className="font-mono text-[11px] text-[#575e70]">{r.vin ?? r.claimNumber}</div>
+                      <div className="font-bold text-[#1d1d1f]">{r.workOrderNo ?? r.claimNumber}</div>
+                      <div className="font-mono text-[11px] text-[#6e6e73]">{r.vin ?? r.claimNumber}</div>
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="font-semibold">{r.series ?? "—"}</div>
-                      <div className="text-[11px] text-[#575e70]">{r.branch}</div>
+                      <div className="text-[11px] text-[#6e6e73]">{r.branch}</div>
                     </td>
-                    <td className="max-w-56 truncate px-3 py-2.5 text-xs text-[#575e70]" title={r.laborName ?? undefined}>
+                    <td className="max-w-56 truncate px-3 py-2.5 text-xs text-[#6e6e73]" title={r.laborName ?? undefined}>
                       {r.laborName ?? "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-xs whitespace-nowrap text-[#575e70]">{fmtDate(r.openDate)}</td>
+                    <td className="px-3 py-2.5 text-xs whitespace-nowrap text-[#6e6e73]">{fmtDate(r.openDate)}</td>
                     <td className="px-3 py-2.5">
                       <div className="w-28 space-y-1">
                         <div className="text-xs font-bold text-[#9a000d]">{fmtDays(r.repairDays)} days</div>

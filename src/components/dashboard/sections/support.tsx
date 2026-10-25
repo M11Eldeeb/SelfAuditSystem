@@ -30,10 +30,10 @@ function LeadCard({ title, stat, accent, bind }: { title: string; stat: LeadStat
       >
         <Label>{title}</Label>
         <Metric value={fmtHours(stat.avgHours)} unit="avg closure" />
-        <div className="text-xs text-[#575e70]">median {fmtHours(stat.medianHours)}</div>
+        <div className="text-xs text-[#6e6e73]">median {fmtHours(stat.medianHours)}</div>
       </div>
       <div>
-        <div className="mb-1 flex justify-between text-[11px] text-[#575e70]">
+        <div className="mb-1 flex justify-between text-[11px] text-[#6e6e73]">
           <span>Closed within 24 h</span>
           <span className="font-semibold">{stat.within24hPct == null ? "—" : `${stat.within24hPct.toFixed(0)}%`}</span>
         </div>

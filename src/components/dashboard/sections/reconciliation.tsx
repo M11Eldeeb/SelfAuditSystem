@@ -15,7 +15,7 @@ const isAnswered = (r: { deductionType: unknown; outcome: unknown }) => !!(r.ded
 const LINGER_MS = 2500;
 
 const selectClass =
-  "rounded-lg border-0 bg-[#eff4ff] px-2.5 py-1.5 text-xs font-semibold text-[#0b1c30] ring-1 ring-[#dce9ff] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
+  "rounded-lg border-0 bg-[#f5f5f7] px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f] ring-1 ring-[#e5e5ea] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
 
 function Toggle<T extends string>({
   value,
@@ -27,7 +27,7 @@ function Toggle<T extends string>({
   onChange: (v: T | null) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg bg-[#eff4ff] p-0.5">
+    <div className="inline-flex rounded-lg bg-[#f5f5f7] p-0.5">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -36,7 +36,7 @@ function Toggle<T extends string>({
             type="button"
             // Clicking the active choice again clears it.
             onClick={() => onChange(active ? null : o.value)}
-            className={`rounded-md px-1.5 py-1 text-[11px] font-bold whitespace-nowrap transition ${active ? `${o.on} shadow-sm` : "text-[#575e70] hover:text-[#0b1c30]"}`}
+            className={`rounded-md px-1.5 py-1 text-[11px] font-bold whitespace-nowrap transition ${active ? `${o.on} shadow-sm` : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
           >
             {o.label}
           </button>
@@ -67,7 +67,7 @@ function CopyText({ text, copy, className = "" }: { text: string; copy: string; 
           // Clipboard blocked (e.g. insecure context) - nothing to do.
         }
       }}
-      className={`group/copy flex max-w-full items-center gap-1 rounded px-1 -mx-1 text-left transition hover:bg-[#dce9ff] ${className}`}
+      className={`group/copy flex max-w-full items-center gap-1 rounded px-1 -mx-1 text-left transition hover:bg-[#e5e5ea] ${className}`}
     >
       <span className="truncate">{copied ? "Copied!" : text}</span>
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0 opacity-0 transition group-hover/copy:opacity-60" aria-hidden="true">
@@ -83,7 +83,7 @@ function HoverText({ text, className = "" }: { text: string | null; className?: 
   return (
     <div className={`group/hover relative ${className}`}>
       <div className="truncate">{text}</div>
-      <div className="pointer-events-none absolute top-full left-0 z-30 mt-1 hidden max-w-80 rounded-lg bg-[#0b1c30] px-3 py-1.5 text-[11px] font-medium whitespace-normal text-white shadow-lg group-hover/hover:block">
+      <div className="pointer-events-none absolute top-full left-0 z-30 mt-1 hidden max-w-80 rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-[11px] font-medium whitespace-normal text-white shadow-lg group-hover/hover:block">
         {text}
       </div>
     </div>
@@ -97,8 +97,8 @@ function NotesEditor({ row, onSave, onClose }: { row: ReconciliationRow; onSave:
       <div className="w-full max-w-md space-y-3 rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div>
           <Label>Notes</Label>
-          <div className="font-display text-base font-semibold text-[#0b1c30]">{row.claimNumber}</div>
-          <div className="text-xs text-[#575e70]">
+          <div className="font-display text-base font-semibold text-[#1d1d1f]">{row.claimNumber}</div>
+          <div className="text-xs text-[#6e6e73]">
             {row.workOrderNo} · loss {fmtNum(row.lossAmount, 2)}
           </div>
         </div>
@@ -108,10 +108,10 @@ function NotesEditor({ row, onSave, onClose }: { row: ReconciliationRow; onSave:
           onChange={(e) => setText(e.target.value)}
           rows={5}
           placeholder="e.g. Reinvoiced on credit note …, waiting for SAIC reply …"
-          className="w-full rounded-lg bg-[#eff4ff] p-3 text-sm ring-1 ring-[#dce9ff] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none"
+          className="w-full rounded-lg bg-[#f5f5f7] p-3 text-sm ring-1 ring-[#e5e5ea] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none"
         />
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-[#575e70] hover:text-[#0b1c30]">
+          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-[#6e6e73] hover:text-[#1d1d1f]">
             Cancel
           </button>
           <button
@@ -256,7 +256,7 @@ export function ReconciliationSection({
               ))}
             </select>
           </label>
-          <label className="flex cursor-pointer items-center gap-1.5 pb-1.5 text-xs font-semibold text-[#575e70]">
+          <label className="flex cursor-pointer items-center gap-1.5 pb-1.5 text-xs font-semibold text-[#6e6e73]">
             <input type="checkbox" checked={lossOnly} onChange={(e) => setLossOnly(e.target.checked)} className="accent-[#c4121a]" />
             Only claims with a loss
           </label>
@@ -270,7 +270,7 @@ export function ReconciliationSection({
           <Card accent={C.red}>
             <Label>Total loss</Label>
             <Metric value={fmtNum(totalLoss, 2)} unit={currency} tone="red" />
-            <div className="text-[11px] text-[#575e70]">
+            <div className="text-[11px] text-[#6e6e73]">
               {fmtInt(withLoss.length)} of {fmtInt(rows.length)} settled claims paid short
             </div>
           </Card>
@@ -282,7 +282,7 @@ export function ReconciliationSection({
               height="h-2"
               segments={[
                 { label: "Reviewed", value: reviewed, color: C.blue },
-                { label: "Open", value: withLoss.length - reviewed, color: "#dce9ff" },
+                { label: "Open", value: withLoss.length - reviewed, color: "#e5e5ea" },
               ]}
             />
           </Card>
@@ -290,19 +290,19 @@ export function ReconciliationSection({
             <Label>Deducted by</Label>
             <div className="mt-1 space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-[#575e70]">SAIC</span>
+                <span className="text-[#6e6e73]">SAIC</span>
                 <strong>{fmtNum(saic, 2)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#575e70]">Internally</span>
+                <span className="text-[#6e6e73]">Internally</span>
                 <strong>{fmtNum(internal, 2)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#575e70]">GW</span>
+                <span className="text-[#6e6e73]">GW</span>
                 <strong>{fmtNum(gw, 2)}</strong>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-[#575e70]">Not classified</span>
+                <span className="text-[#6e6e73]">Not classified</span>
                 <span>{fmtNum(totalLoss - saic - internal - gw, 2)}</span>
               </div>
             </div>
@@ -319,7 +319,7 @@ export function ReconciliationSection({
                 <strong>{fmtNum(overdue, 2)}</strong>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-[#575e70]">No outcome yet</span>
+                <span className="text-[#6e6e73]">No outcome yet</span>
                 <span>{fmtNum(totalLoss - reinvoiced - overdue, 2)}</span>
               </div>
             </div>
@@ -333,7 +333,7 @@ export function ReconciliationSection({
           subtitle={`${fmtInt(visible.length)} claims shown · largest loss first · choices save automatically`}
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex rounded-lg bg-[#eff4ff] p-0.5">
+              <div className="flex rounded-lg bg-[#f5f5f7] p-0.5">
                 {(
                   [
                     ["pending", `Pending (${base.filter((x) => !isAnswered(x)).length})`],
@@ -346,7 +346,7 @@ export function ReconciliationSection({
                     key={k}
                     type="button"
                     onClick={() => setFilter(k)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-bold transition ${filter === k ? "bg-white text-[#0b1c30] shadow-sm" : "text-[#575e70] hover:text-[#0b1c30]"}`}
+                    className={`rounded-md px-2.5 py-1 text-xs font-bold transition ${filter === k ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
                   >
                     {label}
                   </button>
@@ -371,7 +371,7 @@ export function ReconciliationSection({
                 <col className="w-[9.5rem]" />
                 <col className="w-[5.5rem]" />
               </colgroup>
-              <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
                 <tr>
                   <th className="px-2 py-2.5">VIN</th>
                   <th className="px-2 py-2.5">Claim no.</th>
@@ -384,27 +384,27 @@ export function ReconciliationSection({
                   <th className="px-2 py-2.5">Notes</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e5eeff]">
+              <tbody className="divide-y divide-[#ececf0]">
                 {visible.map((r) => (
-                  <tr key={r.claimId} className={`align-middle transition-colors duration-500 ${saving.has(r.claimId) ? "opacity-60" : ""} ${filter === "pending" && lingering.has(r.claimId) ? "bg-emerald-50" : "hover:bg-[#eff4ff]/50"}`}>
+                  <tr key={r.claimId} className={`align-middle transition-colors duration-500 ${saving.has(r.claimId) ? "opacity-60" : ""} ${filter === "pending" && lingering.has(r.claimId) ? "bg-emerald-50" : "hover:bg-[#f5f5f7]/50"}`}>
                     <td className="truncate px-2 py-2 font-mono text-[11px]">{r.vin ?? "—"}</td>
                     <td className="px-2 py-2">
                       <CopyText text={r.claimNumber} copy={r.claimNumber} className="font-semibold" />
-                      {!branchId && <div className="truncate text-[11px] text-[#575e70]">{branchName.get(r.branchId)}</div>}
+                      {!branchId && <div className="truncate text-[11px] text-[#6e6e73]">{branchName.get(r.branchId)}</div>}
                     </td>
                     <td className="px-2 py-2">
                       {r.workOrderNo ? <CopyText text={r.workOrderNo} copy={workOrderNumber(r.workOrderNo)} /> : "—"}
                     </td>
                     <td className="px-2 py-2 text-right whitespace-nowrap">
-                      <span className={`font-display text-[13px] font-bold ${r.lossAmount > 0.005 ? "text-[#9a000d]" : "text-[#575e70]"}`}>
+                      <span className={`font-display text-[13px] font-bold ${r.lossAmount > 0.005 ? "text-[#9a000d]" : "text-[#6e6e73]"}`}>
                         {fmtNum(r.lossAmount, 2)}
                       </span>
-                      <div className="text-[11px] text-[#575e70]">of {fmtNum(r.claimAmount, 2)}</div>
+                      <div className="text-[11px] text-[#6e6e73]">of {fmtNum(r.claimAmount, 2)}</div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{fmtDate(r.firstSubmitDate)}</td>
                     <td className="px-2 py-2">
-                      <HoverText text={r.laborName} className="font-semibold text-[#0b1c30]" />
-                      <HoverText text={r.partName} className="text-[11px] text-[#575e70]" />
+                      <HoverText text={r.laborName} className="font-semibold text-[#1d1d1f]" />
+                      <HoverText text={r.partName} className="text-[11px] text-[#6e6e73]" />
                     </td>
                     <td className="px-2 py-2">
                       <Toggle
@@ -412,7 +412,7 @@ export function ReconciliationSection({
                         onChange={(v) => update(r, { deductionType: v })}
                         options={[
                           { value: "saic", label: "SAIC", on: "bg-[#0041b0] text-white" },
-                          { value: "internal", label: "Internal", on: "bg-[#575e70] text-white" },
+                          { value: "internal", label: "Internal", on: "bg-[#6e6e73] text-white" },
                           { value: "gw", label: "GW", on: "bg-[#7c3aed] text-white" },
                         ]}
                       />
@@ -433,13 +433,13 @@ export function ReconciliationSection({
                           type="button"
                           onClick={() => setEditing(r)}
                           className={`block w-full truncate rounded-lg px-2 py-1 text-left text-[11px] font-semibold ring-1 transition ${
-                            r.notes ? "bg-[#fff7e6] text-amber-800 ring-amber-200" : "bg-white text-[#575e70] ring-[#dce9ff] hover:bg-[#eff4ff]"
+                            r.notes ? "bg-[#fff7e6] text-amber-800 ring-amber-200" : "bg-white text-[#6e6e73] ring-[#e5e5ea] hover:bg-[#f5f5f7]"
                           }`}
                         >
                           {r.notes ? `📝 ${r.notes}` : "+ Notes"}
                         </button>
                         {r.notes && (
-                          <div className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden w-64 rounded-lg bg-[#0b1c30] px-3 py-2 text-[11px] whitespace-pre-wrap text-white shadow-lg group-hover:block">
+                          <div className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden w-64 rounded-lg bg-[#1d1d1f] px-3 py-2 text-[11px] whitespace-pre-wrap text-white shadow-lg group-hover:block">
                             {r.notes}
                           </div>
                         )}
@@ -449,7 +449,7 @@ export function ReconciliationSection({
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center text-sm text-[#575e70]">
+                    <td colSpan={9} className="px-3 py-10 text-center text-sm text-[#6e6e73]">
                       {filter === "pending" && !q ? "Everything here is reviewed. Use “Show all” to see them." : "No claims match."}
                     </td>
                   </tr>

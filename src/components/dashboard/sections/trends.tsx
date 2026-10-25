@@ -15,7 +15,7 @@ const SPIKES = [
 const MIN_CLAIMS = [2, 3, 5, 10];
 
 const selectClass =
-  "rounded-lg border-0 bg-[#eff4ff] px-2.5 py-1.5 text-xs font-semibold text-[#0b1c30] ring-1 ring-[#dce9ff] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
+  "rounded-lg border-0 bg-[#f5f5f7] px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f] ring-1 ring-[#e5e5ea] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
 
 function isFlagged(i: TrendItem, spike: number, minClaims: number, includeNew: boolean) {
   if (i.current < minClaims) return false;
@@ -33,7 +33,7 @@ function Spark({ item, currentMonths }: { item: TrendItem; currentMonths: string
         <Hover
           key={m.month}
           className="min-w-1 flex-1 cursor-default rounded-t-sm hover:brightness-110"
-          style={{ height: `${Math.max((m.count / max) * 100, m.count ? 8 : 3)}%`, backgroundColor: cur.has(m.month) ? C.red : m.count ? C.slateSoft : "#e5eeff" }}
+          style={{ height: `${Math.max((m.count / max) * 100, m.count ? 8 : 3)}%`, backgroundColor: cur.has(m.month) ? C.red : m.count ? C.slateSoft : "#ececf0" }}
           tip={
             <TipCard
               title={monthShort(m.month)}
@@ -63,7 +63,7 @@ function TrendTable({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   if (items.length === 0)
-    return <p className="py-10 text-center text-sm text-[#575e70]">Nothing unusual with these settings. Try a lower spike or minimum.</p>;
+    return <p className="py-10 text-center text-sm text-[#6e6e73]">Nothing unusual with these settings. Try a lower spike or minimum.</p>;
 
   const name = (i: TrendItem) => (kind === "labor" ? (labels.labor[i.key] ?? i.key) : i.key);
   const code = (i: TrendItem) => (kind === "labor" ? (labels.labor[i.key] ? i.key : null) : (labels.partNo[i.key] ?? null));
@@ -72,7 +72,7 @@ function TrendTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+        <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
           <tr>
             <th className="px-3 py-2.5">{kind === "labor" ? "Labor operation" : "Main part"}</th>
             <th className="px-3 py-2.5">
@@ -84,30 +84,30 @@ function TrendTable({
             <th className="px-3 py-2.5">Top models</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#e5eeff]">
+        <tbody className="divide-y divide-[#ececf0]">
           {items.map((i) => {
             const expanded = open === i.key;
             return (
               <Fragment key={i.key}>
                 <tr
-                  className={`cursor-pointer transition-colors ${expanded ? "bg-[#ffdad6]/30" : "hover:bg-[#eff4ff]/60"}`}
+                  className={`cursor-pointer transition-colors ${expanded ? "bg-[#ffdad6]/30" : "hover:bg-[#f5f5f7]/60"}`}
                   onClick={() => setOpen(expanded ? null : i.key)}
                 >
                   <td className="max-w-80 px-3 py-2.5">
-                    <div className="truncate font-semibold text-[#0b1c30]" title={name(i)}>
+                    <div className="truncate font-semibold text-[#1d1d1f]" title={name(i)}>
                       {name(i)}
                     </div>
-                    {code(i) && <div className="font-mono text-[11px] text-[#575e70]">{code(i)}</div>}
+                    {code(i) && <div className="font-mono text-[11px] text-[#6e6e73]">{code(i)}</div>}
                   </td>
                   <td className="px-3 py-2.5">
                     <Spark item={i} currentMonths={data.currentMonths} />
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="font-display font-bold">{fmtInt(i.current)}</div>
-                    <div className="text-[11px] text-[#575e70]">{fmtMoney(i.currentAmount)}</div>
+                    <div className="text-[11px] text-[#6e6e73]">{fmtMoney(i.currentAmount)}</div>
                   </td>
                   <td className="px-3 py-2.5 text-right text-xs whitespace-nowrap">
-                    <span className="text-[#575e70]">{fmtNum(i.baselinePerMonth)}</span> → <strong className="text-[#9a000d]">{fmtNum(i.currentPerMonth)}</strong>
+                    <span className="text-[#6e6e73]">{fmtNum(i.baselinePerMonth)}</span> → <strong className="text-[#9a000d]">{fmtNum(i.currentPerMonth)}</strong>
                   </td>
                   <td className="px-3 py-2.5">
                     {i.isNew ? <Pill tone="bad">NEW</Pill> : <Pill tone={(i.ratio ?? 0) >= 3 ? "bad" : "warn"}>× {fmtNum(i.ratio)}</Pill>}
@@ -133,7 +133,7 @@ function TrendTable({
                               <span
                                 key={m.month}
                                 className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
-                                  data.currentMonths.includes(m.month) ? "bg-[#c4121a] text-white" : "bg-[#eff4ff] text-[#575e70]"
+                                  data.currentMonths.includes(m.month) ? "bg-[#c4121a] text-white" : "bg-[#f5f5f7] text-[#6e6e73]"
                                 }`}
                               >
                                 {monthShort(m.month)}: {m.count}
@@ -146,7 +146,7 @@ function TrendTable({
                           <div className="mt-1 space-y-0.5 text-xs">
                             {i.models.map((m) => (
                               <div key={m.model} className="flex justify-between gap-2">
-                                <span>{series(m.model)} <span className="text-[#575e70]">({m.model})</span></span>
+                                <span>{series(m.model)} <span className="text-[#6e6e73]">({m.model})</span></span>
                                 <strong>{m.count}</strong>
                               </div>
                             ))}
@@ -164,7 +164,7 @@ function TrendTable({
                           </div>
                         </div>
                       </div>
-                      <p className="mt-3 text-[11px] text-[#575e70]">
+                      <p className="mt-3 text-[11px] text-[#6e6e73]">
                         {i.isNew
                           ? `Not seen in the ${data.baselineMonths.length} months before this period.`
                           : `${fmtInt(i.baseline)} claims in the ${data.baselineMonths.length} baseline months (${fmtNum(i.baselinePerMonth)}/month) vs ${fmtNum(i.currentPerMonth)}/month now.`}{" "}
@@ -183,11 +183,11 @@ function TrendTable({
 }
 
 function RepeatTable({ rows, labels }: { rows: RepeatRow[]; labels: DashboardData["labels"] }) {
-  if (rows.length === 0) return <p className="py-10 text-center text-sm text-[#575e70]">No repeated repairs in this period.</p>;
+  if (rows.length === 0) return <p className="py-10 text-center text-sm text-[#6e6e73]">No repeated repairs in this period.</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
+        <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
           <tr>
             <th className="px-3 py-2.5">Type</th>
             <th className="px-3 py-2.5">VIN / model</th>
@@ -197,39 +197,39 @@ function RepeatTable({ rows, labels }: { rows: RepeatRow[]; labels: DashboardDat
             <th className="px-3 py-2.5 text-right">Days / km apart</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#e5eeff]">
+        <tbody className="divide-y divide-[#ececf0]">
           {rows.map((r) => (
-            <tr key={`${r.first.claimNumber}-${r.second.claimNumber}`} className="hover:bg-[#eff4ff]/60">
+            <tr key={`${r.first.claimNumber}-${r.second.claimNumber}`} className="hover:bg-[#f5f5f7]/60">
               <td className="px-3 py-2.5">
                 {r.kind === "duplicate" ? <Pill tone="bad">Possible duplicate</Pill> : <Pill tone="warn">Repeat visit</Pill>}
-                <div className="mt-0.5 text-[11px] text-[#575e70]">{r.branch}</div>
+                <div className="mt-0.5 text-[11px] text-[#6e6e73]">{r.branch}</div>
               </td>
               <td className="px-3 py-2.5">
                 <div className="font-mono text-xs font-semibold">{r.vin}</div>
-                <div className="text-[11px] text-[#575e70]">{r.model ? (labels.series[r.model] ?? r.model) : "—"}</div>
+                <div className="text-[11px] text-[#6e6e73]">{r.model ? (labels.series[r.model] ?? r.model) : "—"}</div>
               </td>
               <td className="max-w-72 px-3 py-2.5">
                 <div className="truncate font-semibold" title={labels.labor[r.laborCode]}>
                   {labels.labor[r.laborCode] ?? r.laborCode}
                 </div>
-                <div className="truncate text-[11px] text-[#575e70]">
+                <div className="truncate text-[11px] text-[#6e6e73]">
                   {r.laborCode}
                   {r.partName && ` · ${r.partName}`}
                 </div>
               </td>
               {[r.first, r.second].map((c, idx) => (
                 <td key={idx} className="px-3 py-2.5 text-xs whitespace-nowrap">
-                  <div className="font-semibold text-[#0b1c30]">{c.workOrderNo ?? "—"}</div>
-                  <div className="text-[#575e70]">
+                  <div className="font-semibold text-[#1d1d1f]">{c.workOrderNo ?? "—"}</div>
+                  <div className="text-[#6e6e73]">
                     {fmtDate(c.date)}
                     {c.mileage != null && ` · ${fmtInt(Number(c.mileage))} km`}
                   </div>
-                  <div className="text-[11px] text-[#575e70]">{c.claimNumber}</div>
+                  <div className="text-[11px] text-[#6e6e73]">{c.claimNumber}</div>
                 </td>
               ))}
               <td className="px-3 py-2.5 text-right text-xs whitespace-nowrap">
                 <div className={`font-bold ${(r.daysBetween ?? 99) <= 30 ? "text-[#9a000d]" : ""}`}>{r.daysBetween ?? "—"} days</div>
-                <div className="text-[#575e70]">{r.kmBetween != null ? `${fmtInt(r.kmBetween)} km` : "—"}</div>
+                <div className="text-[#6e6e73]">{r.kmBetween != null ? `${fmtInt(r.kmBetween)} km` : "—"}</div>
               </td>
             </tr>
           ))}
@@ -273,22 +273,22 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
         <Card accent={C.red}>
           <Label>Labor codes trending up</Label>
           <Metric value={fmtInt(flaggedLabor.length)} unit={`${flaggedLabor.filter((i) => i.isNew).length} new`} tone="red" />
-          <div className="text-[11px] text-[#575e70]">vs own average {periodLabel}</div>
+          <div className="text-[11px] text-[#6e6e73]">vs own average {periodLabel}</div>
         </Card>
         <Card accent={C.primary}>
           <Label>Parts trending up</Label>
           <Metric value={fmtInt(flaggedParts.length)} unit={`${flaggedParts.filter((i) => i.isNew).length} new`} tone="red" />
-          <div className="text-[11px] text-[#575e70]">by main part, same comparison</div>
+          <div className="text-[11px] text-[#6e6e73]">by main part, same comparison</div>
         </Card>
         <Card accent={C.amber}>
           <Label>Repeat repairs</Label>
           <Metric value={fmtInt(repeatVisits.length)} unit="VIN came back" />
-          <div className="text-[11px] text-[#575e70]">Same VIN + labor code, different job card</div>
+          <div className="text-[11px] text-[#6e6e73]">Same VIN + labor code, different job card</div>
         </Card>
         <Card accent={C.blue}>
           <Label>Possible duplicate claims</Label>
           <Metric value={fmtInt(duplicates.length)} unit="to check" tone={duplicates.length ? "red" : undefined} />
-          <div className="text-[11px] text-[#575e70]">Same VIN + labor code on the same job card</div>
+          <div className="text-[11px] text-[#6e6e73]">Same VIN + labor code on the same job card</div>
         </Card>
       </div>
 
@@ -297,13 +297,13 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
         title="Unusual labor & part trends"
         subtitle={`Claims per month in the selected period vs each code's own average over ${periodLabel}. Click a row for the breakdown.`}
         action={
-          <div className="flex rounded-lg bg-[#eff4ff] p-0.5">
+          <div className="flex rounded-lg bg-[#f5f5f7] p-0.5">
             {(["labor", "parts"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 text-xs font-bold transition ${view === v ? "bg-white text-[#0b1c30] shadow-sm" : "text-[#575e70] hover:text-[#0b1c30]"}`}
+                className={`rounded-md px-3 py-1 text-xs font-bold transition ${view === v ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
               >
                 {v === "labor" ? `Labor codes (${flaggedLabor.length})` : `Part numbers (${flaggedParts.length})`}
               </button>
@@ -311,8 +311,8 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
           </div>
         }
       >
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-[#f8f9ff] p-2.5 ring-1 ring-[#dce9ff]/60">
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-[#575e70]">
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-[#fafafa] p-2.5 ring-1 ring-[#e5e5ea]/60">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-[#6e6e73]">
             Spike
             <select value={spike} onChange={(e) => setSpike(Number(e.target.value))} className={selectClass}>
               {SPIKES.map((s) => (
@@ -322,7 +322,7 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-[#575e70]">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-[#6e6e73]">
             Min claims
             <select value={minClaims} onChange={(e) => setMinClaims(Number(e.target.value))} className={selectClass}>
               {MIN_CLAIMS.map((n) => (
@@ -332,7 +332,7 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
               ))}
             </select>
           </label>
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#575e70]">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#6e6e73]">
             <input type="checkbox" checked={includeNew} onChange={(e) => setIncludeNew(e.target.checked)} className="accent-[#c4121a]" />
             Include codes not seen before
           </label>
@@ -351,7 +351,7 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
         title="Repeat & duplicate repairs"
         subtitle="Same VIN repaired again with the same labor code - the later claim falls in the selected period"
         action={
-          <div className="flex rounded-lg bg-[#eff4ff] p-0.5">
+          <div className="flex rounded-lg bg-[#f5f5f7] p-0.5">
             {(
               [
                 ["all", `All (${t.repeats.length})`],
@@ -363,7 +363,7 @@ export function TrendsSection({ trends, data }: { trends: Promise<TrendData>; da
                 key={k}
                 type="button"
                 onClick={() => setRepeatKind(k)}
-                className={`rounded-md px-3 py-1 text-xs font-bold transition ${repeatKind === k ? "bg-white text-[#0b1c30] shadow-sm" : "text-[#575e70] hover:text-[#0b1c30]"}`}
+                className={`rounded-md px-3 py-1 text-xs font-bold transition ${repeatKind === k ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
               >
                 {label}
               </button>
@@ -382,10 +382,10 @@ export function TrendsSkeleton() {
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-28 animate-pulse rounded-xl bg-white ring-1 ring-[#dce9ff]/60" />
+          <div key={i} className="h-28 animate-pulse rounded-xl bg-white ring-1 ring-[#e5e5ea]/60" />
         ))}
       </div>
-      <div className="flex h-96 animate-pulse items-center justify-center rounded-xl bg-white text-sm text-[#575e70] ring-1 ring-[#dce9ff]/60">
+      <div className="flex h-96 animate-pulse items-center justify-center rounded-xl bg-white text-sm text-[#6e6e73] ring-1 ring-[#e5e5ea]/60">
         <span className="flex items-center gap-2">
           <Icon.timer size={16} /> Comparing this period with the previous 6 months…
         </span>
