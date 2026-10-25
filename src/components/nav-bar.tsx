@@ -9,6 +9,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
 import { SIDEBAR_KEY, SITE_NAME } from "@/lib/site";
+import { NavIcon } from "@/components/nav-icons";
 
 type NavLink = {
   href: string;
@@ -92,9 +93,10 @@ function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHre
               }`}
             >
               {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand" />}
+              <NavIcon href={link.href} label={link.label} />
               <span className="min-w-0 flex-1">{link.label}</span>
               {link.badge && (
-                <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-neutral-300 uppercase ring-1 ring-white/10">{link.badge}</span>
+                <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-neutral-300 uppercase ring-1 ring-white/10">{link.badge}</span>
               )}
             </Link>
           </li>

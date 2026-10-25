@@ -33,13 +33,13 @@ function CycleCard({
         </div>
       </div>
       <div className="rounded-lg bg-[#eff4ff] p-2">
-        <div className="mb-1 text-[10px] font-semibold tracking-wider text-[#575e70] uppercase">{formula}</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wider text-[#575e70] uppercase">{formula}</div>
         <StackedBar
           height="h-2.5"
           legend={false}
           segments={metric.buckets.map((b, i) => ({ label: b.label, value: b.count, color: BUCKET_COLORS[i] }))}
         />
-        <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[10px] text-[#575e70]">
+        <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[11px] text-[#575e70]">
           {metric.buckets.map((b, i) => (
             <span key={b.label} className="truncate">
               <span className="font-semibold" style={{ color: BUCKET_COLORS[i] }}>

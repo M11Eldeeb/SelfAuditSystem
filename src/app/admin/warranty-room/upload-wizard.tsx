@@ -114,7 +114,7 @@ export function UploadWizard({
                 }`}
               >
                 <span
-                  className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
+                  className={`flex h-4 w-4 items-center justify-center rounded-full text-[11px] ${
                     isActive ? "bg-white/25" : isDone ? "bg-emerald-600 text-white" : "bg-neutral-300 text-white"
                   }`}
                 >

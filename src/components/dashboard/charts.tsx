@@ -110,7 +110,7 @@ export function LineChart({
           {ticks.map((t) => (
             <g key={t}>
               <line x1={pad.left} x2={W - pad.right} y1={y(t)} y2={y(t)} stroke={C.grid} strokeDasharray={t === 0 ? undefined : "3 4"} />
-              <text x={pad.left - 6} y={y(t) + 4} textAnchor="end" className="fill-neutral-400 text-[10px]">
+              <text x={pad.left - 6} y={y(t) + 4} textAnchor="end" className="fill-neutral-400 text-[11px]">
                 {t}
                 {unit}
               </text>
@@ -118,7 +118,7 @@ export function LineChart({
           ))}
           {months.map((m, i) =>
             i % labelEvery === 0 || i === months.length - 1 ? (
-              <text key={m} x={x(i)} y={H - 8} textAnchor="middle" className={`text-[10px] ${hover === i ? "fill-neutral-900 font-bold" : "fill-neutral-500"}`}>
+              <text key={m} x={x(i)} y={H - 8} textAnchor="middle" className={`text-[11px] ${hover === i ? "fill-neutral-900 font-bold" : "fill-neutral-500"}`}>
                 {monthShort(m)}
               </text>
             ) : null
@@ -409,7 +409,7 @@ export function GroupedColumns({
                 />
               )}
             >
-              <div className="mb-1 text-[10px] font-semibold whitespace-nowrap text-neutral-500 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="mb-1 text-[11px] font-semibold whitespace-nowrap text-neutral-500 opacity-0 transition-opacity group-hover:opacity-100">
                 {format(g.values[0])} / {format(g.values[1])}
               </div>
               <div className="flex h-full w-full max-w-14 items-end justify-center gap-1">
@@ -441,8 +441,8 @@ export function GroupedColumns({
         {groups.map((g, i) => (
           <div key={g.label} className="min-w-0 flex-1 text-center">
             <div className={`truncate text-[11px] font-bold ${highlight?.(i) ? "text-[#9a000d]" : "text-neutral-800"}`}>{g.label}</div>
-            {g.sub && <div className="truncate text-[10px] text-neutral-500">{g.sub}</div>}
-            {line && <div className="truncate text-[10px] font-semibold" style={{ color: line.color }}>{line.format(line.values[i])}</div>}
+            {g.sub && <div className="truncate text-[11px] text-neutral-500">{g.sub}</div>}
+            {line && <div className="truncate text-[11px] font-semibold" style={{ color: line.color }}>{line.format(line.values[i])}</div>}
           </div>
         ))}
       </div>
@@ -481,9 +481,9 @@ export function ColumnChart({
             />
           )}
         >
-          <span className="text-[10px] font-semibold text-neutral-600 tabular-nums">{format(p.value)}</span>
+          <span className="text-[11px] font-semibold text-neutral-600 tabular-nums">{format(p.value)}</span>
           <div className="w-full max-w-12 rounded-t-md" style={{ height: `${Math.max((p.value / max) * 100, 1.5)}%`, background: `linear-gradient(to top, ${C.primary}, ${C.red})` }} />
-          <span className="truncate text-[10px] text-neutral-500">{monthShort(p.label)}</span>
+          <span className="truncate text-[11px] text-neutral-500">{monthShort(p.label)}</span>
         </div>
       ))}
     </div>
@@ -506,7 +506,7 @@ export function BarList({
   return (
     <div className="space-y-1.5">
       {layer}
-      {valueLabel && <div className="flex justify-end text-[10px] font-bold tracking-wider text-neutral-400 uppercase">{valueLabel}</div>}
+      {valueLabel && <div className="flex justify-end text-[11px] font-bold tracking-wider text-neutral-400 uppercase">{valueLabel}</div>}
       {items.map((item, idx) => (
         <div
           key={`${item.label}|${item.sublabel ?? ""}|${idx}`}

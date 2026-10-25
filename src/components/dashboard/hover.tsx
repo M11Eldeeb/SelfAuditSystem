@@ -20,7 +20,7 @@ export function TipCard({ title, rows, note }: { title: string; rows: TipRow[]; 
           </div>
         ))}
       </div>
-      {note && <div className="mt-1.5 border-t border-white/15 pt-1 text-[10px] text-white/60">{note}</div>}
+      {note && <div className="mt-1.5 border-t border-white/15 pt-1 text-[11px] text-white/60">{note}</div>}
     </div>
   );
 }

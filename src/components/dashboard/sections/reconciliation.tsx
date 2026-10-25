@@ -371,7 +371,7 @@ export function ReconciliationSection({
                 <col className="w-[9.5rem]" />
                 <col className="w-[5.5rem]" />
               </colgroup>
-              <thead className="bg-[#eff4ff] text-[10px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#eff4ff] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
                 <tr>
                   <th className="px-2 py-2.5">VIN</th>
                   <th className="px-2 py-2.5">Claim no.</th>
@@ -390,7 +390,7 @@ export function ReconciliationSection({
                     <td className="truncate px-2 py-2 font-mono text-[11px]">{r.vin ?? "—"}</td>
                     <td className="px-2 py-2">
                       <CopyText text={r.claimNumber} copy={r.claimNumber} className="font-semibold" />
-                      {!branchId && <div className="truncate text-[10px] text-[#575e70]">{branchName.get(r.branchId)}</div>}
+                      {!branchId && <div className="truncate text-[11px] text-[#575e70]">{branchName.get(r.branchId)}</div>}
                     </td>
                     <td className="px-2 py-2">
                       {r.workOrderNo ? <CopyText text={r.workOrderNo} copy={workOrderNumber(r.workOrderNo)} /> : "—"}
@@ -399,12 +399,12 @@ export function ReconciliationSection({
                       <span className={`font-display text-[13px] font-bold ${r.lossAmount > 0.005 ? "text-[#9a000d]" : "text-[#575e70]"}`}>
                         {fmtNum(r.lossAmount, 2)}
                       </span>
-                      <div className="text-[10px] text-[#575e70]">of {fmtNum(r.claimAmount, 2)}</div>
+                      <div className="text-[11px] text-[#575e70]">of {fmtNum(r.claimAmount, 2)}</div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{fmtDate(r.firstSubmitDate)}</td>
                     <td className="px-2 py-2">
                       <HoverText text={r.laborName} className="font-semibold text-[#0b1c30]" />
-                      <HoverText text={r.partName} className="text-[10px] text-[#575e70]" />
+                      <HoverText text={r.partName} className="text-[11px] text-[#575e70]" />
                     </td>
                     <td className="px-2 py-2">
                       <Toggle

@@ -79,7 +79,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#f5f5f5] text-[10px] font-bold tracking-wider text-[#575e70] uppercase">
+              <thead className="bg-[#f5f5f5] text-[11px] font-bold tracking-wider text-[#575e70] uppercase">
                 <tr>
                   <th className="px-3 py-2">Settlement no.</th>
                   <th className="px-3 py-2 text-right">Claims</th>
@@ -96,7 +96,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                     <tr key={r.order} className="hover:bg-[#f5f5f5]/50">
                       <td className="px-3 py-2">
                         <div className="font-semibold text-[#0b1c30]">{r.order}</div>
-                        <div className="text-[10px] text-[#575e70]">{settlementDate(r.order)}</div>
+                        <div className="text-[11px] text-[#575e70]">{settlementDate(r.order)}</div>
                       </td>
                       <td className="px-3 py-2 text-right">{fmtInt(r.lossCount)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmtNum(r.lossAmount, 2)}</td>
@@ -112,7 +112,7 @@ export function ReconProgress({ data, onOpen }: { data: DashboardData; onOpen?: 
                           {p >= 99.995 ? (
                             <Pill tone="good">Done</Pill>
                           ) : (
-                            <span className="w-9 text-right text-[10px] text-[#575e70]">{Math.round(p)}%</span>
+                            <span className="w-9 text-right text-[11px] text-[#575e70]">{Math.round(p)}%</span>
                           )}
                         </div>
                       </td>

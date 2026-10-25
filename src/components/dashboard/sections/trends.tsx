@@ -224,7 +224,7 @@ function RepeatTable({ rows, labels }: { rows: RepeatRow[]; labels: DashboardDat
                     {fmtDate(c.date)}
                     {c.mileage != null && ` · ${fmtInt(Number(c.mileage))} km`}
                   </div>
-                  <div className="text-[10px] text-[#575e70]">{c.claimNumber}</div>
+                  <div className="text-[11px] text-[#575e70]">{c.claimNumber}</div>
                 </td>
               ))}
               <td className="px-3 py-2.5 text-right text-xs whitespace-nowrap">

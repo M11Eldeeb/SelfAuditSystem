@@ -40,7 +40,7 @@ export function TaskRow({ task, compact = false }: { task: Task; compact?: boole
           <span className="font-semibold text-neutral-900">{task.title}</span>
           {task.branchName && !compact && <span className="text-xs text-neutral-500">· {task.branchName}</span>}
           <AgeBadge days={task.ageDays} />
-          {task.reminder?.due && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">Reminder due</span>}
+          {task.reminder?.due && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">Reminder due</span>}
         </div>
         <div className="truncate text-xs text-neutral-600">
           {task.detail}

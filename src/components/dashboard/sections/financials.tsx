@@ -83,7 +83,7 @@ export function FinancialsSection({
                 { l: "Sublet", v: data.detectedSplit.sublet, c: "text-[#9a000d]" },
               ].map((x) => (
                 <div key={x.l}>
-                  <div className="text-[10px] font-bold text-[#575e70] uppercase">{x.l}</div>
+                  <div className="text-[11px] font-bold text-[#575e70] uppercase">{x.l}</div>
                   <div className={`text-xs font-bold ${x.c}`}>{fmtCompact(x.v)}</div>
                 </div>
               ))}

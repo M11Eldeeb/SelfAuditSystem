@@ -64,7 +64,7 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
         {ticks.map((t) => (
           <g key={t}>
             <line x1={pad.left} x2={W - pad.right} y1={y(t)} y2={y(t)} stroke={C.grid} strokeDasharray={t ? "3 4" : undefined} />
-            <text x={pad.left - 6} y={y(t) + 4} textAnchor="end" className="fill-neutral-400 text-[10px]">
+            <text x={pad.left - 6} y={y(t) + 4} textAnchor="end" className="fill-neutral-400 text-[11px]">
               {fmtCompact(t)}
             </text>
           </g>
@@ -77,12 +77,12 @@ export function ForecastPanel({ forecast, currency }: { forecast: Promise<Settle
           <g key={a.month}>
             <circle cx={x(i)} cy={y(a.value)} r={a.kind === "forecast" ? 4.5 : 3.5} fill="white" stroke={a.kind === "forecast" ? C.blueLight : C.red} strokeWidth={2} />
             {a.kind === "forecast" && (
-              <text x={x(i)} y={y(a.value) - 9} textAnchor={i === all.length - 1 ? "end" : "middle"} className="fill-[#2d2d2d] text-[10px] font-bold">
+              <text x={x(i)} y={y(a.value) - 9} textAnchor={i === all.length - 1 ? "end" : "middle"} className="fill-[#2d2d2d] text-[11px] font-bold">
                 {fmtCompact(a.value)}
               </text>
             )}
             {(i % 3 === 0 || i === all.length - 1 || i === lastActual) && (
-              <text x={x(i)} y={H - 10} textAnchor="middle" className={`text-[10px] ${a.kind === "forecast" ? "fill-[#2d2d2d] font-bold" : "fill-neutral-500"}`}>
+              <text x={x(i)} y={H - 10} textAnchor="middle" className={`text-[11px] ${a.kind === "forecast" ? "fill-[#2d2d2d] font-bold" : "fill-neutral-500"}`}>
                 {monthShort(a.month)}
               </text>
             )}

@@ -192,7 +192,7 @@ export function KpiDashboard({
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#9a000d] font-display text-sm font-bold text-white">MG</span>
             <div className="leading-tight">
               <div className="font-display text-sm font-bold tracking-tight text-[#0b1c30] uppercase">KPI Dashboard</div>
-              <div className="text-[10px] font-bold tracking-wider text-[#9a000d] uppercase">Warranty operations</div>
+              <div className="text-[11px] font-bold tracking-wider text-[#9a000d] uppercase">Warranty operations</div>
             </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col">

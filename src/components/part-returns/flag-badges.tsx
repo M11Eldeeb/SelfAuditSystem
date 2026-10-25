@@ -12,7 +12,7 @@ export function FlagBadges({ flags }: { flags: PartFlag[] | undefined }) {
   return (
     <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
       {flags.map((f) => (
-        <span key={f.kind} title={f.detail} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${STYLE[f.kind].cls}`}>
+        <span key={f.kind} title={f.detail} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${STYLE[f.kind].cls}`}>
           ⚠ {STYLE[f.kind].label}
         </span>
       ))}

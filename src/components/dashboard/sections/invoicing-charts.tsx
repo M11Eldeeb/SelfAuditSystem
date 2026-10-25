@@ -48,7 +48,7 @@ export function MoneyLine({ labels, series, onPick, pickHint }: { labels: { key:
           {[0, 0.25, 0.5, 0.75, 1].map((t) => (
             <g key={t}>
               <line x1={pad.left} x2={W - pad.right} y1={y(t * max)} y2={y(t * max)} stroke={INV.grid} strokeDasharray={t ? "3 4" : undefined} />
-              <text x={pad.left - 6} y={y(t * max) + 4} textAnchor="end" className="fill-slate-400 text-[10px]">
+              <text x={pad.left - 6} y={y(t * max) + 4} textAnchor="end" className="fill-slate-400 text-[11px]">
                 {compact(t * max)}
               </text>
             </g>
@@ -71,7 +71,7 @@ export function MoneyLine({ labels, series, onPick, pickHint }: { labels: { key:
           ))}
           {labels.map((l, i) =>
             i % every === 0 || i === labels.length - 1 ? (
-              <text key={l.key} x={x(i)} y={H - 8} textAnchor="middle" className={`text-[10px] ${hover === i ? "fill-slate-900 font-bold" : "fill-slate-500"}`}>
+              <text key={l.key} x={x(i)} y={H - 8} textAnchor="middle" className={`text-[11px] ${hover === i ? "fill-slate-900 font-bold" : "fill-slate-500"}`}>
                 {l.short}
               </text>
             ) : null
@@ -92,7 +92,7 @@ export function MoneyLine({ labels, series, onPick, pickHint }: { labels: { key:
                 <span className="font-semibold tabular-nums">SAR {money(s.values[hover] ?? 0)}</span>
               </div>
             ))}
-            {pickHint && <div className="mt-1 text-[10px] text-slate-300">{pickHint}</div>}
+            {pickHint && <div className="mt-1 text-[11px] text-slate-300">{pickHint}</div>}
           </div>
         )}
       </div>

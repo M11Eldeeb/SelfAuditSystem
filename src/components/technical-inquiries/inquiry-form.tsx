@@ -539,10 +539,10 @@ export function InquiryForm({
                           <FileBox {...fileBoxProps} files={step.files} onChange={(files) => patchStep(wi, si, { files })} label="Add attachment" />
                         </div>
                         <div className="flex shrink-0 flex-col gap-1 pt-1">
-                          <button type="button" onClick={() => moveStep(wi, si, -1)} disabled={saving || si === 0} aria-label={`Move step ${si + 1} up`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
+                          <button type="button" onClick={() => moveStep(wi, si, -1)} disabled={saving || si === 0} aria-label={`Move step ${si + 1} up`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[11px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
                             ▲
                           </button>
-                          <button type="button" onClick={() => moveStep(wi, si, 1)} disabled={saving || si === w.steps.length - 1} aria-label={`Move step ${si + 1} down`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[10px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
+                          <button type="button" onClick={() => moveStep(wi, si, 1)} disabled={saving || si === w.steps.length - 1} aria-label={`Move step ${si + 1} down`} className="h-5 w-6 rounded border border-neutral-300 bg-white text-[11px] leading-none text-neutral-600 hover:bg-neutral-50 disabled:opacity-30">
                             ▼
                           </button>
                           <button

@@ -24,8 +24,8 @@
 }
 
 /*
- * Light is the default theme. Dark mode is opt-in (Settings menu) and is
- * driven by the "dark" class on <html>, never by the OS preference alone, so
+ * The theme follows the device until someone picks Light or Dark in the Settings menu. It is
+ * driven by the "dark" class on <html> (set before first paint by THEME_INIT_SCRIPT), so
  * :root must not flip with prefers-color-scheme: components hardcode light
  * colours (bg-white, text-neutral-900) and only the class-scoped overrides at
  * the bottom of this file know how to restyle them. See "Light / dark theme".
@@ -34,7 +34,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* Apple devices get the system font (San Francisco); everything else keeps Inter. */
+  font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), "Segoe UI", Roboto, Arial, sans-serif;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -612,5 +613,44 @@ html.is-scrolling * {
 @media print {
   :has(> .app-sidebar) {
     padding-left: 0 !important;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   Accessibility floor (Apple Human Interface Guidelines - accessibility.md, color.md, typography.md)
+   --------------------------------------------------------------------------------------------------------------------- */
+@layer utilities {
+  /* Text up to 17 pt needs 4.5:1. neutral-400 (#a3a3a3) is 2.5:1 on white: on light surfaces it uses neutral-500
+     (#737373, 4.7:1). The always-dark chrome (sidebar, top bar) keeps it - there it is 7.7:1. */
+  :where(html:not(.dark)) .text-neutral-400:where(:not(.chrome-dark, .chrome-dark *)) {
+    color: #737373;
+  }
+}
+
+/* Increase Contrast (system setting): greys get darker, borders stronger. */
+@media (prefers-contrast: more) {
+  @layer utilities {
+    :where(html:not(.dark)) .text-neutral-400:where(:not(.chrome-dark, .chrome-dark *)),
+    :where(html:not(.dark)) .text-neutral-500:where(:not(.chrome-dark, .chrome-dark *)) {
+      color: #404040;
+    }
+    :where(html:not(.dark)) .text-neutral-600:where(:not(.chrome-dark, .chrome-dark *)) {
+      color: #262626;
+    }
+    :where(html:not(.dark)) .border-neutral-200,
+    :where(html:not(.dark)) .border-neutral-100 {
+      border-color: #a3a3a3;
+    }
+  }
+}
+
+/* Touch screens: fields at least 44 pt tall and 16 px text (smaller text makes iPhone zoom in on the field). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]),
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
   }
 }

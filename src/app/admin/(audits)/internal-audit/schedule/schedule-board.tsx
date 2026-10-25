@@ -115,7 +115,7 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
         onClick={() => setOpen((o) => !o)}
         className={`w-full rounded-lg border px-2 py-1.5 text-left text-sm shadow-sm ${slot.date ? "border-neutral-300 bg-white" : "border-dashed border-amber-400 bg-amber-50/40 text-amber-800"} ${slot.date && (marks.holiday.has(slot.date) || isWeekend(slot.date)) ? "text-red-700" : ""}`}
       >
-        <span className="block text-[10px] font-semibold tracking-wide text-neutral-400 uppercase">Audit {slot.slot}</span>
+        <span className="block text-[11px] font-semibold tracking-wide text-neutral-400 uppercase">Audit {slot.slot}</span>
         {slot.date ? (
           <>
             {fmt(slot.date)}
@@ -129,7 +129,7 @@ function DatePick({ slot, year, marks, today, onSaved }: { slot: ScheduleData["s
         )}
       </button>
       <div className="flex flex-wrap items-center gap-1">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.cls}`}>{status.label}</span>
         {slot.audit ? (
           <Link href={slot.audit.finalized ? `/admin/internal-audit/${slot.audit.id}/report` : `/admin/internal-audit/${slot.audit.id}?claim=0`} className="text-[11px] text-brand hover:underline">
             Open

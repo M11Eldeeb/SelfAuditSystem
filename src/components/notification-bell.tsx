@@ -212,7 +212,7 @@ export function NotificationBell({
         {data.count > 0 && (
           <span
             key={data.count}
-            className="badge-pop absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[10px] leading-none font-bold text-white ring-2 ring-brand-ink"
+            className="badge-pop absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] leading-none font-bold text-white ring-2 ring-brand-ink"
           >
             {label}
           </span>
