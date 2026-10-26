@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { scoreAnswer, scorePct } from "@/lib/scoring";
+import { completeCycleIfFinished } from "@/lib/complete-cycle";
 
 export type FinalizeState = { error?: string; success?: string } | undefined;
 export type ReopenState = { error?: string } | undefined;
@@ -166,9 +167,14 @@ export async function finalizeBranchAudit(
 
   if (error) return { error: error.message };
 
+  // The last branch to be finalized completes the cycle.
+  await completeCycleIfFinished(supabase, cycleId);
+
   revalidatePath(`/admin/review/${cycleId}/${branchId}`);
   revalidatePath("/admin/results/self-audit");
   revalidatePath(`/admin/results/self-audit/${branchId}`);
+  revalidatePath("/admin/cycles");
+  revalidatePath("/admin/audits");
   return { success: "Results finalized." };
 }
 
@@ -258,6 +264,7 @@ export async function forceFinalizeBranchAudit(cycleId: string, branchId: string
     { onConflict: "cycle_id,branch_id" }
   );
   if (resultError) return { error: resultError.message };
+  await completeCycleIfFinished(supabase, cycleId);
 
   const staleAssignmentIds = assignments.filter((a) => a.status !== "reviewed" && a.status !== "expired").map((a) => a.id);
   if (staleAssignmentIds.length > 0) {
