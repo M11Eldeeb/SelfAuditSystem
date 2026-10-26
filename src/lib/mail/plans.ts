@@ -256,12 +256,16 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
 // ---- 4. the podium congratulations ------------------------------------------------------------------------------
 
 /**
- * Sent the working morning after the LAST branch result of a self-audit cycle is finalized (the daily job
- * runs at about 09:00, Sunday to Thursday). Goes to every branch admin. Only a cycle finalized in the last 10
- * days is considered, so switching the mail on never congratulates an old cycle.
+ * Sent on the first working morning of every month (the daily job runs at about 09:00, Sunday to Thursday, so its first
+ * run of the month - in the first seven days - is the first working day). It congratulates the newest self-audit cycle
+ * whose branches are all finalized, and goes to every branch admin. Each cycle is mailed once (keyed by the cycle), and
+ * only a cycle finalized in the last 45 days is considered, so switching the mail on never congratulates an old cycle.
  */
 export async function planPodium(origin: string, now = new Date()): Promise<PlannedMail[]> {
-  const { data: cycles } = await admin().from("self_audit_audit_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }).limit(2);
+  // Saudi time (UTC+3): the first working morning of the month falls in its first seven days.
+  const dayOfMonth = Number(new Date(now.getTime() + 3 * 3_600_000).toISOString().slice(8, 10));
+  if (dayOfMonth > 7) return [];
+  const { data: cycles } = await admin().from("self_audit_audit_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }).limit(3);
   const plans: PlannedMail[] = [];
   const [people, templates] = await Promise.all([loadPeople(), loadTemplates()]);
   const t = templates.podium;
@@ -278,7 +282,7 @@ export async function planPodium(origin: string, now = new Date()): Promise<Plan
 
     const last = new Date(Math.max(...results.map((r) => new Date(r.finalized_at).getTime())));
     const since = calendarDaysBetween(last, now);
-    if (since < 1 || since > 10) continue; // not before the next working morning; nothing old
+    if (since < 0 || since > 45) continue; // nothing old
 
     const top = results
       .filter((r) => people.activeBranches.has(r.branch_id))
@@ -301,6 +305,7 @@ export async function planPodium(origin: string, now = new Date()): Promise<Plan
       ...mail,
       label: `Podium - ${monthLabel(cycle.cycle_month)}`,
     });
+    break; // only the newest finalized cycle
   }
   return plans;
 }
