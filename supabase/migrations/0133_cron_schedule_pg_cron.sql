@@ -38,3 +38,4 @@ revoke all on function public.call_cron_route(text) from public, anon, authentic
 select cron.schedule('self-audit-mail-reminders', '30 5 * * 0-4', $$select public.call_cron_route('/api/cron/mail-reminders')$$);
 select cron.schedule('self-audit-mail-reminders-retry', '30 8 * * 0-4', $$select public.call_cron_route('/api/cron/mail-reminders')$$);
 select cron.schedule('self-audit-daily-housekeeping', '0 6 * * 0-4', $$select public.call_cron_route('/api/cron/daily-housekeeping')$$);
+select cron.schedule('self-audit-daily-housekeeping-retry', '30 8 * * 0-4', $$select public.call_cron_route('/api/cron/daily-housekeeping')$$);
