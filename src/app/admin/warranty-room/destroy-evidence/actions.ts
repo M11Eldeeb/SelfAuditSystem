@@ -8,11 +8,10 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Approves one branch's destruction evidence for THIS cycle: moves that
- * branch's 'pending' scrap requests flagged in this specific cycle to
- * 'scrapped' (via the approve_destroy_evidence RPC) - an older,
- * still-unsubmitted cycle for the same branch is untouched, so it can be
- * approved or returned independently. The videos stay in Drive.
+ * Approves one branch's destruction evidence for this cycle: every part still flagged for the branch - flagged in this
+ * cycle or carried over from an earlier one the branch never submitted - moves to 'scrapped' (via the
+ * approve_destroy_evidence RPC, migration 0135), and the branch's earlier cycles' evidence is closed with it. Parts
+ * flagged in a LATER cycle are untouched. The videos stay in Drive.
  */
 export async function approveDestroyEvidence(cycleId: string, branchId: string): Promise<{ error?: string; scrappedCount?: number }> {
   const officer = await requireRole("officer");
