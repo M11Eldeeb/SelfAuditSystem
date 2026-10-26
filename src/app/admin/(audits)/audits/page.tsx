@@ -59,13 +59,9 @@ export default async function AuditsPage() {
   // Besides this system's own finalized self-audit cycles, the standings count
   // internal audits (live and historical) and historical self audits.
   const extraScores = [...(internalAudits ?? []), ...(historicalInternalAudits ?? []), ...(historicalSelfAudits ?? [])];
-  // Cycles are never auto-closed, so an older cycle can still be open next to
-  // the new one - the podium must follow the newest open cycle, not whichever
-  // row the query happened to return first.
-  const openCycle =
-    (cycles ?? [])
-      .filter((c) => c.status === "open")
-      .sort((a, b) => b.cycle_month.localeCompare(a.cycle_month))[0] ?? null;
+  // The podium follows the newest cycle, open or completed (a cycle completes by itself once every branch is
+  // finalized), so the top performers stay up for the congratulations mail until the next cycle is generated.
+  const openCycle = [...(cycles ?? [])].sort((a, b) => b.cycle_month.localeCompare(a.cycle_month))[0] ?? null;
   const podiumStandings = computeCurrentCycleStandings(safeResults, allBranches, openCycle?.id ?? null);
   // Closed (inactive) branches keep their history but are not ranked.
   const rankedBranches = allBranches.filter((b) => b.active);

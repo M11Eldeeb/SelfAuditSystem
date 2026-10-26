@@ -55,7 +55,8 @@ export default async function AuditDashboardPage() {
   }
 
   const cycleIds = cycles.map((c) => c.id);
-  const currentCycleId = cycles.find((c) => c.status === "open")?.id ?? null;
+  // The podium follows the newest cycle, open or completed, so it stays up until the next cycle is generated.
+  const currentCycleId = cycles[0]?.id ?? null;
 
   const [
     { data: assignments },
