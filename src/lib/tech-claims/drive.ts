@@ -77,3 +77,34 @@ export async function trashDriveFile(id: string): Promise<void> {
 
 export const driveFolderUrl = (id: string) => `https://drive.google.com/drive/folders/${id}`;
 export const driveFileUrl = (id: string) => `https://drive.google.com/file/d/${id}/view`;
+
+/**
+ * The technician's staging folder (Warranty Documents / <Branch> / <Technician> / _Uploading): files are uploaded here
+ * the moment they are added - while the technician still types the VIN and work order - and moved into the work order
+ * folder when the claim is submitted.
+ */
+export async function ensureStagingFolder(input: { branchId: string; branchName: string; technicianId: string; technicianLabel: string }): Promise<string> {
+  const branch = await ensureFolder(LIBRARIES.warranty.rootId, input.branchName, `tc:branch:${input.branchId}`);
+  const tech = await ensureFolder(branch, input.technicianLabel, `tc:tech:${input.branchId}:${input.technicianId}`);
+  return ensureFolder(tech, "_Uploading", `tc:stage:${input.branchId}:${input.technicianId}`);
+}
+
+/** Moves a Drive file from one folder to another (instant - nothing is copied). */
+export async function moveDriveFile(id: string, from: string, to: string): Promise<void> {
+  const res = await docsFetch(`${API}/files/${encodeURIComponent(id)}?addParents=${encodeURIComponent(to)}&removeParents=${encodeURIComponent(from)}&supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (!res.ok) throw new DocsError("Google Drive did not move a file - please try again.");
+}
+
+/** Staged files nobody submitted within two days (the claim was abandoned) go to the Drive trash. */
+export async function cleanStagingFolder(folderId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed = false and modifiedTime < '${cutoff}'`);
+  const res = await docsFetch(`${API}/files?q=${q}&fields=files(id)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+  if (!res.ok) return;
+  const json = (await res.json().catch(() => ({}))) as { files?: { id: string }[] };
+  await Promise.all((json.files ?? []).map((f) => trashDriveFile(f.id).catch(() => undefined)));
+}

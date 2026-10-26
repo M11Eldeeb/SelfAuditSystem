@@ -1,11 +1,13 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAnyRole, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { driveFileInfo, ensureClaimFolder, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import type { Database } from "@/lib/supabase/types";
 
 const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p));
@@ -48,41 +50,45 @@ async function openSessions(folderId: string, files: FileMeta[]): Promise<string
 
 const techLabel = (name: string, employeeNo: string | null) => (employeeNo ? `${name} - ${employeeNo}` : name);
 
-/**
- * Technician: creates the claim (still "uploading"), its Drive folder and one upload session per file. The browser then
- * sends the files straight to Google and calls finishTechClaim.
- */
-export async function startTechClaim(fields: ClaimFields, files: FileMeta[]): Promise<{ claimId?: string; sessions?: string[]; error?: string }> {
+/** The signed-in technician, his branch name and his Drive staging folder. */
+async function technicianContext() {
   const tech = await requireRole("technician");
-  if (!tech.branch_id) return { error: "Your account has no branch." };
-  const clean = cleanFields(fields);
-  if ("error" in clean) return clean;
-  if (!files.length) return { error: "Add at least one photo, video or PDF." };
-  const bad = checkFiles(files);
-  if (bad) return { error: bad };
-  if (!(await getDocsConnection())) return { error: "Google Drive is not connected yet - tell the warranty officer." };
-
-  const admin = createAdminClient();
-  const { data: branch } = await admin.from("self_audit_branches").select("name").eq("id", tech.branch_id).maybeSingle();
+  if (!tech.branch_id) throw new DocsError("Your account has no branch.");
+  if (!(await getDocsConnection())) throw new DocsError("Google Drive is not connected yet - tell the warranty officer.");
+  const { data: branch } = await createAdminClient().from("self_audit_branches").select("name").eq("id", tech.branch_id).maybeSingle();
   const name = tech.full_name ?? tech.email;
+  const place = { branchId: tech.branch_id, branchName: branch?.name ?? "Branch", technicianId: tech.id, technicianLabel: techLabel(name, tech.employee_no) };
+  const staging = await ensureStagingFolder(place);
+  return { tech, name, place, staging };
+}
+
+/**
+ * Technician: one upload session for a file just added to the form. Files go to his staging folder straight away -
+ * while he is still filling in the claim - so pressing Submit only has to move them (see submitTechClaim).
+ */
+export async function prepareStagedUpload(file: FileMeta): Promise<{ session?: string; error?: string }> {
+  const bad = checkFiles([file]);
+  if (bad) return { error: bad };
   try {
-    const folderId = await ensureClaimFolder({
-      branchId: tech.branch_id,
-      branchName: branch?.name ?? "Branch",
-      technicianId: tech.id,
-      technicianLabel: techLabel(name, tech.employee_no),
-      workOrder: clean.workOrder,
-    });
-    const { data: claim, error } = await admin
-      .from("self_audit_tech_claims")
-      .insert({ branch_id: tech.branch_id, technician_id: tech.id, technician_name: name, vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, drive_folder_id: folderId })
-      .select("id")
-      .single();
-    if (error || !claim) return { error: error?.message ?? "Could not save the claim." };
-    const sessions = await openSessions(folderId, files);
-    return { claimId: claim.id, sessions };
+    const { staging } = await technicianContext();
+    const [session] = await openSessions(staging, [file]);
+    // Now and then, clear files abandoned in this staging folder for more than two days.
+    if (Math.random() < 0.1) after(() => cleanStagingFolder(staging).catch(() => undefined));
+    return { session };
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
+  }
+}
+
+/** Technician: a file removed from the form before submitting goes to the Drive trash. */
+export async function discardStagedFile(driveFileId: string): Promise<{ error?: string }> {
+  try {
+    const { staging } = await technicianContext();
+    const info = await driveFileInfo(driveFileId);
+    if (info && info.parents.includes(staging)) await trashDriveFile(driveFileId);
+    return {};
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive." };
   }
 }
 
@@ -95,79 +101,75 @@ async function ownEditableClaim(claimId: string) {
   return { tech, claim };
 }
 
-/** Technician: more files for a claim not sent yet or returned (upload sessions into its folder). */
-export async function addTechClaimFiles(claimId: string, files: FileMeta[]): Promise<{ sessions?: string[]; error?: string }> {
-  const own = await ownEditableClaim(claimId);
-  if ("error" in own) return { error: own.error };
-  if (!files.length) return { sessions: [] };
-  const { count } = await createAdminClient().from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claimId);
-  const bad = checkFiles(files, count ?? 0);
-  if (bad) return { error: bad };
-  if (!own.claim.drive_folder_id) return { error: "The claim's Drive folder is missing." };
-  try {
-    return { sessions: await openSessions(own.claim.drive_folder_id, files) };
-  } catch (e) {
-    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
-  }
-}
-
 /**
- * Technician: the files are in Drive - record them (each one checked in Drive: it must be in the claim's folder) and send
- * the claim to the branch's warranty admin. For a returned claim the fields may be corrected at the same time.
+ * Technician presses Submit: the claim is created (or, for a returned / unsent claim, corrected), its uploaded files are
+ * moved from the staging folder into Warranty Documents / Branch / Technician / Work order (a move - instant), recorded,
+ * and the claim goes to the branch's warranty admin.
  */
-export async function finishTechClaim(claimId: string, driveFileIds: string[], fields?: ClaimFields, submit = true): Promise<{ error?: string }> {
-  const own = await ownEditableClaim(claimId);
-  if ("error" in own) return { error: own.error };
-  const { tech, claim } = own;
+export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], claimId?: string): Promise<{ claimId?: string; error?: string }> {
+  const clean = cleanFields(fields);
+  if ("error" in clean) return clean;
   const admin = createAdminClient();
-
   try {
-    const infos = await Promise.all([...new Set(driveFileIds)].slice(0, MAX_FILES).map((id) => driveFileInfo(id)));
-    const rows = infos
-      .filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && !!claim.drive_folder_id && f.parents.includes(claim.drive_folder_id))
-      .map((f) => ({ claim_id: claimId, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: tech.id }));
-    if (rows.length) {
-      const { error } = await admin.from("self_audit_tech_claim_files").insert(rows);
-      if (error) return { error: error.message };
+    const ctx = await technicianContext();
+    const ids = [...new Set(stagedIds)].slice(0, MAX_FILES);
+
+    // The claim: a new one, or the technician's own one he may still change.
+    let claim: Database["public"]["Tables"]["self_audit_tech_claims"]["Row"];
+    if (claimId) {
+      const own = await ownEditableClaim(claimId);
+      if ("error" in own) return { error: own.error };
+      claim = own.claim;
+    } else {
+      if (!ids.length) return { error: "Add at least one photo, video or PDF." };
+      const folderId = await ensureClaimFolder({ ...ctx.place, workOrder: clean.workOrder });
+      const { data, error } = await admin
+        .from("self_audit_tech_claims")
+        .insert({ branch_id: ctx.place.branchId, technician_id: ctx.tech.id, technician_name: ctx.name, vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, drive_folder_id: folderId })
+        .select("*")
+        .single();
+      if (error || !data) return { error: error?.message ?? "Could not save the claim." };
+      claim = data;
     }
+    const folder = claim.drive_folder_id;
+    if (!folder) return { error: "The claim's Drive folder is missing." };
+
+    // Move the staged files in (only files that really are in this technician's staging folder).
+    const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
+    const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
+    await Promise.all(staged.map((f) => moveDriveFile(f.id, ctx.staging, folder)));
+    if (staged.length) {
+      const { error } = await admin
+        .from("self_audit_tech_claim_files")
+        .insert(staged.map((f) => ({ claim_id: claim.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
+      if (error) return { claimId: claim.id, error: error.message };
+    }
+    const { count } = await admin.from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claim.id);
+    if (!count) return { claimId: claim.id, error: "No file reached Google Drive - please add the files again." };
+
+    const edited =
+      !!claimId && (clean.vin !== claim.vin || clean.workOrder !== claim.work_order || clean.endOfRepair !== new Date(claim.end_of_repair).toISOString() || clean.notes !== claim.notes);
+    if (claimId && clean.workOrder !== claim.work_order) await renameDriveItem(folder, clean.workOrder).catch(() => undefined);
+    const resubmit = claim.status === "returned";
+    const now = new Date().toISOString();
+    const { error } = await admin
+      .from("self_audit_tech_claims")
+      .update({ vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, status: "submitted", submitted_at: now, updated_at: now, times_submitted: claim.times_submitted + 1 })
+      .eq("id", claim.id)
+      .in("status", ["uploading", "returned"]);
+    if (error) return { claimId: claim.id, error: error.message };
+    await admin.from("self_audit_tech_claim_events").insert({
+      claim_id: claim.id,
+      kind: resubmit ? "resubmitted" : "submitted",
+      body: resubmit && edited ? "Details corrected." : null,
+      author_id: ctx.tech.id,
+      author_name: ctx.name,
+    });
+    revalidateAll();
+    return { claimId: claim.id };
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
   }
-
-  // Some files did not make it: keep the ones that did, the claim stays with the technician.
-  if (!submit) {
-    revalidateAll();
-    return {};
-  }
-  const { count } = await admin.from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claimId);
-  if (!count) return { error: "No file reached Google Drive - please add the files again." };
-
-  const update: Record<string, unknown> = {};
-  let edited = false;
-  if (fields) {
-    const clean = cleanFields(fields);
-    if ("error" in clean) return clean;
-    edited = clean.vin !== claim.vin || clean.workOrder !== claim.work_order || clean.endOfRepair !== new Date(claim.end_of_repair).toISOString() || clean.notes !== claim.notes;
-    Object.assign(update, { vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes });
-    if (clean.workOrder !== claim.work_order && claim.drive_folder_id) await renameDriveItem(claim.drive_folder_id, clean.workOrder).catch(() => undefined);
-  }
-  const resubmit = claim.status === "returned";
-  const now = new Date().toISOString();
-  const { error } = await admin
-    .from("self_audit_tech_claims")
-    .update({ ...update, status: "submitted", submitted_at: now, updated_at: now, times_submitted: claim.times_submitted + 1 })
-    .eq("id", claimId)
-    .in("status", ["uploading", "returned"]);
-  if (error) return { error: error.message };
-  await admin.from("self_audit_tech_claim_events").insert({
-    claim_id: claimId,
-    kind: resubmit ? "resubmitted" : "submitted",
-    body: resubmit && edited ? "Details corrected." : null,
-    author_id: tech.id,
-    author_name: tech.full_name ?? tech.email,
-  });
-  revalidateAll();
-  return {};
 }
 
 /** Technician: removes a file from a claim not sent yet or returned (it goes to the Drive trash). */

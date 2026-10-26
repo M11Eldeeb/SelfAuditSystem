@@ -111,7 +111,7 @@ function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number, lines: s
 
 const baseName = (n: string) => n.replace(/\.[^.]+$/, "");
 
-/** A photo with the stamp, as JPEG (longest side up to 2560 px). */
+/** A photo with the stamp, as JPEG (longest side up to 2048 px - about 0.5 MB, quick to send). */
 export async function stampPhoto(file: File, who: string): Promise<File> {
   const when = await takenAt(file, "photo");
   let bitmap: ImageBitmap;
@@ -120,7 +120,7 @@ export async function stampPhoto(file: File, who: string): Promise<File> {
   } catch {
     throw new Error(`"${file.name}" cannot be opened on this phone - take the photo with the "Take photo" button.`);
   }
-  const scale = Math.min(1, 2560 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -128,7 +128,7 @@ export async function stampPhoto(file: File, who: string): Promise<File> {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   drawStamp(ctx, canvas.width, canvas.height, [fmt(when), who]);
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
   if (!blob) throw new Error(`Could not stamp "${file.name}".`);
   return new File([blob], `${baseName(file.name)}_stamped.jpg`, { type: "image/jpeg", lastModified: when.getTime() });
 }
@@ -150,7 +150,90 @@ function recorderType(): { mime: string; ext: string } | null {
  * A video with the stamp burned in: the video is played (silently) into a canvas that draws the stamp on each frame and
  * recorded again with its sound. Takes as long as the video lasts. The clock in the stamp runs with the video.
  */
+/** Video length in seconds (from the file's own header; null if it cannot be read). */
+export function videoDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    const done = (d: number | null) => {
+      URL.revokeObjectURL(url);
+      resolve(d);
+    };
+    v.onloadedmetadata = () => done(Number.isFinite(v.duration) ? v.duration : null);
+    v.onerror = () => done(null);
+    v.src = url;
+  });
+}
+
+const VIDEO_LONG_SIDE = 1280; // 720p: sharp enough to see a part, a fraction of the size
+
+/**
+ * Fast path: the phone's hardware video decoder and encoder (WebCodecs, via Mediabunny) - every frame is drawn with
+ * the stamp and re-encoded to 720p H.264, typically several times faster than the video lasts. Null when this phone's
+ * browser cannot do it (the caller then uses the slower replay method).
+ */
+export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void): Promise<File | null> {
+  if (typeof VideoEncoder === "undefined" || typeof VideoDecoder === "undefined") return null;
+  const mb = await import("mediabunny");
+  const start = await takenAt(file, "video");
+  const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    if (!track) return null;
+    const scale = Math.min(1, VIDEO_LONG_SIDE / Math.max(track.displayWidth, track.displayHeight));
+    const outW = Math.round((track.displayWidth * scale) / 2) * 2;
+    const outH = Math.round((track.displayHeight * scale) / 2) * 2;
+    const canvas = new OffscreenCanvas(outW, outH);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D | null;
+    if (!ctx) return null;
+    const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }), target: new mb.BufferTarget() });
+    const conversion = await mb.Conversion.init({
+      input,
+      output,
+      tracks: "primary",
+      video: {
+        width: outW,
+        height: outH,
+        fit: "contain",
+        codec: "avc",
+        quality: mb.QUALITY_MEDIUM,
+        forceTranscode: true,
+        allowTransformationMetadata: false,
+        hardwareAcceleration: "prefer-hardware",
+        processedWidth: outW,
+        processedHeight: outH,
+        process: (sample) => {
+          sample.draw(ctx, 0, 0, outW, outH);
+          drawStamp(ctx, outW, outH, [fmt(new Date(start.getTime() + sample.timestamp * 1000)), who]);
+          return canvas;
+        },
+      },
+      audio: { codec: "aac" },
+    });
+    if (!conversion.isValid) return null;
+    conversion.onProgress = (p) => onProgress(Math.min(99, Math.round(p * 100)));
+    await conversion.execute();
+    const buffer = output.target.buffer;
+    if (!buffer?.byteLength) return null;
+    onProgress(100);
+    return new File([buffer], `${baseName(file.name)}_stamped.mp4`, { type: "video/mp4", lastModified: start.getTime() });
+  } catch (e) {
+    console.warn("Fast video stamp unavailable, using the replay method:", e);
+    return null;
+  } finally {
+    input.dispose?.();
+  }
+}
+
+/** A video with the stamp burned in - the fast hardware path when the phone supports it, else the replay method. */
 export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
+  const fast = await stampVideoFast(file, who, onProgress).catch(() => null);
+  if (fast) return fast;
+  return stampVideoReplay(file, who, onProgress);
+}
+
+async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
   const type = recorderType();
   if (!type) throw new Error("This phone's browser cannot stamp videos - use Chrome or Safari.");
   const start = await takenAt(file, "video");

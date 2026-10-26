@@ -4,6 +4,7 @@ import { StatusPill, fmtDateTime } from "./status";
 import { fmtBytes } from "./upload";
 import { ReviewPanel } from "./review-panel";
 import { TechClaimForm } from "./claim-form";
+import { DownloadAllButton } from "./download-all";
 import { Glyph } from "@/components/ui/glyph";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -105,10 +106,15 @@ export function TechClaimDetailView({
         <section className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold text-neutral-900">Files ({claim.fileList.length})</h2>
-            {showDrive && claim.driveFolderId && (
-              <a href={`https://drive.google.com/drive/folders/${claim.driveFolderId}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand hover:underline">
-                Open folder in Google Drive
-              </a>
+            {showDrive && (
+              <span className="flex flex-wrap items-center gap-3">
+                {claim.driveFolderId && (
+                  <a href={`https://drive.google.com/drive/folders/${claim.driveFolderId}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand hover:underline">
+                    Open in Google Drive
+                  </a>
+                )}
+                <DownloadAllButton files={claim.fileList.map((f) => ({ id: f.id, name: f.name }))} zipName={`${claim.claimNo} - WO ${claim.workOrder} - ${claim.technician}`} />
+              </span>
             )}
           </div>
           {media.length > 0 && (
