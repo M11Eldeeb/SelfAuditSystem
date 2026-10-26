@@ -44,11 +44,10 @@ export function TechClaimForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: string; sent: number; total: number } | null>(null);
-  const [stamping, setStamping] = useState<string | null>(null);
-  const queue = useRef<Promise<void>>(Promise.resolve());
   const photo = useRef<HTMLInputElement>(null);
   const video = useRef<HTMLInputElement>(null);
-  const pick = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const pdf = useRef<HTMLInputElement>(null);
 
   const add = (list: FileList | null) => {
     if (!list?.length) return;
@@ -62,26 +61,8 @@ export function TechClaimForm({
     const next = typed.filter((f) => /^(image\/|video\/|application\/pdf$)/.test(f.type));
     if (next.length < list.length) setError("Only photos, videos and PDF files can be added.");
     else setError(null);
-    // Every photo and video gets the date stamp before it is added (one at a time; a video takes as long as it lasts).
-    for (const f of next) {
-      queue.current = queue.current.then(async () => {
-        try {
-          let out = f;
-          if (f.type.startsWith("image/")) {
-            setStamping(`Adding the date stamp to ${f.name}...`);
-            out = await stampPhoto(f, who);
-          } else if (f.type.startsWith("video/")) {
-            setStamping(`Adding the date stamp to ${f.name}... 0%`);
-            out = await stampVideo(f, who, (pct) => setStamping(`Adding the date stamp to ${f.name}... ${pct}% (keep the screen on)`));
-          }
-          setFiles((cur) => [...cur, out]);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : `Could not add "${f.name}".`);
-        } finally {
-          setStamping(null);
-        }
-      });
-    }
+    // Added as they are; the date stamp is put on when the technician presses Submit.
+    setFiles((cur) => [...cur, ...next]);
   };
 
   async function removeExisting(f: Existing) {
@@ -94,16 +75,35 @@ export function TechClaimForm({
   }
 
   async function submit() {
-    if (stamping) return setError("Wait until the date stamp is added to every file.");
     setError(null);
     const fields: ClaimFields = { vin, workOrder, endOfRepair: endOfRepair ? new Date(endOfRepair).toISOString() : "", notes };
     if (!claimId && !files.length) return setError("Add at least one photo, video or PDF.");
     if (claimId && !files.length && !existing.length) return setError("Add at least one photo, video or PDF.");
     setBusy(true);
-    const meta = files.map((f) => ({ name: f.name, type: f.type, size: f.size }));
     let id = claimId;
     let sessions: string[] = [];
     try {
+      // 1. Date stamp on every photo and video (one at a time - a video takes as long as it lasts): when it was taken,
+      //    who, and when it was submitted.
+      const submittedAt = new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Riyadh" }).replace(",", "");
+      const stampLine = `${who} · submitted ${submittedAt}`;
+      const ready: File[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const label = `Adding the date stamp ${i + 1} of ${files.length}: ${f.name}`;
+        setProgress({ label, sent: i, total: files.length });
+        try {
+          if (f.type.startsWith("image/")) ready.push(await stampPhoto(f, stampLine));
+          else if (f.type.startsWith("video/"))
+            ready.push(await stampVideo(f, stampLine, (pct) => setProgress({ label: `${label} (keep the screen on)`, sent: i + pct / 100, total: files.length })));
+          else ready.push(f);
+        } catch (e) {
+          throw new Error(e instanceof Error ? e.message : `Could not add the date stamp to "${f.name}".`);
+        }
+      }
+      const meta = ready.map((f) => ({ name: f.name, type: f.type, size: f.size }));
+
+      // 2. The claim and its Drive folder, then the files straight to Google Drive.
       setProgress({ label: "Preparing the Google Drive folder...", sent: 0, total: 1 });
       if (!id) {
         const r = await startTechClaim(fields, meta);
@@ -116,13 +116,13 @@ export function TechClaimForm({
         sessions = r.sessions ?? [];
       }
 
-      const total = files.reduce((s, f) => s + f.size, 0) || 1;
+      const total = ready.reduce((s, f) => s + f.size, 0) || 1;
       let done = 0;
       const ids: string[] = [];
       let failed: string | null = null;
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const label = `Sending ${i + 1} of ${files.length}: ${f.name}`;
+      for (let i = 0; i < ready.length; i++) {
+        const f = ready[i];
+        const label = `Sending ${i + 1} of ${ready.length}: ${f.name}`;
         try {
           ids.push(await uploadToSession(sessions[i], f, (sent) => setProgress({ label, sent: done + sent, total })));
         } catch (e) {
@@ -184,12 +184,14 @@ export function TechClaimForm({
         <div className="text-sm font-semibold text-neutral-900">Photos, videos and PDF</div>
         <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
         <input ref={video} type="file" accept="video/*" capture="environment" hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
-        <input ref={pick} type="file" accept="image/*,video/*,application/pdf" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
-        <div className="grid grid-cols-3 gap-2">
+        <input ref={gallery} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+        <input ref={pdf} type="file" accept="application/pdf" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             { ref: photo, label: "Take photo", glyph: "camera" as const },
             { ref: video, label: "Record video", glyph: "video" as const },
-            { ref: pick, label: "Choose files", glyph: "paperclip" as const },
+            { ref: gallery, label: "From gallery", glyph: "image" as const },
+            { ref: pdf, label: "Add PDF", glyph: "pdf" as const },
           ].map((b) => (
             <button
               key={b.label}
@@ -229,8 +231,7 @@ export function TechClaimForm({
             ))}
           </ul>
         )}
-        {stamping && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">{stamping}</p>}
-        <p className="text-xs text-neutral-500">Every photo and video gets a date stamp (date and time taken, your name).</p>
+        <p className="text-xs text-neutral-500">When you press Submit, every photo and video gets a date stamp: the time it was taken, your name and the time you submitted.</p>
         {files.length > 0 && <p className="text-xs text-neutral-500">To send: {files.length} file{files.length === 1 ? "" : "s"}, {fmtBytes(files.reduce((s, f) => s + f.size, 0))}</p>}
       </div>
 
@@ -248,7 +249,7 @@ export function TechClaimForm({
       )}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <button type="button" disabled={busy || !!stamping} onClick={submit} className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
+      <button type="button" disabled={busy} onClick={submit} className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
         {busy ? "Sending..." : claimId ? "Send to warranty admin" : "Submit claim"}
       </button>
     </div>
