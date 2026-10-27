@@ -273,3 +273,63 @@ export async function importTechnicians(rows: (TechnicianRow & { row: number })[
   revalidatePath("/admin/branches");
   return { results };
 }
+
+export type UserExportRow = {
+  name: string;
+  login: string;
+  email: string;
+  employeeNo: string;
+  role: string;
+  branch: string;
+  viewAll: boolean;
+  mustChangePassword: boolean;
+  createdAt: string | null;
+  lastSignIn: string | null;
+};
+
+const ROLE_NAMES: Record<string, string> = {
+  officer: "Warranty officer",
+  branch_admin: "Warranty admin (branch)",
+  service_manager: "Service manager (view only)",
+  finance: "Finance",
+  technical: "Technical team",
+  workshop_supervisor: "Workshop supervisor",
+  team_leader: "Team leader",
+  technician: "Technician",
+};
+
+/** Officers only: every portal user for the Excel download - with the last sign-in time, never a password. */
+export async function exportUsers(): Promise<{ rows?: UserExportRow[]; error?: string }> {
+  await requireRole("officer");
+  const admin = createAdminClient();
+  const [{ data: users, error }, { data: branches }] = await Promise.all([
+    admin.from("self_audit_users").select("id, email, full_name, role, branch_id, employee_no, view_all, must_change_password, created_at").order("role").order("full_name"),
+    admin.from("self_audit_branches").select("id, name"),
+  ]);
+  if (error) return { error: error.message };
+  const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
+
+  // Last sign-in comes from the sign-in service (1,000 accounts per page).
+  const lastSignIn = new Map<string, string | null>();
+  for (let page = 1; page <= 20; page++) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    for (const u of data?.users ?? []) lastSignIn.set(u.id, u.last_sign_in_at ?? null);
+    if (!data?.users || data.users.length < 1000) break;
+  }
+
+  const synthetic = (email: string) => email.endsWith("@technicians.jiadmotors.local");
+  return {
+    rows: (users ?? []).map((u) => ({
+      name: u.full_name ?? "",
+      login: u.employee_no && synthetic(u.email) ? u.employee_no : u.email,
+      email: synthetic(u.email) ? "" : u.email,
+      employeeNo: u.employee_no ?? "",
+      role: ROLE_NAMES[u.role] ?? u.role,
+      branch: u.branch_id ? (branchName.get(u.branch_id) ?? "") : "",
+      viewAll: !!u.view_all,
+      mustChangePassword: !!u.must_change_password,
+      createdAt: u.created_at,
+      lastSignIn: lastSignIn.get(u.id) ?? null,
+    })),
+  };
+}

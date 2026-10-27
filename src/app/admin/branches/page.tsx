@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BranchForm } from "./branch-form";
 import { UserForm } from "./user-form";
 import { TechnicianImport } from "./technician-import";
+import { ExportUsersButton } from "./export-users";
 import { ResetPasswordButton } from "./reset-password-button";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
@@ -53,7 +54,10 @@ export default async function BranchesPage() {
       </section>
 
       <section className="space-y-3">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Users</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Users</h1>
+          <ExportUsersButton />
+        </div>
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <UserForm branches={branchList.filter((b) => b.active)} />
         </div>
