@@ -18,7 +18,7 @@ export const maxDuration = 60;
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; view?: string; sheets?: string; detail?: string }>;
+  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; sheets?: string; detail?: string }>;
 }) {
   const user = await requireRole("officer");
   const params = await searchParams;
@@ -89,7 +89,6 @@ export default async function AdminDashboardPage({
         rejected={rejected}
         prior={prior}
         sheetsNotice={sheetsNotice}
-        initialWarrantyView={params.view === "warranty" || params.tab === "prior" || params.sheets ? "prior" : "room"}
         tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
