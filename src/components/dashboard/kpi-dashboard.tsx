@@ -34,7 +34,6 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   financials: Icon.receipt,
   warranty: Icon.box,
   trends: Icon.alert,
-  prior: Icon.receipt,
   reconciliation: Icon.money,
 };
 
@@ -112,6 +111,7 @@ export function KpiDashboard({
   rejected,
   prior,
   sheetsNotice,
+  initialWarrantyView = "room",
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -138,12 +138,17 @@ export function KpiDashboard({
   prior?: Promise<PriorApprovals>;
   /** What happened on the way back from connecting Google Sheets, if anything went wrong. */
   sheetsNotice?: string;
+  /** Which view of Warranty Room & Parts opens first (the Google connect step returns to "prior"). */
+  initialWarrantyView?: "room" | "prior";
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   // Sections are all rendered from data already on the page, so switching
   // is instant - only the URL is updated (for sharing / reload).
   const [tab, setTab] = useState<DashboardTab>(initialTab);
+  // Warranty Room & Parts has two views: the room and parts KPIs, and the Prior Approvals sheet ("Warranty", officers only).
+  const [warrantyView, setWarrantyView] = useState<"room" | "prior">(isOfficer ? initialWarrantyView : "room");
+  const showPrior = tab === "warranty" && warrantyView === "prior";
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "claimCount", desc: true });
   // The section bar slides away while scrolling down (more room to read) and comes back on the first scroll up.
   const [barHidden, setBarHidden] = useState(false);
@@ -220,7 +225,7 @@ export function KpiDashboard({
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{current.title}</h1>
           {tab === "reconciliation" ? (
             <p className="mt-1 text-[15px] text-[#6e6e73]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
-          ) : tab === "prior" ? (
+          ) : showPrior ? (
             <p className="mt-1 text-[15px] text-[#6e6e73]">Cases submitted for warranty prior approval - live from the company&apos;s Google Sheet. Choose the months and branches below.</p>
           ) : (
             <p className="mt-1 text-[15px] text-[#6e6e73]">
@@ -267,7 +272,7 @@ export function KpiDashboard({
       </nav>
 
       {/* Filters (not for Reconciliation / Tasks, which have their own). */}
-      {tab !== "reconciliation" && tab !== "tasks" && tab !== "prior" && (
+      {tab !== "reconciliation" && tab !== "tasks" && !showPrior && (
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
@@ -382,7 +387,26 @@ export function KpiDashboard({
               <InvoicingSection />
             </div>
           )}
-          {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
+          {tab === "warranty" && isOfficer && (
+            <div className="flex gap-1 rounded-xl bg-[#f5f5f7] p-1 text-sm font-semibold ring-1 ring-black/[0.05]">
+              {(
+                [
+                  ["room", "Room & Parts"],
+                  ["prior", "Warranty"],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setWarrantyView(k)}
+                  className={`flex-1 rounded-lg px-3 py-1.5 ${warrantyView === k ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {tab === "warranty" && warrantyView === "room" && <WarrantyRoomSection {...sectionProps} />}
           {tab === "trends" && trends && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
               <Suspense fallback={<TrendsSkeleton />}>
@@ -390,7 +414,7 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
-          {tab === "prior" && isOfficer && prior && (
+          {showPrior && isOfficer && prior && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
               <Suspense fallback={<PriorApprovalsSkeleton />}>
                 <PriorApprovalsSection prior={prior} isOfficer={isOfficer} notice={sheetsNotice} />

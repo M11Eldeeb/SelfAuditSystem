@@ -92,7 +92,7 @@ async function finishSheetsConnect(url: URL, cookieState: string, userId: string
   const origin = url.origin;
   const done = (flag: string, detail?: string) => {
     const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
-    const res = NextResponse.redirect(`${origin}/admin/dashboard?tab=prior&sheets=${flag}${extra}`);
+    const res = NextResponse.redirect(`${origin}/admin/dashboard?tab=warranty&view=warranty&sheets=${flag}${extra}`);
     res.cookies.delete({ name: SHEETS_STATE_COOKIE, path: "/api/google-drive" });
     return res;
   };

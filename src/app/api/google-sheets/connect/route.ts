@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** Starts connecting the Google account that can open the Prior Approvals sheet (read-only). Officers only. */
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
-  const back = (flag: string) => NextResponse.redirect(`${origin}/admin/dashboard?tab=prior&sheets=${flag}`);
+  const back = (flag: string) => NextResponse.redirect(`${origin}/admin/dashboard?tab=warranty&view=warranty&sheets=${flag}`);
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.redirect(`${origin}/login`);
