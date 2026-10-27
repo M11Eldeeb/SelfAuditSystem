@@ -25,7 +25,7 @@ declare
 begin
   select secret into v_secret from self_audit_cron_secret where id = 1;
   select net.http_get(
-    url := 'https://self-audit-system.vercel.app' || p_path,
+    url := 'https://mgwarranty.vercel.app' || p_path,
     headers := jsonb_build_object('Authorization', 'Bearer ' || v_secret),
     timeout_milliseconds := 58000
   ) into v_id;
