@@ -86,8 +86,46 @@ async function mp4Date(file: File): Promise<Date | null> {
   }
 }
 
+const plausible = (d: unknown): d is Date => d instanceof Date && !Number.isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getTime() < Date.now() + 86_400_000;
+
+/** Photo: the camera's "taken" date from the file's metadata - JPEG, HEIC (iPhone), PNG, WebP (exifr), else our JPEG reader. */
+async function photoTakenAt(file: File): Promise<Date | null> {
+  try {
+    const exifr = (await import("exifr")).default;
+    const tags = (await exifr.parse(file, { pick: ["DateTimeOriginal", "CreateDate", "DateTimeDigitized"] })) as Record<string, unknown> | undefined;
+    const d = tags?.DateTimeOriginal ?? tags?.CreateDate ?? tags?.DateTimeDigitized;
+    if (plausible(d)) return d;
+  } catch {
+    // fall through to the built-in reader
+  }
+  const d = await exifDate(file).catch(() => null);
+  return plausible(d) ? d : null;
+}
+
+/** Video: the recording date - the phone's own creation-date tag (iPhone MOV, Android MP4), else the MP4 header's. */
+async function videoTakenAt(file: File): Promise<Date | null> {
+  try {
+    const mb = await import("mediabunny");
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    try {
+      const d = (await input.getMetadataTags()).date;
+      if (plausible(d)) return d;
+    } finally {
+      input.dispose?.();
+    }
+  } catch {
+    // fall through to the header reader
+  }
+  const d = await mp4Date(file);
+  return plausible(d) ? d : null;
+}
+
+/**
+ * When the photo / video was taken - from the file itself, so a file picked from the gallery days later still shows the
+ * day it was captured. Only when the file carries no date at all is the file's own date used.
+ */
 async function takenAt(file: File, kind: "photo" | "video"): Promise<Date> {
-  const d = kind === "photo" ? await exifDate(file).catch(() => null) : await mp4Date(file);
+  const d = kind === "photo" ? await photoTakenAt(file) : await videoTakenAt(file);
   return d ?? new Date(file.lastModified || Date.now());
 }
 
