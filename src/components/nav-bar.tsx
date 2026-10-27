@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { logout } from "@/app/actions/auth";
 import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
@@ -130,6 +129,7 @@ export function NavBar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false); // phone / tablet drawer
+  const [signingOut, setSigningOut] = useState(false);
   const [lastPathname, setLastPathname] = useState(pathname);
 
   // Close the drawer after navigating. Adjusting state during render (rather
@@ -269,17 +269,18 @@ export function NavBar({
             )}
             <SettingsMenu links={settingsLinksFor(user)} />
             <span className="mx-0.5 h-5 w-px bg-neutral-900/10" aria-hidden="true" />
-            <form action={logout}>
+            <form method="post" action="/api/auth/sign-out" onSubmit={() => setSigningOut(true)}>
               <button
                 type="submit"
+                disabled={signingOut}
                 aria-label="Sign out"
                 title="Sign out"
-                className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium whitespace-nowrap text-neutral-600 transition hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
+                className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium whitespace-nowrap text-neutral-600 transition hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm active:scale-95 disabled:opacity-60"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M9.5 4.5h-3A1.5 1.5 0 005 6v12a1.5 1.5 0 001.5 1.5h3M14.5 16.5L19 12l-4.5-4.5M19 12H9.5" />
                 </svg>
-                <span className="hidden md:inline">Sign out</span>
+                <span className={signingOut ? "inline" : "hidden md:inline"}>{signingOut ? "Signing out…" : "Sign out"}</span>
               </button>
             </form>
           </div>

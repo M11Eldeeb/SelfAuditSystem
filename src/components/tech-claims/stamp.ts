@@ -2,8 +2,8 @@
 // The date is when the photo / video was taken (photo: EXIF date; video: the MP4's own creation time; otherwise the file's
 // date), shown in Saudi time with the technician's name.
 
-const fmt = (d: Date) =>
-  d.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Riyadh" }).replace(",", "");
+/** The stamp shows the date only (Saudi calendar day), e.g. 20/10/2026. */
+const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Riyadh" });
 
 // ---------- capture time ----------
 
