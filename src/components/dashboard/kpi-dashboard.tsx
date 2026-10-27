@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchRow, DashboardData } from "@/lib/dashboard/kpis";
 import type { TrendData } from "@/lib/dashboard/trends";
+import type { PriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
@@ -17,6 +18,7 @@ import { FinancialsSection } from "@/components/dashboard/sections/financials";
 import type { SettlementForecast } from "@/lib/dashboard/forecast";
 import { WarrantyRoomSection } from "@/components/dashboard/sections/warranty-room";
 import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/trends";
+import { PriorApprovalsSection, PriorApprovalsSkeleton } from "@/components/dashboard/sections/prior-approvals";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { Reveal } from "@/components/dashboard/motion";
 import { TaskTracker } from "@/components/tasks/task-list";
@@ -32,6 +34,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   financials: Icon.receipt,
   warranty: Icon.box,
   trends: Icon.alert,
+  prior: Icon.receipt,
   reconciliation: Icon.money,
 };
 
@@ -107,6 +110,8 @@ export function KpiDashboard({
   tasks,
   support,
   rejected,
+  prior,
+  sheetsNotice,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -129,6 +134,10 @@ export function KpiDashboard({
   support?: Promise<SupportLeadTimes>;
   /** Rejected Claims Diary entries (Overview tab), streamed in; absent while the diary is locked for this user. */
   rejected?: Promise<RejectedEntry[]>;
+  /** Officer only - the Warranty Prior Approvals sheet (Prior Approvals tab), streamed in. */
+  prior?: Promise<PriorApprovals>;
+  /** What happened on the way back from connecting Google Sheets, if anything went wrong. */
+  sheetsNotice?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -211,6 +220,8 @@ export function KpiDashboard({
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{current.title}</h1>
           {tab === "reconciliation" ? (
             <p className="mt-1 text-[15px] text-[#6e6e73]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
+          ) : tab === "prior" ? (
+            <p className="mt-1 text-[15px] text-[#6e6e73]">Cases submitted for warranty prior approval - live from the company&apos;s Google Sheet. Choose the months and branches below.</p>
           ) : (
             <p className="mt-1 text-[15px] text-[#6e6e73]">
               {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
@@ -256,7 +267,7 @@ export function KpiDashboard({
       </nav>
 
       {/* Filters (not for Reconciliation / Tasks, which have their own). */}
-      {tab !== "reconciliation" && tab !== "tasks" && (
+      {tab !== "reconciliation" && tab !== "tasks" && tab !== "prior" && (
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
@@ -376,6 +387,13 @@ export function KpiDashboard({
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
               <Suspense fallback={<TrendsSkeleton />}>
                 <TrendsSection trends={trends} data={data} />
+              </Suspense>
+            </SectionErrorBoundary>
+          )}
+          {tab === "prior" && isOfficer && prior && (
+            <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+              <Suspense fallback={<PriorApprovalsSkeleton />}>
+                <PriorApprovalsSection prior={prior} isOfficer={isOfficer} notice={sheetsNotice} />
               </Suspense>
             </SectionErrorBoundary>
           )}

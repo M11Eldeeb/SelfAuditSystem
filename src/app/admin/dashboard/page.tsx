@@ -9,6 +9,7 @@ import { parseTab } from "@/components/dashboard/tabs";
 import { getTasks } from "@/lib/tasks";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
+import { loadPriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { requireRole } from "@/lib/auth";
 
 // The Warranty Invoicing refresh reads the report e-mail and its ~11 MB Excel file.
@@ -17,7 +18,7 @@ export const maxDuration = 60;
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string }>;
+  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; sheets?: string; detail?: string }>;
 }) {
   const user = await requireRole("officer");
   const params = await searchParams;
@@ -25,7 +26,7 @@ export default async function AdminDashboardPage({
   const supabase = await createClient();
 
   const [{ data: branches }, { data: orders }] = await Promise.all([
-    supabase.from("self_audit_branches").select("id, name, active").order("name"),
+    supabase.from("self_audit_branches").select("id, name, active, code").order("name"),
     supabase.rpc("get_settlement_orders"),
   ]);
   const allBranches = (branches ?? []).map(({ id, name }) => ({ id, name }));
@@ -51,6 +52,21 @@ export default async function AdminDashboardPage({
   support.catch(() => {});
   const rejected = getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
   rejected.catch(() => {});
+  // The Prior Approvals tab streams in like the others (switching tabs does not reload the page). The sheet read is
+  // cached for two minutes and never rejects - a problem shows inside that tab only.
+  const prior = loadPriorApprovals((branches ?? []).map((b) => ({ name: b.name, code: b.code })));
+  const sheetsNotice =
+    params.sheets === "failed"
+      ? `Google Sheets could not be connected. ${params.detail ?? ""}`.trim()
+      : params.sheets === "cancelled"
+        ? "The Google sign-in was cancelled."
+        : params.sheets === "wrong-account"
+          ? "Connect with a company (jiadmotors.com) Google account."
+          : params.sheets === "no-refresh-token"
+            ? "Google did not return a long-lived access - try connecting again."
+            : params.sheets === "bad-state" || params.sheets === "not-configured"
+              ? "Google sign-in is not set up for this link - try connecting again."
+              : undefined;
   const tasksPromise = getTasks(supabase, user);
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
@@ -71,6 +87,8 @@ export default async function AdminDashboardPage({
         forecast={forecast}
         support={support}
         rejected={rejected}
+        prior={prior}
+        sheetsNotice={sheetsNotice}
         tasks={await tasksPromise}
         settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />

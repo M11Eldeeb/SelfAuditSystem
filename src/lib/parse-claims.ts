@@ -34,7 +34,7 @@ export interface SkippedRow {
  * a prefix on the work order number like "HER-11838-1". Both map to the
  * same 11 branches - confirmed against the real export on 2026-08-18.
  */
-const JIAD_DEALER_CODE_SUFFIX_MAP: Record<string, string> = {
+export const JIAD_DEALER_CODE_SUFFIX_MAP: Record<string, string> = {
   A7: "HER", // Jeddah Heraa
   B7: "MRB", // Jeddah Madina Rd
   C7: "RSS", // Riyadh Al Saleh

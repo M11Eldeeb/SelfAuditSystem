@@ -1429,6 +1429,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_claim_parts"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_google_sheets_connection: {
+        Row: { id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string };
+        Insert: { id?: number; refresh_token: string; account_email: string; connected_by?: string | null; connected_at?: string };
+        Update: Partial<{ id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string }>;
+        Relationships: [];
+      };
       self_audit_cron_secret: {
         Row: { id: number; secret: string };
         Insert: { id?: number; secret?: string };

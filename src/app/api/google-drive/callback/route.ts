@@ -12,6 +12,7 @@ import {
   saveDriveConnection,
   syncDriveSharing,
 } from "@/lib/google-drive";
+import { SHEETS_STATE_COOKIE, exchangeSheetsCode, saveSheetsConnection, sheetsAccountEmail } from "@/lib/google-sheets";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,12 @@ export async function GET(request: Request) {
 
   const user = await getCurrentUser();
   if (!user || user.role !== "officer") return NextResponse.redirect(`${origin}/login`);
+
+  // The Prior Approvals sheet connection shares this redirect address; its own state cookie marks it.
+  const sheetsCookie = request.headers.get("cookie")?.match(new RegExp(`(?:^|;\\s*)${SHEETS_STATE_COOKIE}=([^;]+)`))?.[1];
+  // Only when Google's returned state is that cookie's own - a leftover cookie from an abandoned Sheets attempt must not hijack a Drive connect.
+  const returnedState = url.searchParams.get("state");
+  if (sheetsCookie && returnedState && sameState(returnedState, sheetsCookie)) return finishSheetsConnect(url, sheetsCookie, user.id);
 
   if (url.searchParams.get("error")) return done("cancelled");
   const code = url.searchParams.get("code");
@@ -76,6 +83,36 @@ export async function GET(request: Request) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error(`Google Drive connect failed while ${step}:`, message);
+    return done("failed", `While ${step}: ${message}`);
+  }
+}
+
+/** The return trip of the Prior Approvals sheet connection (read-only Google Sheets access). */
+async function finishSheetsConnect(url: URL, cookieState: string, userId: string) {
+  const origin = url.origin;
+  const done = (flag: string, detail?: string) => {
+    const extra = detail ? `&detail=${encodeURIComponent(detail.slice(0, 240))}` : "";
+    const res = NextResponse.redirect(`${origin}/admin/dashboard?tab=prior&sheets=${flag}${extra}`);
+    res.cookies.delete({ name: SHEETS_STATE_COOKIE, path: "/api/google-drive" });
+    return res;
+  };
+  if (url.searchParams.get("error")) return done("cancelled");
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state || !sameState(state, cookieState)) return done("bad-state");
+  let step = "exchanging the sign-in code with Google";
+  try {
+    const tokens = await exchangeSheetsCode(code, `${origin}/api/google-drive/callback`);
+    if (!tokens.refresh_token) return done("no-refresh-token");
+    step = "reading which Google account connected";
+    const email = await sheetsAccountEmail(tokens.access_token);
+    if (!email.endsWith(`@${DRIVE_ALLOWED_DOMAIN}`)) return done("wrong-account");
+    step = "saving the connection";
+    await saveSheetsConnection({ refreshToken: tokens.refresh_token, accountEmail: email, connectedBy: userId });
+    return done("connected");
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`Google Sheets connect failed while ${step}:`, message);
     return done("failed", `While ${step}: ${message}`);
   }
 }

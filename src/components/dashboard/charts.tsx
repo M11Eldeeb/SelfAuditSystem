@@ -59,11 +59,14 @@ export function LineChart({
   series,
   yMax = 100,
   unit = "%",
+  decimals = 1,
   emptyText = "No data yet.",
 }: {
   series: LineSeries[];
   yMax?: number;
   unit?: string;
+  /** Decimals in the hover values (counts want 0). */
+  decimals?: number;
   emptyText?: string;
 }) {
   // Legend entries toggle their line; hovering a month shows every visible
@@ -162,7 +165,7 @@ export function LineChart({
                   {s.name}
                 </span>
                 <span className="font-semibold tabular-nums">
-                  {p.value.toFixed(1)}
+                  {p.value.toFixed(decimals)}
                   {unit}
                 </span>
               </div>
