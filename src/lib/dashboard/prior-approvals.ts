@@ -11,14 +11,16 @@ import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
  */
 
 export const PRIOR_APPROVALS_SHEET_ID = process.env.PRIOR_APPROVALS_SHEET_ID || "1FvEz0XLK5Fgb8Fn7p7ezjfcSIwtIokW_ROwtk9jJyyo";
-export const PRIOR_APPROVALS_GID = process.env.PRIOR_APPROVALS_GID || "1146896750";
+/** The workbook has one tab per branch plus this consolidated tab ("Conolidate" - Co, WIP Number, Submission Date, Main part, Status, ...), which is what the Looker Studio report reads. */
+export const PRIOR_APPROVALS_GID = process.env.PRIOR_APPROVALS_GID || "983857517";
 
+/** m is "YYYY-MM", or "" for a case with no submission date. */
 export type CubeRow = { m: string; co: string | null; s: string; n: number };
 
 export type PriorApprovals =
   | {
       status: "ok";
-      /** Cases with a usable submission date (the cube) and cases without one (not charted). */
+      /** Every case in the sheet, and how many of them have no submission date (counted per branch and status, not per month). */
       total: number;
       undated: number;
       updatedAt: string;
@@ -85,9 +87,18 @@ function toMonth(v: unknown, isDayFirst: boolean): string | null {
   return null;
 }
 
-/** "\" Start repair \"Approved" and "Start repair Approved" are the same status; case and stray quotes do not split it. */
+/** Typos the team types into the status column - they would otherwise show as separate slices. */
+const STATUS_FIXES: [RegExp, string][] = [
+  [/compeleted/gi, "Completed"],
+  [/returened|returend/gi, "Returned"],
+  [/spesilist/gi, "Specialist"],
+];
+
+/** "\" Start repair \"Approved" and "Start repair Approved" are the same status; case, stray quotes and the usual typos do not split it. */
 function cleanStatus(v: unknown): string {
-  return String(v ?? "").replace(/["“”]/g, " ").replace(/\s+/g, " ").trim();
+  let t = String(v ?? "").replace(/["“”]/g, " ").replace(/\s+/g, " ").trim();
+  for (const [re, to] of STATUS_FIXES) t = t.replace(re, to);
+  return t;
 }
 
 function aggregate(rows: unknown[][]): { total: number; undated: number; cube: CubeRow[]; months: string[]; cos: (string | null)[] } {
@@ -105,11 +116,9 @@ function aggregate(rows: unknown[][]): { total: number; undated: number; cube: C
   const counts = new Map<string, { m: string; co: string | null; key: string; n: number }>();
   let undated = 0;
   for (const r of body) {
-    const m = toMonth(r[dateCol], isDayFirst);
-    if (!m) {
-      undated += 1;
-      continue;
-    }
+    const dated = toMonth(r[dateCol], isDayFirst);
+    if (!dated) undated += 1;
+    const m = dated ?? "";
     const rawCo = coCol === -1 ? "" : String(r[coCol] ?? "").trim().toUpperCase();
     const co = rawCo && rawCo !== "NULL" ? rawCo : null;
     const status = cleanStatus(r[statusCol]) || "No status";
@@ -125,10 +134,10 @@ function aggregate(rows: unknown[][]): { total: number; undated: number; cube: C
   const labelOf = (key: string) => [...(spellings.get(key) ?? new Map([[key, 1]])).entries()].sort((a, b) => b[1] - a[1])[0][0];
   const cube = [...counts.values()].map((c) => ({ m: c.m, co: c.co, s: labelOf(c.key), n: c.n }));
   return {
-    total: body.length - undated,
+    total: body.length,
     undated,
     cube,
-    months: [...new Set(cube.map((c) => c.m))].sort(),
+    months: [...new Set(cube.map((c) => c.m).filter(Boolean))].sort(),
     cos: [...new Set(cube.map((c) => c.co))],
   };
 }

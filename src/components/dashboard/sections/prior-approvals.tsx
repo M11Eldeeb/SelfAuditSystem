@@ -56,11 +56,24 @@ type Ok = Extract<PriorApprovals, { status: "ok" }>;
 
 function PriorApprovalsView({ data }: { data: Ok }) {
   const [picked, setPicked] = useState<Set<string>>(new Set()); // Co codes ("" = no code); empty = every branch
-  const [from, setFrom] = useState(data.months[0] ?? "");
-  const [to, setTo] = useState(data.months[data.months.length - 1] ?? "");
+  // A handful of stray cases from 2024 would stretch the chart, so the range starts at the first month with real volume.
+  const monthTotals = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of data.cube) if (r.m) m.set(r.m, (m.get(r.m) ?? 0) + r.n);
+    return m;
+  }, [data.cube]);
+  const defaultFrom = data.months.find((m) => (monthTotals.get(m) ?? 0) >= 20) ?? data.months[0] ?? "";
+  const lastMonth = data.months[data.months.length - 1] ?? "";
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(lastMonth);
+  // Cases without a submission date count in the branch and status totals while the whole default range is shown.
+  const includeUndated = from <= defaultFrom && to >= lastMonth;
   const labelOf = useMemo(() => new Map(data.branches.map((b) => [b.co ?? "", b.label])), [data.branches]);
 
-  const rows = useMemo(() => data.cube.filter((r) => r.m >= from && r.m <= to && (picked.size === 0 || picked.has(r.co ?? ""))), [data.cube, from, to, picked]);
+  const rows = useMemo(
+    () => data.cube.filter((r) => (r.m === "" ? includeUndated : r.m >= from && r.m <= to) && (picked.size === 0 || picked.has(r.co ?? ""))),
+    [data.cube, from, to, picked, includeUndated]
+  );
   const total = rows.reduce((s, r) => s + r.n, 0);
 
   const perBranch = useMemo(() => {
@@ -72,7 +85,7 @@ function PriorApprovalsView({ data }: { data: Ok }) {
   const perMonth = useMemo(() => {
     const m = new Map<string, number>();
     for (const mo of data.months) if (mo >= from && mo <= to) m.set(mo, 0);
-    for (const r of rows) m.set(r.m, (m.get(r.m) ?? 0) + r.n);
+    for (const r of rows) if (r.m) m.set(r.m, (m.get(r.m) ?? 0) + r.n);
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, value]) => ({ month, value }));
   }, [rows, data.months, from, to]);
 
@@ -91,6 +104,7 @@ function PriorApprovalsView({ data }: { data: Ok }) {
 
   const yMax = Math.max(...perMonth.map((p) => p.value), 1);
   const niceMax = Math.ceil(yMax / 50) * 50 || 50;
+  const datedTotal = perMonth.reduce((s, p) => s + p.value, 0);
   const topBranch = perBranch[0];
   const topStatus = perStatus[0];
   const toggle = (co: string) =>
@@ -166,7 +180,7 @@ function PriorApprovalsView({ data }: { data: Ok }) {
         </Card>
         <Card className="space-y-1">
           <Label>Monthly average</Label>
-          <Metric value={fmtNum(perMonth.length ? total / perMonth.length : 0, 0)} unit="cases / month" />
+          <Metric value={fmtNum(perMonth.length ? datedTotal / perMonth.length : 0, 0)} unit="cases / month" />
           <div className="text-xs text-[#6e6e73]">{perMonth.length} month{perMonth.length === 1 ? "" : "s"}</div>
         </Card>
         <Card className="space-y-1">
@@ -209,7 +223,7 @@ function PriorApprovalsView({ data }: { data: Ok }) {
       </div>
 
       <p className="px-1 text-[11px] text-[#6e6e73]">
-        Live from the Warranty Prior Approvals Google Sheet (refreshed every couple of minutes){data.undated > 0 ? ` · ${fmtInt(data.undated)} case(s) without a usable submission date are not charted` : ""}.
+        Live from the Warranty Prior Approvals Google Sheet (refreshed every couple of minutes){data.undated > 0 ? ` · ${fmtInt(data.undated)} case(s) have no submission date: they count in the branch and status totals (all months selected), not in the monthly chart` : ""}.
       </p>
     </div>
   );
