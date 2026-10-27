@@ -6,6 +6,7 @@ import { discardStagedFile, prepareStagedUpload, removeTechClaimFile, submitTech
 import { fmtBytes, uploadToSession } from "./upload";
 import { stampPhoto, stampVideo, videoDuration } from "./stamp";
 import { Glyph } from "@/components/ui/glyph";
+import { techT, trServer, type Lang } from "@/lib/i18n/tech";
 
 type Existing = { id: string; name: string; mimeType: string; size: number };
 
@@ -55,25 +56,28 @@ export function TechClaimForm({
   claimId,
   initial,
   existing = [],
+  lang = "en",
 }: {
   /** Technician name, printed in the date stamp. */
   who: string;
   claimId?: string;
-  initial?: { vin: string; workOrder: string; endOfRepair: string; notes: string | null };
+  initial?: { vin: string; workOrder: string; endOfRepair: string | null; notes: string | null };
   existing?: Existing[];
+  lang?: Lang;
 }) {
+  const t = techT(lang);
   const router = useRouter();
+  const [sheet, setSheet] = useState(false);
   const [vin, setVin] = useState(initial?.vin ?? "");
   const [workOrder, setWorkOrder] = useState(initial?.workOrder ?? "");
-  const [endOfRepair, setEndOfRepair] = useState(initial ? localValue(initial.endOfRepair) : "");
+  const [endOfRepair, setEndOfRepair] = useState(initial?.endOfRepair ? localValue(initial.endOfRepair) : "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const photo = useRef<HTMLInputElement>(null);
-  const video = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
-  const pdf = useRef<HTMLInputElement>(null);
+  const filesInput = useRef<HTMLInputElement>(null);
 
   // Background work: original files, the promise of each item, the stamping chain, the upload slots.
   const sources = useRef(new Map<string, File>());
@@ -135,7 +139,7 @@ export function TechClaimForm({
         }
         patch(key, { status: "ready", pct: 100, driveId });
       } catch (e) {
-        patch(key, { status: "failed", error: e instanceof Error ? e.message : "Could not send this file." });
+        patch(key, { status: "failed", error: e instanceof Error ? trServer(t, e.message) : t.errGeneric });
       }
     })();
     jobs.current.set(key, job);
@@ -147,13 +151,13 @@ export function TechClaimForm({
     for (const raw of Array.from(list)) {
       const f = withType(raw);
       if (!/^(image\/|video\/|application\/pdf$)/.test(f.type)) {
-        setError(`"${f.name}": only photos, videos and PDF files can be added.`);
+        setError(t.errType(f.name));
         continue;
       }
       if (f.type.startsWith("video/")) {
         const secs = await videoDuration(f);
         if (secs != null && secs > MAX_VIDEO_SECONDS + 0.5) {
-          setError(`"${f.name}" is ${Math.round(secs)} seconds long - videos can be up to ${MAX_VIDEO_SECONDS} seconds.`);
+          setError(t.errVideoLong(f.name, Math.round(secs), MAX_VIDEO_SECONDS));
           continue;
         }
       }
@@ -176,11 +180,11 @@ export function TechClaimForm({
   }
 
   async function removeExisting(f: Existing) {
-    if (!window.confirm(`Remove "${f.name}" from the claim?`)) return;
+    if (!window.confirm(t.removeConfirm(f.name))) return;
     setBusy(true);
     const r = await removeTechClaimFile(f.id);
     setBusy(false);
-    if (r.error) setError(r.error);
+    if (r.error) setError(trServer(t, r.error));
     else router.refresh();
   }
 
@@ -199,11 +203,15 @@ export function TechClaimForm({
     ? Math.round(items.reduce((s, i) => s + (i.status === "ready" ? 100 : i.status === "sending" ? 50 + i.pct / 2 : i.status === "stamping" ? i.pct / 2 : 0), 0) / items.length)
     : 0;
 
-  async function submit() {
+  const [mode, setMode] = useState<"save" | "send">("send");
+
+  /** Save keeps the claim and its evidence without sending it (a draft); Submit sends it to the warranty admin. */
+  async function submit(send: boolean) {
     setError(null);
+    setMode(send ? "send" : "save");
     const fields: ClaimFields = { vin, workOrder, endOfRepair: endOfRepair ? new Date(endOfRepair).toISOString() : "", notes };
-    if (!items.length && !existing.length) return setError("Add at least one photo, video or PDF.");
-    const plural = (n: number) => `${n} file${n === 1 ? "" : "s"} could not be sent - press Retry or remove ${n === 1 ? "it" : "them"}.`;
+    if (send && !items.length && !existing.length) return setError(t.errAddOne);
+    const plural = t.errFailed;
     if (failed.length) return setError(plural(failed.length));
     setBusy(true);
     try {
@@ -213,13 +221,13 @@ export function TechClaimForm({
       const stillFailed = final.filter((i) => i.status === "failed");
       if (stillFailed.length) throw new Error(plural(stillFailed.length));
       const ids = final.filter((i) => i.status === "ready" && i.driveId).map((i) => i.driveId!);
-      const r = await submitTechClaim(fields, ids, claimId);
-      if (r.error || !r.claimId) throw new Error(r.error ?? "Could not send the claim.");
+      const r = await submitTechClaim(fields, ids, claimId, send);
+      if (r.error || !r.claimId) throw new Error(r.error ? trServer(t, r.error) : t.errGeneric);
       update(() => []);
-      router.push(`/technician/${r.claimId}?sent=1`);
+      router.push(`/technician/${r.claimId}?${send ? "sent" : "saved"}=1`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong - please try again.");
+      setError(e instanceof Error ? e.message : t.errGeneric);
     } finally {
       setBusy(false);
     }
@@ -227,68 +235,84 @@ export function TechClaimForm({
 
   const statusText = (it: Item) =>
     it.status === "waiting"
-      ? "Waiting…"
+      ? t.itemWaiting
       : it.status === "stamping"
         ? it.type.startsWith("video/")
-          ? `Date stamp ${it.pct}%`
-          : "Date stamp…"
+          ? t.itemStampPct(it.pct)
+          : t.itemStamp
         : it.status === "sending"
-          ? `Sending ${it.pct}%`
+          ? t.itemSending(it.pct)
           : it.status === "ready"
-            ? "Ready"
-            : "Not sent";
+            ? t.itemReady
+            : t.itemFailed;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:grid-cols-2">
         <label className="space-y-1 sm:col-span-2">
-          <span className="text-sm font-medium text-neutral-700">VIN</span>
-          <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase().replace(/\s+/g, ""))} placeholder="LSJ..." autoCapitalize="characters" className={`${inputCls} font-mono tracking-wide`} disabled={busy} />
+          <span className="text-sm font-medium text-neutral-700">{t.vin}</span>
+          <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase().replace(/\s+/g, ""))} placeholder="LSJ..." autoCapitalize="characters" dir="ltr" className={`${inputCls} font-mono tracking-wide`} disabled={busy} />
         </label>
         <label className="space-y-1">
-          <span className="text-sm font-medium text-neutral-700">Work order</span>
-          <input value={workOrder} onChange={(e) => setWorkOrder(e.target.value)} placeholder="Work order number" className={inputCls} disabled={busy} />
+          <span className="text-sm font-medium text-neutral-700">{t.workOrder}</span>
+          <input value={workOrder} onChange={(e) => setWorkOrder(e.target.value)} placeholder={t.workOrder} dir="ltr" className={inputCls} disabled={busy} />
         </label>
         <label className="space-y-1">
-          <span className="text-sm font-medium text-neutral-700">End of repair</span>
+          <span className="text-sm font-medium text-neutral-700">{t.endOfRepair}</span>
           <input type="datetime-local" value={endOfRepair} max={localValue(null)} onChange={(e) => setEndOfRepair(e.target.value)} className={inputCls} disabled={busy} />
         </label>
         <label className="space-y-1 sm:col-span-2">
-          <span className="text-sm font-medium text-neutral-700">
-            Notes <span className="font-normal text-neutral-400">(optional)</span>
-          </span>
+          <span className="text-sm font-medium text-neutral-700">{t.notesOptional}</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} disabled={busy} />
         </label>
       </div>
 
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
-        <div className="text-sm font-semibold text-neutral-900">Photos, videos and PDF</div>
-        <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
-        <input ref={video} type="file" accept="video/*" capture="environment" hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
+        <div className="text-sm font-semibold text-neutral-900">{t.evidenceTitle}</div>
+        <input ref={camera} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
         <input ref={gallery} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
-        <input ref={pdf} type="file" accept="application/pdf" multiple hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            { ref: photo, label: "Take photo", glyph: "camera" as const },
-            { ref: video, label: "Record video", glyph: "video" as const },
-            { ref: gallery, label: "From gallery", glyph: "image" as const },
-            { ref: pdf, label: "Add PDF", glyph: "pdf" as const },
-          ].map((b) => (
-            <button
-              key={b.label}
-              type="button"
-              disabled={busy}
-              onClick={() => b.ref.current?.click()}
-              className="rounded-lg border-2 border-dashed border-neutral-300 px-2 py-4 text-sm font-medium text-neutral-700 hover:border-brand hover:text-brand disabled:opacity-50"
-            >
-              <Glyph name={b.glyph} size={22} className="mx-auto mb-1 block text-brand" />
-              {b.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-neutral-500">
-          Files are date-stamped (time taken and your name) and sent while you fill in the claim. Videos up to {MAX_VIDEO_SECONDS} seconds.
-        </p>
+        <input ref={filesInput} type="file" accept="application/pdf,image/*,video/*" multiple hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setSheet(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-neutral-300 px-4 py-5 text-[15px] font-semibold text-neutral-800 hover:border-brand hover:text-brand disabled:opacity-50"
+        >
+          <Glyph name="upload" size={22} className="text-brand" />
+          {t.uploadEvidence}
+        </button>
+        <p className="text-xs text-neutral-500">{t.evidenceHelp(MAX_VIDEO_SECONDS)}</p>
+
+        {/* Choice sheet (as on iPhone): take, gallery, files - or cancel. */}
+        {sheet && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={() => setSheet(false)} role="dialog" aria-modal="true" aria-label={t.uploadEvidence}>
+            <div className="w-full max-w-sm space-y-2" onClick={(e) => e.stopPropagation()}>
+              <div className="overflow-hidden rounded-2xl bg-[var(--surface)] shadow-xl">
+                {[
+                  { ref: camera, label: t.takePhotoVideo, glyph: "camera" as const },
+                  { ref: gallery, label: t.fromGallery, glyph: "image" as const },
+                  { ref: filesInput, label: t.uploadFiles, glyph: "file" as const },
+                ].map((o, k) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    onClick={() => {
+                      setSheet(false);
+                      o.ref.current?.click();
+                    }}
+                    className={`flex w-full items-center gap-3 px-5 py-4 text-start text-[16px] font-medium text-neutral-900 hover:bg-neutral-900/[0.04] ${k ? "border-t border-neutral-900/[0.07]" : ""}`}
+                  >
+                    <Glyph name={o.glyph} size={22} className="text-brand" />
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setSheet(false)} className="w-full rounded-2xl bg-[var(--surface)] px-5 py-4 text-[16px] font-semibold text-brand shadow-xl hover:bg-neutral-50">
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        )}
 
         {(existing.length > 0 || items.length > 0) && (
           <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-100 text-sm">
@@ -296,10 +320,10 @@ export function TechClaimForm({
               <li key={f.id} className="flex items-center gap-2 px-3 py-2">
                 <span>{icon(f.mimeType)}</span>
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                <span className="text-xs text-emerald-700">sent</span>
+                <span className="text-xs text-emerald-700">{t.saved}</span>
                 <span className="text-xs text-neutral-500">{fmtBytes(f.size)}</span>
                 <button type="button" disabled={busy} onClick={() => removeExisting(f)} className="text-xs font-medium text-red-600 disabled:opacity-50">
-                  Remove
+                  {t.remove}
                 </button>
               </li>
             ))}
@@ -309,16 +333,16 @@ export function TechClaimForm({
                   <span>{icon(it.type)}</span>
                   <span className="min-w-0 flex-1 truncate">{it.name}</span>
                   <span className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}>
-                    {it.status === "ready" && <Glyph name="check" size={13} className="mr-0.5" />}
+                    {it.status === "ready" && <Glyph name="check" size={13} className="me-0.5" />}
                     {statusText(it)}
                   </span>
                   {it.status === "failed" && (
                     <button type="button" disabled={busy} onClick={() => retry(it)} className="text-xs font-semibold text-brand disabled:opacity-50">
-                      Retry
+                      {t.retry}
                     </button>
                   )}
                   <button type="button" disabled={busy} onClick={() => remove(it)} className="text-xs font-medium text-red-600 disabled:opacity-50">
-                    Remove
+                    {t.remove}
                   </button>
                 </div>
                 {(it.status === "stamping" || it.status === "sending") && (
@@ -336,22 +360,31 @@ export function TechClaimForm({
       {busy && pending.length > 0 && (
         <div className="space-y-2 rounded-xl bg-neutral-100 p-4 text-sm text-neutral-800">
           <div className="flex justify-between gap-3">
-            <span>
-              Finishing {pending.length} file{pending.length === 1 ? "" : "s"}…
-            </span>
+            <span>{t.finishing(pending.length)}</span>
             <span className="font-semibold tabular-nums">{overall}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white">
             <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${overall}%` }} />
           </div>
-          <p className="text-xs text-neutral-500">Keep this page open until it finishes.</p>
+          <p className="text-xs text-neutral-500">{t.keepOpen}</p>
         </div>
       )}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <button type="button" disabled={busy} onClick={submit} className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
-        {busy ? (pending.length ? "Finishing uploads…" : "Sending the claim…") : claimId ? "Send to warranty admin" : "Submit claim"}
-      </button>
+      <div className="grid grid-cols-[1fr_2fr] gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void submit(false)}
+          className="rounded-xl bg-neutral-900/[0.06] px-4 py-3 text-base font-semibold text-neutral-900 hover:bg-neutral-900/[0.1] disabled:opacity-50"
+        >
+          {busy && mode === "save" ? t.saving : t.save}
+        </button>
+        <button type="button" disabled={busy} onClick={() => void submit(true)} className="rounded-xl bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+          {busy && mode === "send" ? (pending.length ? t.finishingUploads : t.sendingClaim) : t.submitToAdmin}
+        </button>
+      </div>
+      <p className="text-center text-xs text-neutral-500">{t.saveHint}</p>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export type TechClaimSummary = {
   technician: string;
   vin: string;
   workOrder: string;
-  endOfRepair: string;
+  endOfRepair: string | null;
   status: TechClaimStatus;
   submittedAt: string | null;
   reviewedAt: string | null;
@@ -54,6 +54,8 @@ export async function listTechClaims(user: CurrentUser, opts: { status?: string;
     user
   );
   if (opts.status && opts.status !== "all") q = q.eq("status", opts.status as TechClaimStatus);
+  // A technician's drafts are his own until he submits them.
+  else if (user.role !== "technician") q = q.neq("status", "uploading");
   if (opts.branchId) q = q.eq("branch_id", opts.branchId);
   const term = opts.q?.trim().replace(/[%,()]/g, "");
   if (term) q = q.or(`vin.ilike.%${term}%,work_order.ilike.%${term}%,claim_no.ilike.%${term}%,technician_name.ilike.%${term}%`);
@@ -73,7 +75,7 @@ export async function listTechClaims(user: CurrentUser, opts: { status?: string;
     claimNo: r.claim_no,
     branch: branchName.get(r.branch_id) ?? "",
     technician: r.technician_name,
-    vin: r.vin,
+    vin: r.vin ?? "",
     workOrder: r.work_order,
     endOfRepair: r.end_of_repair,
     status: r.status,
@@ -125,7 +127,7 @@ export async function getTechClaim(user: CurrentUser, id: string): Promise<TechC
     branchId: c.branch_id,
     technician: c.technician_name,
     technicianId: c.technician_id,
-    vin: c.vin,
+    vin: c.vin ?? "",
     workOrder: c.work_order,
     endOfRepair: c.end_of_repair,
     status: c.status,

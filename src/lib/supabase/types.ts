@@ -689,9 +689,9 @@ export interface Database {
           branch_id: string;
           technician_id: string | null;
           technician_name: string;
-          vin: string;
+          vin: string | null;
           work_order: string;
-          end_of_repair: string;
+          end_of_repair: string | null;
           notes: string | null;
           status: "uploading" | "submitted" | "returned" | "approved" | "rejected";
           review_comment: string | null;
@@ -710,9 +710,9 @@ export interface Database {
           branch_id: string;
           technician_id?: string | null;
           technician_name: string;
-          vin: string;
+          vin?: string | null;
           work_order: string;
-          end_of_repair: string;
+          end_of_repair?: string | null;
           notes?: string | null;
           status?: "uploading" | "submitted" | "returned" | "approved" | "rejected";
           review_comment?: string | null;

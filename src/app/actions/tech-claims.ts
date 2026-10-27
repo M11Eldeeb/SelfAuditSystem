@@ -21,15 +21,19 @@ export type ClaimFields = { vin: string; workOrder: string; endOfRepair: string;
 
 const safeName = (n: string) => n.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(0, 200) || "file";
 
-function cleanFields(f: ClaimFields): { error: string } | { vin: string; workOrder: string; endOfRepair: string; notes: string | null } {
+/**
+ * Checks the claim's fields. A draft (Save) only needs the work order (it names the Drive folder); the VIN and end of
+ * repair may still be empty. Sending needs everything.
+ */
+function cleanFields(f: ClaimFields, draft = false): { error: string } | { vin: string | null; workOrder: string; endOfRepair: string | null; notes: string | null } {
   const vin = f.vin.replace(/\s+/g, "").toUpperCase();
   const workOrder = f.workOrder.trim();
-  if (vin.length < 5 || vin.length > 30) return { error: "Enter the VIN." };
   if (!workOrder || workOrder.length > 40) return { error: "Enter the work order number." };
-  const end = Date.parse(f.endOfRepair);
-  if (!f.endOfRepair || Number.isNaN(end)) return { error: "Enter the end of repair date and time." };
+  if (vin ? vin.length < 5 || vin.length > 30 : !draft) return { error: "Enter the VIN." };
+  const end = f.endOfRepair ? Date.parse(f.endOfRepair) : NaN;
+  if (Number.isNaN(end) && (!draft || f.endOfRepair)) return { error: "Enter the end of repair date and time." };
   if (end > Date.now() + 24 * 3_600_000) return { error: "The end of repair cannot be in the future." };
-  return { vin, workOrder, endOfRepair: new Date(end).toISOString(), notes: f.notes.trim().slice(0, 2000) || null };
+  return { vin: vin || null, workOrder, endOfRepair: Number.isNaN(end) ? null : new Date(end).toISOString(), notes: f.notes.trim().slice(0, 2000) || null };
 }
 
 function checkFiles(files: FileMeta[], already = 0): string | null {
@@ -106,8 +110,8 @@ async function ownEditableClaim(claimId: string) {
  * moved from the staging folder into Warranty Documents / Branch / Technician / Work order (a move - instant), recorded,
  * and the claim goes to the branch's warranty admin.
  */
-export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], claimId?: string): Promise<{ claimId?: string; error?: string }> {
-  const clean = cleanFields(fields);
+export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], claimId?: string, send = true): Promise<{ claimId?: string; error?: string }> {
+  const clean = cleanFields(fields, !send);
   if ("error" in clean) return clean;
   const admin = createAdminClient();
   try {
@@ -121,7 +125,7 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
       if ("error" in own) return { error: own.error };
       claim = own.claim;
     } else {
-      if (!ids.length) return { error: "Add at least one photo, video or PDF." };
+      if (send && !ids.length) return { error: "Add at least one photo, video or PDF." };
       const folderId = await ensureClaimFolder({ ...ctx.place, workOrder: clean.workOrder });
       const { data, error } = await admin
         .from("self_audit_tech_claims")
@@ -144,11 +148,24 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
         .insert(staged.map((f) => ({ claim_id: claim.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
       if (error) return { claimId: claim.id, error: error.message };
     }
+    // Save (draft): the claim and its files are kept, nothing goes to the warranty admin yet.
+    if (!send) {
+      if (claimId && clean.workOrder !== claim.work_order) await renameDriveItem(folder, clean.workOrder).catch(() => undefined);
+      const { error } = await admin
+        .from("self_audit_tech_claims")
+        .update({ vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, updated_at: new Date().toISOString() })
+        .eq("id", claim.id);
+      if (error) return { claimId: claim.id, error: error.message };
+      revalidateAll();
+      return { claimId: claim.id };
+    }
+
     const { count } = await admin.from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claim.id);
     if (!count) return { claimId: claim.id, error: "No file reached Google Drive - please add the files again." };
 
     const edited =
-      !!claimId && (clean.vin !== claim.vin || clean.workOrder !== claim.work_order || clean.endOfRepair !== new Date(claim.end_of_repair).toISOString() || clean.notes !== claim.notes);
+      !!claimId &&
+      (clean.vin !== claim.vin || clean.workOrder !== claim.work_order || clean.endOfRepair !== (claim.end_of_repair ? new Date(claim.end_of_repair).toISOString() : null) || clean.notes !== claim.notes);
     if (claimId && clean.workOrder !== claim.work_order) await renameDriveItem(folder, clean.workOrder).catch(() => undefined);
     const resubmit = claim.status === "returned";
     const now = new Date().toISOString();

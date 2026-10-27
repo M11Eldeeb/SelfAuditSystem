@@ -13,6 +13,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "MG Warranty Management",
+  // Added to the home screen, it opens as an app (no browser bar) - see app/manifest.ts.
+  appleWebApp: { capable: true, title: "MG Warranty", statusBarStyle: "default" },
   description: "Monthly branch self-audit for warranty claims",
 };
 
