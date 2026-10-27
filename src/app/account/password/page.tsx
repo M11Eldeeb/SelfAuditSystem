@@ -16,6 +16,14 @@ export default async function AccountPasswordPage() {
       <NavBar user={user} links={[{ href: homeHref, label: "Home" }]} notifications={notifications} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         <h1 className="mb-4 text-2xl font-bold tracking-tight text-neutral-900">Change password</h1>
+        {user.must_change_password && (
+          <div className="mb-4 max-w-md rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+            <p>Welcome! Choose your own password to continue (at least 8 characters).</p>
+            <p dir="rtl" lang="ar" className="mt-1">
+              مرحبًا! اختر كلمة مرور خاصة بك للمتابعة (8 أحرف على الأقل).
+            </p>
+          </div>
+        )}
         <PasswordForm />
       </main>
     </div>

@@ -45,6 +45,8 @@ export interface Database {
           view_all: boolean;
           /** Technicians: employee number (they may sign in with it). */
           employee_no: string | null;
+          /** Signed in with a password someone else chose: must pick his own first. */
+          must_change_password: boolean;
         };
         Insert: {
           id: string;
@@ -55,6 +57,7 @@ export interface Database {
           created_at?: string;
           view_all?: boolean;
           employee_no?: string | null;
+          must_change_password?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];

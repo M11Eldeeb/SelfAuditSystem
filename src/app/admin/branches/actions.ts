@@ -222,9 +222,10 @@ const technicianEmail = (employeeNo: string) => `${employeeNo.toLowerCase().repl
  * Creates technician accounts from the imported list (the page sends it 25 rows at a time). The branch is matched by
  * name or code. A row whose employee number or e-mail already has an account is skipped and reported.
  */
-export async function importTechnicians(rows: (TechnicianRow & { row: number })[]): Promise<{ results: TechnicianResult[]; error?: string }> {
+export async function importTechnicians(rows: (TechnicianRow & { row: number })[], sharedPassword = ""): Promise<{ results: TechnicianResult[]; error?: string }> {
   await requireRole("officer");
   if (rows.length > 50) return { results: [], error: "Send at most 50 rows at a time." };
+  if (sharedPassword && sharedPassword.length < 8) return { results: [], error: "The shared password must have at least 8 characters." };
   const admin = createAdminClient();
   const [{ data: branches }, { data: existing }] = await Promise.all([
     admin.from("self_audit_branches").select("id, name, code"),
@@ -254,15 +255,17 @@ export async function importTechnicians(rows: (TechnicianRow & { row: number })[
     takenNos.add(employeeNo.toLowerCase());
     takenEmails.add(email);
 
-    const tempPassword = generateTempPassword();
+    // One password for the whole list when the officer gave one, else a temporary one each. Either way the
+    // technician chooses his own at the first sign-in.
+    const tempPassword = sharedPassword || generateTempPassword();
     const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: tempPassword, email_confirm: true });
     if (createError || !created.user) return { ...base, error: createError?.message ?? "Could not create the account." };
-    const { error } = await admin.from("self_audit_users").insert({ id: created.user.id, email, full_name: name, role: "technician", branch_id: branchId, employee_no: employeeNo });
+    const { error } = await admin.from("self_audit_users").insert({ id: created.user.id, email, full_name: name, role: "technician", branch_id: branchId, employee_no: employeeNo, must_change_password: true });
     if (error) {
       await admin.auth.admin.deleteUser(created.user.id);
       return { ...base, error: error.message };
     }
-    return { ...base, login: employeeNo, tempPassword };
+    return { ...base, login: employeeNo, tempPassword: sharedPassword ? "(the shared password)" : tempPassword };
   };
 
   const results: TechnicianResult[] = [];

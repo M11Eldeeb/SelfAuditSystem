@@ -48,6 +48,7 @@ export function TechnicianImport() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState("");
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -71,7 +72,7 @@ export function TechnicianImport() {
     try {
       for (let i = 0; i < rows.length; i += 25) {
         setStatus(`Creating accounts ${i + 1}-${Math.min(i + 25, rows.length)} of ${rows.length}...`);
-        const r = await importTechnicians(rows.slice(i, i + 25));
+        const r = await importTechnicians(rows.slice(i, i + 25), shared);
         if (r.error) throw new Error(r.error);
         out.push(...r.results);
       }
@@ -152,8 +153,20 @@ export function TechnicianImport() {
               </tbody>
             </table>
           </div>
+          <label className="block max-w-sm space-y-1">
+            <span className="block text-xs font-medium text-neutral-700">Same password for everyone (optional, at least 8 characters)</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={shared}
+              onChange={(e) => setShared(e.target.value)}
+              placeholder="Leave empty for a different temporary password each"
+              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+            />
+            <span className="block text-xs text-neutral-500">Every technician must choose his own password the first time he signs in.</span>
+          </label>
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={run} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+            <button type="button" disabled={busy || (shared.length > 0 && shared.length < 8)} onClick={run} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
               Create {rows.length} account{rows.length === 1 ? "" : "s"}
             </button>
             <button type="button" disabled={busy} onClick={() => setRows(null)} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm text-neutral-700">
@@ -167,7 +180,7 @@ export function TechnicianImport() {
         <div className="space-y-2 rounded-lg bg-neutral-50 p-3 text-sm">
           <p>
             <span className="font-semibold">{created} created</span>
-            {results.length - created > 0 && <span className="text-amber-800"> · {results.length - created} skipped</span>}. The Excel file with the temporary passwords was downloaded - give each technician his own.
+            {results.length - created > 0 && <span className="text-amber-800"> · {results.length - created} skipped</span>}. The Excel list was downloaded - each technician signs in with his employee number and must choose his own password the first time.
           </p>
           <button type="button" onClick={() => void downloadPasswords(results)} className="text-sm font-medium text-brand hover:underline">
             Download again

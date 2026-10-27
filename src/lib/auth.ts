@@ -79,6 +79,8 @@ const inServerAction = async () => (await headers()).has("next-action");
 async function resolve(roles: UserRole[], allowViewOnlyActions: boolean): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // A password someone else chose (e.g. a shared one for an imported team) is changed before anything else.
+  if (user.must_change_password) redirect("/account/password?first=1");
   if (roles.includes(user.role)) return user;
   for (const role of roles) {
     const view = viewAs(user, role);

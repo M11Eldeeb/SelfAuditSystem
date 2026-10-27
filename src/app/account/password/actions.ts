@@ -2,6 +2,7 @@
 
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ChangePasswordState = { error?: string; success?: string } | undefined;
 
@@ -25,6 +26,7 @@ export async function changePassword(
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message };
+  if (user.must_change_password) await createAdminClient().from("self_audit_users").update({ must_change_password: false }).eq("id", user.id);
 
   return { success: "Password updated." };
 }
