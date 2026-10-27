@@ -115,12 +115,16 @@ function aggregate(rows: unknown[][]): { total: number; undated: number; cube: C
   const spellings = new Map<string, Map<string, number>>(); // lower-case status -> how each spelling was written
   const counts = new Map<string, { m: string; co: string | null; key: string; n: number }>();
   let undated = 0;
+  let kept = 0;
   for (const r of body) {
+    const rawCo = coCol === -1 ? "" : String(r[coCol] ?? "").trim().toUpperCase();
+    // A case with no company code belongs to no branch - it is left out of every chart.
+    if (!rawCo || rawCo === "NULL") continue;
+    const co = rawCo;
+    kept += 1;
     const dated = toMonth(r[dateCol], isDayFirst);
     if (!dated) undated += 1;
     const m = dated ?? "";
-    const rawCo = coCol === -1 ? "" : String(r[coCol] ?? "").trim().toUpperCase();
-    const co = rawCo && rawCo !== "NULL" ? rawCo : null;
     const status = cleanStatus(r[statusCol]) || "No status";
     const key = status.toLowerCase();
     const sp = spellings.get(key) ?? new Map<string, number>();
@@ -134,7 +138,7 @@ function aggregate(rows: unknown[][]): { total: number; undated: number; cube: C
   const labelOf = (key: string) => [...(spellings.get(key) ?? new Map([[key, 1]])).entries()].sort((a, b) => b[1] - a[1])[0][0];
   const cube = [...counts.values()].map((c) => ({ m: c.m, co: c.co, s: labelOf(c.key), n: c.n }));
   return {
-    total: body.length,
+    total: kept,
     undated,
     cube,
     months: [...new Set(cube.map((c) => c.m).filter(Boolean))].sort(),
