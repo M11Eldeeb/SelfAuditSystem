@@ -46,7 +46,7 @@
 }
 
 /*
- * The theme follows the device until someone picks Light or Dark in the Settings menu. It is
+ * Light is the default theme; Dark (or System) can be picked in the Settings menu. It is
  * driven by the "dark" class on <html> (set before first paint by THEME_INIT_SCRIPT), so
  * :root must not flip with prefers-color-scheme: components hardcode light
  * colours (bg-white, text-neutral-900) and only the class-scoped overrides at

@@ -23,7 +23,7 @@ type Item = {
 };
 
 const MAX_VIDEO_SECONDS = 120;
-const PARALLEL_UPLOADS = 3;
+const PARALLEL_UPLOADS = 4;
 
 const inputCls = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
 const icon = (type: string) => <Glyph name={type.startsWith("video/") ? "video" : type === "application/pdf" ? "pdf" : "image"} className="text-neutral-500" />;
@@ -57,6 +57,7 @@ export function TechClaimForm({
   initial,
   existing = [],
   lang = "en",
+  branchCode = "",
 }: {
   /** Technician name, printed in the date stamp. */
   who: string;
@@ -64,12 +65,16 @@ export function TechClaimForm({
   initial?: { vin: string; workOrder: string; endOfRepair: string | null; notes: string | null };
   existing?: Existing[];
   lang?: Lang;
+  /** Put in front of the work order number the technician types (e.g. HER-). */
+  branchCode?: string;
 }) {
   const t = techT(lang);
   const router = useRouter();
   const [sheet, setSheet] = useState(false);
-  const [vin, setVin] = useState(initial?.vin ?? "");
-  const [workOrder, setWorkOrder] = useState(initial?.workOrder ?? "");
+  // The VIN is not asked from the technician (an existing one is kept as it is).
+  const vin = initial?.vin ?? "";
+  // The technician types the work order number only; the branch code is added in front when saving.
+  const [workOrder, setWorkOrder] = useState((initial?.workOrder ?? "").replace(/^[A-Za-z]+-/, ""));
   const [endOfRepair, setEndOfRepair] = useState(initial?.endOfRepair ? localValue(initial.endOfRepair) : "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [items, setItems] = useState<Item[]>([]);
@@ -85,8 +90,18 @@ export function TechClaimForm({
   const removed = useRef(new Set<string>());
   const seq = useRef(0);
   const latest = useRef<Item[]>([]);
-  const stampChain = useRef<Promise<unknown>>(Promise.resolve());
+  // Photos and videos are stamped on separate tracks, so a long video never holds up the photos.
+  const photoChain = useRef<Promise<unknown>>(Promise.resolve());
+  const videoChain = useRef<Promise<unknown>>(Promise.resolve());
+  // The first upload makes sure the Drive staging folder exists; after that, sessions are asked for in parallel.
   const sessionChain = useRef<Promise<unknown>>(Promise.resolve());
+  const stagingReady = useRef(false);
+
+  // Load the stamping tools as soon as the form opens, so the first file does not wait for them.
+  useEffect(() => {
+    void import("exifr");
+    void import("mediabunny");
+  }, []);
   const slots = useRef({ free: PARALLEL_UPLOADS, waiting: [] as (() => void)[] });
 
   // Every change goes through here so the list is also readable right away (latest) - not only after a render.
@@ -119,7 +134,8 @@ export function TechClaimForm({
       if (!original) return;
       try {
         // 1. Date stamp (one file at a time - it uses the phone's video hardware).
-        const stamped = await inOrder(stampChain, async () => {
+        const isVideo = original.type.startsWith("video/");
+        const stamped = await inOrder(isVideo ? videoChain : photoChain, async () => {
           if (removed.current.has(key)) return null;
           patch(key, { status: "stamping", pct: 0 });
           if (original.type.startsWith("image/")) return stampPhoto(original, who);
@@ -128,8 +144,10 @@ export function TechClaimForm({
         });
         if (!stamped || removed.current.has(key)) return;
         // 2. An upload session in the staging folder, then the bytes straight to Google Drive (three at a time).
-        const prepared = await inOrder(sessionChain, () => prepareStagedUpload({ name: stamped.name, type: stamped.type, size: stamped.size }));
+        const ask = () => prepareStagedUpload({ name: stamped.name, type: stamped.type, size: stamped.size });
+        const prepared = stagingReady.current ? await ask() : await inOrder(sessionChain, ask);
         if (prepared.error || !prepared.session) throw new Error(prepared.error ?? "Could not start the upload.");
+        stagingReady.current = true;
         const session = prepared.session;
         patch(key, { status: "sending", pct: 0, size: stamped.size, name: stamped.name });
         const driveId = await withSlot(() => uploadToSession(session, stamped, (sent) => patch(key, { pct: Math.round((sent / stamped.size) * 100) })));
@@ -249,13 +267,20 @@ export function TechClaimForm({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:grid-cols-2">
-        <label className="space-y-1 sm:col-span-2">
-          <span className="text-sm font-medium text-neutral-700">{t.vin}</span>
-          <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase().replace(/\s+/g, ""))} placeholder="LSJ..." autoCapitalize="characters" dir="ltr" className={`${inputCls} font-mono tracking-wide`} disabled={busy} />
-        </label>
         <label className="space-y-1">
           <span className="text-sm font-medium text-neutral-700">{t.workOrder}</span>
-          <input value={workOrder} onChange={(e) => setWorkOrder(e.target.value)} placeholder={t.workOrder} dir="ltr" className={inputCls} disabled={busy} />
+          <div dir="ltr" className="flex items-stretch overflow-hidden rounded-lg border border-neutral-300 bg-white shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+            {branchCode && <span className="flex items-center bg-neutral-100 px-3 font-mono text-base font-semibold text-neutral-700">{branchCode}-</span>}
+            <input
+              value={workOrder}
+              onChange={(e) => setWorkOrder(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="123456"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-base focus:outline-none"
+              disabled={busy}
+            />
+          </div>
         </label>
         <label className="space-y-1">
           <span className="text-sm font-medium text-neutral-700">{t.endOfRepair}</span>

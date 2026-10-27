@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, knownStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
 import type { Database } from "@/lib/supabase/types";
 
 const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims"];
@@ -25,11 +25,17 @@ const safeName = (n: string) => n.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").tr
  * Checks the claim's fields. A draft (Save) only needs the work order (it names the Drive folder); the VIN and end of
  * repair may still be empty. Sending needs everything.
  */
-function cleanFields(f: ClaimFields, draft = false): { error: string } | { vin: string | null; workOrder: string; endOfRepair: string | null; notes: string | null } {
+function cleanFields(
+  f: ClaimFields,
+  draft: boolean,
+  branchCode: string
+): { error: string } | { vin: string | null; workOrder: string; endOfRepair: string | null; notes: string | null } {
   const vin = f.vin.replace(/\s+/g, "").toUpperCase();
-  const workOrder = f.workOrder.trim();
-  if (!workOrder || workOrder.length > 40) return { error: "Enter the work order number." };
-  if (vin ? vin.length < 5 || vin.length > 30 : !draft) return { error: "Enter the VIN." };
+  // The technician types the number only; the branch code goes in front (e.g. HER-123456).
+  const digits = f.workOrder.replace(/\D/g, "");
+  if (!digits || digits.length > 20) return { error: "Enter the work order number." };
+  const workOrder = branchCode ? `${branchCode}-${digits}` : digits;
+  if (vin && (vin.length < 5 || vin.length > 30)) return { error: "Enter the VIN." };
   const end = f.endOfRepair ? Date.parse(f.endOfRepair) : NaN;
   if (Number.isNaN(end) && (!draft || f.endOfRepair)) return { error: "Enter the end of repair date and time." };
   if (end > Date.now() + 24 * 3_600_000) return { error: "The end of repair cannot be in the future." };
@@ -58,12 +64,16 @@ const techLabel = (name: string, employeeNo: string | null) => (employeeNo ? `${
 async function technicianContext() {
   const tech = await requireRole("technician");
   if (!tech.branch_id) throw new DocsError("Your account has no branch.");
-  if (!(await getDocsConnection())) throw new DocsError("Google Drive is not connected yet - tell the warranty officer.");
-  const { data: branch } = await createAdminClient().from("self_audit_branches").select("name").eq("id", tech.branch_id).maybeSingle();
+  const [connection, { data: branch }, known] = await Promise.all([
+    getDocsConnection(),
+    createAdminClient().from("self_audit_branches").select("name, code").eq("id", tech.branch_id).maybeSingle(),
+    knownStagingFolder(tech.branch_id, tech.id),
+  ]);
+  if (!connection) throw new DocsError("Google Drive is not connected yet - tell the warranty officer.");
   const name = tech.full_name ?? tech.email;
   const place = { branchId: tech.branch_id, branchName: branch?.name ?? "Branch", technicianId: tech.id, technicianLabel: techLabel(name, tech.employee_no) };
-  const staging = await ensureStagingFolder(place);
-  return { tech, name, place, staging };
+  const staging = known ?? (await ensureStagingFolder(place));
+  return { tech, name, place, staging, branchCode: branch?.code ?? "" };
 }
 
 /**
@@ -74,8 +84,17 @@ export async function prepareStagedUpload(file: FileMeta): Promise<{ session?: s
   const bad = checkFiles([file]);
   if (bad) return { error: bad };
   try {
-    const { staging } = await technicianContext();
-    const [session] = await openSessions(staging, [file]);
+    // Fast path: the staging folder remembered from earlier (no Drive checks). If Google refuses the upload into it
+    // (folder deleted in Drive), find or make it again and retry once.
+    const ctx = await technicianContext();
+    const staging = ctx.staging;
+    let session: string;
+    try {
+      [session] = await openSessions(staging, [file]);
+    } catch {
+      await createAdminClient().from("self_audit_drive_folders").delete().eq("key", `tc:stage:${ctx.place.branchId}:${ctx.place.technicianId}`);
+      [session] = await openSessions(await ensureStagingFolder(ctx.place), [file]);
+    }
     // Now and then, clear files abandoned in this staging folder for more than two days.
     if (Math.random() < 0.1) after(() => cleanStagingFolder(staging).catch(() => undefined));
     return { session };
@@ -111,11 +130,11 @@ async function ownEditableClaim(claimId: string) {
  * and the claim goes to the branch's warranty admin.
  */
 export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], claimId?: string, send = true): Promise<{ claimId?: string; error?: string }> {
-  const clean = cleanFields(fields, !send);
-  if ("error" in clean) return clean;
   const admin = createAdminClient();
   try {
     const ctx = await technicianContext();
+    const clean = cleanFields(fields, !send, ctx.branchCode);
+    if ("error" in clean) return clean;
     const ids = [...new Set(stagedIds)].slice(0, MAX_FILES);
 
     // The claim: a new one, or the technician's own one he may still change.

@@ -19,6 +19,7 @@ export function TechClaimDetailView({
   canEdit,
   showDrive,
   lang,
+  branchCode,
 }: {
   claim: TechClaimDetail;
   backHref: string;
@@ -27,6 +28,8 @@ export function TechClaimDetailView({
   showDrive: boolean;
   /** The technician's view (his language); admin pages leave it out. */
   lang?: Lang;
+  /** The technician's branch code, put in front of the work order number he types. */
+  branchCode?: string;
 }) {
   const t = techT(lang ?? "en");
   const fileUrl = (id: string) => `/api/tech-claims/file/${id}`;
@@ -57,10 +60,12 @@ export function TechClaimDetailView({
       )}
 
       <dl className="grid grid-cols-2 gap-3 rounded-xl bg-white p-4 text-sm shadow-sm ring-1 ring-neutral-200/70 sm:grid-cols-3">
-        <div className="col-span-2 sm:col-span-1">
-          <dt className="text-xs text-neutral-500">{t.vin}</dt>
-          <dd className="font-mono font-medium select-all" dir="ltr">{claim.vin || "—"}</dd>
-        </div>
+        {!lang && (
+          <div className="col-span-2 sm:col-span-1">
+            <dt className="text-xs text-neutral-500">{t.vin}</dt>
+            <dd className="font-mono font-medium select-all" dir="ltr">{claim.vin || "—"}</dd>
+          </div>
+        )}
         <div>
           <dt className="text-xs text-neutral-500">{t.workOrder}</dt>
           <dd className="font-medium select-all">{claim.workOrder}</dd>
@@ -98,6 +103,7 @@ export function TechClaimDetailView({
           initial={{ vin: claim.vin, workOrder: claim.workOrder, endOfRepair: claim.endOfRepair, notes: claim.notes }}
           existing={claim.fileList.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size }))}
           lang={lang ?? "en"}
+          branchCode={branchCode}
         />
       ) : (
         <section className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">

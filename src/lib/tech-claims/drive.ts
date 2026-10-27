@@ -89,6 +89,12 @@ export async function ensureStagingFolder(input: { branchId: string; branchName:
   return ensureFolder(tech, "_Uploading", `tc:stage:${input.branchId}:${input.technicianId}`);
 }
 
+/** The staging folder remembered from earlier (one database lookup, no Drive call) - the fast path for each upload. */
+export async function knownStagingFolder(branchId: string, technicianId: string): Promise<string | null> {
+  const { data } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", `tc:stage:${branchId}:${technicianId}`).maybeSingle();
+  return data?.drive_id ?? null;
+}
+
 /** Moves a Drive file from one folder to another (instant - nothing is copied). */
 export async function moveDriveFile(id: string, from: string, to: string): Promise<void> {
   const res = await docsFetch(`${API}/files/${encodeURIComponent(id)}?addParents=${encodeURIComponent(to)}&removeParents=${encodeURIComponent(from)}&supportsAllDrives=true&fields=id`, {

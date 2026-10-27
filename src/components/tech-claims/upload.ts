@@ -1,7 +1,7 @@
-// Sends one file to a Google Drive resumable upload session in 8 MB pieces. A piece that fails (Wi-Fi drop, timeout) is
+// Sends one file to a Google Drive resumable upload session in 16 MB pieces. A piece that fails (Wi-Fi drop, timeout) is
 // retried after asking Google how much it already has, so a long video does not start again from zero.
 
-const CHUNK = 8 * 1024 * 1024; // must be a multiple of 256 KB
+const CHUNK = 16 * 1024 * 1024; // must be a multiple of 256 KB - bigger pieces, fewer round trips
 const MAX_RETRIES = 8;
 
 type Reply = { status: number; range: string | null; body: string };

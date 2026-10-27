@@ -9,17 +9,17 @@ const CHANGE_EVENT = "theme:change";
 
 /**
  * Runs in <head> before first paint (rendered by the root layout) so a dark
- * page never flashes light. With no saved choice it follows the device (Apple HIG: no app-only appearance).
+ * page never flashes light. Light is the default; Dark or System can be picked in the Settings menu.
  * Keep in sync with applyTheme() below.
  */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");var d=t==="dark"||((t==="system"||!t)&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;if(d){e.classList.add("dark")}e.style.colorScheme=d?"dark":"light"}catch(_){}})()`;
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;if(d){e.classList.add("dark")}e.style.colorScheme=d?"dark":"light"}catch(_){}})()`;
 
 function readChoice(): ThemeChoice {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    return v === "dark" || v === "light" ? v : "system";
+    return v === "dark" || v === "system" ? v : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 
@@ -47,9 +47,9 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** The saved choice (follows the device until the user picks otherwise) and a setter that applies it immediately. */
+/** The saved choice (light until the user picks otherwise) and a setter that applies it immediately. */
 export function useTheme(): [ThemeChoice, (choice: ThemeChoice) => void] {
-  const choice = useSyncExternalStore(subscribe, readChoice, () => "system" as ThemeChoice);
+  const choice = useSyncExternalStore(subscribe, readChoice, () => "light" as ThemeChoice);
   const setChoice = useCallback((next: ThemeChoice) => {
     try {
       localStorage.setItem(STORAGE_KEY, next);

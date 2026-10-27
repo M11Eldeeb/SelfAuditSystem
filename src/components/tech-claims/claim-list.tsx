@@ -71,7 +71,7 @@ export function TechClaimList({
                   <StatusPill status={c.status as TechClaimStatus} lang={lang} />
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-                  {c.vin && <span className="font-mono" dir="ltr">{c.vin}</span>}
+                  {!lang && c.vin && <span className="font-mono" dir="ltr">{c.vin}</span>}
                   {showTechnician && <span>{c.technician}</span>}
                   {showBranch && <span>{c.branch}</span>}
                   <span>{t.filesCount(c.files)}</span>

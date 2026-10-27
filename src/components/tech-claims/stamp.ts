@@ -149,7 +149,7 @@ function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number, lines: s
 
 const baseName = (n: string) => n.replace(/\.[^.]+$/, "");
 
-/** A photo with the stamp, as JPEG (longest side up to 2048 px - about 0.5 MB, quick to send). */
+/** A photo with the stamp, as JPEG (longest side up to 1600 px, as WhatsApp sends - about 300 KB, quick to send). */
 export async function stampPhoto(file: File, who: string): Promise<File> {
   const when = await takenAt(file, "photo");
   let bitmap: ImageBitmap;
@@ -158,7 +158,7 @@ export async function stampPhoto(file: File, who: string): Promise<File> {
   } catch {
     throw new Error(`"${file.name}" cannot be opened on this phone - take the photo with the "Take photo" button.`);
   }
-  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -166,7 +166,7 @@ export async function stampPhoto(file: File, who: string): Promise<File> {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   drawStamp(ctx, canvas.width, canvas.height, [fmt(when), who]);
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.82));
   if (!blob) throw new Error(`Could not stamp "${file.name}".`);
   return new File([blob], `${baseName(file.name)}_stamped.jpg`, { type: "image/jpeg", lastModified: when.getTime() });
 }
@@ -236,6 +236,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
         fit: "contain",
         codec: "avc",
         quality: mb.QUALITY_MEDIUM,
+        frameRate: 30, // 60 fps phone videos: half the frames to stamp and send
         forceTranscode: true,
         allowTransformationMetadata: false,
         hardwareAcceleration: "prefer-hardware",
