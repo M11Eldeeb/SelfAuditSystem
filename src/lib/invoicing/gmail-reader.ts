@@ -66,19 +66,20 @@ function findSpreadsheet(part: Part | undefined): { filename: string; attachment
 export type LatestReport = { messageId: string; subject: string; receivedAt: string; fileName: string; bytes: Buffer };
 
 /**
- * The newest e-mail whose subject contains the report's name and that has an Excel file attached (searched over the
- * last 40 days). `skipMessageId`: stop early (no download) when the newest one is the report already imported.
+ * The newest e-mail matching `query` (a Gmail search, e.g. subject words) that has an Excel file attached and whose
+ * subject passes `subjectTest`. `skipMessageId`: stop early (no download) when the newest one is the file already imported.
+ * Reads the same connected mailbox as the invoicing report.
  */
-export async function fetchLatestReport(skipMessageId?: string | null): Promise<LatestReport | "unchanged" | null> {
+export async function fetchLatestMailSpreadsheet(query: string, skipMessageId?: string | null, subjectTest?: (subject: string) => boolean): Promise<LatestReport | "unchanged" | null> {
   const t = await token();
-  const q = encodeURIComponent(`subject:("${REPORT_SUBJECT}") has:attachment newer_than:40d`);
-  const list = await gmail<{ messages?: { id: string }[] }>(t, `/messages?q=${q}&maxResults=10`);
+  const list = await gmail<{ messages?: { id: string }[] }>(t, `/messages?q=${encodeURIComponent(query)}&maxResults=10`);
   for (const { id } of list.messages ?? []) {
     if (id === skipMessageId) return "unchanged";
     const msg = await gmail<Message>(t, `/messages/${id}?format=full`);
+    const subject = msg.payload?.headers?.find((h) => h.name.toLowerCase() === "subject")?.value ?? "";
+    if (subjectTest && !subjectTest(subject)) continue;
     const file = findSpreadsheet(msg.payload);
     if (!file) continue;
-    const subject = msg.payload?.headers?.find((h) => h.name.toLowerCase() === "subject")?.value ?? "";
     const att = await gmail<{ data: string }>(t, `/messages/${id}/attachments/${file.attachmentId}`);
     return {
       messageId: id,
@@ -89,4 +90,12 @@ export async function fetchLatestReport(skipMessageId?: string | null): Promise<
     };
   }
   return null;
+}
+
+/**
+ * The newest e-mail whose subject contains the report's name and that has an Excel file attached (searched over the
+ * last 40 days). `skipMessageId`: stop early (no download) when the newest one is the report already imported.
+ */
+export function fetchLatestReport(skipMessageId?: string | null): Promise<LatestReport | "unchanged" | null> {
+  return fetchLatestMailSpreadsheet(`subject:("${REPORT_SUBJECT}") has:attachment newer_than:40d`, skipMessageId);
 }

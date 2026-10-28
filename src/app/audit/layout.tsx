@@ -6,17 +6,18 @@ import { getNotifications } from "@/lib/notifications";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
 import { techClaimsWaiting } from "@/lib/tech-claims/server";
+import { MyAuditsTabs } from "./my-audits-tabs";
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
-  { href: "/audit", label: "My Audits" },
-  { href: "/audit/results", label: "Results" },
-  { href: "/audit/audit-schedule", label: "Audit Schedule" },
+  // Audits, Results and the Audit Schedule are tabs inside My Audits.
+  { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"] },
   { href: "/audit/warranty-room", label: "Warranty Room" },
   { href: "/audit/technician-claims", label: "Technician Claims" },
   { href: "/audit/rejected-claims", label: "Rejected Claims" },
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
   { href: "/audit/documents", label: "Warranty and Technical Documents" },
+  { href: "/audit/complaints", label: "Complaints" },
   { href: "/audit/feedback", label: "Feedback" },
 ];
 
@@ -38,7 +39,10 @@ export default async function AuditLayout({ children }: { children: ReactNode })
     <div className="app-shell-bg flex min-h-screen flex-col">
       <NavBar user={user} links={links} notifications={notifications} />
       {user.viewOnly && <ViewOnlyBanner />}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
+        <MyAuditsTabs />
+        {children}
+      </main>
     </div>
   );
 }

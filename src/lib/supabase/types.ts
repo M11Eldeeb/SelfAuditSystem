@@ -723,6 +723,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_payment_orders"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_complaints: {
+        Row: {
+          key: string; source: string; complaint_no: string | null; created_on: string | null; status: string | null; resolved_on: string | null;
+          category: string | null; subcategory: string | null; vin: string | null; validity: string | null; region: string | null; branch_label: string | null;
+          dealer_code: string | null; branch_id: string | null; service_advisor: string | null; representative: string | null; imported_at: string;
+        };
+        Insert: {
+          key: string; source: string; complaint_no?: string | null; created_on?: string | null; status?: string | null; resolved_on?: string | null;
+          category?: string | null; subcategory?: string | null; vin?: string | null; validity?: string | null; region?: string | null; branch_label?: string | null;
+          dealer_code?: string | null; branch_id?: string | null; service_advisor?: string | null; representative?: string | null; imported_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_complaints"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_complaint_imports: {
+        Row: { id: string; gmail_message_id: string | null; subject: string | null; received_at: string | null; file_name: string | null; rows: number; imported_at: string; imported_by: string | null };
+        Insert: { id?: string; gmail_message_id?: string | null; subject?: string | null; received_at?: string | null; file_name?: string | null; rows?: number; imported_at?: string; imported_by?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_complaint_imports"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_payment_files: {
         Row: { id: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; uploaded_by_name: string | null; created_at: string };
         Insert: { id?: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; uploaded_by_name?: string | null; created_at?: string };

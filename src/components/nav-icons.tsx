@@ -10,6 +10,7 @@ const P: Record<string, string> = {
   rejected: "M10 17a7 7 0 100-14 7 7 0 000 14zM7.5 7.5l5 5M12.5 7.5l-5 5",
   inquiries: "M4 4.5h12v8.5H9l-3.5 3v-3H4zM7 8h6M7 10.5h4",
   documents: "M2.5 5.5a1 1 0 011-1h4l1.5 2h7.5a1 1 0 011 1v8a1 1 0 01-1 1h-13a1 1 0 01-1-1z",
+  complaints: "M3.5 8v4h2.5l6 3.5v-11L6 8zM14.5 7.5a3.5 3.5 0 010 5M6 12l1 4.5h2L8.5 12",
   feedback: "M3.5 4.5h13v9h-6l-4 3v-3h-3zM7 9h.01M10 9h.01M13 9h.01",
   wrench: "M12.5 3.5a3.5 3.5 0 00-3.2 4.9L3.8 13.9a1.4 1.4 0 002 2l5.5-5.5a3.5 3.5 0 004.9-3.2l-2 2-2-.5-.5-2z",
   list: "M7.5 5.5h9M7.5 10h9M7.5 14.5h9M4 5.5h.01M4 10h.01M4 14.5h.01",
@@ -33,6 +34,7 @@ function keyFor(href: string, label: string): string {
   if (h.includes("rejected")) return "rejected";
   if (h.includes("inquir") || h.includes("verification")) return "inquiries";
   if (h.includes("documents")) return "documents";
+  if (h.includes("complaints")) return "complaints";
   if (h.includes("feedback")) return "feedback";
   if (h.includes("finance")) return "money";
   if (h.includes("audit") || h === "/audit") return "audits";

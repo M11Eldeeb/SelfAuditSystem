@@ -5,6 +5,7 @@ import { GET as syncSharing } from "../sync-drive-sharing/route";
 import { getMailStatus } from "@/lib/gmail";
 import { MAIL_KEYS, isMailEnabled, planPodium, sendPlans } from "@/lib/mail/plans";
 import { importLatestInvoicingReport } from "@/lib/invoicing/import";
+import { importLatestComplaintsReport } from "@/lib/complaints/import";
 import { sendRejectedClaimMails } from "@/lib/mail/rejected-claims";
 import { sendIaScheduleMails } from "@/lib/mail/ia-schedule";
 
@@ -38,6 +39,12 @@ export async function GET(request: Request) {
     results.invoicing = await importLatestInvoicingReport();
   } catch (e) {
     results.invoicing = { error: e instanceof Error ? e.message : "failed" };
+  }
+  // Complaints: the monthly Complaints Tracker Report e-mail (skipped when nothing new arrived).
+  try {
+    results.complaints = await importLatestComplaintsReport();
+  } catch (e) {
+    results.complaints = { error: e instanceof Error ? e.message : "failed" };
   }
   // Rejected claims: the monthly summary (first run of the month) and the Thursday reminder for weekend close dates.
   try {
