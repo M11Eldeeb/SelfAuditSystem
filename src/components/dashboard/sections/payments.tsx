@@ -8,6 +8,7 @@ import {
   registerPaymentFiles,
   removePaymentFile,
   savePayment,
+  type PaymentFile,
   type PaymentListRow,
   type PaymentRow,
   type PaymentsData,
@@ -75,7 +76,7 @@ async function readPaymentList(file: File): Promise<PaymentListRow[]> {
 }
 
 /** One payment order's own controls: remitted / pending, received amount, notes, evidence. */
-function PaymentControls({ row, onChanged }: { row: PaymentRow; onChanged: () => void }) {
+function PaymentControls({ row, onChanged, onFiles }: { row: PaymentRow; onChanged: () => void; onFiles: (files: PaymentFile[]) => void }) {
   const [received, setReceived] = useState(row.receivedAmount == null ? "" : String(row.receivedAmount));
   const [notes, setNotes] = useState(row.notes ?? "");
   const [notesOpen, setNotesOpen] = useState(false);
@@ -100,14 +101,28 @@ function PaymentControls({ row, onChanged }: { row: PaymentRow; onChanged: () =>
     try {
       const prep = await preparePaymentUploads(row.paymentOrder, files.map((f) => ({ name: f.name, type: f.type, size: f.size })));
       if (prep.error || !prep.sessions) throw new Error(prep.error ?? "Could not start the upload.");
-      const ids: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        setBusy(`Uploading ${i + 1} of ${files.length}…`);
-        ids.push(await uploadToSession(prep.sessions[i], files[i], () => undefined));
-      }
+      // Up to 4 files go to Google Drive at the same time; the label shows the share sent so far.
+      const total = files.reduce((t, f) => t + f.size, 0) || 1;
+      const sent = files.map(() => 0);
+      const show = () => setBusy(`Uploading ${files.length > 1 ? `${files.length} files ` : ""}${Math.min(99, Math.round((sent.reduce((t, x) => t + x, 0) / total) * 100))}%…`);
+      show();
+      const ids: string[] = new Array(files.length);
+      let next = 0;
+      const worker = async () => {
+        while (next < files.length) {
+          const i = next++;
+          ids[i] = await uploadToSession(prep.sessions![i], files[i], (n) => {
+            sent[i] = n;
+            show();
+          });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, files.length) }, worker));
+      setBusy("Saving…");
       const reg = await registerPaymentFiles(row.paymentOrder, ids);
       if (reg.error) throw new Error(reg.error);
-      onChanged();
+      // Only this payment's file list changes - no need to reload every payment order.
+      onFiles(reg.files ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "The upload failed.");
     } finally {
@@ -227,7 +242,7 @@ function PaymentControls({ row, onChanged }: { row: PaymentRow; onChanged: () =>
 export function PaymentsSection() {
   const [data, setData] = useState<PaymentsData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<string | null>(null);
   const [importing, setImporting] = useState<string | null>(null);
   const listInput = useRef<HTMLInputElement>(null);
 
@@ -269,13 +284,10 @@ export function PaymentsSection() {
   const awaiting = data.pendingByMonth.reduce((s, m) => s + m.amount, 0);
   const awaitingClaims = data.pendingByMonth.reduce((s, m) => s + m.claims, 0);
   const cur = rows[0]?.currency ?? "USD";
-  const toggle = (po: string) =>
-    setOpen((cur) => {
-      const next = new Set(cur);
-      if (next.has(po)) next.delete(po);
-      else next.add(po);
-      return next;
-    });
+  // One payment order open at a time: opening another closes the current one.
+  const toggle = (po: string) => setOpen((cur) => (cur === po ? null : po));
+  const addFiles = (po: string, files: PaymentFile[]) =>
+    setData((d) => (d ? { ...d, rows: d.rows.map((r) => (r.paymentOrder === po ? { ...r, files: [...r.files, ...files] } : r)) } : d));
 
   return (
     <div className="space-y-5">
@@ -344,7 +356,7 @@ export function PaymentsSection() {
             <tbody className="divide-y divide-neutral-100 tabular-nums">
               {rows.map((r) => {
                 const st = remitState(r, today);
-                const isOpen = open.has(r.paymentOrder);
+                const isOpen = open === r.paymentOrder;
                 return (
                   <Fragment key={r.paymentOrder}>
                     <tr className={`cursor-pointer hover:bg-neutral-900/[0.03] ${isOpen ? "bg-neutral-900/[0.03]" : ""}`} onClick={() => toggle(r.paymentOrder)}>
@@ -393,7 +405,7 @@ export function PaymentsSection() {
                         )}
                         <tr>
                           <td colSpan={8} className="bg-neutral-900/[0.02] px-6 py-3 whitespace-normal">
-                            <PaymentControls row={r} onChanged={() => void load()} />
+                            <PaymentControls row={r} onChanged={() => void load()} onFiles={(f) => addFiles(r.paymentOrder, f)} />
                           </td>
                         </tr>
                       </>

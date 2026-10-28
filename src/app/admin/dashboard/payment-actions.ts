@@ -156,7 +156,7 @@ export async function preparePaymentUploads(paymentOrder: string, files: { name:
 }
 
 /** Officers: records the uploaded evidence (each file checked in Drive: it must be in the payment order's folder). */
-export async function registerPaymentFiles(paymentOrder: string, driveIds: string[]): Promise<{ error?: string }> {
+export async function registerPaymentFiles(paymentOrder: string, driveIds: string[]): Promise<{ files?: PaymentFile[]; error?: string }> {
   const officer = await requireRole("officer");
   const admin = createAdminClient();
   const { data: po } = await admin.from("self_audit_payment_orders").select("drive_folder_id").eq("payment_order", paymentOrder).maybeSingle();
@@ -166,11 +166,10 @@ export async function registerPaymentFiles(paymentOrder: string, driveIds: strin
     const rows = infos
       .filter((f): f is NonNullable<typeof f> => !!f && f.parents.includes(po.drive_folder_id!))
       .map((f) => ({ payment_order: paymentOrder, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: officer.id, uploaded_by_name: officer.full_name ?? officer.email }));
-    if (rows.length) {
-      const { error } = await admin.from("self_audit_payment_files").insert(rows);
-      if (error) return { error: error.message };
-    }
-    return {};
+    if (!rows.length) return { files: [] };
+    const { data, error } = await admin.from("self_audit_payment_files").insert(rows).select("id, drive_file_id, file_name, size_bytes, created_at, uploaded_by_name");
+    if (error) return { error: error.message };
+    return { files: (data ?? []).map((f) => ({ id: f.id, driveId: f.drive_file_id, name: f.file_name, size: Number(f.size_bytes), at: f.created_at, by: f.uploaded_by_name })) };
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive." };
   }
