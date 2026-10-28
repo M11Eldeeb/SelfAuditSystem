@@ -603,8 +603,8 @@ export async function getClaimSide(
     ],
   };
 
-  // --- claimed vs adjusted over time: weeks (Sat-start) for short ranges, months otherwise
-  const periodUnit: "week" | "month" = months.length <= 2 ? "week" : "month";
+  // --- claimed vs adjusted over time: per month (by repair end date)
+  const periodUnit = "month" as "week" | "month";
   const periodMap = new Map<string, PeriodPoint>();
   if (periodUnit === "month") for (const m of months) periodMap.set(m, { label: m, claimed: 0, adjusted: 0, count: 0 });
   for (const c of claims) {

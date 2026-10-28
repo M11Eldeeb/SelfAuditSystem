@@ -28,7 +28,7 @@ async function findFolder(parentId: string, name: string): Promise<string | null
 }
 
 /** The folder `name` inside `parentId`: the remembered one (if `key`), else an existing one of that name, else a new one. */
-async function ensureFolder(parentId: string, name: string, key?: string): Promise<string> {
+export async function ensureFolder(parentId: string, name: string, key?: string): Promise<string> {
   const admin = createAdminClient();
   if (key) {
     const { data } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", key).maybeSingle();

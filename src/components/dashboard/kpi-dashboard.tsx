@@ -11,6 +11,7 @@ import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
 import { RejectedClaimsPanel } from "@/components/dashboard/sections/rejected-claims";
 import type { RejectedEntry } from "@/lib/dashboard/rejected";
 import { InvoicingSection } from "@/components/dashboard/sections/invoicing";
+import { PaymentsSection } from "@/components/dashboard/sections/payments";
 import type { SupportLeadTimes } from "@/lib/dashboard/support";
 import { OverviewSection } from "@/components/dashboard/sections/overview";
 import { CycleTimesSection } from "@/components/dashboard/sections/cycle-times";
@@ -376,11 +377,18 @@ export function KpiDashboard({
           )}
           {tab === "financials" && isOfficer && (
             <div className="space-y-5 border-t-2 border-dashed border-[#e5e5e5] pt-5">
+              <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+                <PaymentsSection />
+              </SectionErrorBoundary>
+            </div>
+          )}
+          {tab === "financials" && isOfficer && (
+            <div className="space-y-5 border-t-2 border-dashed border-[#e5e5e5] pt-5">
               <InvoicingSection />
             </div>
           )}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}
-          {tab === "warranty" && isOfficer && prior && (
+          {tab === "overview" && isOfficer && prior && (
             <section className="space-y-4 border-t-2 border-dashed border-[#e5e5e5] pt-5">
               <div className="px-1">
                 <p className="text-[13px] font-semibold text-[#6e6e73]">Prior approvals</p>

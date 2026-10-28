@@ -685,6 +685,50 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_holidays"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_payment_orders: {
+        Row: {
+          payment_order: string;
+          creation_date: string | null;
+          total_vat: number;
+          total_novat: number | null;
+          currency: string;
+          saic_status: string | null;
+          remit_status: "pending" | "remitted";
+          remitted_at: string | null;
+          received_amount: number | null;
+          notes: string | null;
+          drive_folder_id: string | null;
+          updated_by: string | null;
+          updated_by_name: string | null;
+          updated_at: string;
+          imported_at: string;
+        };
+        Insert: {
+          payment_order: string;
+          creation_date?: string | null;
+          total_vat?: number;
+          total_novat?: number | null;
+          currency?: string;
+          saic_status?: string | null;
+          remit_status?: "pending" | "remitted";
+          remitted_at?: string | null;
+          received_amount?: number | null;
+          notes?: string | null;
+          drive_folder_id?: string | null;
+          updated_by?: string | null;
+          updated_by_name?: string | null;
+          updated_at?: string;
+          imported_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_payment_orders"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_payment_files: {
+        Row: { id: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; uploaded_by_name: string | null; created_at: string };
+        Insert: { id?: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; uploaded_by_name?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_payment_files"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_tech_claims: {
         Row: {
           id: string;
@@ -1962,6 +2006,14 @@ export interface Database {
       get_settlement_orders: {
         Args: Record<string, never>;
         Returns: { settlement_order: string }[];
+      };
+      payment_order_breakdown: {
+        Args: Record<string, never>;
+        Returns: { payment_order: string; settlement_order: string | null; claims: number; settled: number | null; avg_days: number | null }[];
+      };
+      pending_settlement_by_month: {
+        Args: Record<string, never>;
+        Returns: { month: string; claims: number; amount: number | null }[];
       };
       get_finance_summary: {
         Args: Record<string, never>;
