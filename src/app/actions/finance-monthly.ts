@@ -16,6 +16,8 @@ export type FinanceMonth = {
   adjusted: number;
   submittedClaims: number;
   submitted: { labor: number; parts: number; sublet: number; total: number };
+  /** The same split for claims by repair end date (closer to the invoice date). */
+  repaired: { labor: number; parts: number; sublet: number; total: number };
   /** Warranty invoicing (sales type Warranty) - null when no report was imported for the month. */
   invoiced: { labor: number; parts: number; total: number } | null;
 };
@@ -31,12 +33,12 @@ const shift = (yyyyMM: string, n: number) => {
  * warranty invoiced, labor / parts / sublet, for the picked range stretched to at least 5 months. Money in the claims'
  * currency (USD): the invoicing report is in SAR and is converted at 3.75.
  */
-export async function getFinanceMonthly(input: { from: string; to: string; branchIds: string[] }): Promise<{ months: FinanceMonth[]; partialInvoicing: boolean }> {
+export async function getFinanceMonthly(input: { from: string; to: string; branchIds: string[]; exactRange?: boolean }): Promise<{ months: FinanceMonth[]; partialInvoicing: boolean }> {
   const user = await requireAnyViewer(["officer", "branch_admin"]);
   const admin = createAdminClient();
   const end = /^\d{4}-\d{2}$/.test(input.to) ? input.to : new Date().toISOString().slice(0, 7);
   const asked = /^\d{4}-\d{2}$/.test(input.from) ? input.from : end;
-  const start = asked < shift(end, -(MIN_MONTHS - 1)) ? asked : shift(end, -(MIN_MONTHS - 1));
+  const start = input.exactRange || asked < shift(end, -(MIN_MONTHS - 1)) ? asked : shift(end, -(MIN_MONTHS - 1));
 
   const { data: branches } = await admin.from("self_audit_branches").select("id, code, active");
   let ids = input.branchIds.length ? input.branchIds : (branches ?? []).filter((b) => b.active).map((b) => b.id);
@@ -50,7 +52,7 @@ export async function getFinanceMonthly(input: { from: string; to: string; branc
   ]);
 
   const months: FinanceMonth[] = [];
-  for (let m = start; m <= end; m = shift(m, 1)) months.push({ month: m, claims: 0, claimed: 0, adjusted: 0, submittedClaims: 0, submitted: { labor: 0, parts: 0, sublet: 0, total: 0 }, invoiced: null });
+  for (let m = start; m <= end; m = shift(m, 1)) months.push({ month: m, claims: 0, claimed: 0, adjusted: 0, submittedClaims: 0, submitted: { labor: 0, parts: 0, sublet: 0, total: 0 }, repaired: { labor: 0, parts: 0, sublet: 0, total: 0 }, invoiced: null });
   const at = new Map(months.map((m) => [m.month, m]));
   for (const r of series ?? []) {
     const m = at.get(r.month);
@@ -59,6 +61,7 @@ export async function getFinanceMonthly(input: { from: string; to: string; branc
       m.claims = Number(r.claims);
       m.claimed = Number(r.claimed ?? 0);
       m.adjusted = Number(r.adjusted ?? 0);
+      m.repaired = { labor: Number(r.labor ?? 0), parts: Number(r.parts ?? 0), sublet: Number(r.sublet ?? 0), total: Number(r.claimed ?? 0) };
     } else {
       m.submittedClaims = Number(r.claims);
       m.submitted = { labor: Number(r.labor ?? 0), parts: Number(r.parts ?? 0), sublet: Number(r.sublet ?? 0), total: Number(r.claimed ?? 0) };
