@@ -943,6 +943,8 @@ html.no-welcome .welcome-intro {
   inset: 0 0 auto 0;
   z-index: 60;
   height: 30px;
+  /* The car drives past the right edge - clip it so it never adds a horizontal scrollbar. */
+  overflow: hidden;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -964,6 +966,10 @@ html.no-welcome .welcome-intro {
   bottom: 0;
   left: 0;
   animation: car-cross 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-play-state: paused;
+}
+.car-progress--on .car-progress__car {
+  animation-play-state: running;
 }
 @keyframes car-cross {
   from {
