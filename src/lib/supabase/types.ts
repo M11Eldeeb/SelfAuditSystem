@@ -2011,6 +2011,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: { payment_order: string; settlement_order: string | null; claims: number; settled: number | null; avg_days: number | null }[];
       };
+      claims_month_series: {
+        Args: { p_branches: string[]; p_from: string; p_to: string };
+        Returns: { kind: string; month: string; claims: number; claimed: number | null; adjusted: number | null; labor: number | null; parts: number | null; sublet: number | null }[];
+      };
       pending_settlement_by_month: {
         Args: Record<string, never>;
         Returns: { month: string; claims: number; amount: number | null }[];

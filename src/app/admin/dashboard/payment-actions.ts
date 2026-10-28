@@ -32,7 +32,7 @@ export type PaymentRow = {
   updatedBy: string | null;
 };
 export type PendingMonth = { month: string; claims: number; amount: number };
-export type PaymentsData = { rows: PaymentRow[]; pendingByMonth: PendingMonth[]; today: string; remitMonths: number };
+export type PaymentsData = { rows: PaymentRow[]; pendingByMonth: PendingMonth[]; today: string; remitMonths: number; officerName: string };
 
 const todayKsa = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
 const addMonths = (iso: string, n: number) => {
@@ -43,7 +43,7 @@ const addMonths = (iso: string, n: number) => {
 
 /** Officers: every payment order with its settlement orders, claims, average settlement time and evidence. */
 export async function getPaymentsData(): Promise<PaymentsData> {
-  await requireViewer("officer");
+  const officer = await requireViewer("officer");
   const admin = createAdminClient();
   const [{ data: orders }, { data: breakdown }, { data: files }, { data: pending }] = await Promise.all([
     admin.from("self_audit_payment_orders").select("*").order("creation_date", { ascending: false }),
@@ -93,6 +93,7 @@ export async function getPaymentsData(): Promise<PaymentsData> {
     pendingByMonth: (pending ?? []).map((p) => ({ month: p.month, claims: Number(p.claims), amount: Number(p.amount ?? 0) })).sort((a, b) => a.month.localeCompare(b.month)),
     today: todayKsa(),
     remitMonths: REMIT_MONTHS,
+    officerName: officer.full_name ?? officer.email,
   };
 }
 

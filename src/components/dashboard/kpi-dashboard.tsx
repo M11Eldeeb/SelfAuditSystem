@@ -371,20 +371,22 @@ export function KpiDashboard({
           {tab === "financials" && (
             <FinancialsSection
               {...sectionProps}
+              from={from}
+              to={to}
               forecast={isOfficer ? forecast : undefined}
               onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined}
             />
           )}
           {tab === "financials" && isOfficer && (
             <div className="space-y-5 border-t-2 border-dashed border-[#e5e5e5] pt-5">
-              <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
-                <PaymentsSection />
-              </SectionErrorBoundary>
+              <InvoicingSection />
             </div>
           )}
           {tab === "financials" && isOfficer && (
             <div className="space-y-5 border-t-2 border-dashed border-[#e5e5e5] pt-5">
-              <InvoicingSection />
+              <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+                <PaymentsSection />
+              </SectionErrorBoundary>
             </div>
           )}
           {tab === "warranty" && <WarrantyRoomSection {...sectionProps} />}

@@ -1,4 +1,4 @@
-import { BarList, C, Donut, GroupedColumns, Meter, StackedBar, dayShort, monthShort } from "@/components/dashboard/charts";
+import { BarList, C, Donut, Meter, StackedBar } from "@/components/dashboard/charts";
 import { TipCard } from "@/components/dashboard/hover";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
 import type { SectionProps } from "./overview";
@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import type { SettlementForecast } from "@/lib/dashboard/forecast";
 import { ForecastPanel, ForecastSkeleton } from "./forecast";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
+import { FinanceMonths } from "@/components/dashboard/sections/finance-months";
 
 const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = {
   Settled: "good",
@@ -18,9 +19,12 @@ const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = 
 
 export function FinancialsSection({
   data,
+  scopeBranches,
   onOpenReconciliation,
   forecast,
-}: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast> }) {
+  from,
+  to,
+}: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast>; from: string; to: string }) {
   const t = data.totals;
   const cur = data.currency;
   const cost = data.costSplit;
@@ -117,43 +121,9 @@ export function FinancialsSection({
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel
-          className="lg:col-span-8"
-          eyebrow="Settlement trajectory"
-          title="Claimed vs adjusted"
-          subtitle={`Per ${data.periodUnit === "week" ? "week (Sat–Thu)" : "month"} by repair end date`}
-        >
-          <GroupedColumns
-            seriesNames={[`Claim TOL. (${cur})`, `Adjusted (${cur})`]}
-            colors={[C.blueLight, C.green]}
-            format={fmtCompact}
-            groups={data.periods.map((p) => ({
-              label: data.periodUnit === "week" ? `Wk ${dayShort(p.label)}` : monthShort(p.label),
-              sub: `${fmtInt(p.count)} claims`,
-              values: [p.claimed, p.adjusted],
-            }))}
-            line={{
-              name: "Detected",
-              color: C.red,
-              values: data.periods.map((p) => p.adjusted - p.claimed),
-              format: (v) => fmtCompact(v),
-            }}
-          />
-          <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-[#f5f5f5] p-3">
-            <div>
-              <Label>Claimed</Label>
-              <div className="font-display text-lg font-semibold">{fmtMoney(t.totalClaimAmount)}</div>
-            </div>
-            <div>
-              <Label>Adjusted</Label>
-              <div className="font-display text-lg font-semibold">{fmtMoney(t.totalAdjustedAmount)}</div>
-            </div>
-            <div>
-              <Label>Detected</Label>
-              <div className="font-display text-lg font-semibold text-[#9a000d]">{fmtMoney(t.detectedAmount)}</div>
-            </div>
-          </div>
-        </Panel>
+        <div className="lg:col-span-8">
+          <FinanceMonths from={from} to={to} branchIds={scopeBranches.map((b) => b.id)} cur={cur} />
+        </div>
 
         <Panel className="lg:col-span-4" eyebrow="Cost mix" title="Cost breakdown" subtitle="Before SAIC adjustment">
           <Donut

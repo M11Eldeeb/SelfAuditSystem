@@ -16,6 +16,7 @@ import { Card, Label, Metric, Panel, Pill, fmtInt, fmtMoney, fmtNum } from "@/co
 import { CarLoaderCard } from "@/components/spinner";
 import { Glyph } from "@/components/ui/glyph";
 import { uploadToSession } from "@/components/tech-claims/upload";
+import { PaymentFollowUp } from "./payment-email";
 
 const fmtDay = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "—");
 const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -290,6 +291,7 @@ export function PaymentsSection() {
           <button type="button" onClick={() => listInput.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-[13px] font-medium text-neutral-700 shadow-sm hover:bg-neutral-50">
             <Glyph name="upload" /> Upload payment list
           </button>
+          <PaymentFollowUp rows={rows} today={today} officerName={data.officerName} />
         </span>
       </div>
 
