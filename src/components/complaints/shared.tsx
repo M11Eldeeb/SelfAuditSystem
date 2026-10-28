@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { TipCard, useHoverCard } from "@/components/dashboard/hover";
+import { CountText } from "@/components/dashboard/motion";
 import { monthShort } from "@/components/dashboard/charts";
 import { fmtInt } from "@/components/dashboard/ui";
 
@@ -54,7 +55,7 @@ export function Kpi({ label, value, sub, tone }: { label: string; value: string;
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-black/[0.05]">
       <div className="text-[13px] font-medium text-[#6e6e73]">{label}</div>
-      <div className={`mt-1 text-[26px] leading-tight font-semibold tracking-tight tabular-nums ${tone === "bad" ? "text-[#d70015]" : tone === "good" ? "text-[#248a3d]" : "text-[#1d1d1f]"}`}>{value}</div>
+      <CountText value={value} className={`mt-1 block text-[26px] leading-tight font-semibold tracking-tight tabular-nums ${tone === "bad" ? "text-[#d70015]" : tone === "good" ? "text-[#248a3d]" : "text-[#1d1d1f]"}`} />
       {sub && <div className="mt-0.5 text-[12px] text-[#6e6e73]">{sub}</div>}
     </div>
   );
