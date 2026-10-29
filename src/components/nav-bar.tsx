@@ -169,15 +169,25 @@ function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHre
                 <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            {open.has(row.name) && (
-              <ul className="mt-1 ml-[1.35rem] space-y-0.5 border-l border-neutral-900/[0.08] pl-2">
-                {row.links.map((link) => (
-                  <li key={link.href}>
-                    <NavRow link={link} active={link.href === activeHref} compact />
-                  </li>
-                ))}
-              </ul>
-            )}
+            {/* Always mounted so it can slide open and shut (grid rows 0fr <-> 1fr); the tabs fade in one after another. */}
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open.has(row.name) ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+              inert={!open.has(row.name)}
+            >
+              <div className="overflow-hidden">
+                <ul className="mt-1 ml-[1.35rem] space-y-0.5 border-l border-neutral-900/[0.08] pl-2">
+                  {row.links.map((link, j) => (
+                    <li
+                      key={link.href}
+                      style={{ transitionDelay: open.has(row.name) ? `${40 + j * 30}ms` : "0ms" }}
+                      className={`transition-all duration-300 ease-out motion-reduce:transition-none ${open.has(row.name) ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
+                    >
+                      <NavRow link={link} active={link.href === activeHref} compact />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </li>
         )
       )}
