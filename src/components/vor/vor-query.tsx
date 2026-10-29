@@ -1,19 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { searchVor, type VorField, type VorResult } from "@/app/actions/vor";
+import { searchVor, type VorResult } from "@/app/actions/vor";
 import { fmtDate } from "@/components/dashboard/ui";
 import { CarLoader } from "@/components/spinner";
 import { Glyph } from "@/components/ui/glyph";
-
-const FIELDS: { key: VorField; label: string; placeholder: string }[] = [
-  { key: "any", label: "Any", placeholder: "Part number, WIP, DCS PO, CI or DN number" },
-  { key: "part", label: "Part number", placeholder: "e.g. 10587654" },
-  { key: "wip", label: "Branch WIP", placeholder: "e.g. 123456" },
-  { key: "dcs", label: "DCS purchase order", placeholder: "DCS PO number" },
-  { key: "ci", label: "CI number", placeholder: "Commercial invoice number" },
-  { key: "dn", label: "DN number", placeholder: "Delivery note number" },
-];
 
 /** The key details shown on top of each result, in this order (only the ones the file has). */
 const KEY: { col: keyof VorResult["cols"]; label: string }[] = [
@@ -32,7 +23,6 @@ const KEY: { col: keyof VorResult["cols"]; label: string }[] = [
 
 /** VOR Part Query: type a number, see every matching line of the VOR tracker. */
 export function VorQuery() {
-  const [field, setField] = useState<VorField>("any");
   const [q, setQ] = useState("");
   const [result, setResult] = useState<VorResult | null>(null);
   const [open, setOpen] = useState<number | null>(0);
@@ -40,12 +30,11 @@ export function VorQuery() {
 
   const run = () =>
     start(async () => {
-      const r = await searchVor(q, field);
+      const r = await searchVor(q, "any");
       setResult(r);
       setOpen(r.rows.length === 1 ? 0 : null);
     });
 
-  const placeholder = FIELDS.find((f) => f.key === field)?.placeholder ?? "";
   const keyCols = result ? KEY.filter((k) => result.cols[k.col] >= 0) : [];
   const keyIdx = new Set(keyCols.map((k) => result!.cols[k.col]));
 
@@ -57,21 +46,14 @@ export function VorQuery() {
       </div>
 
       <form
-        className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-black/[0.05]"
+        className="rounded-2xl bg-white p-4 ring-1 ring-black/[0.05]"
         onSubmit={(e) => {
           e.preventDefault();
           run();
         }}
       >
-        <div className="flex flex-wrap gap-1 rounded-lg bg-neutral-900/[0.05] p-0.5 text-[12px] font-medium" role="group" aria-label="Search by">
-          {FIELDS.map((f) => (
-            <button key={f.key} type="button" aria-pressed={field === f.key} onClick={() => setField(f.key)} className={`rounded-md px-2.5 py-1 ${field === f.key ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"}`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
         <div className="flex gap-2">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} autoFocus inputMode="search" className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2.5 font-mono text-[15px]" aria-label="Number to find" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Part number, branch WIP, DCS PO, CI or DN number" autoFocus inputMode="search" className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2.5 font-mono text-[15px]" aria-label="Number to find" />
           <button type="submit" disabled={pending || q.trim().length < 3} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-[14px] font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
             <Glyph name="search" /> Search
           </button>
