@@ -743,6 +743,22 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_complaint_imports"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_tracked_claims: {
+        Row: { claim_number: string; note: string | null; completed: boolean; completed_at: string | null; completed_by_name: string | null; added_by: string | null; added_by_name: string | null; added_at: string; updated_at: string; updated_by_name: string | null };
+        Insert: { claim_number: string; note?: string | null; completed?: boolean; completed_at?: string | null; completed_by_name?: string | null; added_by?: string | null; added_by_name?: string | null; added_at?: string; updated_at?: string; updated_by_name?: string | null };
+        Update: Partial<Database["public"]["Tables"]["self_audit_tracked_claims"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_claim_settlement: {
+        Row: {
+          claim_id: string; payment_order: string | null; settlement_order: string | null; settle_vat: number | null; first_submit: string | null; settlement_date: string | null;
+          status: string | null; claim_amount: number | null; branch_id: string | null; repair_end: string | null; adjusted: number | null; labor_before: number | null;
+          part_before: number | null; sublet_before: number | null;
+        };
+        Insert: { claim_id: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_claim_settlement"]["Row"]>;
+        Relationships: [];
+      };
       self_audit_payment_files: {
         Row: { id: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; uploaded_by_name: string | null; created_at: string };
         Insert: { id?: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; uploaded_by_name?: string | null; created_at?: string };

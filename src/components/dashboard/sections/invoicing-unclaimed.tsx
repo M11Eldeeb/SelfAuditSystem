@@ -73,6 +73,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
 
   const exportCols: ExportColumn<UnclaimedLine>[] = [
     ...(LINE_COLUMNS as unknown as ExportColumn<UnclaimedLine>[]),
+    { header: "Claim order no.", value: (r) => r.claimNo },
     { header: "Status", value: (r) => (r.mark ? STATUS_LABEL[r.mark.status] : "Open") },
     { header: "Note", value: (r) => r.mark?.note ?? "", width: 30 },
     { header: "Marked by", value: (r) => r.mark?.by ?? "" },
@@ -83,7 +84,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
     <Panel
       eyebrow="Needs action"
       title="Warranty invoiced without a claim number"
-      subtitle="Warranty labor and parts invoiced with no claim order number - mark each one resolved (claimed) or credit note (reversed)"
+      subtitle="Warranty labor and parts invoiced with no claim order number, or one that does not start with WSA6P - mark each one resolved (claimed) or credit note (reversed)"
       action={
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={open.length ? "bad" : "good"}>
@@ -144,7 +145,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
                 <th className="px-2 py-2">
                   <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(shown.map((r) => r.key)))} aria-label="Select all" />
                 </th>
-                {["Date", "Type", "Branch", "WIP", "Invoice", "Owing operator", "Code", "Description", "Amount (SAR)", "Status"].map((h) => (
+                {["Date", "Type", "Branch", "WIP", "Invoice", "Claim order no.", "Owing operator", "Code", "Description", "Amount (SAR)", "Status"].map((h) => (
                   <th key={h} className={`px-2 py-2 whitespace-nowrap ${h.startsWith("Amount") ? "text-right" : ""}`}>
                     {h}
                   </th>
@@ -166,6 +167,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
                     </button>
                   </td>
                   <td className="px-2 py-1.5 font-mono select-all">{r.invoice}</td>
+                  <td className="px-2 py-1.5 font-mono whitespace-nowrap">{r.claimNo ? <span className="text-red-700 select-all">{r.claimNo}</span> : <span className="text-slate-400">blank</span>}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.operator}</td>
                   <td className="px-2 py-1.5 font-mono">{r.item}</td>
                   <td className="max-w-[18rem] truncate px-2 py-1.5" title={r.description}>
