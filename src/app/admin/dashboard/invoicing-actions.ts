@@ -190,17 +190,17 @@ export async function getInvoicingMonthly(f: InvoicingFilter): Promise<{ month: 
 
 export type UnclaimedLine = InvoicingDetailRow & {
   key: string;
-  /** Blank, or a claim order number that is not a warranty claim (does not start with WSA6P). */
+  /** Blank, or a claim order number that is not a warranty claim (does not start with WSA6). */
   claimNo: string;
   mark: { status: "resolved" | "credit_note"; note: string | null; by: string | null; at: string } | null;
 };
 
-/** Warranty lines invoiced without a claim number, or with a claim order number not starting with WSA6P (the month's lines, plus any marks made on them). */
+/** Warranty lines invoiced without a claim number, or with a claim order number not starting with WSA6 (the month's lines, plus any marks made on them). */
 export async function getUnclaimedWarranty(month: string): Promise<UnclaimedLine[]> {
   await requireViewer("officer");
   const admin = createAdminClient();
   const [{ data: lines }, { data: marks }] = await Promise.all([
-    admin.from("self_audit_invoicing_detail").select(`${DETAIL_COLUMNS}, line_key, claim_no`).eq("month", month).eq("sales_type", "Warranty").or("claim_no.eq.,claim_no.not.ilike.WSA6P*").order("invoice_date").limit(2000),
+    admin.from("self_audit_invoicing_detail").select(`${DETAIL_COLUMNS}, line_key, claim_no`).eq("month", month).eq("sales_type", "Warranty").or("claim_no.eq.,claim_no.not.ilike.WSA6*").order("invoice_date").limit(2000),
     admin.from("self_audit_invoicing_unclaimed_marks").select("line_key, status, note, marked_by_name, marked_at").eq("month", month),
   ]);
   const markOf = new Map((marks ?? []).map((m) => [m.line_key, m]));

@@ -84,7 +84,7 @@ export function UnclaimedWarranty({ month, branch }: { month: string; branch: st
     <Panel
       eyebrow="Needs action"
       title="Warranty invoiced without a claim number"
-      subtitle="Warranty labor and parts invoiced with no claim order number, or one that does not start with WSA6P - mark each one resolved (claimed) or credit note (reversed)"
+      subtitle="Warranty labor and parts invoiced with no claim order number, or one that does not start with WSA6 - mark each one resolved (claimed) or credit note (reversed)"
       action={
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={open.length ? "bad" : "good"}>
