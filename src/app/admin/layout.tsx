@@ -6,22 +6,23 @@ import { getNotifications } from "@/lib/notifications";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
 
 const ADMIN_LINKS = [
-  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
   {
     // Overview, Self Audit, Internal Audit and their results are one tab.
     href: "/admin/audits",
     label: "Audits",
     match: ["/admin/cycles", "/admin/internal-audit", "/admin/results", "/admin/review"],
+    group: "Warranty",
   },
-  { href: "/admin/warranty-room", label: "Warranty Room" },
-  { href: "/admin/technician-claims", label: "Technician Claims" },
-  { href: "/admin/rejected-claims", label: "Rejected Claims" },
-  { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
-  { href: "/admin/documents", label: "Warranty and Technical Documents" },
+  { href: "/admin/warranty-room", label: "Warranty Room", group: "Warranty" },
+  { href: "/admin/technician-claims", label: "Technician Claims", group: "Warranty" },
+  { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },
+  { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes", group: "Warranty" },
+  { href: "/admin/documents", label: "Warranty and Technical Documents", group: "Warranty" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
-  { href: "/admin/feedbacks", label: "Feedbacks" },
+  { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {

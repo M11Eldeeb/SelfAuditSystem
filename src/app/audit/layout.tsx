@@ -9,18 +9,18 @@ import { techClaimsWaiting } from "@/lib/tech-claims/server";
 import { MyAuditsTabs } from "./my-audits-tabs";
 
 const BRANCH_ADMIN_LINKS = [
-  { href: "/audit/dashboard", label: "Dashboard" },
+  { href: "/audit/dashboard", label: "Dashboard", group: "Warranty" },
   // Audits, Results and the Audit Schedule are tabs inside My Audits.
-  { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"] },
-  { href: "/audit/warranty-room", label: "Warranty Room" },
-  { href: "/audit/technician-claims", label: "Technician Claims" },
-  { href: "/audit/rejected-claims", label: "Rejected Claims" },
-  { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
-  { href: "/audit/documents", label: "Warranty and Technical Documents" },
+  { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"], group: "Warranty" },
+  { href: "/audit/warranty-room", label: "Warranty Room", group: "Warranty" },
+  { href: "/audit/technician-claims", label: "Technician Claims", group: "Warranty" },
+  { href: "/audit/rejected-claims", label: "Rejected Claims", group: "Warranty" },
+  { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes", group: "Warranty" },
+  { href: "/audit/documents", label: "Warranty and Technical Documents", group: "Warranty" },
   { href: "/audit/complaints", label: "Complaints" },
   { href: "/audit/vor-parts", label: "VOR Part Query" },
   { href: "/audit/open-wips", label: "Open WIPs" },
-  { href: "/audit/feedback", label: "Feedback" },
+  { href: "/audit/feedback", label: "Feedback", bottom: true },
 ];
 
 export default async function AuditLayout({ children }: { children: ReactNode }) {

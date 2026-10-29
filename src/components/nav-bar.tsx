@@ -17,6 +17,10 @@ type NavLink = {
   match?: string[];
   /** Small tag after the label, e.g. "Soon" for a tab that is not open yet. */
   badge?: string;
+  /** Tabs with the same group name fold under one heading (shown where the first of them is). */
+  group?: string;
+  /** Shown at the bottom of the sidebar, just above the user name. */
+  bottom?: boolean;
 };
 type NavNotifications = {
   count: number;
@@ -86,34 +90,116 @@ const ROLE_LABEL: Record<string, string> = {
  * Sidebar rows (Apple sidebars.md): a symbol in the app's accent colour, the label, an optional count capsule. The
  * current page gets a soft grey selection, not a coloured block.
  */
+const GROUPS_KEY = "sidebar-groups-open";
+
+/** Which groups are open: kept in this browser; a group holding the current page opens by itself. */
+function useOpenGroups(activeGroup: string | undefined) {
+  const [open, setOpen] = useState<Set<string>>(() => new Set(activeGroup ? [activeGroup] : []));
+  // The groups left open last time come back after the first paint (the server cannot know them).
+  useEffect(() => {
+    queueMicrotask(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "[]") as string[];
+        if (saved.length) setOpen((cur) => new Set([...cur, ...saved]));
+      } catch {
+        // nothing saved
+      }
+    });
+  }, []);
+  const [lastActive, setLastActive] = useState(activeGroup);
+  if (activeGroup !== lastActive) {
+    setLastActive(activeGroup);
+    if (activeGroup && !open.has(activeGroup)) setOpen(new Set([...open, activeGroup]));
+  }
+  const toggle = (g: string) =>
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      try {
+        localStorage.setItem(GROUPS_KEY, JSON.stringify([...next]));
+      } catch {
+        // private window: lasts for this page only
+      }
+      return next;
+    });
+  return { open, toggle };
+}
+
+type Row = { kind: "link"; link: NavLink } | { kind: "group"; name: string; links: NavLink[] };
+
 function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHref?: string; animateIn?: boolean | null }) {
+  const activeGroup = links.find((l) => l.href === activeHref)?.group;
+  const { open, toggle } = useOpenGroups(activeGroup);
+  const rows: Row[] = [];
+  for (const link of links) {
+    if (!link.group) rows.push({ kind: "link", link });
+    else {
+      const g = rows.find((r): r is Extract<Row, { kind: "group" }> => r.kind === "group" && r.name === link.group);
+      if (g) g.links.push(link);
+      else rows.push({ kind: "group", name: link.group, links: [link] });
+    }
+  }
+  const anim = (i: number) => ({
+    style: animateIn == null ? undefined : { transitionDelay: animateIn ? `${60 + i * 25}ms` : "0ms" },
+    className: animateIn == null ? undefined : `transition-all duration-300 ease-out motion-reduce:transition-none ${animateIn ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"}`,
+  });
   return (
     <ul className="space-y-1">
-      {links.map((link, i) => {
-        const active = link.href === activeHref;
-        return (
-          <li
-            key={link.href}
-            style={animateIn == null ? undefined : { transitionDelay: animateIn ? `${60 + i * 25}ms` : "0ms" }}
-            className={animateIn == null ? undefined : `transition-all duration-300 ease-out motion-reduce:transition-none ${animateIn ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"}`}
-          >
+      {rows.map((row, i) =>
+        row.kind === "link" ? (
+          <li key={row.link.href} {...anim(i)}>
+            <NavRow link={row.link} active={row.link.href === activeHref} />
+          </li>
+        ) : (
+          <li key={`group:${row.name}`} {...anim(i)}>
+            <button
+              type="button"
+              onClick={() => toggle(row.name)}
+              aria-expanded={open.has(row.name)}
+              className={`flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] leading-snug transition-colors hover:bg-neutral-900/[0.04] ${
+                row.name === activeGroup && !open.has(row.name) ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700"
+              }`}
+            >
+              <span className="text-brand">
+                <NavIcon href="#group" label={row.name} size={20} />
+              </span>
+              <span className="min-w-0 flex-1">{row.name}</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={`shrink-0 text-neutral-400 transition-transform duration-200 ${open.has(row.name) ? "rotate-90" : ""}`}>
+                <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {open.has(row.name) && (
+              <ul className="mt-1 ml-[1.35rem] space-y-0.5 border-l border-neutral-900/[0.08] pl-2">
+                {row.links.map((link) => (
+                  <li key={link.href}>
+                    <NavRow link={link} active={link.href === activeHref} compact />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        )
+      )}
+    </ul>
+  );
+}
+
+function NavRow({ link, active, compact = false }: { link: NavLink; active: boolean; compact?: boolean }) {
+  return (
             <Link
               href={link.href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[15px] leading-snug transition-colors ${
+              className={`flex ${compact ? "min-h-9 gap-2.5 px-2.5 py-1.5 text-[14px]" : "min-h-10 gap-3 px-3 py-2 text-[15px]"} items-center rounded-xl leading-snug transition-colors ${
                 active ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
               }`}
             >
               <span className="text-brand">
-                <NavIcon href={link.href} label={link.label} size={20} />
+                <NavIcon href={link.href} label={link.label} size={compact ? 18 : 20} />
               </span>
               <span className="min-w-0 flex-1">{link.label}</span>
               {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
             </Link>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -168,6 +254,8 @@ export function NavBar({
   }
 
   const activeHref = activeHrefFor(pathname, links);
+  const mainLinks = links.filter((l) => !l.bottom);
+  const bottomLinks = links.filter((l) => l.bottom);
   const activeLabel = links.find((l) => l.href === activeHref)?.label;
   const displayName = user.full_name?.trim() || user.email;
   const roleLabel = `${ROLE_LABEL[user.role] ?? ""}${user.viewOnly ? " · view only" : ""}`;
@@ -221,8 +309,13 @@ export function NavBar({
         </div>
         <p className="px-6 pb-1.5 text-[12px] font-medium text-neutral-500">Menu</p>
         <nav className="flex-1 overflow-y-auto px-3 pb-3">
-          <NavList links={links} activeHref={activeHref} />
+          <NavList links={mainLinks} activeHref={activeHref} />
         </nav>
+        {bottomLinks.length > 0 && (
+          <div className="px-3 pb-1.5">
+            <NavList links={bottomLinks} activeHref={activeHref} />
+          </div>
+        )}
         <div className="mx-3 mb-3 rounded-2xl bg-neutral-900/[0.035] p-1">{account}</div>
       </aside>
 
@@ -319,8 +412,13 @@ export function NavBar({
             </button>
           </div>
           <nav className="flex-1 overflow-y-auto px-2 pb-2">
-            <NavList links={links} activeHref={activeHref} animateIn={open} />
+            <NavList links={mainLinks} activeHref={activeHref} animateIn={open} />
           </nav>
+          {bottomLinks.length > 0 && (
+            <div className="px-2 pb-1">
+              <NavList links={bottomLinks} activeHref={activeHref} />
+            </div>
+          )}
           <div className="border-t border-neutral-900/[0.06] p-1.5">{account}</div>
         </aside>
       </div>
