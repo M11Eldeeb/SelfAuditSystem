@@ -19,6 +19,7 @@ const ADMIN_LINKS = [
   { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
   { href: "/admin/documents", label: "Warranty and Technical Documents" },
   { href: "/admin/complaints", label: "Complaints" },
+  { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/feedbacks", label: "Feedbacks" },
 ];
 

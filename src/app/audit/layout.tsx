@@ -18,6 +18,7 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes" },
   { href: "/audit/documents", label: "Warranty and Technical Documents" },
   { href: "/audit/complaints", label: "Complaints" },
+  { href: "/audit/vor-parts", label: "VOR Part Query" },
   { href: "/audit/feedback", label: "Feedback" },
 ];
 
