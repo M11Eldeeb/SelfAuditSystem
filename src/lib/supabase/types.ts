@@ -759,6 +759,37 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_claim_settlement"]["Row"]>;
         Relationships: [];
       };
+      self_audit_open_wips: {
+        Row: {
+          key: string; dealer_code: string; branch_id: string | null; dept: string | null; wip_no: string; job: string | null; in_out: string | null; received: string | null;
+          due_out: string | null; invoiceable: number | null; wip_parts: number | null; wip_labour: number | null; account: string | null; invoice_no: string | null;
+          status_code: string | null; wip_status: string | null; parts_status: string | null; vin: string | null; taken_hr: number | null; operator: string | null;
+          registration: string | null; model: string | null; note1: string | null; note2: string | null; note3: string | null; note4: string | null; order_ref: string | null;
+          approve: string | null; insurer: string | null; mileage: number | null; sale_type: string | null; taken: number | null; brand: string | null; repeat_repair: string | null;
+          first_seen: string; imported_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["self_audit_open_wips"]["Row"]> & { key: string; dealer_code: string; wip_no: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_open_wips"]["Row"]>;
+        Relationships: [];
+      };
+      self_audit_open_wip_daily: {
+        Row: { day: string; dealer_code: string; operator: string; branch_id: string | null; count: number; source: string };
+        Insert: { day: string; dealer_code: string; operator: string; branch_id?: string | null; count: number; source?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_open_wip_daily"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_open_wip_notes: {
+        Row: { key: string; note: string; updated_by_name: string | null; updated_at: string };
+        Insert: { key: string; note: string; updated_by_name?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_open_wip_notes"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_open_wip_imports: {
+        Row: { id: string; source: string; file_name: string | null; rows: number; opened: number; closed: number; imported_by_name: string | null; imported_at: string };
+        Insert: { id?: string; source: string; file_name?: string | null; rows?: number; opened?: number; closed?: number; imported_by_name?: string | null; imported_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_open_wip_imports"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_payment_files: {
         Row: { id: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; uploaded_by_name: string | null; created_at: string };
         Insert: { id?: string; payment_order: string; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; uploaded_by_name?: string | null; created_at?: string };

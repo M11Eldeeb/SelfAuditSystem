@@ -20,6 +20,7 @@ const ADMIN_LINKS = [
   { href: "/admin/documents", label: "Warranty and Technical Documents" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/vor-parts", label: "VOR Part Query" },
+  { href: "/admin/open-wips", label: "Open WIPs" },
   { href: "/admin/feedbacks", label: "Feedbacks" },
 ];
 

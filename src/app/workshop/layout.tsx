@@ -10,7 +10,7 @@ export default async function WorkshopLayout({ children }: { children: ReactNode
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[{ href: "/workshop/technical-inquiries", label: "Technical Inquiries & Verification Codes", badge }, { href: "/workshop/documents", label: "Warranty and Technical Documents" }, { href: "/workshop/audit-schedule", label: "Audit Schedule" }]} />
+      <NavBar user={user} links={[{ href: "/workshop/technical-inquiries", label: "Technical Inquiries & Verification Codes", badge }, { href: "/workshop/documents", label: "Warranty and Technical Documents" }, { href: "/workshop/audit-schedule", label: "Audit Schedule" }, { href: "/workshop/open-wips", label: "Open WIPs" }]} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
     </div>
   );

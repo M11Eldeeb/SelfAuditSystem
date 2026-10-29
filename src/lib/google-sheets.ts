@@ -126,3 +126,15 @@ export async function readSheetTab(spreadsheetId: string, gid: string): Promise<
   );
   return values.values ?? [];
 }
+
+/** Every row of one tab found by its name (case-insensitive), as raw values. Null when the spreadsheet has no such tab. */
+export async function readSheetNamed(spreadsheetId: string, title: string): Promise<unknown[][] | null> {
+  const meta = await sheetsGet<{ sheets?: { properties: { sheetId: number; title: string } }[] }>(`${SHEETS_API}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`);
+  const tab = (meta.sheets ?? []).find((s) => s.properties.title.trim().toLowerCase() === title.trim().toLowerCase());
+  if (!tab) return null;
+  const range = encodeURIComponent(`'${tab.properties.title.replace(/'/g, "''")}'`);
+  const values = await sheetsGet<{ values?: unknown[][] }>(
+    `${SHEETS_API}/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&majorDimension=ROWS`
+  );
+  return values.values ?? [];
+}
