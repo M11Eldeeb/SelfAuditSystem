@@ -89,6 +89,7 @@ export function VorQuery() {
           <p className="px-1 text-[13px] text-[#6e6e73]">
             {result.total === 0 ? "No matching line." : `${result.total} matching line${result.total === 1 ? "" : "s"}${result.total > result.rows.length ? ` (first ${result.rows.length} shown)` : ""}.`} From {result.file.name}
             {result.file.modifiedTime ? `, updated ${fmtDate(result.file.modifiedTime)}` : ""}.
+            {result.searched.length > 0 && <span className="block text-[12px] text-[#8e8e93]">Searched in: {result.searched.join(" · ")}</span>}
           </p>
           {result.rows.map((r, i) => {
             const isOpen = open === i;
@@ -99,7 +100,7 @@ export function VorQuery() {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4">
                     {keyCols.map((k) => (
                       <div key={k.col} className={k.col === "description" ? "col-span-2" : ""}>
-                        <div className="text-[11px] font-medium text-[#8e8e93]">{k.label}</div>
+                        <div className="text-[11px] font-medium text-[#8e8e93]">{result.headers[result.cols[k.col]] || k.label}</div>
                         <div className={`text-[14px] ${k.col === "part" ? "font-mono font-semibold" : "font-medium"} text-[#1d1d1f]`}>{r[result.cols[k.col]] || "—"}</div>
                       </div>
                     ))}
