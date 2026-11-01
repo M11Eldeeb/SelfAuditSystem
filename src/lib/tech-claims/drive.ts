@@ -40,6 +40,12 @@ export async function ensureFolder(parentId: string, name: string, key?: string)
   return id;
 }
 
+/** Warranty Documents / <Branch> / <Technician> - created as needed. Returns the technician's folder. */
+export async function ensureTechnicianFolder(input: { branchId: string; branchName: string; technicianId: string; technicianLabel: string }): Promise<string> {
+  const branch = await ensureFolder(LIBRARIES.warranty.rootId, input.branchName, `tc:branch:${input.branchId}`);
+  return ensureFolder(branch, input.technicianLabel, `tc:tech:${input.branchId}:${input.technicianId}`);
+}
+
 /** Warranty Documents / <Branch> / <Technician> / <Work order> - created as needed. Returns the work order folder. */
 export async function ensureClaimFolder(input: { branchId: string; branchName: string; technicianId: string; technicianLabel: string; workOrder: string }): Promise<string> {
   const branch = await ensureFolder(LIBRARIES.warranty.rootId, input.branchName, `tc:branch:${input.branchId}`);

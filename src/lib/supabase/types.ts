@@ -849,8 +849,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_tech_claim_events: {
-        Row: { id: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited"; body: string | null; author_id: string | null; author_name: string | null; created_at: string };
-        Insert: { id?: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited"; body?: string | null; author_id?: string | null; author_name?: string | null; created_at?: string };
+        Row: { id: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited" | "files_added" | "reassigned"; body: string | null; author_id: string | null; author_name: string | null; created_at: string };
+        Insert: { id?: string; claim_id: string; kind: "submitted" | "resubmitted" | "approved" | "returned" | "rejected" | "edited" | "files_added" | "reassigned"; body?: string | null; author_id?: string | null; author_name?: string | null; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_tech_claim_events"]["Insert"]>;
         Relationships: [];
       };

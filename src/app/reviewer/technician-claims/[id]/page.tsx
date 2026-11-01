@@ -8,5 +8,5 @@ export default async function ReviewerTechClaimPage({ params }: { params: Promis
   const { id } = await params;
   const claim = await getTechClaim(user, id);
   if (!claim) notFound();
-  return <TechClaimDetailView claim={claim} backHref="/reviewer/technician-claims" canReview={claim.status === "submitted" && !user.viewOnly} canEdit={false} showDrive />;
+  return <TechClaimDetailView claim={claim} backHref="/reviewer/technician-claims" canReview={claim.status === "submitted" && !user.viewOnly} canEdit={false} showDrive canManage={!user.viewOnly} />;
 }

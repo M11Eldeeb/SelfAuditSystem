@@ -6,10 +6,10 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, knownStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, ensureTechnicianFolder, knownStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
 import type { Database } from "@/lib/supabase/types";
 
-const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims"];
+const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims", "/reviewer/technician-claims"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p));
 
 const MAX_FILES = 40;
@@ -261,6 +261,116 @@ export async function reviewTechClaim(claimId: string, decision: ReviewDecision,
   if (error) return { error: error.message };
   if (!updated?.length) return { error: "Someone else reviewed this claim just now - reload the page." };
   await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: status === "approved" ? "approved" : status === "returned" ? "returned" : "rejected", body: text || null, author_id: user.id, author_name: name });
+  revalidateAll();
+  return {};
+}
+
+/** A claim the signed-in warranty admin / claims reviewer (or officer) may act on - never a view-only account. */
+async function reviewableClaim(claimId: string) {
+  const user = await requireAnyRole(["branch_admin", "claims_reviewer", "officer"]);
+  if (user.viewOnly) return { error: "View only." as const };
+  const { data: claim } = await createAdminClient().from("self_audit_tech_claims").select("*").eq("id", claimId).maybeSingle();
+  if (!claim || (user.role !== "officer" && claim.branch_id !== user.branch_id)) return { error: "Claim not found." as const };
+  return { user, claim };
+}
+
+/** Warranty admin: upload sessions for files added to a claim the technician already sent (straight into its Drive folder). */
+export async function prepareAdminClaimUploads(claimId: string, files: FileMeta[]): Promise<{ sessions?: string[]; error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  if (r.claim.status === "uploading") return { error: "The technician has not sent this claim yet." };
+  if (!r.claim.drive_folder_id) return { error: "The claim's Drive folder is missing." };
+  const { count } = await createAdminClient().from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claimId);
+  const bad = checkFiles(files, count ?? 0);
+  if (bad) return { error: bad };
+  try {
+    return { sessions: await openSessions(r.claim.drive_folder_id, files) };
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
+  }
+}
+
+/** Warranty admin: records the files just uploaded (each checked in Drive: it must be in the claim's folder). */
+export async function registerAdminClaimFiles(claimId: string, driveIds: string[]): Promise<{ added?: number; error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  const folder = r.claim.drive_folder_id;
+  if (!folder) return { error: "The claim's Drive folder is missing." };
+  const admin = createAdminClient();
+  try {
+    const infos = await Promise.all([...new Set(driveIds)].slice(0, MAX_FILES).map((id) => driveFileInfo(id)));
+    const rows = infos
+      .filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(folder))
+      .map((f) => ({ claim_id: claimId, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: r.user.id }));
+    if (!rows.length) return { error: "No file reached Google Drive - please try again." };
+    const { error } = await admin.from("self_audit_tech_claim_files").insert(rows);
+    if (error) return { error: error.message };
+    await admin.from("self_audit_tech_claim_events").insert({
+      claim_id: claimId,
+      kind: "files_added",
+      body: rows.map((f) => f.file_name).join(", ").slice(0, 2000),
+      author_id: r.user.id,
+      author_name: r.user.full_name ?? r.user.email,
+    });
+    revalidateAll();
+    return { added: rows.length };
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive." };
+  }
+}
+
+/** The branch's technicians (for "Return to another technician"). */
+export async function branchTechnicians(claimId: string): Promise<{ technicians?: { id: string; name: string }[]; error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  const { data } = await createAdminClient().from("self_audit_users").select("id, full_name, email, employee_no").eq("role", "technician").eq("branch_id", r.claim.branch_id).order("full_name");
+  return {
+    technicians: (data ?? [])
+      .filter((t) => t.id !== r.claim.technician_id)
+      .map((t) => ({ id: t.id, name: `${t.full_name ?? t.email}${t.employee_no ? ` - ${t.employee_no}` : ""}` })),
+  };
+}
+
+/**
+ * Warranty admin: returns a claim waiting for review to another technician of the same branch - it becomes his
+ * (Returned, to correct and send again) and its Drive folder moves under his name.
+ */
+export async function reassignTechClaim(claimId: string, technicianId: string, comment: string): Promise<{ error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  const { user, claim } = r;
+  if (claim.status !== "submitted" && claim.status !== "returned") return { error: "Only a claim waiting for review (or returned) can go to another technician." };
+  const text = comment.trim().slice(0, 2000);
+  if (!text) return { error: "Write what the technician must do." };
+  const admin = createAdminClient();
+  const [{ data: tech }, { data: branch }] = await Promise.all([
+    admin.from("self_audit_users").select("id, full_name, email, employee_no, role, branch_id").eq("id", technicianId).maybeSingle(),
+    admin.from("self_audit_branches").select("name").eq("id", claim.branch_id).maybeSingle(),
+  ]);
+  if (!tech || tech.role !== "technician" || tech.branch_id !== claim.branch_id) return { error: "Choose a technician of this branch." };
+  if (tech.id === claim.technician_id) return { error: "The claim is already with this technician." };
+  const techName = tech.full_name ?? tech.email;
+  // Move the work order folder under the new technician (Warranty Documents / Branch / Technician / Work order).
+  if (claim.drive_folder_id) {
+    try {
+      const newTechFolder = await ensureTechnicianFolder({ branchId: claim.branch_id, branchName: branch?.name ?? "Branch", technicianId: tech.id, technicianLabel: techLabel(techName, tech.employee_no) });
+      const info = await driveFileInfo(claim.drive_folder_id);
+      if (info && info.parents[0] && !info.parents.includes(newTechFolder)) await moveDriveFile(claim.drive_folder_id, info.parents[0], newTechFolder);
+    } catch {
+      // The claim still moves; the folder just stays where it was.
+    }
+  }
+  const now = new Date().toISOString();
+  const name = user.full_name ?? user.email;
+  const { data: updated, error } = await admin
+    .from("self_audit_tech_claims")
+    .update({ technician_id: tech.id, technician_name: techName, status: "returned", review_comment: text, reviewed_by: user.id, reviewed_by_name: name, reviewed_at: now, updated_at: now })
+    .eq("id", claimId)
+    .in("status", ["submitted", "returned"])
+    .select("id");
+  if (error) return { error: error.message };
+  if (!updated?.length) return { error: "The claim changed just now - reload the page." };
+  await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: "reassigned", body: `From ${claim.technician_name} to ${techName}: ${text}`.slice(0, 2000), author_id: user.id, author_name: name });
   revalidateAll();
   return {};
 }

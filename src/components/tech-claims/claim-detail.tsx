@@ -3,6 +3,7 @@ import type { TechClaimDetail } from "@/lib/tech-claims/server";
 import { StatusPill, fmtDateTime } from "./status";
 import { fmtBytes } from "./upload";
 import { ReviewPanel } from "./review-panel";
+import { AdminAddFiles, ReturnToAnotherTechnician } from "./admin-claim-tools";
 import { TechClaimForm } from "./claim-form";
 import { DownloadAllButton } from "./download-all";
 import { Glyph } from "@/components/ui/glyph";
@@ -18,6 +19,7 @@ export function TechClaimDetailView({
   canReview,
   canEdit,
   showDrive,
+  canManage = false,
   lang,
   branchCode,
 }: {
@@ -26,6 +28,8 @@ export function TechClaimDetailView({
   canReview: boolean;
   canEdit: boolean;
   showDrive: boolean;
+  /** Warranty admin / reviewer / officer (not view only): may add files after submission and pass the claim to another technician. */
+  canManage?: boolean;
   /** The technician's view (his language); admin pages leave it out. */
   lang?: Lang;
   /** The technician's branch code, put in front of the work order number he types. */
@@ -95,6 +99,7 @@ export function TechClaimDetailView({
       </dl>
 
       {canReview && <ReviewPanel claimId={claim.id} />}
+      {canManage && (claim.status === "submitted" || claim.status === "returned") && <ReturnToAnotherTechnician claimId={claim.id} />}
 
       {canEdit ? (
         <TechClaimForm
@@ -111,6 +116,7 @@ export function TechClaimDetailView({
             <h2 className="font-semibold text-neutral-900">{t.files(claim.fileList.length)}</h2>
             {showDrive && (
               <span className="flex flex-wrap items-center gap-3">
+                {canManage && claim.status !== "uploading" && <AdminAddFiles claimId={claim.id} />}
                 {claim.driveFolderId && (
                   <a href={`https://drive.google.com/drive/folders/${claim.driveFolderId}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand hover:underline">
                     Open in Google Drive
