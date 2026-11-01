@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 export type FlaggedToScrapRow = {
   claim_number: string;
   work_order_no: string | null;
+  vin: string | null;
   part_no: string | null;
   part_name: string | null;
   quantity: number | null;
