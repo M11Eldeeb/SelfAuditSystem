@@ -76,13 +76,17 @@ export default async function BranchWarrantyRoomPage() {
     destroyEvidenceVideosByCycleId.set(v.cycle_id, list);
   }
 
+  const flaggedRows = await getFlaggedToScrapClaims(supabase, branchId);
+  // Cycles that still have parts flagged to scrap for this branch (never approved) - even when the branch has not
+  // started that cycle's evidence yet.
+  const cyclesWithFlagged = new Set(flaggedRows.map((r) => r.cycle_month).filter(Boolean));
+
   const destroyEvidenceCycles = cycles.filter((c) => {
     if (c.id === newestCycle?.id) return true;
     const status = destroyEvidenceByCycleId.get(c.id)?.status;
-    return status != null && status !== "sent";
+    if (status === "sent") return false;
+    return status != null || cyclesWithFlagged.has(c.cycle_month);
   });
-
-  const flaggedRows = await getFlaggedToScrapClaims(supabase, branchId);
   const waitingCount = flaggedRows.filter((r) => r.cycle_month !== newestCycle?.cycle_month).length;
 
   const collectionPartsByCollectionId = new Map<
