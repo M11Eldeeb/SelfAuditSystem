@@ -142,8 +142,8 @@ export default async function BranchWarrantyRoomPage() {
             {waitingCount} part(s) still waiting for destroy evidence submission from an earlier cycle.
           </p>
           <p className="mt-1 text-xs text-amber-700">
-            These stay flagged to scrap - they were never approved, so they weren&apos;t written off. Submit
-            evidence for them along with this cycle&apos;s.
+            These stay flagged to scrap - they were never approved, so they weren&apos;t written off. Each cycle has its
+            own card below: download its list and submit its evidence separately.
           </p>
         </div>
       )}
