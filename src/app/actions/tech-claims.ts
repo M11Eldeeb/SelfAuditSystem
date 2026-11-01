@@ -240,14 +240,14 @@ export async function discardTechClaim(claimId: string): Promise<{ error?: strin
 
 export type ReviewDecision = "approve" | "return" | "reject";
 
-/** The branch's warranty admin (or a warranty officer): approve, return to the technician, or reject. */
+/** The branch's warranty admin or claims reviewer (or a warranty officer): approve, return to the technician, or reject. */
 export async function reviewTechClaim(claimId: string, decision: ReviewDecision, comment: string): Promise<{ error?: string }> {
-  const user = await requireAnyRole(["branch_admin", "officer"]);
+  const user = await requireAnyRole(["branch_admin", "claims_reviewer", "officer"]);
   const text = comment.trim().slice(0, 2000);
   if (decision !== "approve" && !text) return { error: decision === "return" ? "Write what the technician must correct." : "Write the reason for the rejection." };
   const admin = createAdminClient();
   const { data: claim } = await admin.from("self_audit_tech_claims").select("id, branch_id, status").eq("id", claimId).maybeSingle();
-  if (!claim || (user.role === "branch_admin" && claim.branch_id !== user.branch_id)) return { error: "Claim not found." };
+  if (!claim || (user.role !== "officer" && claim.branch_id !== user.branch_id)) return { error: "Claim not found." };
   if (claim.status !== "submitted") return { error: "This claim is not waiting for review." };
   const status = decision === "approve" ? "approved" : decision === "return" ? "returned" : "rejected";
   const now = new Date().toISOString();

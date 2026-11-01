@@ -36,12 +36,12 @@ export type TechClaimDetail = TechClaimSummary & {
 
 const PAGE = 300;
 
-/** Who may see which claims: a technician his own, a branch admin (or service manager) his branch, an officer all. */
+/** Who may see which claims: a technician his own, a branch admin (service manager, claims reviewer) his branch, an officer all. */
 function scope<T extends { eq: (c: string, v: string) => T }>(q: T, user: CurrentUser): T {
   const none = "00000000-0000-0000-0000-000000000000";
   if (user.role === "officer" || user.view_all) return q;
   if (user.role === "technician") return q.eq("technician_id", user.id);
-  if (user.role === "branch_admin" || user.role === "service_manager") return q.eq("branch_id", user.branch_id ?? none);
+  if (user.role === "branch_admin" || user.role === "service_manager" || user.role === "claims_reviewer") return q.eq("branch_id", user.branch_id ?? none);
   return q.eq("id", none);
 }
 
@@ -105,7 +105,7 @@ export async function countTechClaims(user: CurrentUser, branchId?: string): Pro
 
 /** Claims waiting for this branch admin (the nav badge). */
 export async function techClaimsWaiting(user: CurrentUser): Promise<number> {
-  if (user.role !== "branch_admin" || !user.branch_id) return 0;
+  if ((user.role !== "branch_admin" && user.role !== "claims_reviewer") || !user.branch_id) return 0;
   const { count } = await createAdminClient().from("self_audit_tech_claims").select("id", { count: "exact", head: true }).eq("branch_id", user.branch_id).eq("status", "submitted");
   return count ?? 0;
 }

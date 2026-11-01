@@ -43,6 +43,7 @@ export function homePathFor(role: UserRole | null | undefined): string {
   if (role === "finance") return "/finance";
   if (role === "technical") return "/technical/technical-inquiries";
   if (role === "technician") return "/technician";
+  if (role === "claims_reviewer") return "/reviewer/technician-claims";
   if (role === "workshop_supervisor" || role === "team_leader") return "/workshop/technical-inquiries";
   return "/audit/dashboard"; // branch admin and service manager
 }
