@@ -3,19 +3,23 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { scoreBadgeClasses } from "@/lib/score-color";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
+import { selfAuditDepartmentScores, type SelfAuditDepartmentScore } from "@/lib/self-audit-departments";
+import { DepartmentCells, SelfAuditDepartmentScores } from "@/components/self-audit-department-scores";
 
 export default async function BranchSelfAuditResultsPage() {
   const user = await requireRole("branch_admin");
   const supabase = await createClient();
 
-  const [{ data: selfResults }, { data: historical }] = await Promise.all([
+  const [{ data: selfResults }, { data: historical }, { data: questions }] = await Promise.all([
     supabase.from("self_audit_audit_results").select("*").eq("branch_id", user.branch_id!),
     supabase
       .from("self_audit_historical_audits")
       .select("*")
       .eq("branch_id", user.branch_id!)
       .eq("audit_type", "self_audit"),
+    supabase.from("self_audit_audit_questions").select("id, department"),
   ]);
+  const questionDept = new Map((questions ?? []).map((q) => [q.id, q.department]));
 
   const cycleIds = (selfResults ?? []).map((r) => r.cycle_id);
   const { data: cycles } =
@@ -29,7 +33,7 @@ export default async function BranchSelfAuditResultsPage() {
   );
 
   type Row =
-    | { kind: "live"; date: string; scorePct: number }
+    | { kind: "live"; date: string; scorePct: number; depts: SelfAuditDepartmentScore[] }
     | { kind: "historical"; date: string; scorePct: number; pdfUrl: string | null };
 
   const rows: Row[] = [
@@ -37,6 +41,7 @@ export default async function BranchSelfAuditResultsPage() {
       kind: "live" as const,
       date: cycleMonthById.get(r.cycle_id) ?? r.finalized_at,
       scorePct: r.score_pct,
+      depts: selfAuditDepartmentScores(r.per_question_breakdown, questionDept),
     })),
     ...historicalWithUrl.map((h) => ({
       kind: "historical" as const,
@@ -45,6 +50,8 @@ export default async function BranchSelfAuditResultsPage() {
       pdfUrl: h.pdfUrl,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
+  const latest = rows.find((r): r is Extract<Row, { kind: "live" }> => r.kind === "live");
+  const deptCols = latest?.depts ?? selfAuditDepartmentScores({}, questionDept);
 
   return (
     <div className="space-y-3">
@@ -55,13 +62,19 @@ export default async function BranchSelfAuditResultsPage() {
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Self Audits</h1>
         <p className="text-sm text-neutral-600">Your branch&apos;s finalized self-audit results.</p>
       </div>
-      <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
+      {latest && <SelfAuditDepartmentScores scores={latest.depts} month={latest.date.slice(0, 7)} />}
+      <div className="overflow-x-auto rounded-xl border border-neutral-200/70 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs font-semibold tracking-wide text-neutral-500 uppercase border-b border-neutral-200">
             <tr>
               <th className="px-4 py-2">Month</th>
               <th className="px-4 py-2">Type</th>
               <th className="px-4 py-2">Score</th>
+              {deptCols.map((d) => (
+                <th key={d.departmentId} className="px-3 py-2 text-right whitespace-nowrap">
+                  {d.label}
+                </th>
+              ))}
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -83,6 +96,7 @@ export default async function BranchSelfAuditResultsPage() {
                     {r.scorePct}%
                   </span>
                 </td>
+                <DepartmentCells scores={r.kind === "live" ? r.depts : null} departments={deptCols} />
                 <td className="px-4 py-2 text-right">
                   {r.kind === "historical" &&
                     (r.pdfUrl ? (
@@ -97,7 +111,7 @@ export default async function BranchSelfAuditResultsPage() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
+                <td colSpan={4 + deptCols.length} className="px-4 py-6 text-center text-neutral-400">
                   No self-audit results yet.
                 </td>
               </tr>
