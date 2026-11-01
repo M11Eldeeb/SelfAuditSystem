@@ -260,7 +260,7 @@ export async function getTasks(supabase: Client, user: CurrentUser): Promise<Tas
         branchName: null,
         title: `Reconcile settlement ${order}`,
         detail: `${o.claims} claims not reviewed · ${o.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })} loss · ${settlementDate(order) ?? ""}`,
-        href: "/admin/dashboard?tab=reconciliation",
+        href: "/admin/reconciliation",
         startedAt: d ? `${d[1]}-${d[2]}-${d[3]}T00:00:00Z` : new Date().toISOString(),
         dueAt: null,
       });

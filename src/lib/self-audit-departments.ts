@@ -17,7 +17,8 @@ export function selfAuditDepartmentScores(breakdown: unknown, questionDept: Map<
     if (!dept || !Number.isFinite(n)) continue;
     byDept.set(dept, [...(byDept.get(dept) ?? []), n]);
   }
-  return DEPARTMENT_ORDER.filter((d) => [...questionDept.values()].includes(d)).map((d) => {
+  // Parts is not scored as a department in the self audit.
+  return DEPARTMENT_ORDER.filter((d) => d !== "parts" && [...questionDept.values()].includes(d)).map((d) => {
     const list = byDept.get(d) ?? [];
     return { departmentId: d, label: DEPARTMENT_LABELS[d], pct: list.length ? Math.round((list.reduce((s, x) => s + x, 0) / list.length) * 10) / 10 : null };
   });

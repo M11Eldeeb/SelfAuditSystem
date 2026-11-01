@@ -41,7 +41,7 @@ export async function sendRejectedClaimMails(origin: string): Promise<{ monthly:
   if (!(await getMailStatus()) || !(await isMailEnabled(MAIL_KEYS.rejectedClaims))) return { monthly: "switched off", weekend: "switched off" };
   const today = todayKsa();
   const [open, people, templates] = await Promise.all([openRejectedClaims(today), loadPeople(), loadTemplates()]);
-  const link = `${origin}/admin/dashboard?tab=reconciliation`;
+  const link = `${origin}/admin/reconciliation?view=rejected`;
   const plans: PlannedMail[] = [];
   const result = { monthly: "not due", weekend: "not due" };
 

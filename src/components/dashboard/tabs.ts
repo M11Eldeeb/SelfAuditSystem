@@ -5,7 +5,6 @@ export const DASHBOARD_TABS = [
   { id: "financials", label: "Claims & Financials", title: "Claims & financials", officerOnly: false },
   { id: "warranty", label: "Warranty Room", title: "Warranty Room", officerOnly: false },
   { id: "trends", label: "Trends & Repeats", title: "Trends & repeat repairs", officerOnly: true },
-  { id: "reconciliation", label: "Reconciliation", title: "Settlement reconciliation", officerOnly: true },
 ] as const;
 
 export type DashboardTab = (typeof DASHBOARD_TABS)[number]["id"];

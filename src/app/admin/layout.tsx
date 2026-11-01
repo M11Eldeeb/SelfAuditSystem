@@ -15,6 +15,7 @@ const ADMIN_LINKS = [
     group: "Warranty",
   },
   { href: "/admin/warranty-room", label: "Warranty Room", group: "Warranty" },
+  { href: "/admin/reconciliation", label: "Reconciliation", group: "Warranty" },
   { href: "/admin/technician-claims", label: "Technician Claims", group: "Warranty" },
   { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },
   { href: "/admin/technical-inquiries", label: "Technical Inquiries & Verification Codes", group: "Warranty" },

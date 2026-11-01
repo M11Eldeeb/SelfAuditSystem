@@ -24,10 +24,6 @@ import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { Reveal } from "@/components/dashboard/motion";
 import { TaskTracker } from "@/components/tasks/task-list";
 import type { TaskData } from "@/lib/tasks";
-import { ReconciliationSection } from "@/components/dashboard/sections/reconciliation";
-import { RejectedReviewSection } from "@/components/dashboard/sections/rejected-review";
-import { ClaimsVsInvoicing } from "@/components/dashboard/sections/claims-vs-invoicing";
-import { TrackedClaimsSection } from "@/components/dashboard/sections/tracked-claims";
 import { CarLoaderCard, CarProgress } from "@/components/spinner";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
@@ -37,40 +33,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   financials: Icon.receipt,
   warranty: Icon.box,
   trends: Icon.alert,
-  reconciliation: Icon.money,
 };
-
-/** Reconciliation tabs: settled claims per settlement number, SAIC-rejected claims to review within 30 days, claims vs warranty invoicing discrepancies, and claims the officer tracks. */
-function ReconciliationTabs(props: { settlementOrders: string[]; branches: { id: string; name: string }[]; currency: string }) {
-  const [view, setView] = useState<"settlement" | "rejected" | "invoicing" | "tracked">("settlement");
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-1 rounded-xl bg-[#f5f5f7] p-1 text-sm font-semibold ring-1 ring-black/[0.05]">
-        {(
-          [
-            ["settlement", "Settled claims"],
-            ["rejected", "Rejected claims"],
-            ["invoicing", "Claims vs invoicing"],
-            ["tracked", "Claims to review"],
-          ] as const
-        ).map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setView(k)} className={`flex-1 rounded-lg px-3 py-1.5 ${view === k ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-      {view === "settlement" ? (
-        <ReconciliationSection {...props} />
-      ) : view === "rejected" ? (
-        <RejectedReviewSection currency={props.currency} />
-      ) : view === "invoicing" ? (
-        <ClaimsVsInvoicing branches={props.branches} currency={props.currency} />
-      ) : (
-        <TrackedClaimsSection currency={props.currency} />
-      )}
-    </div>
-  );
-}
 
 const inputClass =
   "rounded-xl border-0 bg-[#f5f5f7] px-3 py-1.5 text-sm font-medium text-[#1d1d1f] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-[#c4121a]/30 focus:outline-none";
@@ -118,7 +81,6 @@ export function KpiDashboard({
   rangeClamped,
   trends,
   forecast,
-  settlementOrders = [],
   tasks,
   support,
   rejected,
@@ -140,7 +102,6 @@ export function KpiDashboard({
   /** Officer only - settlement history + 3-month forecast, streamed in. */
   forecast?: Promise<SettlementForecast>;
   /** Officer only - newest first. */
-  settlementOrders?: string[];
   tasks?: TaskData;
   /** Technical Inquiries / Verification Codes closure lead time (Cycle Times tab), streamed in. */
   support?: Promise<SupportLeadTimes>;
@@ -230,13 +191,9 @@ export function KpiDashboard({
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-[#6e6e73]">KPI Dashboard</p>
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{current.title}</h1>
-          {tab === "reconciliation" ? (
-            <p className="mt-1 text-[15px] text-[#6e6e73]">Settled claims per SAIC settlement number - choose the settlement and branch below.</p>
-          ) : (
-            <p className="mt-1 text-[15px] text-[#6e6e73]">
-              {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
-            </p>
-          )}
+          <p className="mt-1 text-[15px] text-[#6e6e73]">
+            {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isPending && <Pill tone="muted">Updating…</Pill>}
@@ -276,8 +233,8 @@ export function KpiDashboard({
         </div>
       </nav>
 
-      {/* Filters (not for Reconciliation / Tasks, which have their own). */}
-      {tab !== "reconciliation" && tab !== "tasks" && (
+      {/* Filters (not for Tasks, which has its own). */}
+      {tab !== "tasks" && (
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
@@ -386,7 +343,7 @@ export function KpiDashboard({
               from={from}
               to={to}
               forecast={isOfficer ? forecast : undefined}
-              onOpenReconciliation={isOfficer ? () => switchTab("reconciliation") : undefined}
+              onOpenReconciliation={isOfficer ? () => router.push("/admin/reconciliation") : undefined}
             />
           )}
           {tab === "financials" && isOfficer && (
@@ -423,7 +380,6 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
-          {tab === "reconciliation" && isOfficer && <ReconciliationTabs settlementOrders={settlementOrders} branches={allBranches} currency={data.currency} />}
 
           {multiBranch && tab === "overview" && (
             <Panel

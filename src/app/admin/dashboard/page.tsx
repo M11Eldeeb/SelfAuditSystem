@@ -1,4 +1,3 @@
-import { isOnOrAfterReconStart } from "@/lib/dashboard/recon-constants";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/kpis";
 import { getCachedClaimSide, getCachedForecast, getCachedTrends } from "@/lib/dashboard/cache";
@@ -11,6 +10,7 @@ import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { loadPriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { requireRole } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 // The Warranty Invoicing refresh reads the report e-mail and its ~11 MB Excel file.
 export const maxDuration = 60;
@@ -22,13 +22,12 @@ export default async function AdminDashboardPage({
 }) {
   const user = await requireRole("officer");
   const params = await searchParams;
+  // Reconciliation moved to its own page in the sidebar.
+  if (params.tab === "reconciliation") redirect("/admin/reconciliation");
   const { from, to, clamped } = resolveMonthRange(params);
   const supabase = await createClient();
 
-  const [{ data: branches }, { data: orders }] = await Promise.all([
-    supabase.from("self_audit_branches").select("id, name, active, code").order("name"),
-    supabase.rpc("get_settlement_orders"),
-  ]);
+  const { data: branches } = await supabase.from("self_audit_branches").select("id, name, active, code").order("name");
   const allBranches = (branches ?? []).map(({ id, name }) => ({ id, name }));
 
   const selectedBranchIds = new Set(params.branch ? (Array.isArray(params.branch) ? params.branch : [params.branch]) : []);
@@ -90,7 +89,6 @@ export default async function AdminDashboardPage({
         prior={prior}
         sheetsNotice={sheetsNotice}
         tasks={await tasksPromise}
-        settlementOrders={(orders ?? []).map((o) => o.settlement_order).filter(isOnOrAfterReconStart)}
       />
     </div>
   );
