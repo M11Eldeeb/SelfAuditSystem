@@ -1,12 +1,11 @@
 import Link from "next/link";
 import type { TechClaimDetail } from "@/lib/tech-claims/server";
 import { StatusPill, fmtDateTime } from "./status";
-import { fmtBytes } from "./upload";
 import { ReviewPanel } from "./review-panel";
 import { AdminAddFiles, ReturnToAnotherTechnician } from "./admin-claim-tools";
 import { TechClaimForm } from "./claim-form";
 import { DownloadAllButton } from "./download-all";
-import { Glyph } from "@/components/ui/glyph";
+import { TechClaimFileGallery } from "./file-gallery";
 import { techT, type Lang } from "@/lib/i18n/tech";
 
 /**
@@ -36,9 +35,6 @@ export function TechClaimDetailView({
   branchCode?: string;
 }) {
   const t = techT(lang ?? "en");
-  const fileUrl = (id: string) => `/api/tech-claims/file/${id}`;
-  const media = claim.fileList.filter((f) => f.mimeType.startsWith("image/") || f.mimeType.startsWith("video/"));
-  const docs = claim.fileList.filter((f) => !media.includes(f));
 
   return (
     <div className="space-y-4">
@@ -126,37 +122,7 @@ export function TechClaimDetailView({
               </span>
             )}
           </div>
-          {media.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {media.map((f) =>
-                f.mimeType.startsWith("video/") ? (
-                  <div key={f.id} className="space-y-1">
-                    <video src={fileUrl(f.id)} controls preload="metadata" playsInline className="aspect-video w-full rounded-lg bg-black" />
-                    <div className="truncate text-xs text-neutral-500">{f.name} · {fmtBytes(f.size)}</div>
-                  </div>
-                ) : (
-                  <a key={f.id} href={fileUrl(f.id)} target="_blank" rel="noreferrer" className="space-y-1">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`${fileUrl(f.id)}?thumb=1`} alt={f.name} loading="lazy" className="aspect-video w-full rounded-lg bg-neutral-100 object-cover" />
-                    <div className="truncate text-xs text-neutral-500">{f.name}</div>
-                  </a>
-                )
-              )}
-            </div>
-          )}
-          {docs.length > 0 && (
-            <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-100 text-sm">
-              {docs.map((f) => (
-                <li key={f.id} className="flex items-center gap-2 px-3 py-2">
-                  <Glyph name="pdf" className="text-neutral-500" />
-                  <a href={fileUrl(f.id)} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate hover:text-brand hover:underline">
-                    {f.name}
-                  </a>
-                  <span className="text-xs text-neutral-500">{fmtBytes(f.size)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <TechClaimFileGallery files={claim.fileList} />
           {claim.fileList.length === 0 && <p className="text-sm text-neutral-500">{t.noFiles}</p>}
         </section>
       )}
