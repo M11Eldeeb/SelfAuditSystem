@@ -61,7 +61,8 @@ export function AuditForm({
             locked={locked}
             status={photoStatus.get(pt.id)}
             fieldName={`photo_path_${pt.id}`}
-            buildPath={(ext) => `${assignmentId}/${pt.id}.${ext}`}
+            target={{ kind: "claim", assignmentId }}
+            photoTypeId={pt.id}
           />
         ))}
       </div>

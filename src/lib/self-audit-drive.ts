@@ -4,17 +4,47 @@ import { docsFetch, getDocsConnection } from "@/lib/documents/drive-docs";
 import { ensureFolder } from "@/lib/tech-claims/drive";
 
 /**
- * Self audit documents are uploaded to Supabase Storage (the portal shows them from there) and a copy is saved to
- * Google Drive with the documents' Google account:
+ * Self audit documents live in Google Drive (documents' Google account), not in Supabase:
  *   My Drive / Self Audit Documents / <YYYY-MM> / <Branch> / <Claim - work order> / <Job Card (front side)>.jpg
  *   My Drive / Self Audit Documents / <YYYY-MM> / <Branch> / Branch operations / <photo>.jpg
- * Copied right after the branch saves, and by the daily job for anything missed (server to server - nothing passes
- * through the browser or Vercel's CDN).
+ * The browser uploads straight to Drive; the photo row's storage_path is "drive:<file id>.<ext>". Files from before
+ * (in Supabase Storage "audit-photos") are moved over by syncSelfAuditDocsToDrive and removed from Supabase.
  */
 const BUCKET = "audit-photos";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id";
 
-const fileName = (label: string, path: string) => `${label.replace(/[\\/:*?"<>|]+/g, "_")}.${path.split(".").pop()?.toLowerCase() || "jpg"}`;
+export const isDrivePath = (p: string) => p.startsWith("drive:");
+/** "drive:<id>.<ext>" -> <id> */
+export const driveIdOf = (p: string) => p.slice(6).replace(/\.[a-z0-9]+$/i, "");
+export const drivePath = (id: string, nameOrExt: string) => `drive:${id}.${(nameOrExt.split(".").pop() || "jpg").toLowerCase()}`;
+export const docFileName = (label: string, ext: string) => `${label.replace(/[\\/:*?"<>|]+/g, "_")}.${ext.toLowerCase() || "jpg"}`;
+
+const root = () => ensureFolder("root", "Self Audit Documents", "sa:root");
+
+async function branchFolder(cycleId: string, branchId: string): Promise<string> {
+  const admin = createAdminClient();
+  const [{ data: cycle }, { data: branch }] = await Promise.all([
+    admin.from("self_audit_audit_cycles").select("cycle_month").eq("id", cycleId).maybeSingle(),
+    admin.from("self_audit_branches").select("name").eq("id", branchId).maybeSingle(),
+  ]);
+  const month = await ensureFolder(await root(), cycle?.cycle_month?.slice(0, 7) ?? "No month", `sa:cycle:${cycleId}`);
+  return ensureFolder(month, branch?.name ?? "Branch", `sa:cb:${cycleId}:${branchId}`);
+}
+
+/** The claim's folder (made when first needed). */
+export async function claimDocsFolder(assignmentId: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data: a } = await admin.from("self_audit_audit_assignments").select("cycle_id, branch_id, claim_id").eq("id", assignmentId).maybeSingle();
+  if (!a) throw new Error("Audit claim not found.");
+  const { data: c } = await admin.from("self_audit_claims").select("claim_number, work_order_no").eq("id", a.claim_id).maybeSingle();
+  const name = `${c?.claim_number ?? "Claim"}${c?.work_order_no ? ` - ${c.work_order_no}` : ""}`;
+  return ensureFolder(await branchFolder(a.cycle_id, a.branch_id), name, `sa:claim:${assignmentId}`);
+}
+
+/** The branch operations folder of a cycle and branch. */
+export async function opsDocsFolder(cycleId: string, branchId: string): Promise<string> {
+  return ensureFolder(await branchFolder(cycleId, branchId), "Branch operations", `sa:ops:${cycleId}:${branchId}`);
+}
 
 async function uploadToDrive(parentId: string, name: string, mimeType: string, bytes: ArrayBuffer): Promise<string> {
   const boundary = `sa${Math.random().toString(36).slice(2)}`;
@@ -29,97 +59,79 @@ async function uploadToDrive(parentId: string, name: string, mimeType: string, b
   return json.id;
 }
 
-type Job = { label: string; path: string; folder: () => Promise<string>; done: (driveId: string) => PromiseLike<unknown> };
+type Job = { label: string; path: string; folder: () => Promise<string>; done: (driveId: string, newPath: string) => PromiseLike<{ error: unknown }> };
 
-export async function syncSelfAuditDocsToDrive(opts: { assignmentId?: string; cycleId?: string; branchId?: string; limit?: number } = {}): Promise<{ copied: number; failed: number; left: number }> {
-  if (!(await getDocsConnection())) return { copied: 0, failed: 0, left: 0 };
+/**
+ * Moves documents still in Supabase Storage to Drive: copies each file, points the row at the Drive file, and
+ * removes it from Supabase. Scoped to one claim / one branch-operations submission, or all (the daily job).
+ */
+export async function syncSelfAuditDocsToDrive(opts: { assignmentId?: string; cycleId?: string; branchId?: string; limit?: number } = {}): Promise<{ moved: number; failed: number; left: number }> {
+  if (!(await getDocsConnection())) return { moved: 0, failed: 0, left: 0 };
   const admin = createAdminClient();
   const limit = opts.limit ?? 40;
   const started = Date.now();
+  const onlyClaims = !!opts.assignmentId;
+  const onlyOps = !opts.assignmentId && !!(opts.cycleId || opts.branchId);
 
-  let claimQ = admin.from("self_audit_audit_photos").select("id, assignment_id, photo_type_id, storage_path").is("drive_file_id", null).is("deleted_at", null).order("uploaded_at").limit(limit);
+  let claimQ = admin.from("self_audit_audit_photos").select("id, assignment_id, photo_type_id, storage_path").not("storage_path", "like", "drive:%").is("deleted_at", null).order("uploaded_at").limit(limit);
   if (opts.assignmentId) claimQ = claimQ.eq("assignment_id", opts.assignmentId);
-  let opsQ = admin.from("self_audit_branch_operation_photos").select("cycle_id, branch_id, photo_type_id, storage_path").is("drive_file_id", null).is("deleted_at", null).order("uploaded_at").limit(limit);
+  let opsQ = admin.from("self_audit_branch_operation_photos").select("cycle_id, branch_id, photo_type_id, storage_path").not("storage_path", "like", "drive:%").is("deleted_at", null).order("uploaded_at").limit(limit);
   if (opts.cycleId) opsQ = opsQ.eq("cycle_id", opts.cycleId);
   if (opts.branchId) opsQ = opsQ.eq("branch_id", opts.branchId);
-  const skipOps = !!opts.assignmentId;
-  const skipClaims = !opts.assignmentId && !!(opts.cycleId || opts.branchId);
-  const [{ data: claimPhotos }, { data: opsPhotos }, { data: types }, { data: branches }] = await Promise.all([
-    skipClaims ? Promise.resolve({ data: [] as { id: string; assignment_id: string; photo_type_id: string; storage_path: string }[] }) : claimQ,
-    skipOps ? Promise.resolve({ data: [] as { cycle_id: string; branch_id: string; photo_type_id: string; storage_path: string }[] }) : opsQ,
+  const [{ data: claimPhotos }, { data: opsPhotos }, { data: types }] = await Promise.all([
+    onlyOps ? Promise.resolve({ data: [] as { id: string; assignment_id: string; photo_type_id: string; storage_path: string }[] }) : claimQ,
+    onlyClaims ? Promise.resolve({ data: [] as { cycle_id: string; branch_id: string; photo_type_id: string; storage_path: string }[] }) : opsQ,
     admin.from("self_audit_audit_photo_types").select("id, label"),
-    admin.from("self_audit_branches").select("id, name"),
   ]);
   const label = new Map((types ?? []).map((t) => [t.id, t.label]));
-  const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
 
-  const assignmentIds = [...new Set((claimPhotos ?? []).map((p) => p.assignment_id))];
-  const { data: assignments } = assignmentIds.length
-    ? await admin.from("self_audit_audit_assignments").select("id, cycle_id, branch_id, claim_id").in("id", assignmentIds)
-    : { data: [] as { id: string; cycle_id: string; branch_id: string; claim_id: string }[] };
-  const claimIds = [...new Set((assignments ?? []).map((a) => a.claim_id))];
-  const cycleIds = [...new Set([...(assignments ?? []).map((a) => a.cycle_id), ...(opsPhotos ?? []).map((p) => p.cycle_id)])];
-  const [{ data: claims }, { data: cycles }] = await Promise.all([
-    claimIds.length ? admin.from("self_audit_claims").select("id, claim_number, work_order_no").in("id", claimIds) : Promise.resolve({ data: [] as { id: string; claim_number: string; work_order_no: string | null }[] }),
-    cycleIds.length ? admin.from("self_audit_audit_cycles").select("id, cycle_month").in("id", cycleIds) : Promise.resolve({ data: [] as { id: string; cycle_month: string }[] }),
-  ]);
-  const assignmentOf = new Map((assignments ?? []).map((a) => [a.id, a]));
-  const claimOf = new Map((claims ?? []).map((c) => [c.id, c]));
-  const monthOf = new Map((cycles ?? []).map((c) => [c.id, c.cycle_month.slice(0, 7)]));
-
-  // Folders are found once per run (and remembered in self_audit_drive_folders).
   const folders = new Map<string, Promise<string>>();
-  const folder = (key: string, make: () => Promise<string>) => {
+  const once = (key: string, make: () => Promise<string>) => {
     if (!folders.has(key)) folders.set(key, make());
     return folders.get(key)!;
   };
-  const root = () => folder("sa:root", () => ensureFolder("root", "Self Audit Documents", "sa:root"));
-  const branchFolder = (cycleId: string, branchId: string) =>
-    folder(`sa:cb:${cycleId}:${branchId}`, async () => {
-      const month = await folder(`sa:cycle:${cycleId}`, async () => ensureFolder(await root(), monthOf.get(cycleId) ?? "No month", `sa:cycle:${cycleId}`));
-      return ensureFolder(month, branchName.get(branchId) ?? "Branch", `sa:cb:${cycleId}:${branchId}`);
-    });
-
-  const jobs: Job[] = [];
-  for (const p of claimPhotos ?? []) {
-    const a = assignmentOf.get(p.assignment_id);
-    if (!a) continue;
-    const c = claimOf.get(a.claim_id);
-    const claimLabel = `${c?.claim_number ?? "Claim"}${c?.work_order_no ? ` - ${c.work_order_no}` : ""}`;
-    jobs.push({
+  const jobs: Job[] = [
+    ...(claimPhotos ?? []).map((p) => ({
       label: label.get(p.photo_type_id) ?? p.photo_type_id,
       path: p.storage_path,
-      folder: () => folder(`sa:claim:${a.id}`, async () => ensureFolder(await branchFolder(a.cycle_id, a.branch_id), claimLabel, `sa:claim:${a.id}`)),
-      done: (id) => admin.from("self_audit_audit_photos").update({ drive_file_id: id }).eq("id", p.id).eq("storage_path", p.storage_path),
-    });
-  }
-  for (const p of opsPhotos ?? []) {
-    jobs.push({
+      folder: () => once(`c:${p.assignment_id}`, () => claimDocsFolder(p.assignment_id)),
+      done: (id: string, newPath: string) => admin.from("self_audit_audit_photos").update({ storage_path: newPath, drive_file_id: id }).eq("id", p.id).eq("storage_path", p.storage_path),
+    })),
+    ...(opsPhotos ?? []).map((p) => ({
       label: label.get(p.photo_type_id) ?? p.photo_type_id,
       path: p.storage_path,
-      folder: () => folder(`sa:ops:${p.cycle_id}:${p.branch_id}`, async () => ensureFolder(await branchFolder(p.cycle_id, p.branch_id), "Branch operations", `sa:ops:${p.cycle_id}:${p.branch_id}`)),
-      done: (id) =>
-        admin.from("self_audit_branch_operation_photos").update({ drive_file_id: id }).eq("cycle_id", p.cycle_id).eq("branch_id", p.branch_id).eq("photo_type_id", p.photo_type_id).eq("storage_path", p.storage_path),
-    });
-  }
+      folder: () => once(`o:${p.cycle_id}:${p.branch_id}`, () => opsDocsFolder(p.cycle_id, p.branch_id)),
+      done: (id: string, newPath: string) =>
+        admin
+          .from("self_audit_branch_operation_photos")
+          .update({ storage_path: newPath, drive_file_id: id })
+          .eq("cycle_id", p.cycle_id)
+          .eq("branch_id", p.branch_id)
+          .eq("photo_type_id", p.photo_type_id)
+          .eq("storage_path", p.storage_path),
+    })),
+  ];
 
-  let copied = 0;
+  let moved = 0;
   let failed = 0;
   let next = 0;
   const worker = async () => {
     while (next < jobs.length && Date.now() - started < 45_000) {
       const j = jobs[next++];
       try {
+        const ext = j.path.split(".").pop() ?? "jpg";
         const { data: blob, error } = await admin.storage.from(BUCKET).download(j.path);
         if (error || !blob) throw new Error(error?.message ?? "missing");
-        const id = await uploadToDrive(await j.folder(), fileName(j.label, j.path), blob.type || "application/octet-stream", await blob.arrayBuffer());
-        await j.done(id);
-        copied++;
+        const id = await uploadToDrive(await j.folder(), docFileName(j.label, ext), blob.type || "application/octet-stream", await blob.arrayBuffer());
+        const { error: upErr } = await j.done(id, drivePath(id, ext));
+        if (upErr) throw new Error("row update failed");
+        await admin.storage.from(BUCKET).remove([j.path]);
+        moved++;
       } catch {
         failed++;
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, worker));
-  return { copied, failed, left: jobs.length - copied - failed };
+  return { moved, failed, left: jobs.length - moved - failed };
 }

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
+import { driveIdOf, isDrivePath, opsDocsFolder, syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
+import { driveFileInfo } from "@/lib/tech-claims/drive";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,9 +75,12 @@ export async function saveBranchOps(
   const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
   for (const pt of photoTypes ?? []) {
     const path = formData.get(`photo_path_${pt.id}`);
-    if (typeof path === "string" && path.startsWith(`branch-ops/${branchId}/${cycleId}/`)) {
+    if (typeof path === "string" && isDrivePath(path)) {
+      const driveId = driveIdOf(path);
+      const [info, folder] = await Promise.all([driveFileInfo(driveId).catch(() => null), opsDocsFolder(cycleId, branchId).catch(() => null)]);
+      if (!info || !folder || !info.parents.includes(folder)) return { error: `"${pt.label}" did not reach Google Drive - please upload it again.` };
       const { error: photoRowError } = await supabase.from("self_audit_branch_operation_photos").upsert(
-        { cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path },
+        { cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId, deleted_at: null },
         { onConflict: "cycle_id,branch_id,photo_type_id" }
       );
       if (photoRowError) return { error: photoRowError.message };

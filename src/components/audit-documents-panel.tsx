@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type AuditDoc = { id: string; label: string; status: "ok" | "removed" | "missing"; url?: string; kind?: "image" | "pdf" | "other" };
 
@@ -45,6 +45,47 @@ function Magnifier({ src, alt, onOpen }: { src: string; alt: string; onOpen: () 
   );
 }
 
+/** Each page of a PDF drawn as an image (pdf.js, in the browser), so it can be magnified like a photo. */
+function PdfPages({ url, label, onOpen }: { url: string; label: string; onOpen: (src: string) => void }) {
+  const [pages, setPages] = useState<string[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        const doc = await pdfjs.getDocument({ url }).promise;
+        const out: string[] = [];
+        for (let i = 1; i <= Math.min(doc.numPages, 6); i++) {
+          const page = await doc.getPage(i);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
+          out.push(canvas.toDataURL("image/jpeg", 0.85));
+        }
+        if (live) setPages(out);
+      } catch {
+        if (live) setFailed(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  if (failed) return <iframe src={url} title={label} className="h-72 w-full rounded-lg border border-neutral-200 bg-white" />;
+  if (!pages) return <div className="flex h-40 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-xs text-neutral-400">Loading PDF…</div>;
+  return (
+    <div className="space-y-2">
+      {pages.map((src, i) => (
+        <Magnifier key={i} src={src} alt={`${label} - page ${i + 1}`} onOpen={() => onOpen(src)} />
+      ))}
+    </div>
+  );
+}
+
 /**
  * The claim's documents in their order (Job Card front, back, Repair Agreement, Parts Requisition, QC Report, Supporting
  * Documents) as small previews down the side of the review - hover to magnify, click to open full size.
@@ -68,7 +109,7 @@ export function AuditDocumentsPanel({ docs }: { docs: AuditDoc[] }) {
             d.kind === "image" ? (
               <Magnifier src={d.url} alt={d.label} onOpen={() => setFull(d)} />
             ) : d.kind === "pdf" ? (
-              <iframe src={d.url} title={d.label} className="h-72 w-full rounded-lg border border-neutral-200 bg-white" />
+              <PdfPages url={d.url} label={d.label} onOpen={(src) => setFull({ ...d, url: src })} />
             ) : (
               <a href={d.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 hover:bg-blue-100">
                 Open file

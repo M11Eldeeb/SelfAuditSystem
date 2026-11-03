@@ -8,6 +8,8 @@ import {
   AuditDocumentsPanel,
   type AuditDoc,
 } from "@/components/audit-documents-panel";
+import { after } from "next/server";
+import { syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
 import { CopyText } from "@/components/copy-text";
 
 export default async function ClaimReviewPage({
@@ -100,6 +102,9 @@ export default async function ClaimReviewPage({
   );
 
   const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
+  // Documents still in Supabase (from before) move to Google Drive once the page is sent.
+  if ((photos ?? []).some((p) => !p.deleted_at && !p.storage_path.startsWith("drive:")))
+    after(() => syncSelfAuditDocsToDrive({ assignmentId }).catch(() => undefined));
   const mainPartName =
     (await loadMainPartNames(supabase, [assignment.claim_id])).get(
       assignment.claim_id,

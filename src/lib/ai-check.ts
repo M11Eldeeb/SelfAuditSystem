@@ -1,4 +1,5 @@
 import "server-only";
+import { downloadDoc } from "@/lib/documents/drive-docs";
 import Anthropic from "@anthropic-ai/sdk";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -63,9 +64,16 @@ async function runVisionChecks(
   const content: (Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam)[] = [];
 
   for (const photo of photos) {
-    const { data: file } = await supabase.storage.from("audit-photos").download(photo.storage_path);
-    if (!file) continue;
-    const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+    let bytes: ArrayBuffer | null = null;
+    if (photo.storage_path.startsWith("drive:")) {
+      const res = await downloadDoc(photo.storage_path.slice(6).replace(/\.[a-z0-9]+$/i, ""), "application/octet-stream").catch(() => null);
+      if (res?.ok) bytes = await res.arrayBuffer();
+    } else {
+      const { data: file } = await supabase.storage.from("audit-photos").download(photo.storage_path);
+      if (file) bytes = await file.arrayBuffer();
+    }
+    if (!bytes) continue;
+    const data = Buffer.from(bytes).toString("base64");
 
     if (photo.storage_path.toLowerCase().endsWith(".pdf")) {
       content.push({

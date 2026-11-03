@@ -6,7 +6,8 @@ import { after } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { runAiChecks } from "@/lib/ai-check";
-import { syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
+import { claimDocsFolder, driveIdOf, isDrivePath, syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
+import { driveFileInfo } from "@/lib/tech-claims/drive";
 
 export type SaveAuditState = { error?: string; success?: string } | undefined;
 
@@ -78,11 +79,14 @@ export async function saveAudit(
   const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
   for (const pt of photoTypes ?? []) {
     const path = formData.get(`photo_path_${pt.id}`);
-    if (typeof path === "string" && path.startsWith(`${assignmentId}/`)) {
+    if (typeof path === "string" && isDrivePath(path)) {
+      const driveId = driveIdOf(path);
+      const [info, folder] = await Promise.all([driveFileInfo(driveId).catch(() => null), claimDocsFolder(assignmentId).catch(() => null)]);
+      if (!info || !folder || !info.parents.includes(folder)) return { error: `"${pt.label}" did not reach Google Drive - please upload it again.` };
       const { error: photoRowError } = await supabase
         .from("self_audit_audit_photos")
         .upsert(
-          { assignment_id: assignmentId, photo_type_id: pt.id, storage_path: path },
+          { assignment_id: assignmentId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId, deleted_at: null },
           { onConflict: "assignment_id,photo_type_id" }
         );
       if (photoRowError) return { error: photoRowError.message };

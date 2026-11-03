@@ -19,6 +19,11 @@ export async function buildPhotoStatusMap(
       map.set(photo.photo_type_id, { removed: true });
       continue;
     }
+    if (photo.storage_path.startsWith("drive:")) {
+      const id = photo.storage_path.slice(6).replace(/\.[a-z0-9]+$/i, "");
+      map.set(photo.photo_type_id, { url: `/api/self-audit/file/${id}`, path: photo.storage_path });
+      continue;
+    }
     const { data: signed } = await supabase.storage
       .from("audit-photos")
       .createSignedUrl(photo.storage_path, ttlSeconds);

@@ -1,24 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { prepareSelfAuditDocUpload, type DocTarget } from "@/app/actions/self-audit-docs";
+import { uploadToSession } from "@/components/tech-claims/upload";
 import type { PhotoStatus } from "@/lib/photo-status";
 
 /**
- * Uploads directly from the browser to Supabase Storage instead of routing the
- * file through the Server Action - Vercel hard-caps a serverless function's
- * request body at 4.5MB regardless of Next's own bodySizeLimit config, which
- * silently killed the connection (a raw 413, no in-app error) for anything
- * bigger than a few compressed phone photos - a scanned PDF crossed that
- * easily. Only the resulting storage path (a few bytes) goes through the
- * form submission now.
+ * Uploads directly from the browser to Google Drive (Self Audit Documents / month / branch / claim): the server only
+ * opens the upload session; the bytes go browser -> Google. Only the resulting "drive:<id>.<ext>" goes through the
+ * form submission.
  */
 export function PhotoUploadField({
   label,
   helpText,
   required,
   locked,
-  buildPath,
+  target,
+  photoTypeId,
   status,
   fieldName,
 }: {
@@ -26,13 +24,15 @@ export function PhotoUploadField({
   helpText: string | null;
   required: boolean;
   locked: boolean;
-  buildPath: (ext: string) => string;
+  target: DocTarget;
+  photoTypeId: string;
   status: PhotoStatus | undefined;
   fieldName: string;
 }) {
   const [phase, setPhase] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [uploadedPath, setUploadedPath] = useState<string | null>(null);
+  const [pct, setPct] = useState(0);
 
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -40,22 +40,22 @@ export function PhotoUploadField({
 
     setPhase("uploading");
     setError(null);
-
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = buildPath(ext);
-    const supabase = createClient();
-    const { error: uploadError } = await supabase.storage
-      .from("audit-photos")
-      .upload(path, file, { upsert: true, contentType: file.type || undefined });
-
-    if (uploadError) {
+    setPct(0);
+    const prep = await prepareSelfAuditDocUpload(target, photoTypeId, { name: file.name, type: file.type, size: file.size });
+    if (prep.error || !prep.session) {
       setPhase("error");
-      setError(uploadError.message);
+      setError(prep.error ?? "Could not start the upload.");
       return;
     }
-
-    setUploadedPath(path);
-    setPhase("done");
+    try {
+      const id = await uploadToSession(prep.session, file, (sent) => setPct(Math.round((sent / Math.max(1, file.size)) * 100)));
+      const ext = (file.name.split(".").pop() || (file.type === "application/pdf" ? "pdf" : "jpg")).toLowerCase();
+      setUploadedPath(`drive:${id}.${ext}`);
+      setPhase("done");
+    } catch (err) {
+      setPhase("error");
+      setError(err instanceof Error ? err.message : "The upload failed.");
+    }
   }
 
   return (
@@ -87,7 +87,7 @@ export function PhotoUploadField({
             onChange={handleChange}
             className="block w-full text-sm text-neutral-700 file:mr-3 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-neutral-700 file:shadow-sm hover:file:bg-neutral-50"
           />
-          {phase === "uploading" && <p className="text-xs text-neutral-500">Uploading…</p>}
+          {phase === "uploading" && <p className="text-xs text-neutral-500">Uploading {pct}%…</p>}
           {phase === "done" && <p className="text-xs text-green-600">Uploaded.</p>}
           {phase === "error" && <p className="text-xs text-red-600">Upload failed: {error}</p>}
           {uploadedPath && <input type="hidden" name={fieldName} value={uploadedPath} />}

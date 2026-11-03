@@ -55,7 +55,8 @@ export function BranchOpsForm({
             locked={locked}
             status={photoStatus.get(pt.id)}
             fieldName={`photo_path_${pt.id}`}
-            buildPath={(ext) => `branch-ops/${branchId}/${cycleId}/${pt.id}.${ext}`}
+            target={{ kind: "ops", cycleId }}
+            photoTypeId={pt.id}
           />
         ))}
       </div>
