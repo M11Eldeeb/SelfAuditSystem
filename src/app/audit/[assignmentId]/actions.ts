@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { runAiChecks } from "@/lib/ai-check";
+import { syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
 
 export type SaveAuditState = { error?: string; success?: string } | undefined;
 
@@ -88,6 +89,8 @@ export async function saveAudit(
       uploadedPhotoTypeIds.add(pt.id);
     }
   }
+  // A copy of the documents goes to Google Drive once the response is sent (Self Audit Documents / month / branch / claim).
+  after(() => syncSelfAuditDocsToDrive({ assignmentId }).catch((err) => console.error("Drive copy failed", assignmentId, err)));
 
   let newStatus: "in_progress" | "submitted" = "in_progress";
 

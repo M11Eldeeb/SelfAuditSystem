@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -81,6 +83,8 @@ export async function saveBranchOps(
       uploadedPhotoTypeIds.add(pt.id);
     }
   }
+  // A copy of the photos goes to Google Drive once the response is sent (Self Audit Documents / month / branch / Branch operations).
+  after(() => syncSelfAuditDocsToDrive({ cycleId, branchId }).catch((err) => console.error("Drive copy failed", cycleId, branchId, err)));
 
   const missingPhotos = (photoTypes ?? []).filter((p) => p.required && !uploadedPhotoTypeIds.has(p.id));
   if (missingPhotos.length > 0) {

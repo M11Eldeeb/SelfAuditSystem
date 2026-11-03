@@ -265,9 +265,11 @@ export interface Database {
           storage_path: string;
           uploaded_at: string;
           deleted_at: string | null;
+          drive_file_id: string | null;
         };
         Insert: {
           id?: string;
+          drive_file_id?: string | null;
           assignment_id: string;
           photo_type_id: string;
           storage_path: string;
@@ -1378,8 +1380,10 @@ export interface Database {
           storage_path: string;
           uploaded_at: string;
           deleted_at: string | null;
+          drive_file_id: string | null;
         };
         Insert: {
+          drive_file_id?: string | null;
           cycle_id: string;
           branch_id: string;
           photo_type_id: string;

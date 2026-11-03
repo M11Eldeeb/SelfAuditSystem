@@ -361,6 +361,9 @@ export async function syncDriveSharing(opts: { branchId?: string } = {}): Promis
   }
 
   // Internal audits: officers only.
+  // Self audit documents (Drive copy): officers.
+  const { data: saRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "sa:root").maybeSingle();
+  if (saRoot && !opts.branchId) add(await shareFolderWithEmails(saRoot.drive_id, officers));
   const { data: iaRoot } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", "ia:root").maybeSingle();
   if (iaRoot && !opts.branchId) add(await shareFolderWithEmails(iaRoot.drive_id, officers));
 
