@@ -79,3 +79,33 @@ export async function loadVor(): Promise<VorSheet> {
     .finally(() => (loading = null));
   return loading;
 }
+
+export type VorLine = { part: string | null; description: string | null; eta: string | null; status: string | null; qty: string | null };
+
+/**
+ * VOR lines by WIP number ("HER-123456" / "123456" -> "123456"), from every WIP / work order column of the VOR file.
+ * Null when the file cannot be read (callers just show nothing).
+ */
+export async function vorByWip(): Promise<Map<string, VorLine[]> | null> {
+  let sheet: VorSheet;
+  try {
+    sheet = await loadVor();
+  } catch {
+    return null;
+  }
+  const h = sheet.headers;
+  const idx = (re: RegExp, not?: RegExp) => h.findIndex((x) => re.test(x) && !(not && not.test(x)));
+  const wipCols = h.map((x, i) => (/wip|work\s*order|\bw\.?o\.?\b/i.test(x) ? i : -1)).filter((i) => i >= 0);
+  const part = idx(/part\s*(no|number|num|#|code)|^part$/i);
+  const desc = idx(/desc|part\s*name/i);
+  const eta = idx(/eta.*pdc|pdc.*eta/i) >= 0 ? idx(/eta.*pdc|pdc.*eta/i) : idx(/\beta\b/i);
+  const status = idx(/status|remark/i);
+  const qty = idx(/order(ed)?\s*q(ty|uantity)|\bq(ty|uantity)\b/i);
+  const key = (v: string) => v.toUpperCase().replace(/^[A-Z]{2,4}[-\s]*/, "").replace(/\D/g, "").replace(/^0+/, "");
+  const map = new Map<string, VorLine[]>();
+  for (const r of sheet.rows) {
+    const line = { part: part >= 0 ? r[part] || null : null, description: desc >= 0 ? r[desc] || null : null, eta: eta >= 0 ? r[eta] || null : null, status: status >= 0 ? r[status] || null : null, qty: qty >= 0 ? r[qty] || null : null };
+    for (const c of new Set(wipCols.map((i) => key(r[i] ?? "")).filter((k) => k.length >= 3))) map.set(c, [...(map.get(c) ?? []), line]);
+  }
+  return map;
+}

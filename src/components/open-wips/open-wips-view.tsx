@@ -179,8 +179,8 @@ function CommentsCell({ w, userId, isOfficer, onChange }: { w: OpenWip; userId: 
   );
 }
 
-type Filters = { branch: string; operator: string; status: string; saleType: string; inOut: string; age: string; courtesy: string; q: string };
-const NO_FILTERS: Filters = { branch: "all", operator: "all", status: "all", saleType: "all", inOut: "all", age: "all", courtesy: "all", q: "" };
+type Filters = { branch: string; operator: string; status: string; saleType: string; inOut: string; age: string; courtesy: string; complaint: string; vor: string; q: string };
+const NO_FILTERS: Filters = { branch: "all", operator: "all", status: "all", saleType: "all", inOut: "all", age: "all", courtesy: "all", complaint: "all", vor: "all", q: "" };
 
 /** Open WIPs: the open-WIP report (Autoline), counted per advisor, status, age and type, with notes and export. */
 export function OpenWipsView() {
@@ -220,6 +220,8 @@ export function OpenWipsView() {
         (f.saleType === "all" || w.saleType === f.saleType) &&
         (f.inOut === "all" || w.inOut === f.inOut) &&
         (f.courtesy === "all" || (f.courtesy === "yes" ? !!w.courtesy?.open : !w.courtesy?.open)) &&
+        (f.complaint === "all" || (f.complaint === "yes") === w.complaints.length > 0) &&
+        (f.vor === "all" || (f.vor === "yes") === w.vor.length > 0) &&
         (f.age === "all" || AGES.find((a) => a.label === f.age)?.key === bucketOf(ageOf(w, today))) &&
         (!q || [w.wip, w.vin, w.registration, w.model, w.operator, w.orderRef, ...w.comments.map((c) => c.body), ...w.autolineNotes].some((x) => (x ?? "").toUpperCase().includes(q)))
     );
@@ -301,6 +303,8 @@ export function OpenWipsView() {
     { header: "Order ref", value: (w) => w.orderRef },
     { header: "Courtesy car", value: (w) => (w.courtesy ? `${w.courtesy.plate ?? "Yes"}${w.courtesy.open ? "" : " (returned)"}` : "") },
     { header: "Courtesy car since", value: (w) => w.courtesy?.since ?? "" },
+    { header: "Complaints", value: (w) => w.complaints.map((c) => `${c.date ?? ""} ${c.source} ${c.category ?? ""}${c.subcategory ? ` > ${c.subcategory}` : ""}${c.valid ? ` (${c.valid})` : ""}`).join(" | "), width: 40 },
+    { header: "VOR parts", value: (w) => w.vor.map((v) => `${v.part ?? ""} ${v.description ?? ""}${v.eta ? ` ETA ${v.eta}` : ""}`).join(" | "), width: 40 },
     { header: "Autoline notes", value: (w) => w.autolineNotes.join(" | "), width: 40 },
     { header: "Comments", value: (w) => w.comments.map((c) => `${c.at.slice(0, 10)} ${c.by ?? ""}: ${c.body}`).join(" | "), width: 50 },
   ];
@@ -366,6 +370,16 @@ export function OpenWipsView() {
               <option value="all">Courtesy car: any</option>
               <option value="yes">With courtesy car</option>
               <option value="no">No courtesy car</option>
+            </select>
+            <select value={f.complaint} onChange={(e) => set({ complaint: e.target.value })} className={sel} aria-label="Complaint">
+              <option value="all">Complaint: any</option>
+              <option value="yes">With complaint</option>
+              <option value="no">No complaint</option>
+            </select>
+            <select value={f.vor} onChange={(e) => set({ vor: e.target.value })} className={sel} aria-label="VOR part">
+              <option value="all">VOR part: any</option>
+              <option value="yes">With VOR part</option>
+              <option value="no">No VOR part</option>
             </select>
             <input value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search WIP, VIN, plate, note" className={`${sel} w-56`} />
             {active > 0 && (
@@ -516,10 +530,10 @@ export function OpenWipsView() {
             }
           >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px] text-[12px]">
+              <table className="w-full min-w-[1400px] text-[12px]">
                 <thead className="border-b border-neutral-200 text-left text-[11px] text-[#6e6e73]">
                   <tr>
-                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Courtesy car", "Autoline notes", "Comments"].map((h) => (
+                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Courtesy car", "Complaint", "VOR part", "Autoline notes", "Comments"].map((h) => (
                       <th key={h} className={`px-2 py-2 font-medium whitespace-nowrap ${["Invoiceable", "Labour", "Parts", "Age"].includes(h) ? "text-right" : ""}`}>
                         {h}
                       </th>
@@ -561,6 +575,33 @@ export function OpenWipsView() {
                               </span>
                               {w.courtesy.open && w.courtesy.since && <span className="ms-1 text-[10px] text-[#8e8e93]">{fmtDate(w.courtesy.since)}</span>}
                               {!w.courtesy.open && <span className="ms-1 text-[10px] text-[#8e8e93]">returned</span>}
+                            </span>
+                          ) : (
+                            <span className="text-[#c7c7cc]">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2">
+                          {w.complaints.length ? (
+                            <span
+                              title={w.complaints.map((c) => `${c.date ?? ""} · ${c.source} · ${c.category ?? ""}${c.subcategory ? ` > ${c.subcategory}` : ""}${c.valid ? ` · ${c.valid}` : ""}${c.status ? ` · ${c.status}` : ""}`).join("\n")}
+                              className="inline-flex flex-col"
+                            >
+                              <span className="w-fit rounded-full bg-[#c4121a]/10 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-[#b10012]">
+                                {w.complaints.length} · {w.complaints[0].source}
+                              </span>
+                              <span className="max-w-[10rem] truncate text-[10px] text-[#8e8e93]">{w.complaints[0].category ?? ""}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[#c7c7cc]">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2">
+                          {w.vor.length ? (
+                            <span title={w.vor.map((v) => `${v.part ?? ""} ${v.description ?? ""}${v.qty ? ` × ${v.qty}` : ""}${v.eta ? ` · ETA ${v.eta}` : ""}${v.status ? ` · ${v.status}` : ""}`).join("\n")} className="inline-flex flex-col">
+                              <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-amber-900">
+                                VOR · {w.vor.length} part{w.vor.length === 1 ? "" : "s"}
+                              </span>
+                              {w.vor[0].eta && <span className="text-[10px] whitespace-nowrap text-[#8e8e93]">ETA {w.vor[0].eta}</span>}
                             </span>
                           ) : (
                             <span className="text-[#c7c7cc]">—</span>
