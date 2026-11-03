@@ -60,7 +60,8 @@ export function courtesyColumns(v: SheetTable | null, a: SheetTable | null): Cou
     vehicles: {
       plate: find(vh, [/plate/, /registration|\breg\b/, /vehicle no|car no/], vt),
       vin: find(vh, [/vin|chassis/], vt),
-      status: find(vh, [/status/, /availab/, /state/], vt),
+      // The sheet calls the status "Stage".
+      status: find(vh, [/stage/, /status/, /availab/, /state/], vt),
       branch: find(vh, [/branch|location|site|showroom/, /\bco\b|company/], vt),
       model: find(vh, [/model/, /make|vehicle|car/], vt),
     },
@@ -68,7 +69,7 @@ export function courtesyColumns(v: SheetTable | null, a: SheetTable | null): Cou
       wip: find(ah, [/wip/, /work ?order|\bwo\b|job/], at),
       agreement: find(ah, [/agreement|contract|\bra\b no|ref/], at),
       plate: find(ah, [/plate/, /registration|\breg\b/, /vehicle no|car no/], at),
-      status: find(ah, [/status/, /state/], at),
+      status: find(ah, [/stage/, /status/, /state/], at),
       branch: find(ah, [/branch|location|site|showroom/, /\bco\b|company/], at),
       out: find(ah, [/(out|issue|start|delivery|from|handover).*date|date.*(out|issue|start|from)|^out$|check ?out/, /^date$|created/], at),
       back: find(ah, [/(return|in|end|to|back|close).*date|date.*(return|in|end|back)|^in$|check ?in|returned/], at),
@@ -88,7 +89,7 @@ async function read(): Promise<CourtesySheet> {
 }
 
 /** Read at most every 10 minutes; a failed read is not cached. */
-export const loadCourtesy = unstable_cache(read, ["courtesy-cars-v1"], { revalidate: 600 });
+export const loadCourtesy = unstable_cache(read, ["courtesy-cars-v2"], { revalidate: 600 });
 
 /** "HER-123456", "123456", "0123456" -> "123456" (for matching WIP numbers). */
 export const wipKey = (v: string) => v.toUpperCase().replace(/^[A-Z]{2,4}[-\s]*/, "").replace(/\D/g, "").replace(/^0+/, "");

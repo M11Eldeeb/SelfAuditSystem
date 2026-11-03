@@ -190,7 +190,7 @@ export function CourtesyView() {
         ) : (
           status !== "all" && (
             <button type="button" onClick={() => setStatus("all")} className="text-[13px] font-medium text-[#c4121a]">
-              Clear status filter
+              Clear stage filter
             </button>
           )
         )}
@@ -200,7 +200,7 @@ export function CourtesyView() {
         data.vehicles ? (
           <>
             <div className="grid gap-5 lg:grid-cols-2">
-              <Panel title="Vehicle status" subtitle="Click a status to filter the list">
+              <Panel title="Vehicle stage" subtitle="Click a stage to filter the list">
                 <Bars items={countBy(vRows.map((_, i) => i).filter((i) => branch === "all" || branchOfV(i) === branch).map(statusOfV))} active={status} onPick={(v) => setStatus(status === v ? "all" : v)} />
               </Panel>
               {data.scope === "all" && (
@@ -247,7 +247,7 @@ export function CourtesyView() {
             copyCols={[ac.wip, ac.plate, ac.agreement].filter((x) => x >= 0)}
             fileName="Courtesy cars - agreements"
             extra={[
-              { header: "State", value: (k) => (data.open[aIdx[k]] ? <span className="rounded-full bg-[#c4121a]/10 px-2 py-0.5 text-[11px] font-semibold text-[#b10012]">With customer</span> : <span className="text-[#8e8e93]">Closed</span>), text: (k) => (data.open[aIdx[k]] ? "With customer" : "Closed") },
+              { header: "Open / closed", value: (k) => (data.open[aIdx[k]] ? <span className="rounded-full bg-[#c4121a]/10 px-2 py-0.5 text-[11px] font-semibold text-[#b10012]">With customer</span> : <span className="text-[#8e8e93]">Closed</span>), text: (k) => (data.open[aIdx[k]] ? "With customer" : "Closed") },
               { header: "Days", value: (k) => <span className="tabular-nums">{daysOut(aIdx[k]) ?? "—"}</span>, text: (k) => String(daysOut(aIdx[k]) ?? "") },
             ]}
           />
@@ -257,7 +257,7 @@ export function CourtesyView() {
       )}
 
       <p className="text-[12px] text-[#6e6e73]">
-        Columns used - vehicles: {found("plate", vc.plate, data.vehicles?.headers)}, {found("status", vc.status, data.vehicles?.headers)}, {found("branch", vc.branch, data.vehicles?.headers)} · agreements: {found("WIP", ac.wip, data.agreements?.headers)}, {found("plate", ac.plate, data.agreements?.headers)}, {found("out date", ac.out, data.agreements?.headers)}, {found("return date", ac.back, data.agreements?.headers)}, {found("status", ac.status, data.agreements?.headers)}, {found("branch", ac.branch, data.agreements?.headers)}.
+        Columns used - vehicles: {found("plate", vc.plate, data.vehicles?.headers)}, {found("stage", vc.status, data.vehicles?.headers)}, {found("branch", vc.branch, data.vehicles?.headers)} · agreements: {found("WIP", ac.wip, data.agreements?.headers)}, {found("plate", ac.plate, data.agreements?.headers)}, {found("out date", ac.out, data.agreements?.headers)}, {found("return date", ac.back, data.agreements?.headers)}, {found("stage", ac.status, data.agreements?.headers)}, {found("branch", ac.branch, data.agreements?.headers)}.
       </p>
     </div>
   );
