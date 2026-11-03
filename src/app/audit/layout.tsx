@@ -22,6 +22,7 @@ const BRANCH_ADMIN_LINKS = [
   { href: "/audit/complaints", label: "Complaints" },
   { href: "/audit/vor-parts", label: "VOR Part Query" },
   { href: "/audit/open-wips", label: "Open WIPs" },
+  { href: "/audit/courtesy-cars", label: "Courtesy Cars" },
   { href: "/audit/feedback", label: "Feedback", bottom: true },
 ];
 

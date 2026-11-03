@@ -5,6 +5,8 @@ import { requireAnyRole, requireAnyViewer, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importOpenWipsFromSheet, saveOpenWips, type OpenWipsImportResult } from "@/lib/open-wips/import";
 import { parseOpenWips } from "@/lib/open-wips/parse";
+import { agreementOpen, loadCourtesy, wipKey } from "@/lib/courtesy/sheet";
+import { branchResolver } from "@/lib/courtesy/branches";
 
 const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader"] as const;
 
@@ -33,6 +35,8 @@ export type OpenWip = {
   takenHr: number | null;
   repeat: boolean;
   note: { text: string; by: string | null; at: string } | null;
+  /** The courtesy car agreement on this WIP (from the courtesy cars sheet), if any. */
+  courtesy: { plate: string | null; since: string | null; open: boolean; ref: string | null } | null;
 };
 export type OpenWipsData = {
   wips: OpenWip[];
@@ -83,6 +87,36 @@ export async function getOpenWips(): Promise<OpenWipsData> {
   }
   const { data: last } = await admin.from("self_audit_open_wip_imports").select("*").order("imported_at", { ascending: false }).limit(1).maybeSingle();
 
+  // Courtesy cars: agreements by WIP number (and branch, when the sheet says it). A sheet problem never breaks this page.
+  const courtesyByWip = new Map<string, { branchId: string | null; plate: string | null; since: string | null; open: boolean; ref: string | null }[]>();
+  try {
+    const sheet = await loadCourtesy();
+    const c = sheet.cols.agreements;
+    if (sheet.agreements && c.wip >= 0) {
+      const resolve = await branchResolver();
+      for (const r of sheet.agreements.rows) {
+        const k = wipKey(r[c.wip] ?? "");
+        if (!k) continue;
+        const list = courtesyByWip.get(k) ?? [];
+        list.push({
+          branchId: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
+          plate: c.plate >= 0 ? r[c.plate] || null : null,
+          since: c.out >= 0 ? r[c.out] || null : null,
+          open: agreementOpen(r, c),
+          ref: c.agreement >= 0 ? r[c.agreement] || null : null,
+        });
+        courtesyByWip.set(k, list);
+      }
+    }
+  } catch {
+    // no courtesy column data
+  }
+  const courtesyFor = (wip: string, branchId: string | null) => {
+    const list = (courtesyByWip.get(wipKey(wip)) ?? []).filter((x) => !x.branchId || !branchId || x.branchId === branchId);
+    const pick = list.find((x) => x.open) ?? list[list.length - 1];
+    return pick ? { plate: pick.plate, since: pick.since, open: pick.open, ref: pick.ref } : null;
+  };
+
   return {
     wips: wipRows.map((w) => {
       const n = notes.get(w.key);
@@ -111,6 +145,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
         takenHr: w.taken_hr == null ? null : Number(w.taken_hr),
         repeat: (w.repeat_repair ?? "").toUpperCase() === "Y",
         note: n ? { text: n.note, by: n.updated_by_name, at: n.updated_at } : null,
+        courtesy: courtesyFor(w.wip_no, w.branch_id),
       };
     }),
     daily,

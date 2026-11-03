@@ -150,8 +150,8 @@ function NoteCell({ w, canEdit, onSaved }: { w: OpenWip; canEdit: boolean; onSav
   );
 }
 
-type Filters = { branch: string; operator: string; status: string; saleType: string; inOut: string; age: string; q: string };
-const NO_FILTERS: Filters = { branch: "all", operator: "all", status: "all", saleType: "all", inOut: "all", age: "all", q: "" };
+type Filters = { branch: string; operator: string; status: string; saleType: string; inOut: string; age: string; courtesy: string; q: string };
+const NO_FILTERS: Filters = { branch: "all", operator: "all", status: "all", saleType: "all", inOut: "all", age: "all", courtesy: "all", q: "" };
 
 /** Open WIPs: the open-WIP report (Autoline), counted per advisor, status, age and type, with notes and export. */
 export function OpenWipsView() {
@@ -190,6 +190,7 @@ export function OpenWipsView() {
         (f.status === "all" || w.status === f.status) &&
         (f.saleType === "all" || w.saleType === f.saleType) &&
         (f.inOut === "all" || w.inOut === f.inOut) &&
+        (f.courtesy === "all" || (f.courtesy === "yes" ? !!w.courtesy?.open : !w.courtesy?.open)) &&
         (f.age === "all" || AGES.find((a) => a.label === f.age)?.key === bucketOf(ageOf(w, today))) &&
         (!q || [w.wip, w.vin, w.registration, w.model, w.operator, w.orderRef, w.note?.text, ...w.autolineNotes].some((x) => (x ?? "").toUpperCase().includes(q)))
     );
@@ -269,6 +270,8 @@ export function OpenWipsView() {
     { header: "Registration", value: (w) => w.registration },
     { header: "Model", value: (w) => w.model, width: 26 },
     { header: "Order ref", value: (w) => w.orderRef },
+    { header: "Courtesy car", value: (w) => (w.courtesy ? `${w.courtesy.plate ?? "Yes"}${w.courtesy.open ? "" : " (returned)"}` : "") },
+    { header: "Courtesy car since", value: (w) => w.courtesy?.since ?? "" },
     { header: "Autoline notes", value: (w) => w.autolineNotes.join(" | "), width: 40 },
     { header: "Note", value: (w) => w.note?.text ?? "", width: 30 },
     { header: "Note by", value: (w) => w.note?.by ?? "" },
@@ -330,6 +333,11 @@ export function OpenWipsView() {
               <option value="all">In and out</option>
               <option value="IN">Car in</option>
               <option value="OUT">Car out</option>
+            </select>
+            <select value={f.courtesy} onChange={(e) => set({ courtesy: e.target.value })} className={sel} aria-label="Courtesy car">
+              <option value="all">Courtesy car: any</option>
+              <option value="yes">With courtesy car</option>
+              <option value="no">No courtesy car</option>
             </select>
             <input value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search WIP, VIN, plate, note" className={`${sel} w-56`} />
             {active > 0 && (
@@ -483,7 +491,7 @@ export function OpenWipsView() {
               <table className="w-full min-w-[1200px] text-[12px]">
                 <thead className="border-b border-neutral-200 text-left text-[11px] text-[#6e6e73]">
                   <tr>
-                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Autoline notes", "Note"].map((h) => (
+                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Courtesy car", "Autoline notes", "Note"].map((h) => (
                       <th key={h} className={`px-2 py-2 font-medium whitespace-nowrap ${["Invoiceable", "Labour", "Parts", "Age"].includes(h) ? "text-right" : ""}`}>
                         {h}
                       </th>
@@ -516,6 +524,19 @@ export function OpenWipsView() {
                           <div className="font-mono text-[10px] text-[#8e8e93]">
                             {w.registration} {w.vin}
                           </div>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          {w.courtesy ? (
+                            <span title={`${w.courtesy.ref ? `Agreement ${w.courtesy.ref} · ` : ""}${w.courtesy.since ? `since ${w.courtesy.since}` : ""}`}>
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.courtesy.open ? "bg-[#c4121a]/10 text-[#b10012]" : "bg-neutral-100 text-neutral-500"}`}>
+                                {w.courtesy.plate ?? "Yes"}
+                              </span>
+                              {w.courtesy.open && w.courtesy.since && <span className="ms-1 text-[10px] text-[#8e8e93]">{fmtDate(w.courtesy.since)}</span>}
+                              {!w.courtesy.open && <span className="ms-1 text-[10px] text-[#8e8e93]">returned</span>}
+                            </span>
+                          ) : (
+                            <span className="text-[#c7c7cc]">—</span>
+                          )}
                         </td>
                         <td className="max-w-[16rem] px-2 py-2 text-[11px] text-[#3a3a3c]">
                           {w.autolineNotes.map((n, i) => (

@@ -14,6 +14,7 @@ const P: Record<string, string> = {
   vor: "M8.5 14.5a6 6 0 100-12 6 6 0 000 12zM13 13l4.5 4.5M6 8.5h5M8.5 6v5",
   wips: "M3 13.5l1.5-4.5h11l1.5 4.5v2.5H3zM5.5 16v1.5M14.5 16v1.5M6 12.5h.01M14 12.5h.01M7 6.5V4h6v2.5",
   shield: "M10 2.5l6 2.5v4.5c0 4-2.6 6.8-6 8-3.4-1.2-6-4-6-8V5zM7.3 10l1.9 1.9 3.6-3.8",
+  key: "M12.5 3.5a4 4 0 11-3.4 6.1L3.5 15.2v1.8h2.2v-1.5h1.5V14h1.5l1.6-1.6A4 4 0 0112.5 3.5zM13.5 6.5h.01",
   feedback: "M3.5 4.5h13v9h-6l-4 3v-3h-3zM7 9h.01M10 9h.01M13 9h.01",
   wrench: "M12.5 3.5a3.5 3.5 0 00-3.2 4.9L3.8 13.9a1.4 1.4 0 002 2l5.5-5.5a3.5 3.5 0 004.9-3.2l-2 2-2-.5-.5-2z",
   list: "M7.5 5.5h9M7.5 10h9M7.5 14.5h9M4 5.5h.01M4 10h.01M4 14.5h.01",
@@ -43,6 +44,7 @@ function keyFor(href: string, label: string): string {
   if (h.includes("complaints")) return "complaints";
   if (h.includes("vor-parts")) return "vor";
   if (h.includes("open-wips")) return "wips";
+  if (h.includes("courtesy")) return "key";
   if (h.includes("feedback")) return "feedback";
   if (h.includes("finance") || h.includes("reconciliation")) return "money";
   if (h.includes("audit") || h === "/audit") return "audits";

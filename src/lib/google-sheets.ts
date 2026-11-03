@@ -138,3 +138,15 @@ export async function readSheetNamed(spreadsheetId: string, title: string): Prom
   );
   return values.values ?? [];
 }
+
+/** Every row of the first tab whose name passes `test` (e.g. /agreement/i), with that tab's name; null when none does. */
+export async function readSheetMatching(spreadsheetId: string, test: (title: string) => boolean): Promise<{ title: string; values: unknown[][] } | null> {
+  const meta = await sheetsGet<{ sheets?: { properties: { sheetId: number; title: string } }[] }>(`${SHEETS_API}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`);
+  const tab = (meta.sheets ?? []).find((s) => test(s.properties.title));
+  if (!tab) return null;
+  const range = encodeURIComponent(`'${tab.properties.title.replace(/'/g, "''")}'`);
+  const values = await sheetsGet<{ values?: unknown[][] }>(
+    `${SHEETS_API}/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&majorDimension=ROWS`
+  );
+  return { title: tab.properties.title, values: values.values ?? [] };
+}

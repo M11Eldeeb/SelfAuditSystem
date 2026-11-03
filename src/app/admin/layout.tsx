@@ -25,6 +25,7 @@ const ADMIN_LINKS = [
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
+  { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
   { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
