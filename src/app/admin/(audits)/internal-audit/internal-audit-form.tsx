@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { previewInternalAuditSample, startInternalAudit, type InternalAuditPreviewClaim } from "./actions";
 import { buildSampleWorkbook, generateSamplePreviewExcel } from "@/lib/internal-audit-sample-excel";
 import { sendDirectMail } from "@/app/actions/direct-mail";
+import { CopyText } from "@/components/copy-text";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -308,9 +309,15 @@ function SamplePreviewPanel({
           <tbody className="divide-y divide-neutral-100">
             {[...announced, ...unannounced].map((c) => (
               <tr key={c.id} className={c.announced ? undefined : "bg-amber-50/60"}>
-                <td className="px-3 py-1.5 text-neutral-900">{c.claim_number}</td>
-                <td className="px-3 py-1.5 text-neutral-600">{c.work_order_no ?? "—"}</td>
-                <td className="px-3 py-1.5 text-neutral-600">{c.vin ?? "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-900">
+                  <CopyText value={c.claim_number} label="claim number" />
+                </td>
+                <td className="px-3 py-1.5 text-neutral-600">
+                  <CopyText value={c.work_order_no} label="work order" />
+                </td>
+                <td className="px-3 py-1.5 text-neutral-600">
+                  <CopyText value={c.vin} label="VIN" className="font-mono" />
+                </td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.branch_name}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.dealer_submit_date ?? "—"}</td>
                 <td className="px-3 py-1.5 text-neutral-600">{c.main_part_name ?? "—"}</td>

@@ -7,6 +7,7 @@ import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { buildPhotoStatusMap } from "@/lib/photo-status";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
 import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
+import { CopyText } from "@/components/copy-text";
 
 export default async function AuditAssignmentPage({
   params,
@@ -53,10 +54,10 @@ export default async function AuditAssignmentPage({
           &larr; Back to my audits
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-          Claim {claim?.claim_number ?? assignment.claim_id}
+          Claim <CopyText value={claim?.claim_number ?? assignment.claim_id} label="claim number" />
           {claim?.work_order_no && (
             <span className="ml-2 text-lg font-medium text-neutral-500">
-              &middot; WO {claim.work_order_no}
+              &middot; WO <CopyText value={claim.work_order_no} label="work order" />
             </span>
           )}
         </h1>
@@ -77,11 +78,15 @@ export default async function AuditAssignmentPage({
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">VIN</dt>
-          <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
+          <dd className="text-neutral-900">
+            <CopyText value={claim?.vin} label="VIN" className="font-mono" />
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Work order #</dt>
-          <dd className="text-neutral-900">{claim?.work_order_no ?? "—"}</dd>
+          <dd className="text-neutral-900">
+            <CopyText value={claim?.work_order_no} label="work order" />
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Mileage</dt>

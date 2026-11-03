@@ -7,6 +7,7 @@ import { downloadXlsx, type ExportColumn } from "@/components/dashboard/sections
 import { Kpi } from "@/components/complaints/shared";
 import { CarLoaderCard } from "@/components/spinner";
 import { Glyph } from "@/components/ui/glyph";
+import { CopyText } from "@/components/copy-text";
 
 const RED = "#c4121a";
 const GREY = "#8e8e93";
@@ -495,7 +496,7 @@ export function OpenWipsView() {
                     return (
                       <tr key={w.key} className="align-top">
                         <td className="px-2 py-2 whitespace-nowrap">
-                          <div className="font-mono font-semibold text-[#1d1d1f] select-all">{w.wip}</div>
+                          <CopyText value={w.wip} label="WIP number" className="font-mono font-semibold text-[#1d1d1f]" />
                           {data.scope === "all" && <div className="text-[10px] text-[#8e8e93]">{w.branch}</div>}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap">{w.operator}</td>

@@ -8,6 +8,7 @@ import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 import { SHARED_WIP_DEPARTMENT, firstClaimOfWip, orderReceptionQuestions } from "@/lib/internal-audit-wip";
 import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
 import { loadMainPartNames } from "@/lib/claim-main-part";
+import { CopyText } from "@/components/copy-text";
 
 export default async function InternalAuditClaimPage({
   params,
@@ -136,14 +137,16 @@ export default async function InternalAuditClaimPage({
           &larr; Back to internal audits
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-          Claim {claim?.claim_number ?? current.claim_id}
+          Claim <CopyText value={claim?.claim_number ?? current.claim_id} label="claim number" />
           {!current.announced && (
             <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-900" title="Not in the list sent to the branch - ask for it at the visit">
               Unannounced
             </span>
           )}
           {claim?.work_order_no && (
-            <span className="ml-2 text-lg font-medium text-neutral-500">&middot; WO {claim.work_order_no}</span>
+            <span className="ml-2 text-lg font-medium text-neutral-500">
+              &middot; WO <CopyText value={claim.work_order_no} label="work order" />
+            </span>
           )}
         </h1>
         <p className="text-sm text-neutral-500">
@@ -226,7 +229,9 @@ export default async function InternalAuditClaimPage({
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">VIN</dt>
-          <dd className="text-neutral-900">{claim?.vin ?? "—"}</dd>
+          <dd className="text-neutral-900">
+            <CopyText value={claim?.vin} label="VIN" className="font-mono" />
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-neutral-500">Main part name</dt>

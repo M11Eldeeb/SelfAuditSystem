@@ -5,6 +5,7 @@ import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { FinalizeButton } from "./finalize-button";
 import { ForceFinalizeButton } from "./force-finalize-button";
 import { ReopenAssignmentButton } from "./reopen-assignment-button";
+import { CopyText } from "@/components/copy-text";
 
 export default async function BranchReviewPage({
   params,
@@ -79,10 +80,10 @@ export default async function BranchReviewPage({
             {(assignments ?? []).map((a) => (
               <tr key={a.id}>
                 <td className="px-4 py-2 text-neutral-900">
-                  {claimById.get(a.claim_id)?.claim_number ?? a.claim_id}
+                  <CopyText value={claimById.get(a.claim_id)?.claim_number ?? a.claim_id} label="claim number" />
                 </td>
                 <td className="px-4 py-2 text-neutral-600">
-                  {claimById.get(a.claim_id)?.work_order_no ?? "—"}
+                  <CopyText value={claimById.get(a.claim_id)?.work_order_no} label="work order" />
                 </td>
                 <td className="px-4 py-2 text-neutral-600">{ASSIGNMENT_STATUS_LABELS[a.status]}</td>
                 <td className="px-4 py-2 text-right">
