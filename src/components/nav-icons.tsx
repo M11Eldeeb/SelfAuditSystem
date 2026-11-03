@@ -21,12 +21,14 @@ const P: Record<string, string> = {
   money: "M3 5.5h14v9H3zM10 12a2 2 0 100-4 2 2 0 000 4zM5.5 8v4M14.5 8v4",
   code: "M10 3.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6L10 11.7l-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z",
   home: "M3.5 9L10 3.5 16.5 9v7.5h-13z",
+  submit: "M4 15.5h12M10 13.5V4M6.5 7.5L10 4l3.5 3.5",
 };
 
 function keyFor(href: string, label: string): string {
   const h = href.toLowerCase();
   const l = label.toLowerCase();
   if (h === "#group") return "shield";
+  if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";
   if (h === "/technician" || l === "my claims") return "list";
   if (h.includes("dashboard")) return "dashboard";

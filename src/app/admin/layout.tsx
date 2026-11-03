@@ -4,6 +4,7 @@ import { NavBar } from "@/components/nav-bar";
 import { ViewOnlyBanner } from "@/components/view-only-banner";
 import { getNotifications } from "@/lib/notifications";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
+import { AMS_LINK } from "@/lib/site";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
@@ -15,6 +16,7 @@ const ADMIN_LINKS = [
     group: "Warranty",
   },
   { href: "/admin/warranty-room", label: "Warranty Room", group: "Warranty" },
+  { ...AMS_LINK, group: "Warranty" },
   { href: "/admin/reconciliation", label: "Reconciliation", group: "Warranty" },
   { href: "/admin/technician-claims", label: "Technician Claims", group: "Warranty" },
   { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },

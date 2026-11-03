@@ -5,6 +5,7 @@ import { ViewOnlyBanner } from "@/components/view-only-banner";
 import { getNotifications } from "@/lib/notifications";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
+import { AMS_LINK } from "@/lib/site";
 import { techClaimsWaiting } from "@/lib/tech-claims/server";
 import { MyAuditsTabs } from "./my-audits-tabs";
 
@@ -13,6 +14,7 @@ const BRANCH_ADMIN_LINKS = [
   // Audits, Results and the Audit Schedule are tabs inside My Audits.
   { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"], group: "Warranty" },
   { href: "/audit/warranty-room", label: "Warranty Room", group: "Warranty" },
+  { ...AMS_LINK, group: "Warranty" },
   { href: "/audit/technician-claims", label: "Technician Claims", group: "Warranty" },
   { href: "/audit/rejected-claims", label: "Rejected Claims", group: "Warranty" },
   { href: "/audit/technical-inquiries", label: "Technical Inquiries & Verification Codes", group: "Warranty" },

@@ -21,6 +21,8 @@ type NavLink = {
   group?: string;
   /** Shown at the bottom of the sidebar, just above the user name. */
   bottom?: boolean;
+  /** Another website, opened in a new tab (not a page of this portal). */
+  external?: boolean;
 };
 type NavNotifications = {
   count: number;
@@ -197,20 +199,33 @@ function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHre
 }
 
 function NavRow({ link, active, compact = false }: { link: NavLink; active: boolean; compact?: boolean }) {
-  return (
-            <Link
-              href={link.href}
-              aria-current={active ? "page" : undefined}
-              className={`flex ${compact ? "min-h-9 gap-2.5 px-2.5 py-1.5 text-[14px]" : "min-h-10 gap-3 px-3 py-2 text-[15px]"} items-center rounded-xl leading-snug transition-colors ${
-                active ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
-              }`}
-            >
-              <span className="text-brand">
-                <NavIcon href={link.href} label={link.label} size={compact ? 18 : 20} />
-              </span>
-              <span className="min-w-0 flex-1">{link.label}</span>
-              {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
-            </Link>
+  const className = `flex ${compact ? "min-h-9 gap-2.5 px-2.5 py-1.5 text-[14px]" : "min-h-10 gap-3 px-3 py-2 text-[15px]"} items-center rounded-xl leading-snug transition-colors ${
+    active ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
+  }`;
+  const content = (
+    <>
+      <span className="text-brand">
+        <NavIcon href={link.href} label={link.label} size={compact ? 18 : 20} />
+      </span>
+      <span className="min-w-0 flex-1">{link.label}</span>
+      {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
+      {link.external && (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-neutral-400">
+          <path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h2.5" />
+        </svg>
+      )}
+    </>
+  );
+  // An outside site (AMS) opens in its own tab; it is not a page of this portal.
+  return link.external ? (
+    <a href={link.href} target="_blank" rel="noopener noreferrer" title={`${link.label} - opens in a new tab`} className={className}>
+      {content}
+      <span className="sr-only">(opens in a new tab)</span>
+    </a>
+  ) : (
+    <Link href={link.href} aria-current={active ? "page" : undefined} className={className}>
+      {content}
+    </Link>
   );
 }
 
