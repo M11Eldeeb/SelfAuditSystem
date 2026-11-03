@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getOpenWips, refreshOpenWips, saveWipNote, uploadOpenWips, type OpenWip, type OpenWipsData } from "@/app/actions/open-wips";
+import { addWipComment, deleteWipComment, getOpenWips, refreshOpenWips, uploadOpenWips, type OpenWip, type OpenWipsData, type WipComment } from "@/app/actions/open-wips";
 import { Panel, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
 import { downloadXlsx, type ExportColumn } from "@/components/dashboard/sections/invoicing-export";
 import { Kpi } from "@/components/complaints/shared";
@@ -105,44 +105,73 @@ function DailyLine({ points }: { points: { day: string; count: number }[] }) {
   );
 }
 
-function NoteCell({ w, canEdit, onSaved }: { w: OpenWip; canEdit: boolean; onSaved: (note: OpenWip["note"]) => void }) {
-  const [edit, setEdit] = useState(false);
-  const [text, setText] = useState(w.note?.text ?? "");
+/** The WIP's comment thread: the latest comment shown, all of them (and a box to add one) when opened. */
+function CommentsCell({ w, userId, isOfficer, onChange }: { w: OpenWip; userId: string; isOfficer: boolean; onChange: (comments: WipComment[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  if (!edit)
+  const last = w.comments[w.comments.length - 1];
+
+  async function add() {
+    if (!text.trim()) return;
+    setBusy(true);
+    setErr(null);
+    const r = await addWipComment(w.key, text);
+    setBusy(false);
+    if (r.error || !r.comment) return setErr(r.error ?? "Could not save.");
+    onChange([...w.comments, r.comment]);
+    setText("");
+  }
+  async function remove(id: string) {
+    if (!window.confirm("Remove this comment?")) return;
+    const r = await deleteWipComment(id);
+    if (r.error) return setErr(r.error);
+    onChange(w.comments.filter((c) => c.id !== id));
+  }
+
+  if (!open)
     return (
       <div className="max-w-[16rem]">
-        {w.note ? <div className="text-[12px] whitespace-pre-wrap text-[#1d1d1f]">{w.note.text}</div> : null}
-        {w.note?.by && <div className="text-[10px] text-[#8e8e93]">{w.note.by} · {fmtDate(w.note.at)}</div>}
-        {canEdit && (
-          <button type="button" onClick={() => setEdit(true)} className="text-[12px] font-medium text-[#c4121a] hover:underline">
-            {w.note ? "Edit" : "Add note"}
-          </button>
+        {last && (
+          <>
+            <div className="line-clamp-2 text-[12px] whitespace-pre-wrap text-[#1d1d1f]">{last.body}</div>
+            <div className="text-[10px] text-[#8e8e93]">
+              {last.by ?? "—"} · {fmtDate(last.at)}
+            </div>
+          </>
         )}
+        <button type="button" onClick={() => setOpen(true)} className="text-[12px] font-medium text-[#c4121a] hover:underline">
+          {w.comments.length ? `${w.comments.length} comment${w.comments.length === 1 ? "" : "s"} · add` : "Add comment"}
+        </button>
       </div>
     );
   return (
-    <div className="w-60 space-y-1">
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} autoFocus className="w-full rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[12px]" />
+    <div className="w-72 space-y-2">
+      <ol className="max-h-56 space-y-1.5 overflow-y-auto">
+        {w.comments.map((c) => (
+          <li key={c.id} className="rounded-lg bg-neutral-50 px-2 py-1.5">
+            <div className="text-[12px] whitespace-pre-wrap text-[#1d1d1f]">{c.body}</div>
+            <div className="flex items-center justify-between gap-2 text-[10px] text-[#8e8e93]">
+              <span>
+                {c.by ?? "—"} · {fmtDate(c.at)} {new Date(c.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })}
+              </span>
+              {(c.byId === userId || isOfficer) && (
+                <button type="button" onClick={() => void remove(c.id)} className="text-[10px] text-neutral-400 hover:text-red-600">
+                  Remove
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} autoFocus placeholder="Write a comment" className="w-full rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[12px]" />
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            const r = await saveWipNote(w.key, text);
-            setBusy(false);
-            if (r.error) return setErr(r.error);
-            onSaved(text.trim() ? { text: text.trim(), by: r.by ?? null, at: r.at ?? new Date().toISOString() } : null);
-            setEdit(false);
-          }}
-          className="rounded-md bg-neutral-900 px-2.5 py-1 text-[12px] font-semibold text-white disabled:opacity-50"
-        >
-          Save
+        <button type="button" disabled={busy || !text.trim()} onClick={() => void add()} className="rounded-md bg-neutral-900 px-2.5 py-1 text-[12px] font-semibold text-white disabled:opacity-50">
+          {busy ? "Saving…" : "Add"}
         </button>
-        <button type="button" onClick={() => setEdit(false)} className="text-[12px] text-neutral-500">
-          Cancel
+        <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-neutral-500">
+          Close
         </button>
       </div>
       {err && <p className="text-[11px] text-red-700">{err}</p>}
@@ -192,7 +221,7 @@ export function OpenWipsView() {
         (f.inOut === "all" || w.inOut === f.inOut) &&
         (f.courtesy === "all" || (f.courtesy === "yes" ? !!w.courtesy?.open : !w.courtesy?.open)) &&
         (f.age === "all" || AGES.find((a) => a.label === f.age)?.key === bucketOf(ageOf(w, today))) &&
-        (!q || [w.wip, w.vin, w.registration, w.model, w.operator, w.orderRef, w.note?.text, ...w.autolineNotes].some((x) => (x ?? "").toUpperCase().includes(q)))
+        (!q || [w.wip, w.vin, w.registration, w.model, w.operator, w.orderRef, ...w.comments.map((c) => c.body), ...w.autolineNotes].some((x) => (x ?? "").toUpperCase().includes(q)))
     );
   }, [all, f, today]);
 
@@ -273,8 +302,7 @@ export function OpenWipsView() {
     { header: "Courtesy car", value: (w) => (w.courtesy ? `${w.courtesy.plate ?? "Yes"}${w.courtesy.open ? "" : " (returned)"}` : "") },
     { header: "Courtesy car since", value: (w) => w.courtesy?.since ?? "" },
     { header: "Autoline notes", value: (w) => w.autolineNotes.join(" | "), width: 40 },
-    { header: "Note", value: (w) => w.note?.text ?? "", width: 30 },
-    { header: "Note by", value: (w) => w.note?.by ?? "" },
+    { header: "Comments", value: (w) => w.comments.map((c) => `${c.at.slice(0, 10)} ${c.by ?? ""}: ${c.body}`).join(" | "), width: 50 },
   ];
   const sel = "rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-[13px]";
   const active = Object.entries(f).filter(([k, v]) => k !== "q" && v !== "all").length + (f.q ? 1 : 0);
@@ -475,7 +503,7 @@ export function OpenWipsView() {
 
           <Panel
             title={`WIPs (${fmtInt(list.length)})`}
-            subtitle="Oldest first. Autoline notes are from the report; your note stays on the WIP across imports."
+            subtitle="Oldest first. Autoline notes are from the report; comments stay on the WIP across imports - everyone who sees the WIP can add one."
             action={
               <button
                 type="button"
@@ -491,7 +519,7 @@ export function OpenWipsView() {
               <table className="w-full min-w-[1200px] text-[12px]">
                 <thead className="border-b border-neutral-200 text-left text-[11px] text-[#6e6e73]">
                   <tr>
-                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Courtesy car", "Autoline notes", "Note"].map((h) => (
+                    {["WIP", "Advisor", "Status", "Type", "In/Out", "Received", "Age", "Invoiceable", "Labour", "Parts", "Car", "Courtesy car", "Autoline notes", "Comments"].map((h) => (
                       <th key={h} className={`px-2 py-2 font-medium whitespace-nowrap ${["Invoiceable", "Labour", "Parts", "Age"].includes(h) ? "text-right" : ""}`}>
                         {h}
                       </th>
@@ -546,7 +574,7 @@ export function OpenWipsView() {
                           ))}
                         </td>
                         <td className="px-2 py-2">
-                          <NoteCell w={w} canEdit={data.canEdit} onSaved={(note) => setData((d) => (d ? { ...d, wips: d.wips.map((x) => (x.key === w.key ? { ...x, note } : x)) } : d))} />
+                          <CommentsCell w={w} userId={data.userId} isOfficer={data.canImport} onChange={(comments) => setData((d) => (d ? { ...d, wips: d.wips.map((x) => (x.key === w.key ? { ...x, comments } : x)) } : d))} />
                         </td>
                       </tr>
                     );

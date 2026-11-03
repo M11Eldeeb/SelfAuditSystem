@@ -1,7 +1,7 @@
 "use server";
 
 import ExcelJS from "exceljs";
-import { requireAnyRole, requireAnyViewer, requireRole } from "@/lib/auth";
+import { requireAnyViewer, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importOpenWipsFromSheet, saveOpenWips, type OpenWipsImportResult } from "@/lib/open-wips/import";
 import { parseOpenWips } from "@/lib/open-wips/parse";
@@ -34,10 +34,12 @@ export type OpenWip = {
   saleType: string;
   takenHr: number | null;
   repeat: boolean;
-  note: { text: string; by: string | null; at: string } | null;
+  /** The comment thread, oldest first. */
+  comments: WipComment[];
   /** The courtesy car agreement on this WIP (from the courtesy cars sheet), if any. */
   courtesy: { plate: string | null; since: string | null; open: boolean; ref: string | null } | null;
 };
+export type WipComment = { id: string; body: string; by: string | null; byId: string | null; at: string };
 export type OpenWipsData = {
   wips: OpenWip[];
   /** Daily open-WIP count per branch + operator. */
@@ -45,6 +47,8 @@ export type OpenWipsData = {
   lastImport: { at: string; source: string; rows: number; opened: number; closed: number; by: string | null } | null;
   scope: "all" | string;
   canEdit: boolean;
+  /** The signed-in user (to delete his own comments). */
+  userId: string;
   canImport: boolean;
   today: string;
 };
@@ -71,10 +75,10 @@ export async function getOpenWips(): Promise<OpenWipsData> {
     if ((data ?? []).length < 1000) break;
   }
   const keys = wipRows.map((w) => w.key);
-  const notes = new Map<string, { note: string; updated_by_name: string | null; updated_at: string }>();
+  const comments = new Map<string, WipComment[]>();
   for (let i = 0; i < keys.length; i += 300) {
-    const { data } = await admin.from("self_audit_open_wip_notes").select("key, note, updated_by_name, updated_at").in("key", keys.slice(i, i + 300));
-    for (const n of data ?? []) notes.set(n.key, n);
+    const { data } = await admin.from("self_audit_open_wip_comments").select("id, key, body, author_id, author_name, created_at").in("key", keys.slice(i, i + 300)).order("created_at");
+    for (const c of data ?? []) comments.set(c.key, [...(comments.get(c.key) ?? []), { id: c.id, body: c.body, by: c.author_name, byId: c.author_id, at: c.created_at }]);
   }
   const daily: OpenWipsData["daily"] = [];
   const since = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
@@ -119,7 +123,6 @@ export async function getOpenWips(): Promise<OpenWipsData> {
 
   return {
     wips: wipRows.map((w) => {
-      const n = notes.get(w.key);
       return {
         key: w.key,
         branch: branchName(w.branch_id, w.dealer_code),
@@ -144,7 +147,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
         saleType: w.sale_type ?? "Not set",
         takenHr: w.taken_hr == null ? null : Number(w.taken_hr),
         repeat: (w.repeat_repair ?? "").toUpperCase() === "Y",
-        note: n ? { text: n.note, by: n.updated_by_name, at: n.updated_at } : null,
+        comments: comments.get(w.key) ?? [],
         courtesy: courtesyFor(w.wip_no, w.branch_id),
       };
     }),
@@ -152,26 +155,42 @@ export async function getOpenWips(): Promise<OpenWipsData> {
     lastImport: last ? { at: last.imported_at, source: last.source, rows: last.rows, opened: last.opened, closed: last.closed, by: last.imported_by_name } : null,
     scope: own ? branchName(own, "Your branch") : "all",
     canEdit: !user.viewOnly,
+    userId: user.id,
     canImport: user.role === "officer" && !user.viewOnly,
     today: todayKsa(),
   };
 }
 
-/** A note on one WIP (empty text removes it). Branch users only for their own branch's WIPs. */
-export async function saveWipNote(key: string, text: string): Promise<{ error?: string; by?: string; at?: string }> {
-  const user = await requireAnyRole([...VIEWERS]);
+/** The WIP (and its branch) the user may comment on: officers any; branch users their own branch's. */
+async function commentableWip(key: string) {
+  const user = await requireAnyViewer([...VIEWERS]);
+  if (user.role === "officer") return { user };
+  const { data } = await createAdminClient().from("self_audit_open_wips").select("branch_id").eq("key", key).maybeSingle();
+  if (!data || data.branch_id !== user.branch_id) return { error: "This WIP is not in your branch." as const };
+  return { user };
+}
+
+/** Everyone who sees the WIP (view-only accounts too): adds a comment to its thread. */
+export async function addWipComment(key: string, text: string): Promise<{ comment?: WipComment; error?: string }> {
+  const r = await commentableWip(key);
+  if ("error" in r) return { error: r.error };
+  const body = text.trim().slice(0, 2000);
+  if (!body) return { error: "Write a comment." };
+  const name = r.user.full_name ?? r.user.email;
+  const { data, error } = await createAdminClient().from("self_audit_open_wip_comments").insert({ key, body, author_id: r.user.id, author_name: name }).select("id, created_at").single();
+  if (error || !data) return { error: error?.message ?? "Could not save the comment." };
+  return { comment: { id: data.id, body, by: name, byId: r.user.id, at: data.created_at } };
+}
+
+/** The author (or an officer) removes a comment. */
+export async function deleteWipComment(id: string): Promise<{ error?: string }> {
+  const user = await requireAnyViewer([...VIEWERS]);
   const admin = createAdminClient();
-  if (user.role !== "officer") {
-    const { data } = await admin.from("self_audit_open_wips").select("branch_id").eq("key", key).maybeSingle();
-    if (!data || data.branch_id !== user.branch_id) return { error: "This WIP is not in your branch." };
-  }
-  const note = text.trim().slice(0, 2000);
-  const by = user.full_name ?? user.email;
-  const at = new Date().toISOString();
-  const { error } = note
-    ? await admin.from("self_audit_open_wip_notes").upsert({ key, note, updated_by_name: by, updated_at: at })
-    : await admin.from("self_audit_open_wip_notes").delete().eq("key", key);
-  return error ? { error: error.message } : { by, at };
+  const { data: c } = await admin.from("self_audit_open_wip_comments").select("author_id").eq("id", id).maybeSingle();
+  if (!c) return { error: "Comment not found." };
+  if (c.author_id !== user.id && !(user.role === "officer" && !user.viewOnly)) return { error: "Only the author can remove this comment." };
+  const { error } = await admin.from("self_audit_open_wip_comments").delete().eq("id", id);
+  return error ? { error: error.message } : {};
 }
 
 /** Officers: read the Google Sheet now. */

@@ -780,6 +780,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_open_wip_daily"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_open_wip_comments: {
+        Row: { id: string; key: string; body: string; author_id: string | null; author_name: string | null; created_at: string };
+        Insert: { id?: string; key: string; body: string; author_id?: string | null; author_name?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_open_wip_comments"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_open_wip_notes: {
         Row: { key: string; note: string; updated_by_name: string | null; updated_at: string };
         Insert: { key: string; note: string; updated_by_name?: string | null; updated_at?: string };
