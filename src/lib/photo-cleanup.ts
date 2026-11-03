@@ -2,8 +2,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Deletes the actual storage bytes for a claim's photos once the officer has
- * reviewed it, to stay within Supabase's free-tier storage limit. The
+ * NOT USED ANY MORE (photos are kept after review). Deletes the actual storage bytes for a claim's photos once the
+ * officer has reviewed it - it was there to stay within Supabase's free-tier storage limit. The
  * audit_photos rows are kept (deleted_at marks them) so the UI can still show
  * "uploaded, cleaned up after review" instead of "never uploaded".
  */

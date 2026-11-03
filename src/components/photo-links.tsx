@@ -65,7 +65,7 @@ export function PhotoLinks({
             <span
               key={pt.id}
               className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-400"
-              title="Deleted from storage after the officer's review to save space"
+              title="Deleted from storage after the officer's review (earlier photos, before they were kept)"
             >
               {pt.label} (removed after review)
             </span>

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { cleanupAssignmentPhotos } from "@/lib/photo-cleanup";
 
 export type SaveReviewState = { error?: string } | undefined;
 
@@ -59,8 +58,7 @@ export async function saveReview(
     .update({ status: "reviewed", reviewed_by: officer.id, reviewed_at: new Date().toISOString() })
     .eq("id", assignmentId);
 
-  // Frees up storage now that the claim is fully reviewed - see photo-cleanup.ts.
-  await cleanupAssignmentPhotos(assignmentId);
+  // Photos are kept after the review (Supabase Pro has room) - they used to be deleted here to save space.
 
   revalidatePath(`/admin/review/${cycleId}/${branchId}`);
   redirect(`/admin/review/${cycleId}/${branchId}`);

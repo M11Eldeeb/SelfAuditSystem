@@ -25,13 +25,7 @@ export async function saveParsed(parsed: Awaited<ReturnType<typeof parseInvoicin
     const failed = results.find((r) => r.error);
     if (failed?.error) return failed.error.message;
   }
-  // Line detail is kept for the newest three months only (month totals stay forever).
-  const newest = parsed.months[parsed.months.length - 1];
-  if (newest) {
-    const d = new Date(`${newest}T00:00:00Z`);
-    d.setUTCMonth(d.getUTCMonth() - 2);
-    await admin.from("self_audit_invoicing_detail").delete().lt("month", d.toISOString().slice(0, 10));
-  }
+  // Line detail is kept for every month (it used to be cut to the newest three months to save space).
   return null;
 }
 

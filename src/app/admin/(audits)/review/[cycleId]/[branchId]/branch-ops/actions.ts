@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { cleanupBranchOpsPhotos } from "@/lib/photo-cleanup";
 
 export type SaveBranchOpsReviewState = { error?: string } | undefined;
 
@@ -46,8 +45,7 @@ export async function saveBranchOpsReview(
     .eq("branch_id", branchId);
   if (progressError) return { error: progressError.message };
 
-  // Frees up storage now that the branch operations submission is reviewed.
-  await cleanupBranchOpsPhotos(cycleId, branchId);
+  // Photos are kept after the review (they used to be deleted here to save space).
 
   revalidatePath(`/admin/review/${cycleId}/${branchId}`);
   redirect(`/admin/review/${cycleId}/${branchId}`);
