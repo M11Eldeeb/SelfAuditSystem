@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { UploadWizard } from "./upload-wizard";
 import { WarrantyRoomCycleForm } from "./warranty-room-cycle-form";
 import { ScrapGenerationCard } from "./scrap-generation-card";
+import { WarrantyRoomSearch } from "@/components/warranty-room/room-search";
 
 export default async function WarrantyRoomPage() {
   await requireRole("officer");
@@ -83,6 +84,7 @@ export default async function WarrantyRoomPage() {
   return (
     <div className="space-y-8">
       <WarrantyRoomTabs area="admin" active="room" />
+      <WarrantyRoomSearch />
       <section className="space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">

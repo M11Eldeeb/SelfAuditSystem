@@ -7,6 +7,7 @@ import { SupplierCollectionCard } from "./supplier-collection-card";
 import { SubmitDestroyEvidence } from "./submit-destroy-evidence";
 import { ReportDownloadButton } from "@/components/report-download-button";
 import { getFlaggedToScrapClaims } from "@/lib/warranty-room/flagged-to-scrap";
+import { WarrantyRoomSearch } from "@/components/warranty-room/room-search";
 
 type CollectionRow = {
   id: string;
@@ -131,6 +132,7 @@ export default async function BranchWarrantyRoomPage() {
   return (
     <div className="space-y-8">
       <WarrantyRoomTabs area="audit" active="room" />
+      <WarrantyRoomSearch />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Warranty Room</h1>
         <p className="text-sm text-neutral-600">Claims flagged to have their removed parts scrapped, or reserved for the manufacturer&apos;s supplier to collect.</p>
