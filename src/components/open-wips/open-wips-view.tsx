@@ -179,6 +179,73 @@ function CommentsCell({ w, userId, isOfficer, onChange }: { w: OpenWip; userId: 
   );
 }
 
+/** The complaints on this car: a badge; a click opens the details. */
+function ComplaintsBadge({ list }: { list: OpenWip["complaints"] }) {
+  const [open, setOpen] = useState<{ top: number; left: number } | null>(null);
+  if (!list.length) return <span className="text-[#c7c7cc]">—</span>;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setOpen(open ? null : { top: Math.min(r.bottom + 4, window.innerHeight - 340), left: Math.min(r.left, window.innerWidth - 340) });
+        }}
+        aria-expanded={!!open}
+        className="inline-flex flex-col text-left"
+      >
+        <span className="w-fit rounded-full bg-[#c4121a]/10 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-[#b10012] hover:bg-[#c4121a]/20">
+          {list.length} · {list[0].source} ›
+        </span>
+        <span className="max-w-[10rem] truncate text-[10px] text-[#8e8e93]">{list[0].category ?? ""}</span>
+      </button>
+      {open && (
+        <div style={{ top: open.top, left: open.left }} className="fixed z-50 max-h-80 w-80 space-y-2 overflow-y-auto rounded-xl bg-white p-3 text-[12px] shadow-xl ring-1 ring-black/10">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-[#1d1d1f]">
+              {list.length} complaint{list.length === 1 ? "" : "s"} on this car
+            </span>
+            <button type="button" onClick={() => setOpen(null)} className="text-[11px] text-neutral-500 hover:text-neutral-800">
+              Close
+            </button>
+          </div>
+          {list.map((c, i) => (
+            <dl key={i} className="grid grid-cols-[6.5rem_1fr] gap-x-2 gap-y-0.5 rounded-lg bg-neutral-50 p-2">
+              <dt className="text-[#8e8e93]">Complaint</dt>
+              <dd className="font-medium">
+                {c.source} {c.no ? <CopyText value={c.no} label="complaint number" /> : ""}
+              </dd>
+              <dt className="text-[#8e8e93]">Date</dt>
+              <dd>{c.date ? fmtDate(c.date) : "—"}</dd>
+              <dt className="text-[#8e8e93]">Category</dt>
+              <dd>
+                {c.category ?? "—"}
+                {c.subcategory ? ` › ${c.subcategory}` : ""}
+              </dd>
+              <dt className="text-[#8e8e93]">Validity</dt>
+              <dd className={/^valid$/i.test(c.valid ?? "") ? "font-semibold text-[#b10012]" : ""}>{c.valid ?? "—"}</dd>
+              <dt className="text-[#8e8e93]">Stage</dt>
+              <dd>{c.status ?? "—"}</dd>
+              {c.advisor && (
+                <>
+                  <dt className="text-[#8e8e93]">Service advisor</dt>
+                  <dd>{c.advisor}</dd>
+                </>
+              )}
+              {c.branch && (
+                <>
+                  <dt className="text-[#8e8e93]">Branch</dt>
+                  <dd>{c.branch}</dd>
+                </>
+              )}
+            </dl>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Filters = { branch: string; operator: string; status: string; saleType: string; inOut: string; age: string; courtesy: string; complaint: string; vor: string; q: string };
 const NO_FILTERS: Filters = { branch: "all", operator: "all", status: "all", saleType: "all", inOut: "all", age: "all", courtesy: "all", complaint: "all", vor: "all", q: "" };
 
@@ -303,7 +370,7 @@ export function OpenWipsView() {
     { header: "Order ref", value: (w) => w.orderRef },
     { header: "Courtesy car", value: (w) => (w.courtesy ? `${w.courtesy.plate ?? "Yes"}${w.courtesy.open ? "" : " (returned)"}` : "") },
     { header: "Courtesy car since", value: (w) => w.courtesy?.since ?? "" },
-    { header: "Complaints", value: (w) => w.complaints.map((c) => `${c.date ?? ""} ${c.source} ${c.category ?? ""}${c.subcategory ? ` > ${c.subcategory}` : ""}${c.valid ? ` (${c.valid})` : ""}`).join(" | "), width: 40 },
+    { header: "Complaints", value: (w) => w.complaints.map((c) => `${c.date ?? ""} ${c.source} ${c.category ?? ""}${c.subcategory ? ` > ${c.subcategory}` : ""}${c.valid ? ` (${c.valid})` : ""}${c.no ? ` #${c.no}` : ""}`).join(" | "), width: 40 },
     { header: "VOR parts", value: (w) => w.vor.map((v) => `${v.part ?? ""} ${v.description ?? ""}${v.eta ? ` ETA ${v.eta}` : ""}`).join(" | "), width: 40 },
     { header: "Autoline notes", value: (w) => w.autolineNotes.join(" | "), width: 40 },
     { header: "Comments", value: (w) => w.comments.map((c) => `${c.at.slice(0, 10)} ${c.by ?? ""}: ${c.body}`).join(" | "), width: 50 },
@@ -581,19 +648,7 @@ export function OpenWipsView() {
                           )}
                         </td>
                         <td className="px-2 py-2">
-                          {w.complaints.length ? (
-                            <span
-                              title={w.complaints.map((c) => `${c.date ?? ""} · ${c.source} · ${c.category ?? ""}${c.subcategory ? ` > ${c.subcategory}` : ""}${c.valid ? ` · ${c.valid}` : ""}${c.status ? ` · ${c.status}` : ""}`).join("\n")}
-                              className="inline-flex flex-col"
-                            >
-                              <span className="w-fit rounded-full bg-[#c4121a]/10 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-[#b10012]">
-                                {w.complaints.length} · {w.complaints[0].source}
-                              </span>
-                              <span className="max-w-[10rem] truncate text-[10px] text-[#8e8e93]">{w.complaints[0].category ?? ""}</span>
-                            </span>
-                          ) : (
-                            <span className="text-[#c7c7cc]">—</span>
-                          )}
+                          <ComplaintsBadge list={w.complaints} />
                         </td>
                         <td className="px-2 py-2">
                           {w.vor.length ? (

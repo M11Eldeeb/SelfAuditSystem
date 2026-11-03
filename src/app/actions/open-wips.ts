@@ -40,7 +40,7 @@ export type OpenWip = {
   /** The courtesy car agreement on this WIP (from the courtesy cars sheet), if any. */
   courtesy: { plate: string | null; since: string | null; open: boolean; ref: string | null } | null;
   /** MOC / SAIC / CRM complaints on this car (by VIN) since a week before it came in. */
-  complaints: { date: string | null; source: string; category: string | null; subcategory: string | null; valid: string | null; status: string | null }[];
+  complaints: { no: string | null; date: string | null; source: string; category: string | null; subcategory: string | null; valid: string | null; status: string | null; advisor: string | null; branch: string | null }[];
   /** VOR part orders on this WIP (from the VOR file). */
   vor: VorLine[];
 };
@@ -125,11 +125,22 @@ export async function getOpenWips(): Promise<OpenWipsData> {
   const complaintsByVin = new Map<string, OpenWip["complaints"]>();
   const vorMapPromise = Promise.race([vorByWip(), new Promise<null>((r) => setTimeout(() => r(null), 15_000))]).catch(() => null);
   for (let i = 0; i < vins.length; i += 300) {
-    const { data } = await admin.from("self_audit_complaints").select("vin, created_on, source, category, subcategory, validity, status").in("vin", vins.slice(i, i + 300));
+    const { data } = await admin.from("self_audit_complaints").select("vin, complaint_no, created_on, source, category, subcategory, validity, status, service_advisor, branch_label").in("vin", vins.slice(i, i + 300));
     for (const c of data ?? [])
-      complaintsByVin.set(c.vin!, [...(complaintsByVin.get(c.vin!) ?? []), { date: c.created_on, source: c.source, category: c.category, subcategory: c.subcategory, valid: c.validity, status: c.status }]);
+      complaintsByVin.set(c.vin!, [...(complaintsByVin.get(c.vin!) ?? []), { no: c.complaint_no, date: c.created_on, source: c.source, category: c.category, subcategory: c.subcategory, valid: c.validity, status: c.status, advisor: c.service_advisor, branch: c.branch_label }]);
   }
   const vorMap = await vorMapPromise;
+  const resolveBranch = await branchResolver().catch(() => null);
+  /** VOR lines on this WIP: the same branch (when the file says) and ordered no earlier than a month before the car came in. */
+  const vorFor = (wip: string, branchId: string | null, received: string | null) =>
+    (vorMap?.get(wipNo(wip)) ?? []).filter((v) => {
+      const b = v.branch && resolveBranch ? resolveBranch(v.branch) : null;
+      const branchKnown = !!b;
+      if (branchKnown && b!.id !== branchId) return false;
+      const since = received ? new Date(Date.parse(received) - 30 * 86_400_000).toISOString().slice(0, 10) : null;
+      if (v.orderDate && since) return v.orderDate >= since;
+      return branchKnown;
+    });
   const wipNo = (v: string) => v.toUpperCase().replace(/^[A-Z]{2,4}[-\s]*/, "").replace(/\D/g, "").replace(/^0+/, "");
   const complaintsFor = (vin: string | null, received: string | null) => {
     if (!vin) return [];
@@ -172,7 +183,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
         comments: comments.get(w.key) ?? [],
         courtesy: courtesyFor(w.wip_no, w.branch_id),
         complaints: complaintsFor(w.vin, w.received),
-        vor: vorMap?.get(wipNo(w.wip_no)) ?? [],
+        vor: vorFor(w.wip_no, w.branch_id, w.received),
       };
     }),
     daily,

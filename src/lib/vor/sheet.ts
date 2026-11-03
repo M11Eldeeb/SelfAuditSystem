@@ -80,7 +80,29 @@ export async function loadVor(): Promise<VorSheet> {
   return loading;
 }
 
-export type VorLine = { part: string | null; description: string | null; eta: string | null; status: string | null; qty: string | null };
+export type VorLine = {
+  part: string | null;
+  description: string | null;
+  eta: string | null;
+  status: string | null;
+  qty: string | null;
+  /** The branch as the file says it (branch / dealer column, or the prefix on the WIP, e.g. "HER-31941"). */
+  branch: string | null;
+  /** The order date, YYYY-MM-DD when readable. */
+  orderDate: string | null;
+};
+
+/** A date cell as YYYY-MM-DD (ISO text, or day-first 28/01/2026). */
+function isoDay(v: string): string | null {
+  const s = v.trim();
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+  const m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (!m) return null;
+  let [d, mo] = [Number(m[1]), Number(m[2])];
+  if (mo > 12 && d <= 12) [d, mo] = [mo, d];
+  return `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
 
 /**
  * VOR lines by WIP number ("HER-123456" / "123456" -> "123456"), from every WIP / work order column of the VOR file.
@@ -101,11 +123,28 @@ export async function vorByWip(): Promise<Map<string, VorLine[]> | null> {
   const eta = idx(/eta.*pdc|pdc.*eta/i) >= 0 ? idx(/eta.*pdc|pdc.*eta/i) : idx(/\beta\b/i);
   const status = idx(/status|remark/i);
   const qty = idx(/order(ed)?\s*q(ty|uantity)|\bq(ty|uantity)\b/i);
+  const branchCol = h.findIndex((x) => /branch|dealer|location|showroom|site|\bco\b/i.test(x) && !/wip|work\s*order|po\b|order\s*no/i.test(x));
+  const orderDate = idx(/order\s*(place|placed|placing)?\s*date|date.*order|placed/i);
   const key = (v: string) => v.toUpperCase().replace(/^[A-Z]{2,4}[-\s]*/, "").replace(/\D/g, "").replace(/^0+/, "");
   const map = new Map<string, VorLine[]>();
   for (const r of sheet.rows) {
-    const line = { part: part >= 0 ? r[part] || null : null, description: desc >= 0 ? r[desc] || null : null, eta: eta >= 0 ? r[eta] || null : null, status: status >= 0 ? r[status] || null : null, qty: qty >= 0 ? r[qty] || null : null };
-    for (const c of new Set(wipCols.map((i) => key(r[i] ?? "")).filter((k) => k.length >= 3))) map.set(c, [...(map.get(c) ?? []), line]);
+    const base = {
+      part: part >= 0 ? r[part] || null : null,
+      description: desc >= 0 ? r[desc] || null : null,
+      eta: eta >= 0 ? r[eta] || null : null,
+      status: status >= 0 ? r[status] || null : null,
+      qty: qty >= 0 ? r[qty] || null : null,
+      orderDate: orderDate >= 0 ? isoDay(r[orderDate] ?? "") : null,
+    };
+    const seen = new Set<string>();
+    for (const i of wipCols) {
+      const cell = (r[i] ?? "").trim();
+      const k = key(cell);
+      if (k.length < 3 || seen.has(k)) continue;
+      seen.add(k);
+      const prefix = cell.toUpperCase().match(/^([A-Z]{2,4})[-\s]*\d/)?.[1] ?? null;
+      map.set(k, [...(map.get(k) ?? []), { ...base, branch: (branchCol >= 0 ? r[branchCol] : "") || prefix }]);
+    }
   }
   return map;
 }
