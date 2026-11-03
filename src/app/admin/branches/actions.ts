@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTempPassword } from "@/lib/temp-password";
+import { compareUsers } from "@/lib/user-roles";
 
 export type ActionState = { error?: string; success?: string; tempPassword?: string } | undefined;
 
@@ -309,6 +310,9 @@ export async function exportUsers(): Promise<{ rows?: UserExportRow[]; error?: s
   ]);
   if (error) return { error: error.message };
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const ordered = [...(users ?? [])].sort((a, b) =>
+    compareUsers({ ...a, branchName: a.branch_id ? branchName.get(a.branch_id) : null }, { ...b, branchName: b.branch_id ? branchName.get(b.branch_id) : null })
+  );
 
   // Last sign-in comes from the sign-in service (1,000 accounts per page).
   const lastSignIn = new Map<string, string | null>();
@@ -320,7 +324,7 @@ export async function exportUsers(): Promise<{ rows?: UserExportRow[]; error?: s
 
   const synthetic = (email: string) => email.endsWith("@technicians.jiadmotors.local");
   return {
-    rows: (users ?? []).map((u) => ({
+    rows: ordered.map((u) => ({
       name: u.full_name ?? "",
       login: u.employee_no && synthetic(u.email) ? u.employee_no : u.email,
       email: synthetic(u.email) ? "" : u.email,

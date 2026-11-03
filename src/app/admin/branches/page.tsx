@@ -8,6 +8,7 @@ import { ExportUsersButton } from "./export-users";
 import { ResetPasswordButton } from "./reset-password-button";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
+import { compareUsers } from "@/lib/user-roles";
 
 export default async function BranchesPage() {
   const [currentUser, supabase] = await Promise.all([getCurrentUser(), createClient()]);
@@ -19,6 +20,10 @@ export default async function BranchesPage() {
 
   const branchList = branches ?? [];
   const branchNameById = new Map(branchList.map((b) => [b.id, b.name]));
+  // Highest role first (officer ... technician), then branch, then name.
+  const sortedUsers = [...(users ?? [])].sort((a, b) =>
+    compareUsers({ ...a, branchName: a.branch_id ? branchNameById.get(a.branch_id) : null }, { ...b, branchName: b.branch_id ? branchNameById.get(b.branch_id) : null })
+  );
 
   return (
     <div className="space-y-10">
@@ -76,7 +81,7 @@ export default async function BranchesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {(users ?? []).map((u) => (
+              {sortedUsers.map((u) => (
                 <tr key={u.id}>
                   <td className="px-4 py-2 text-neutral-900">{u.email}</td>
                   <td className="px-4 py-2 text-neutral-600">
