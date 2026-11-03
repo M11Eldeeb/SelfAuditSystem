@@ -65,7 +65,7 @@ function Preview({ files, index, onIndex, onClose }: { files: GalleryFile[]; ind
               <img key={f.id} src={fileUrl(f.id)} alt={f.name} className="max-h-full max-w-full object-contain" />
             </div>
           )}
-          {k === "video" && <video key={f.id} src={fileUrl(f.id)} controls autoPlay playsInline className="h-full w-full bg-black" />}
+          {k === "video" && <video key={f.id} src={fileUrl(f.id)} controls preload="metadata" playsInline className="h-full w-full bg-black" />}
           {k === "none" && (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-neutral-600">
               This file type cannot be shown in the browser.

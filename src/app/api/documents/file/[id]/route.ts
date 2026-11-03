@@ -38,7 +38,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const headers = new Headers({
     "Content-Type": type,
     "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name)}`,
-    "Cache-Control": "private, max-age=300",
+    // Kept in the browser for a day, so opening a document again does not go through the server.
+    "Cache-Control": "private, max-age=86400",
     "X-Content-Type-Options": "nosniff",
     "Accept-Ranges": "bytes",
   });

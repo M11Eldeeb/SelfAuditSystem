@@ -24,7 +24,7 @@ export function DownloadAllButton({ files, zipName }: { files: { id: string; nam
       async function* entries() {
         for (let i = 0; i < files.length; i++) {
           setStatus(`Adding ${i + 1} of ${files.length}…`);
-          const res = await fetch(`/api/tech-claims/file/${files[i].id}?download=1`);
+          const res = await fetch(`/api/tech-claims/file/${files[i].id}`);
           if (!res.ok) throw new Error(`Could not read "${files[i].name}" from Google Drive.`);
           yield { name: unique(files[i].name), input: res };
         }

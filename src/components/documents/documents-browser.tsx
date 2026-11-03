@@ -74,7 +74,7 @@ function Preview({ item, onClose, canManage }: { item: DocItem; onClose: () => v
               <img src={fileUrl(item.id)} alt={item.name} className="max-h-full max-w-full object-contain" />
             </div>
           )}
-          {k.preview === "video" && <video src={fileUrl(item.id)} controls className="h-full w-full bg-black" />}
+          {k.preview === "video" && <video src={fileUrl(item.id)} controls preload="metadata" className="h-full w-full bg-black" />}
           {k.preview === "audio" && (
             <div className="flex h-full items-center justify-center">
               <audio src={fileUrl(item.id)} controls />

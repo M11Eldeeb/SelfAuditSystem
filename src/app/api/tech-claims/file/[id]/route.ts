@@ -37,7 +37,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const headers = new Headers({
       "Content-Type": file.mimeType,
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      "Cache-Control": "private, max-age=300",
+      // Evidence never changes once uploaded: the browser keeps it (each view no longer goes through the server).
+      "Cache-Control": "private, max-age=2592000, immutable",
       "X-Content-Type-Options": "nosniff",
       "Accept-Ranges": "bytes",
     });
