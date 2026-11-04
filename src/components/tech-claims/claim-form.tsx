@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { discardStagedFile, prepareStagedUpload, removeTechClaimFile, submitTechClaim, type ClaimFields } from "@/app/actions/tech-claims";
+import {
+  addTechClaimEvidence,
+  discardStagedFile,
+  prepareStagedUpload,
+  removeTechClaimFile,
+  submitTechClaim,
+  type ClaimFields,
+} from "@/app/actions/tech-claims";
 import { fmtBytes, uploadToSession } from "./upload";
 import { stampPhoto, stampVideo, videoDuration } from "./stamp";
 import { Glyph } from "@/components/ui/glyph";
@@ -25,8 +32,20 @@ type Item = {
 const MAX_VIDEO_SECONDS = 120;
 const PARALLEL_UPLOADS = 4;
 
-const inputCls = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
-const icon = (type: string) => <Glyph name={type.startsWith("video/") ? "video" : type === "application/pdf" ? "pdf" : "image"} className="text-neutral-500" />;
+const inputCls =
+  "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none";
+const icon = (type: string) => (
+  <Glyph
+    name={
+      type.startsWith("video/")
+        ? "video"
+        : type === "application/pdf"
+          ? "pdf"
+          : "image"
+    }
+    className="text-neutral-500"
+  />
+);
 
 /** datetime-local value (local time) from an ISO date. */
 function localValue(iso: string | null | undefined): string {
@@ -39,8 +58,20 @@ function localValue(iso: string | null | undefined): string {
 function withType(f: File): File {
   if (f.type) return f;
   const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
-  const t = { heic: "image/heic", heif: "image/heif", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", mp4: "video/mp4", mov: "video/quicktime", "3gp": "video/3gpp", pdf: "application/pdf" }[ext];
-  return t ? new File([f], f.name, { type: t, lastModified: f.lastModified }) : f;
+  const t = {
+    heic: "image/heic",
+    heif: "image/heif",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    "3gp": "video/3gpp",
+    pdf: "application/pdf",
+  }[ext];
+  return t
+    ? new File([f], f.name, { type: t, lastModified: f.lastModified })
+    : f;
 }
 
 /**
@@ -58,15 +89,23 @@ export function TechClaimForm({
   existing = [],
   lang = "en",
   branchCode = "",
+  evidenceOnly = false,
 }: {
   /** Technician name, printed in the date stamp. */
   who: string;
   claimId?: string;
-  initial?: { vin: string; workOrder: string; endOfRepair: string | null; notes: string | null };
+  initial?: {
+    vin: string;
+    workOrder: string;
+    endOfRepair: string | null;
+    notes: string | null;
+  };
   existing?: Existing[];
   lang?: Lang;
   /** Put in front of the work order number the technician types (e.g. HER-). */
   branchCode?: string;
+  /** Additional evidence for a claim already sent: only the files, added to the claim (claimId). */
+  evidenceOnly?: boolean;
 }) {
   const t = techT(lang);
   const router = useRouter();
@@ -74,8 +113,12 @@ export function TechClaimForm({
   // The VIN is not asked from the technician (an existing one is kept as it is).
   const vin = initial?.vin ?? "";
   // The technician types the work order number only; the branch code is added in front when saving.
-  const [workOrder, setWorkOrder] = useState((initial?.workOrder ?? "").replace(/^[A-Za-z]+-/, ""));
-  const [endOfRepair, setEndOfRepair] = useState(initial?.endOfRepair ? localValue(initial.endOfRepair) : "");
+  const [workOrder, setWorkOrder] = useState(
+    (initial?.workOrder ?? "").replace(/^[A-Za-z]+-/, ""),
+  );
+  const [endOfRepair, setEndOfRepair] = useState(
+    initial?.endOfRepair ? localValue(initial.endOfRepair) : "",
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
@@ -102,15 +145,22 @@ export function TechClaimForm({
     void import("exifr");
     void import("mediabunny");
   }, []);
-  const slots = useRef({ free: PARALLEL_UPLOADS, waiting: [] as (() => void)[] });
+  const slots = useRef({
+    free: PARALLEL_UPLOADS,
+    waiting: [] as (() => void)[],
+  });
 
   // Every change goes through here so the list is also readable right away (latest) - not only after a render.
   const update = (fn: (cur: Item[]) => Item[]) => {
     latest.current = fn(latest.current);
     setItems(latest.current);
   };
-  const patch = (key: string, p: Partial<Item>) => update((cur) => cur.map((it) => (it.key === key ? { ...it, ...p } : it)));
-  const inOrder = <T,>(chain: React.RefObject<Promise<unknown>>, fn: () => Promise<T>): Promise<T> => {
+  const patch = (key: string, p: Partial<Item>) =>
+    update((cur) => cur.map((it) => (it.key === key ? { ...it, ...p } : it)));
+  const inOrder = <T,>(
+    chain: React.RefObject<Promise<unknown>>,
+    fn: () => Promise<T>,
+  ): Promise<T> => {
     const run = chain.current.then(fn, fn);
     chain.current = run.catch(() => undefined);
     return run;
@@ -135,29 +185,54 @@ export function TechClaimForm({
       try {
         // 1. Date stamp (one file at a time - it uses the phone's video hardware).
         const isVideo = original.type.startsWith("video/");
-        const stamped = await inOrder(isVideo ? videoChain : photoChain, async () => {
-          if (removed.current.has(key)) return null;
-          patch(key, { status: "stamping", pct: 0 });
-          if (original.type.startsWith("image/")) return stampPhoto(original, who);
-          if (original.type.startsWith("video/")) return stampVideo(original, who, (pct) => patch(key, { pct }));
-          return original;
-        });
+        const stamped = await inOrder(
+          isVideo ? videoChain : photoChain,
+          async () => {
+            if (removed.current.has(key)) return null;
+            patch(key, { status: "stamping", pct: 0 });
+            if (original.type.startsWith("image/"))
+              return stampPhoto(original, who);
+            if (original.type.startsWith("video/"))
+              return stampVideo(original, who, (pct) => patch(key, { pct }));
+            return original;
+          },
+        );
         if (!stamped || removed.current.has(key)) return;
         // 2. An upload session in the staging folder, then the bytes straight to Google Drive (three at a time).
-        const ask = () => prepareStagedUpload({ name: stamped.name, type: stamped.type, size: stamped.size });
-        const prepared = stagingReady.current ? await ask() : await inOrder(sessionChain, ask);
-        if (prepared.error || !prepared.session) throw new Error(prepared.error ?? "Could not start the upload.");
+        const ask = () =>
+          prepareStagedUpload({
+            name: stamped.name,
+            type: stamped.type,
+            size: stamped.size,
+          });
+        const prepared = stagingReady.current
+          ? await ask()
+          : await inOrder(sessionChain, ask);
+        if (prepared.error || !prepared.session)
+          throw new Error(prepared.error ?? "Could not start the upload.");
         stagingReady.current = true;
         const session = prepared.session;
-        patch(key, { status: "sending", pct: 0, size: stamped.size, name: stamped.name });
-        const driveId = await withSlot(() => uploadToSession(session, stamped, (sent) => patch(key, { pct: Math.round((sent / stamped.size) * 100) })));
+        patch(key, {
+          status: "sending",
+          pct: 0,
+          size: stamped.size,
+          name: stamped.name,
+        });
+        const driveId = await withSlot(() =>
+          uploadToSession(session, stamped, (sent) =>
+            patch(key, { pct: Math.round((sent / stamped.size) * 100) }),
+          ),
+        );
         if (removed.current.has(key)) {
           void discardStagedFile(driveId);
           return;
         }
         patch(key, { status: "ready", pct: 100, driveId });
       } catch (e) {
-        patch(key, { status: "failed", error: e instanceof Error ? trServer(t, e.message) : t.errGeneric });
+        patch(key, {
+          status: "failed",
+          error: e instanceof Error ? trServer(t, e.message) : t.errGeneric,
+        });
       }
     })();
     jobs.current.set(key, job);
@@ -181,7 +256,17 @@ export function TechClaimForm({
       }
       const key = `f${++seq.current}`;
       sources.current.set(key, f);
-      update((cur) => [...cur, { key, name: f.name, type: f.type, size: f.size, status: "waiting", pct: 0 }]);
+      update((cur) => [
+        ...cur,
+        {
+          key,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          status: "waiting",
+          pct: 0,
+        },
+      ]);
       process(key);
     }
   }
@@ -215,10 +300,28 @@ export function TechClaimForm({
     return () => window.removeEventListener("beforeunload", warn);
   }, [unsent]);
 
-  const pending = items.filter((i) => i.status === "waiting" || i.status === "stamping" || i.status === "sending");
+  const pending = items.filter(
+    (i) =>
+      i.status === "waiting" ||
+      i.status === "stamping" ||
+      i.status === "sending",
+  );
   const failed = items.filter((i) => i.status === "failed");
   const overall = items.length
-    ? Math.round(items.reduce((s, i) => s + (i.status === "ready" ? 100 : i.status === "sending" ? 50 + i.pct / 2 : i.status === "stamping" ? i.pct / 2 : 0), 0) / items.length)
+    ? Math.round(
+        items.reduce(
+          (s, i) =>
+            s +
+            (i.status === "ready"
+              ? 100
+              : i.status === "sending"
+                ? 50 + i.pct / 2
+                : i.status === "stamping"
+                  ? i.pct / 2
+                  : 0),
+          0,
+        ) / items.length,
+      )
     : 0;
 
   const [mode, setMode] = useState<"save" | "send">("send");
@@ -227,7 +330,12 @@ export function TechClaimForm({
   async function submit(send: boolean) {
     setError(null);
     setMode(send ? "send" : "save");
-    const fields: ClaimFields = { vin, workOrder, endOfRepair: endOfRepair ? new Date(endOfRepair).toISOString() : "", notes };
+    const fields: ClaimFields = {
+      vin,
+      workOrder,
+      endOfRepair: endOfRepair ? new Date(endOfRepair).toISOString() : "",
+      notes,
+    };
     if (send && !items.length && !existing.length) return setError(t.errAddOne);
     const plural = t.errFailed;
     if (failed.length) return setError(plural(failed.length));
@@ -238,9 +346,21 @@ export function TechClaimForm({
       const final = latest.current;
       const stillFailed = final.filter((i) => i.status === "failed");
       if (stillFailed.length) throw new Error(plural(stillFailed.length));
-      const ids = final.filter((i) => i.status === "ready" && i.driveId).map((i) => i.driveId!);
+      const ids = final
+        .filter((i) => i.status === "ready" && i.driveId)
+        .map((i) => i.driveId!);
+      if (evidenceOnly) {
+        if (!ids.length) throw new Error(t.errAddOne);
+        const added = await addTechClaimEvidence(claimId!, ids);
+        if (added.error) throw new Error(trServer(t, added.error));
+        update(() => []);
+        router.push(`/technician/${claimId}?added=1`);
+        router.refresh();
+        return;
+      }
       const r = await submitTechClaim(fields, ids, claimId, send);
-      if (r.error || !r.claimId) throw new Error(r.error ? trServer(t, r.error) : t.errGeneric);
+      if (r.error || !r.claimId)
+        throw new Error(r.error ? trServer(t, r.error) : t.errGeneric);
       update(() => []);
       router.push(`/technician/${r.claimId}?${send ? "sent" : "saved"}=1`);
       router.refresh();
@@ -266,37 +386,99 @@ export function TechClaimForm({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-sm font-medium text-neutral-700">{t.workOrder}</span>
-          <div dir="ltr" className="flex items-stretch overflow-hidden rounded-lg border border-neutral-300 bg-white shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
-            {branchCode && <span className="flex items-center bg-neutral-100 px-3 font-mono text-base font-semibold text-neutral-700">{branchCode}-</span>}
+      {!evidenceOnly && (
+        <div className="grid gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-neutral-700">
+              {t.workOrder}
+            </span>
+            <div
+              dir="ltr"
+              className="flex items-stretch overflow-hidden rounded-lg border border-neutral-300 bg-white shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15"
+            >
+              {branchCode && (
+                <span className="flex items-center bg-neutral-100 px-3 font-mono text-base font-semibold text-neutral-700">
+                  {branchCode}-
+                </span>
+              )}
+              <input
+                value={workOrder}
+                onChange={(e) =>
+                  setWorkOrder(e.target.value.replace(/\D/g, ""))
+                }
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="123456"
+                className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-base focus:outline-none"
+                disabled={busy}
+              />
+            </div>
+          </label>
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-neutral-700">
+              {t.endOfRepair}
+            </span>
             <input
-              value={workOrder}
-              onChange={(e) => setWorkOrder(e.target.value.replace(/\D/g, ""))}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="123456"
-              className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-base focus:outline-none"
+              type="datetime-local"
+              value={endOfRepair}
+              max={localValue(null)}
+              onChange={(e) => setEndOfRepair(e.target.value)}
+              className={inputCls}
               disabled={busy}
             />
-          </div>
-        </label>
-        <label className="space-y-1">
-          <span className="text-sm font-medium text-neutral-700">{t.endOfRepair}</span>
-          <input type="datetime-local" value={endOfRepair} max={localValue(null)} onChange={(e) => setEndOfRepair(e.target.value)} className={inputCls} disabled={busy} />
-        </label>
-        <label className="space-y-1 sm:col-span-2">
-          <span className="text-sm font-medium text-neutral-700">{t.notesOptional}</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} disabled={busy} />
-        </label>
-      </div>
+          </label>
+          <label className="space-y-1 sm:col-span-2">
+            <span className="text-sm font-medium text-neutral-700">
+              {t.notesOptional}
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className={inputCls}
+              disabled={busy}
+            />
+          </label>
+        </div>
+      )}
 
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
-        <div className="text-sm font-semibold text-neutral-900">{t.evidenceTitle}</div>
-        <input ref={camera} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
-        <input ref={gallery} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
-        <input ref={filesInput} type="file" accept="application/pdf,image/*,video/*" multiple hidden onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />
+        <div className="text-sm font-semibold text-neutral-900">
+          {t.evidenceTitle}
+        </div>
+        <input
+          ref={camera}
+          type="file"
+          accept="image/*,video/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            void add(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={gallery}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            void add(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={filesInput}
+          type="file"
+          accept="application/pdf,image/*,video/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            void add(e.target.files);
+            e.target.value = "";
+          }}
+        />
         <button
           type="button"
           disabled={busy}
@@ -306,17 +488,40 @@ export function TechClaimForm({
           <Glyph name="upload" size={22} className="text-brand" />
           {t.uploadEvidence}
         </button>
-        <p className="text-xs text-neutral-500">{t.evidenceHelp(MAX_VIDEO_SECONDS)}</p>
+        <p className="text-xs text-neutral-500">
+          {t.evidenceHelp(MAX_VIDEO_SECONDS)}
+        </p>
 
         {/* Choice sheet (as on iPhone): take, gallery, files - or cancel. */}
         {sheet && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={() => setSheet(false)} role="dialog" aria-modal="true" aria-label={t.uploadEvidence}>
-            <div className="w-full max-w-sm space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-3 sm:items-center"
+            onClick={() => setSheet(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.uploadEvidence}
+          >
+            <div
+              className="w-full max-w-sm space-y-2"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="overflow-hidden rounded-2xl bg-[var(--surface)] shadow-xl">
                 {[
-                  { ref: camera, label: t.takePhotoVideo, glyph: "camera" as const },
-                  { ref: gallery, label: t.fromGallery, glyph: "image" as const },
-                  { ref: filesInput, label: t.uploadFiles, glyph: "file" as const },
+                  {
+                    ref: camera,
+                    label: t.takePhotoVideo,
+                    glyph: "camera" as const,
+                  },
+                  {
+                    ref: gallery,
+                    label: t.fromGallery,
+                    glyph: "image" as const,
+                  },
+                  {
+                    ref: filesInput,
+                    label: t.uploadFiles,
+                    glyph: "file" as const,
+                  },
                 ].map((o, k) => (
                   <button
                     key={o.label}
@@ -332,7 +537,11 @@ export function TechClaimForm({
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => setSheet(false)} className="w-full rounded-2xl bg-[var(--surface)] px-5 py-4 text-[16px] font-semibold text-brand shadow-xl hover:bg-neutral-50">
+              <button
+                type="button"
+                onClick={() => setSheet(false)}
+                className="w-full rounded-2xl bg-[var(--surface)] px-5 py-4 text-[16px] font-semibold text-brand shadow-xl hover:bg-neutral-50"
+              >
                 {t.cancel}
               </button>
             </div>
@@ -346,8 +555,15 @@ export function TechClaimForm({
                 <span>{icon(f.mimeType)}</span>
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
                 <span className="text-xs text-emerald-700">{t.saved}</span>
-                <span className="text-xs text-neutral-500">{fmtBytes(f.size)}</span>
-                <button type="button" disabled={busy} onClick={() => removeExisting(f)} className="text-xs font-medium text-red-600 disabled:opacity-50">
+                <span className="text-xs text-neutral-500">
+                  {fmtBytes(f.size)}
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => removeExisting(f)}
+                  className="text-xs font-medium text-red-600 disabled:opacity-50"
+                >
                   {t.remove}
                 </button>
               </li>
@@ -357,22 +573,39 @@ export function TechClaimForm({
                 <div className="flex items-center gap-2">
                   <span>{icon(it.type)}</span>
                   <span className="min-w-0 flex-1 truncate">{it.name}</span>
-                  <span className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}>
-                    {it.status === "ready" && <Glyph name="check" size={13} className="me-0.5" />}
+                  <span
+                    className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}
+                  >
+                    {it.status === "ready" && (
+                      <Glyph name="check" size={13} className="me-0.5" />
+                    )}
                     {statusText(it)}
                   </span>
                   {it.status === "failed" && (
-                    <button type="button" disabled={busy} onClick={() => retry(it)} className="text-xs font-semibold text-brand disabled:opacity-50">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => retry(it)}
+                      className="text-xs font-semibold text-brand disabled:opacity-50"
+                    >
                       {t.retry}
                     </button>
                   )}
-                  <button type="button" disabled={busy} onClick={() => remove(it)} className="text-xs font-medium text-red-600 disabled:opacity-50">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => remove(it)}
+                    className="text-xs font-medium text-red-600 disabled:opacity-50"
+                  >
                     {t.remove}
                   </button>
                 </div>
                 {(it.status === "stamping" || it.status === "sending") && (
                   <div className="h-1 overflow-hidden rounded-full bg-neutral-100">
-                    <div className={`h-full rounded-full transition-all ${it.status === "sending" ? "bg-brand" : "bg-neutral-400"}`} style={{ width: `${Math.max(it.pct, 4)}%` }} />
+                    <div
+                      className={`h-full rounded-full transition-all ${it.status === "sending" ? "bg-brand" : "bg-neutral-400"}`}
+                      style={{ width: `${Math.max(it.pct, 4)}%` }}
+                    />
                   </div>
                 )}
                 {it.error && <p className="text-xs text-red-700">{it.error}</p>}
@@ -389,27 +622,60 @@ export function TechClaimForm({
             <span className="font-semibold tabular-nums">{overall}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white">
-            <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${overall}%` }} />
+            <div
+              className="h-full rounded-full bg-brand transition-all"
+              style={{ width: `${overall}%` }}
+            />
           </div>
           <p className="text-xs text-neutral-500">{t.keepOpen}</p>
         </div>
       )}
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-[1fr_2fr] gap-2">
+      {evidenceOnly ? (
         <button
           type="button"
-          disabled={busy}
-          onClick={() => void submit(false)}
-          className="rounded-xl bg-neutral-900/[0.06] px-4 py-3 text-base font-semibold text-neutral-900 hover:bg-neutral-900/[0.1] disabled:opacity-50"
+          disabled={busy || !items.length}
+          onClick={() => void submit(true)}
+          className="w-full rounded-xl bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
         >
-          {busy && mode === "save" ? t.saving : t.save}
+          {busy
+            ? pending.length
+              ? t.finishingUploads
+              : t.sendingClaim
+            : t.sendEvidence}
         </button>
-        <button type="button" disabled={busy} onClick={() => void submit(true)} className="rounded-xl bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
-          {busy && mode === "send" ? (pending.length ? t.finishingUploads : t.sendingClaim) : t.submitToAdmin}
-        </button>
-      </div>
-      <p className="text-center text-xs text-neutral-500">{t.saveHint}</p>
+      ) : (
+        <div className="grid grid-cols-[1fr_2fr] gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void submit(false)}
+            className="rounded-xl bg-neutral-900/[0.06] px-4 py-3 text-base font-semibold text-neutral-900 hover:bg-neutral-900/[0.1] disabled:opacity-50"
+          >
+            {busy && mode === "save" ? t.saving : t.save}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void submit(true)}
+            className="rounded-xl bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+          >
+            {busy && mode === "send"
+              ? pending.length
+                ? t.finishingUploads
+                : t.sendingClaim
+              : t.submitToAdmin}
+          </button>
+        </div>
+      )}
+      {!evidenceOnly && (
+        <p className="text-center text-xs text-neutral-500">{t.saveHint}</p>
+      )}
     </div>
   );
 }

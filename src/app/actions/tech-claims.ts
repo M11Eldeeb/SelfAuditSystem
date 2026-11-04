@@ -412,3 +412,52 @@ export async function reassignTechClaim(claimId: string, technicianId: string, c
   revalidateAll();
   return {};
 }
+
+/** Technician: his claims with this work order number (for "Add evidence"). The branch code is added in front. */
+export async function findMyClaimsByWorkOrder(digits: string): Promise<{ claims?: { id: string; claimNo: string; workOrder: string; status: string; submittedAt: string | null }[]; error?: string }> {
+  const tech = await requireRole("technician");
+  const n = digits.replace(/\D/g, "");
+  if (!n) return { error: "Enter the work order number." };
+  const admin = createAdminClient();
+  const { data: branch } = await admin.from("self_audit_branches").select("code").eq("id", tech.branch_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle();
+  const wo = branch?.code ? `${branch.code}-${n}` : n;
+  const { data } = await admin
+    .from("self_audit_tech_claims")
+    .select("id, claim_no, work_order, status, submitted_at")
+    .eq("technician_id", tech.id)
+    .in("work_order", [...new Set([wo, n])])
+    .neq("status", "uploading")
+    .order("created_at", { ascending: false });
+  return { claims: (data ?? []).map((c) => ({ id: c.id, claimNo: c.claim_no, workOrder: c.work_order, status: c.status, submittedAt: c.submitted_at })) };
+}
+
+/**
+ * Technician: more evidence for a claim he already sent (any status but a draft). The staged files move into the
+ * claim's work order folder and the history says "Files added" - the claim's status stays as it is.
+ */
+export async function addTechClaimEvidence(claimId: string, stagedIds: string[]): Promise<{ claimId?: string; error?: string }> {
+  const admin = createAdminClient();
+  try {
+    const ctx = await technicianContext();
+    const { data: claim } = await admin.from("self_audit_tech_claims").select("id, technician_id, status, drive_folder_id").eq("id", claimId).maybeSingle();
+    if (!claim || claim.technician_id !== ctx.tech.id) return { error: "Claim not found." };
+    if (claim.status === "uploading") return { error: "This claim was not sent yet - open it from My claims." };
+    if (!claim.drive_folder_id) return { error: "The claim's Drive folder is missing." };
+    const { count } = await admin.from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claimId);
+    const ids = [...new Set(stagedIds)].slice(0, Math.max(0, MAX_FILES - (count ?? 0)));
+    if (!ids.length) return { error: count && count >= MAX_FILES ? `Up to ${MAX_FILES} files per claim.` : "Add at least one photo, video or PDF." };
+    const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
+    const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
+    if (!staged.length) return { error: "No file reached Google Drive - please add the files again." };
+    await Promise.all(staged.map((f) => moveDriveFile(f.id, ctx.staging, claim.drive_folder_id!)));
+    const { error } = await admin
+      .from("self_audit_tech_claim_files")
+      .insert(staged.map((f) => ({ claim_id: claimId, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
+    if (error) return { error: error.message };
+    await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: "files_added", body: `Additional evidence: ${staged.map((f) => f.name).join(", ")}`.slice(0, 2000), author_id: ctx.tech.id, author_name: ctx.name });
+    revalidateAll();
+    return { claimId };
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
+  }
+}

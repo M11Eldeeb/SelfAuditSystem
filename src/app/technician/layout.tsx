@@ -12,7 +12,7 @@ export default async function TechnicianLayout({ children }: { children: ReactNo
   const t = techT(lang);
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[{ href: "/technician", label: t.myClaims }, { href: "/technician/new", label: t.newClaim }]} />
+      <NavBar user={user} links={[{ href: "/technician", label: t.myClaims }, { href: "/technician/new", label: t.newClaim }, { href: "/technician/add-evidence", label: t.addEvidence }]} />
       <main dir={lang === "ar" ? "rtl" : "ltr"} lang={lang} className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 py-6">
         <div className="flex justify-end">
           <LangSwitch lang={lang} />
