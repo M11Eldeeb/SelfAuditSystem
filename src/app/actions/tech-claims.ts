@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, ensureTechnicianFolder, knownStagingFolder, moveDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, ensureTechnicianFolder, knownStagingFolder, moveDriveFile, renameDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
 import type { Database } from "@/lib/supabase/types";
 
 const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims", "/reviewer/technician-claims"];
@@ -56,6 +56,38 @@ async function openSessions(folderId: string, files: FileMeta[]): Promise<string
   const origin = (await headers()).get("origin");
   if (!origin) throw new DocsError("Please reload the page and try again.");
   return Promise.all(files.map((f) => startDocsUpload({ parentId: folderId, name: safeName(f.name), mimeType: f.type, size: f.size, origin })));
+}
+
+const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "video/mp4": "mp4", "video/quicktime": "mov", "application/pdf": "pdf" };
+
+/** A technician's evidence file is named after the work order plus a counter, e.g. HER-12345_001.jpg (the extension is kept). */
+function evidenceName(workOrder: string, n: number, originalName: string, mimeType: string): string {
+  const ext = originalName.match(/\.([A-Za-z0-9]{1,8})$/)?.[1]?.toLowerCase() ?? MIME_EXT[mimeType] ?? "";
+  return `${workOrder}_${String(n).padStart(3, "0")}${ext ? `.${ext}` : ""}`;
+}
+
+/** The highest counter already used by this claim's files (0 when none), so new files carry on after it. */
+async function lastFileCounter(claimId: string, workOrder: string): Promise<number> {
+  const { data } = await createAdminClient().from("self_audit_tech_claim_files").select("file_name").eq("claim_id", claimId);
+  const prefix = `${workOrder}_`;
+  let max = 0;
+  for (const f of data ?? []) {
+    const m = f.file_name.startsWith(prefix) ? f.file_name.slice(prefix.length).match(/^(\d+)/) : null;
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
+}
+
+/** The work order changed: files named after the old one take the new one (counter and extension unchanged). */
+async function renameClaimFiles(claimId: string, oldWorkOrder: string, newWorkOrder: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("self_audit_tech_claim_files").select("id, drive_file_id, file_name").eq("claim_id", claimId);
+  const prefix = `${oldWorkOrder}_`;
+  for (const f of (data ?? []).filter((x) => x.file_name.startsWith(prefix))) {
+    const name = `${newWorkOrder}_${f.file_name.slice(prefix.length)}`;
+    await renameDriveFile(f.drive_file_id, name);
+    await admin.from("self_audit_tech_claim_files").update({ file_name: name }).eq("id", f.id);
+  }
 }
 
 const techLabel = (name: string, employeeNo: string | null) => (employeeNo ? `${name} - ${employeeNo}` : name);
@@ -157,14 +189,20 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
     const folder = claim.drive_folder_id;
     if (!folder) return { error: "The claim's Drive folder is missing." };
 
-    // Move the staged files in (only files that really are in this technician's staging folder).
+    // A corrected work order renames the files already on the claim (HER-111_001.jpg -> HER-222_001.jpg).
+    if (claimId && clean.workOrder !== claim.work_order) await renameClaimFiles(claim.id, claim.work_order, clean.workOrder).catch(() => undefined);
+
+    // Move the staged files in (only files that really are in this technician's staging folder), each renamed after the
+    // work order plus a counter that carries on after the files the claim already has.
     const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
     const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
-    await Promise.all(staged.map((f) => moveDriveFile(f.id, ctx.staging, folder)));
-    if (staged.length) {
+    let counter = await lastFileCounter(claim.id, clean.workOrder);
+    const named = staged.map((f) => ({ ...f, newName: evidenceName(clean.workOrder, ++counter, f.name, f.mimeType) }));
+    await Promise.all(named.map((f) => moveDriveFile(f.id, ctx.staging, folder, f.newName)));
+    if (named.length) {
       const { error } = await admin
         .from("self_audit_tech_claim_files")
-        .insert(staged.map((f) => ({ claim_id: claim.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
+        .insert(named.map((f) => ({ claim_id: claim.id, drive_file_id: f.id, file_name: f.newName, mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
       if (error) return { claimId: claim.id, error: error.message };
     }
     // Save (draft): the claim and its files are kept, nothing goes to the warranty admin yet.

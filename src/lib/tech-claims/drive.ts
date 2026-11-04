@@ -101,14 +101,24 @@ export async function knownStagingFolder(branchId: string, technicianId: string)
   return data?.drive_id ?? null;
 }
 
-/** Moves a Drive file from one folder to another (instant - nothing is copied). */
-export async function moveDriveFile(id: string, from: string, to: string): Promise<void> {
+/** Moves a Drive file from one folder to another (instant - nothing is copied); `newName` renames it in the same call. */
+export async function moveDriveFile(id: string, from: string, to: string, newName?: string): Promise<void> {
   const res = await docsFetch(`${API}/files/${encodeURIComponent(id)}?addParents=${encodeURIComponent(to)}&removeParents=${encodeURIComponent(from)}&supportsAllDrives=true&fields=id`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: "{}",
+    body: JSON.stringify(newName ? { name: newName } : {}),
   });
   if (!res.ok) throw new DocsError("Google Drive did not move a file - please try again.");
+}
+
+/** Renames a file in Drive (the name is used as given - unlike renameDriveItem, which cleans a folder name). */
+export async function renameDriveFile(id: string, name: string): Promise<void> {
+  const res = await docsFetch(`${API}/files/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok && res.status !== 404) throw new DocsError("Google Drive did not rename a file - please try again.");
 }
 
 /** Staged files nobody submitted within two days (the claim was abandoned) go to the Drive trash. */
