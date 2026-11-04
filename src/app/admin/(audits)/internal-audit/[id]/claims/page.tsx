@@ -20,6 +20,18 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
   ]);
   if (!audit) notFound();
   const claimIds = (rows ?? []).map((r) => r.claim_id);
+  const [{ data: partsQuestions }, { data: answers }] = await Promise.all([
+    supabase.from("self_audit_audit_questions").select("id, text, options").eq("department", "parts").order("sort_order"),
+    (rows ?? []).length
+      ? supabase.from("self_audit_internal_audit_answers").select("internal_audit_claim_id, question_id, answer_value").in("internal_audit_claim_id", (rows ?? []).map((r) => r.id))
+      : Promise.resolve({ data: [] as { internal_audit_claim_id: string; question_id: string; answer_value: string | null }[] }),
+  ]);
+  const partsIds = new Set((partsQuestions ?? []).map((q) => q.id));
+  const answersOf = new Map<string, Record<string, string>>();
+  for (const a of answers ?? []) {
+    if (!partsIds.has(a.question_id) || a.answer_value == null) continue;
+    answersOf.set(a.internal_audit_claim_id, { ...(answersOf.get(a.internal_audit_claim_id) ?? {}), [a.question_id]: a.answer_value });
+  }
   const [{ data: claims }, { data: parts }, { data: branch }, mainParts] = await Promise.all([
     claimIds.length
       ? supabase
@@ -52,6 +64,7 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
       amount: c?.claim_amount == null ? null : Number(c.claim_amount),
       parts: (parts ?? []).filter((p) => p.claim_id === r.claim_id).map((p) => ({ partNo: p.part_no, name: p.part_name, qty: p.quantity == null ? null : Number(p.quantity) })),
       check: { method: r.check_method, serial: r.checked_serial, offlineDate: r.checked_offline_date, note: r.check_note },
+      partsAnswers: answersOf.get(r.id) ?? {},
       checkedAt: r.checked_at,
       checkedBy: r.checked_by_name,
     };
@@ -69,7 +82,7 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
           for officers only - the branch never sees it.
         </p>
       </div>
-      <AuditClaimsList auditId={auditId} rows={list} locked={audit.status === "finalized"} />
+      <AuditClaimsList auditId={auditId} rows={list} locked={audit.status === "finalized"} questions={(partsQuestions ?? []).map((q) => ({ id: q.id, text: q.text, options: Array.isArray(q.options) ? (q.options as string[]) : ["0", "25", "50", "75", "100"] }))} />
     </div>
   );
 }

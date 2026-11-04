@@ -9,6 +9,7 @@ import { SHARED_WIP_DEPARTMENT, firstClaimOfWip, orderReceptionQuestions } from 
 import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import { CopyText } from "@/components/copy-text";
+import { PartCheckEditor } from "./claims/part-check-editor";
 
 export default async function InternalAuditClaimPage({
   params,
@@ -28,7 +29,7 @@ export default async function InternalAuditClaimPage({
     supabase.from("self_audit_internal_audits").select("*").eq("id", auditId).single(),
     supabase
       .from("self_audit_internal_audit_claims")
-      .select("id, claim_id, sort_order, announced")
+      .select("id, claim_id, sort_order, announced, check_method, checked_serial, checked_offline_date, check_note, checked_at, checked_by_name")
       .eq("internal_audit_id", auditId)
       .order("sort_order"),
   ]);
@@ -263,6 +264,18 @@ export default async function InternalAuditClaimPage({
           </Link>
         </div>
       )}
+
+      {/* The pre-visit part check (Claims list) - shown here too, and editable. */}
+      <PartCheckEditor
+        key={current.id}
+        internalClaimId={current.id}
+        expectedSerial={claim?.part_serial_number ?? null}
+        expectedOffline={claim?.part_production_date ?? null}
+        initial={{ method: current.check_method, serial: current.checked_serial, offlineDate: current.checked_offline_date, note: current.check_note }}
+        checkedAt={current.checked_at}
+        checkedBy={current.checked_by_name}
+        locked={false}
+      />
 
       <InternalAuditClaimForm
         auditId={auditId}

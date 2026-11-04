@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { savePartCheck, type PartCheck } from "./actions";
+import { type PartCheck } from "./actions";
+import { PartCheckEditor, PartsQuestionsEditor, type PartsQuestion } from "./part-check-editor";
 import { downloadXlsx, type ExportColumn } from "@/components/dashboard/sections/invoicing-export";
 import { CopyText } from "@/components/copy-text";
 import { Glyph } from "@/components/ui/glyph";
@@ -25,6 +26,8 @@ export type AuditClaimRow = {
   amount: number | null;
   parts: { partNo: string | null; name: string | null; qty: number | null }[];
   check: PartCheck;
+  /** The parts questions answered so far (question id -> score). */
+  partsAnswers: Record<string, string>;
   checkedAt: string | null;
   checkedBy: string | null;
 };
@@ -32,26 +35,10 @@ export type AuditClaimRow = {
 const checkState = (r: AuditClaimRow) => (r.check.method === "serial" ? !!r.check.serial : r.check.method === "offline" ? !!r.check.offlineDate : false);
 
 /** One claim: a row; open it for the details, its parts and the pre-visit check. */
-function ClaimRow({ r, auditId, locked, onSaved }: { r: AuditClaimRow; auditId: string; locked: boolean; onSaved: (r: AuditClaimRow) => void }) {
+function ClaimRow({ r, auditId, locked, questions, onSaved }: { r: AuditClaimRow; auditId: string; locked: boolean; questions: PartsQuestion[]; onSaved: (r: AuditClaimRow) => void }) {
   const [open, setOpen] = useState(false);
-  const [check, setCheck] = useState<PartCheck>({ ...r.check, method: r.check.method ?? (r.expectedSerial ? "serial" : r.expectedOffline ? "offline" : null) });
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const dirty = JSON.stringify(check) !== JSON.stringify(r.check);
   const done = checkState(r);
-
-  async function save() {
-    setBusy(true);
-    setMsg(null);
-    const res = await savePartCheck(r.id, check);
-    setBusy(false);
-    if (res.error) return setMsg({ ok: false, text: res.error });
-    onSaved({ ...r, check, checkedAt: res.at ?? null, checkedBy: res.by ?? null });
-    setMsg({ ok: true, text: "Saved." });
-  }
-
-  const serialMatch = check.method === "serial" && check.serial && r.expectedSerial ? check.serial.trim().toUpperCase() === r.expectedSerial.trim().toUpperCase() : null;
-  const offlineMatch = check.method === "offline" && check.offlineDate && r.expectedOffline ? check.offlineDate === r.expectedOffline.slice(0, 10) : null;
+  const answered = questions.filter((q) => r.partsAnswers[q.id]).length;
 
   return (
     <>
@@ -74,15 +61,24 @@ function ClaimRow({ r, auditId, locked, onSaved }: { r: AuditClaimRow; auditId: 
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
           {done ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{r.check.method === "serial" ? "Serial checked" : "Offline date checked"}</span>
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" title={r.check.method === "serial" ? `Serial: ${r.check.serial}` : `Offline date: ${r.check.offlineDate}`}>
+              {r.check.method === "serial" ? "Serial checked" : "Offline date checked"}
+            </span>
           ) : (
             <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">Not checked</span>
           )}
         </td>
+        <td className="px-3 py-2 whitespace-nowrap">
+          {questions.length ? (
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${answered === questions.length ? "bg-emerald-50 text-emerald-700" : answered ? "bg-amber-50 text-amber-800" : "bg-neutral-100 text-neutral-500"}`}>
+              {answered} of {questions.length}
+            </span>
+          ) : null}
+        </td>
       </tr>
       {open && (
         <tr className="bg-neutral-50">
-          <td colSpan={6} className="px-4 pb-4">
+          <td colSpan={7} className="px-4 pb-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-white p-3 text-xs ring-1 ring-neutral-200">
                 {(
@@ -123,48 +119,18 @@ function ClaimRow({ r, auditId, locked, onSaved }: { r: AuditClaimRow; auditId: 
                 </div>
               </dl>
 
-              <div className="space-y-2 rounded-lg bg-white p-3 text-sm ring-1 ring-neutral-200" onClick={(e) => e.stopPropagation()}>
-                <div className="text-xs font-semibold text-neutral-900">Part check</div>
-                <div className="inline-flex rounded-lg bg-neutral-900/[0.05] p-0.5 text-xs font-medium" role="group" aria-label="Verified by">
-                  {(
-                    [
-                      ["serial", "Serial number"],
-                      ["offline", "Offline date"],
-                    ] as const
-                  ).map(([k, l]) => (
-                    <button key={k} type="button" disabled={locked} aria-pressed={check.method === k} onClick={() => setCheck((c) => ({ ...c, method: k }))} className={`rounded-md px-3 py-1 ${check.method === k ? "bg-white shadow-sm" : "text-neutral-600"}`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                {check.method === "serial" && (
-                  <label className="block space-y-1">
-                    <span className="text-xs text-neutral-500">Serial number found {r.expectedSerial ? `(claim: ${r.expectedSerial})` : ""}</span>
-                    <input value={check.serial ?? ""} disabled={locked} onChange={(e) => setCheck((c) => ({ ...c, serial: e.target.value }))} className="w-full rounded-lg border border-neutral-300 px-2.5 py-1.5 font-mono text-sm" placeholder="Part serial number" />
-                    {serialMatch != null && <span className={`text-xs font-semibold ${serialMatch ? "text-emerald-700" : "text-red-700"}`}>{serialMatch ? "Matches the claim" : "Does not match the claim"}</span>}
-                  </label>
-                )}
-                {check.method === "offline" && (
-                  <label className="block space-y-1">
-                    <span className="text-xs text-neutral-500">Offline date found {r.expectedOffline ? `(claim: ${r.expectedOffline.slice(0, 10)})` : ""}</span>
-                    <input type="date" value={check.offlineDate ?? ""} disabled={locked} onChange={(e) => setCheck((c) => ({ ...c, offlineDate: e.target.value || null }))} className="w-full rounded-lg border border-neutral-300 px-2.5 py-1.5 text-sm" />
-                    {offlineMatch != null && <span className={`text-xs font-semibold ${offlineMatch ? "text-emerald-700" : "text-red-700"}`}>{offlineMatch ? "Matches the claim" : "Does not match the claim"}</span>}
-                  </label>
-                )}
-                <textarea value={check.note ?? ""} disabled={locked} onChange={(e) => setCheck((c) => ({ ...c, note: e.target.value }))} rows={2} placeholder="Note (optional)" className="w-full rounded-lg border border-neutral-300 px-2.5 py-1.5 text-sm" />
-                <div className="flex items-center gap-3">
-                  {!locked && (
-                    <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">
-                      {busy ? "Saving…" : "Save"}
-                    </button>
-                  )}
-                  {msg && <span className={`text-xs ${msg.ok ? "text-emerald-700" : "text-red-700"}`}>{msg.text}</span>}
-                  {r.checkedAt && (
-                    <span className="text-xs text-neutral-400">
-                      {r.checkedBy} · {r.checkedAt.slice(0, 10)}
-                    </span>
-                  )}
-                </div>
+              <div className="space-y-3">
+                <PartCheckEditor
+                  internalClaimId={r.id}
+                  expectedSerial={r.expectedSerial}
+                  expectedOffline={r.expectedOffline}
+                  initial={r.check}
+                  checkedAt={r.checkedAt}
+                  checkedBy={r.checkedBy}
+                  locked={locked}
+                  onSaved={(check, at, by) => onSaved({ ...r, check, checkedAt: at, checkedBy: by })}
+                />
+                <PartsQuestionsEditor auditId={auditId} internalClaimId={r.id} questions={questions} initial={r.partsAnswers} locked={locked} onSaved={(partsAnswers) => onSaved({ ...r, partsAnswers })} />
               </div>
             </div>
           </td>
@@ -175,7 +141,7 @@ function ClaimRow({ r, auditId, locked, onSaved }: { r: AuditClaimRow; auditId: 
 }
 
 /** The two lists (announced, unannounced), each with its download. */
-export function AuditClaimsList({ auditId, rows: initial, locked }: { auditId: string; rows: AuditClaimRow[]; locked: boolean }) {
+export function AuditClaimsList({ auditId, rows: initial, locked, questions }: { auditId: string; rows: AuditClaimRow[]; locked: boolean; questions: PartsQuestion[] }) {
   const [rows, setRows] = useState(initial);
   const replace = (r: AuditClaimRow) => setRows((list) => list.map((x) => (x.id === r.id ? r : x)));
   const cols: ExportColumn<AuditClaimRow>[] = [
@@ -192,6 +158,7 @@ export function AuditClaimsList({ auditId, rows: initial, locked }: { auditId: s
     { header: "Serial found", value: (r) => r.check.serial, width: 20 },
     { header: "Offline date found", value: (r) => r.check.offlineDate },
     { header: "Note", value: (r) => r.check.note, width: 30 },
+    ...questions.map((q) => ({ header: q.text, value: (r: AuditClaimRow) => (r.partsAnswers[q.id] ? `${r.partsAnswers[q.id]}%` : "") })),
     { header: "Repair end", value: (r) => r.repairEnd },
     { header: "Mileage", value: (r) => r.mileage },
   ];
@@ -220,11 +187,12 @@ export function AuditClaimsList({ auditId, rows: initial, locked }: { auditId: s
                 <th className="px-3 py-2 font-medium">VIN</th>
                 <th className="px-3 py-2 font-medium">Main part</th>
                 <th className="px-3 py-2 font-medium">Part check</th>
+                <th className="px-3 py-2 font-medium">Parts audit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {list.map((r) => (
-                <ClaimRow key={r.id} r={r} auditId={auditId} locked={locked} onSaved={replace} />
+                <ClaimRow key={r.id} r={r} auditId={auditId} locked={locked} questions={questions} onSaved={replace} />
               ))}
             </tbody>
           </table>
