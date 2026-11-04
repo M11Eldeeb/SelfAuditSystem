@@ -21,6 +21,7 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
   // Announced claims only: the unannounced ones are asked for at the visit.
   const { data: internalClaims } = await admin.from("self_audit_internal_audit_claims").select("claim_id, sort_order").eq("internal_audit_id", auditId).eq("announced", true).order("sort_order");
   const claimIds = (internalClaims ?? []).map((c) => c.claim_id);
+  const { count: unannouncedCount } = await admin.from("self_audit_internal_audit_claims").select("claim_id", { count: "exact", head: true }).eq("internal_audit_id", auditId).eq("announced", false);
   const [{ data: claims }, people, templates, { data: branch }] = await Promise.all([
     claimIds.length ? admin.from("self_audit_claims").select("id, claim_number, work_order_no, vin, main_part_name, creation_date, repair_end_date").in("id", claimIds) : Promise.resolve({ data: [] }),
     loadPeople(),
@@ -38,12 +39,28 @@ export async function planInternalAuditNotice(auditId: string): Promise<PlannedM
   const branchName = branch?.name ?? "Branch";
   const t = templates.notice;
   const n = rows.length;
-  const mail = composeMail(t, {
-    branch: branchName,
-    claims: `${n} ${n === 1 ? "claim" : "claims"}`,
-    is: n === 1 ? "is" : "are",
-    on_date: audit.audit_date ? ` on ${dateLabel(`${audit.audit_date}T00:00:00Z`)}` : "",
-  });
+  const u = unannouncedCount ?? 0;
+
+  // The unannounced claims are only counted here, never listed. A template saved before this line existed gets it just
+  // before the sign-off; with no unannounced claims the line is dropped.
+  let body = t.body;
+  if (u > 0 && !body.includes("{unannounced}")) {
+    const parts = body.trim().split(/\n{2,}/);
+    const signOff = parts.length > 1 ? parts.pop()! : "";
+    body = [...parts, "{unannounced}", signOff].filter(Boolean).join("\n\n");
+  }
+  if (u === 0) body = body.split(/\n{2,}/).filter((p) => !p.includes("{unannounced}")).join("\n\n");
+
+  const mail = composeMail(
+    { subject: t.subject, body },
+    {
+      branch: branchName,
+      claims: `${n} ${n === 1 ? "claim" : "claims"}`,
+      is: n === 1 ? "is" : "are",
+      on_date: audit.audit_date ? ` on ${dateLabel(`${audit.audit_date}T00:00:00Z`)}` : "",
+      unannounced: u > 0 ? `We will also audit ${u} additional ${u === 1 ? "claim" : "claims"} that ${u === 1 ? "is" : "are"} not in the attached sheet. ${u === 1 ? "It" : "They"} will not be announced until the audit day.` : "",
+    }
+  );
   return {
     kind: "internal-audit-notice",
     key: `internal-audit-notice:${auditId}`,

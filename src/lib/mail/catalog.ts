@@ -223,6 +223,8 @@ ${SIGN_OFF}`,
 
 The Warranty department will conduct an internal audit{on_date}. The {claims} selected {is} in the attached Excel sheet. Please have the original job cards in order, parts and documentation ready for review.
 
+{unannounced}
+
 ${SIGN_OFF}`,
     defaultCc: ["head", "service_managers", "officers"],
     attachment: "The Excel sheet of the selected claims is attached automatically.",
@@ -231,6 +233,11 @@ ${SIGN_OFF}`,
       { name: "claims", help: "How many claims were selected, with the word.", sample: "15 claims" },
       { name: "is", help: '"is" or "are" to match the number of claims.', sample: "are" },
       { name: "on_date", help: 'Becomes " on <the audit date>" when the audit has a date, otherwise nothing.', sample: " on 18 October 2026" },
+      {
+        name: "unannounced",
+        help: "A sentence telling the branch how many more claims will be audited that are not in the Excel sheet (they are only announced on the audit day). Empty when the audit has no unannounced claims - then its line is left out. Keep it on its own line.",
+        sample: "We will also audit 5 additional claims that are not in the attached sheet. They will not be announced until the audit day.",
+      },
     ],
   },
   results: {
