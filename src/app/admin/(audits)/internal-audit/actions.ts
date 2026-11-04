@@ -47,14 +47,10 @@ function readCriteria(formData: FormData): SampleCriteria {
   return { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart, unannouncedSize };
 }
 
-const LITE_COLUMNS =
-  "id, branch_id, claim_number, work_order_no, claim_amount, prior_approval, return_times, return_times_dealer, labor_code, creation_date, repair_end_date, dealer_submit_date";
-
 /**
- * The claims the sample is drawn from. Only the few columns the sampling needs are read, page by page (a big branch
- * has 15,000+ claims with parts - the API returns at most 1,000 rows at a time, and the full rows with raw_row are
- * too heavy); the status comes from the narrow claim settlement table (same value as raw_row "Status"). The full rows
- * are read afterwards for the claims picked only.
+ * The claims the sample is drawn from: read page by page (a big branch has 15,000+ claims with parts - the API returns
+ * at most 1,000 rows at a time) from the narrow claim settlement table, which carries every field the sampling and its
+ * risk flag use (status = raw_row "Status"). The full rows are read afterwards for the claims picked only.
  */
 async function sampleEligibleClaims(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -65,24 +61,38 @@ async function sampleEligibleClaims(
     Database["public"]["Tables"]["self_audit_claims"]["Row"],
     "id" | "branch_id" | "claim_number" | "work_order_no" | "claim_amount" | "prior_approval" | "return_times" | "return_times_dealer" | "labor_code" | "creation_date" | "repair_end_date" | "dealer_submit_date"
   >;
+  // Everything from the narrow claim settlement table (kept by trigger from the claims) - never the 200 MB claims table.
   const candidateClaims: Lite[] = [];
+  const statusOf = new Map<string, string | null>();
   for (let from = 0; ; from += 1000) {
-    let q = admin.from("self_audit_claims").select(LITE_COLUMNS).eq("has_parts", true).order("id").range(from, from + 999);
+    let q = admin
+      .from("self_audit_claim_settlement")
+      .select("claim_id, branch_id, claim_number, work_order_no, claim_amount, prior_approval, return_times, return_times_dealer, labor_code, creation_date, repair_end, dealer_submit_date, status")
+      .eq("has_parts", true)
+      .order("claim_id")
+      .range(from, from + 999);
     if (branchId) q = q.eq("branch_id", branchId);
     if (dateFrom) q = q.gte("dealer_submit_date", dateFrom);
     if (dateTo) q = q.lte("dealer_submit_date", dateTo);
     const { data, error } = await q;
     if (error) throw new Error(`Could not read the claims: ${error.message}`);
-    candidateClaims.push(...((data ?? []) as Lite[]));
-    if ((data ?? []).length < 1000) break;
-  }
-  const statusOf = new Map<string, string | null>();
-  for (let from = 0; ; from += 1000) {
-    let q = admin.from("self_audit_claim_settlement").select("claim_id, status").eq("has_parts", true).order("claim_id").range(from, from + 999);
-    if (branchId) q = q.eq("branch_id", branchId);
-    const { data, error } = await q;
-    if (error) throw new Error(`Could not read the claim statuses: ${error.message}`);
-    for (const r of data ?? []) statusOf.set(r.claim_id, r.status);
+    for (const r of data ?? []) {
+      statusOf.set(r.claim_id, r.status);
+      candidateClaims.push({
+        id: r.claim_id,
+        branch_id: r.branch_id!,
+        claim_number: r.claim_number ?? "",
+        work_order_no: r.work_order_no,
+        claim_amount: r.claim_amount,
+        prior_approval: r.prior_approval,
+        return_times: r.return_times,
+        return_times_dealer: r.return_times_dealer,
+        labor_code: r.labor_code,
+        creation_date: r.creation_date!,
+        repair_end_date: r.repair_end,
+        dealer_submit_date: r.dealer_submit_date,
+      } as Lite);
+    }
     if ((data ?? []).length < 1000) break;
   }
   const [auditedClaimIds, warrantyRoomExcludedIds] = await Promise.all([
