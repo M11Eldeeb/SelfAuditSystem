@@ -1457,6 +1457,12 @@ export interface Database {
           claim_id: string;
           sort_order: number;
           announced: boolean;
+          check_method: "serial" | "offline" | null;
+          checked_serial: string | null;
+          checked_offline_date: string | null;
+          check_note: string | null;
+          checked_at: string | null;
+          checked_by_name: string | null;
         };
         Insert: {
           id?: string;
@@ -1464,6 +1470,12 @@ export interface Database {
           claim_id: string;
           sort_order?: number;
           announced?: boolean;
+          check_method?: "serial" | "offline" | null;
+          checked_serial?: string | null;
+          checked_offline_date?: string | null;
+          check_note?: string | null;
+          checked_at?: string | null;
+          checked_by_name?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_internal_audit_claims"]["Insert"]>;
         Relationships: [];

@@ -85,6 +85,9 @@ export default async function InternalAuditPage({ searchParams }: { searchParams
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-3">
+                      <Link href={`/admin/internal-audit/${a.id}/claims`} className="text-sm text-brand hover:underline">
+                        Claims list
+                      </Link>
                       {a.status === "finalized" ? (
                         <Link href={`/admin/internal-audit/${a.id}/report`} className="text-sm text-brand hover:underline">
                           View report

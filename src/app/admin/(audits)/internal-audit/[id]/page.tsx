@@ -150,7 +150,10 @@ export default async function InternalAuditClaimPage({
           )}
         </h1>
         <p className="text-sm text-neutral-500">
-          Claim {currentIndex + 1} of {internalClaims.length}
+          Claim {currentIndex + 1} of {internalClaims.length} ·{" "}
+          <Link href={`/admin/internal-audit/${auditId}/claims`} className="text-brand hover:underline">
+            Claims list &amp; parts check
+          </Link>
         </p>
       </div>
 
