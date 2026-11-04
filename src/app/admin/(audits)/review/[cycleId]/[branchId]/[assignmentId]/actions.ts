@@ -38,6 +38,7 @@ export async function saveReview(
         assignment_id: assignmentId,
         question_id: q.id,
         officer_value: String(officerValue),
+        officer_comment: String(formData.get(`comment_${q.id}`) ?? "").trim().slice(0, 2000) || null,
         officer_decision: decision,
         reviewed_by: officer.id,
         reviewed_at: new Date().toISOString(),
@@ -55,7 +56,12 @@ export async function saveReview(
 
   await supabase
     .from("self_audit_audit_assignments")
-    .update({ status: "reviewed", reviewed_by: officer.id, reviewed_at: new Date().toISOString() })
+    .update({
+      status: "reviewed",
+      reviewed_by: officer.id,
+      reviewed_at: new Date().toISOString(),
+      officer_comment: String(formData.get("overall_comment") ?? "").trim().slice(0, 4000) || null,
+    })
     .eq("id", assignmentId);
 
   // Photos are kept after the review (Supabase Pro has room) - they used to be deleted here to save space.

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AuditForm } from "./audit-form";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
 import { buildPhotoStatusMap } from "@/lib/photo-status";
@@ -46,6 +47,13 @@ export default async function AuditAssignmentPage({
   const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
 
   const locked = assignment.status !== "not_started" && assignment.status !== "in_progress";
+  // The officer's comments (per question and on the claim), once reviewed.
+  const { data: officerReviews } =
+    assignment.status === "reviewed"
+      ? await createAdminClient().from("self_audit_ai_reviews").select("question_id, officer_comment").eq("assignment_id", assignmentId).not("officer_comment", "is", null)
+      : { data: [] as { question_id: string; officer_comment: string | null }[] };
+  const questionText = new Map((questions ?? []).map((q) => [q.id, q.text]));
+  const officerComments = (officerReviews ?? []).filter((r) => r.officer_comment).map((r) => ({ q: questionText.get(r.question_id) ?? r.question_id, text: r.officer_comment! }));
 
   return (
     <div className="space-y-6">
@@ -64,7 +72,23 @@ export default async function AuditAssignmentPage({
         <p className="text-sm text-neutral-500">{ASSIGNMENT_STATUS_LABELS[assignment.status]}</p>
       </div>
 
-      {assignment.status === "expired" && (
+      {(assignment.officer_comment || officerComments.length > 0) && (
+        <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+          <p className="font-semibold">Warranty officer&apos;s comments</p>
+          {assignment.officer_comment && <p className="whitespace-pre-wrap">{assignment.officer_comment}</p>}
+          {officerComments.length > 0 && (
+            <ul className="space-y-1">
+              {officerComments.map((c, i) => (
+                <li key={i}>
+                  <span className="font-medium">{c.q}:</span> <span className="whitespace-pre-wrap">{c.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+            {assignment.status === "expired" && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           <p className="font-medium">{AUDIT_CYCLE_DEADLINE_DAYS} day countdown ended</p>
           <p className="mt-1">

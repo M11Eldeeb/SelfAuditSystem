@@ -223,9 +223,11 @@ export interface Database {
           reviewed_at: string | null;
           reviewed_by: string | null;
           created_at: string;
+          officer_comment: string | null;
         };
         Insert: {
           id?: string;
+          officer_comment?: string | null;
           cycle_id: string;
           branch_id: string;
           claim_id: string;
@@ -295,12 +297,14 @@ export interface Database {
           ai_confidence: string | null;
           officer_decision: OfficerDecision | null;
           officer_value: string | null;
+          officer_comment: string | null;
           reviewed_by: string | null;
           reviewed_at: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
+          officer_comment?: string | null;
           assignment_id: string;
           question_id: string;
           ai_suggested_value?: string | null;

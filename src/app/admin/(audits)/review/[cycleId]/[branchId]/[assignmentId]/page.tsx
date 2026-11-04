@@ -97,6 +97,7 @@ export default async function ClaimReviewPage({
         ai_reasoning: r.ai_reasoning,
         ai_confidence: r.ai_confidence,
         officer_value: r.officer_value,
+        officer_comment: r.officer_comment,
       },
     ]),
   );
@@ -206,6 +207,7 @@ export default async function ClaimReviewPage({
           questions={questions ?? []}
           answers={answersMap}
           reviews={reviewsMap}
+          overallComment={assignment.officer_comment}
           locked={locked}
         />
       </div>
