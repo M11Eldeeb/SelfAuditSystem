@@ -19,6 +19,8 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
     supabase.from("self_audit_internal_audit_claims").select("*").eq("internal_audit_id", auditId).order("sort_order"),
   ]);
   if (!audit) notFound();
+  // Same order as the audit: announced claims first, then the unannounced ones.
+  (rows ?? []).sort((a, b) => Number(b.announced) - Number(a.announced) || a.sort_order - b.sort_order);
   const claimIds = (rows ?? []).map((r) => r.claim_id);
   const [{ data: partsQuestions }, { data: answers }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("id, text, options").eq("department", "parts").order("sort_order"),

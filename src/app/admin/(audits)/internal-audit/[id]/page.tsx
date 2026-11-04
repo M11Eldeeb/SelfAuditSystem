@@ -10,7 +10,6 @@ import {
   firstClaimOfWip,
   orderReceptionQuestions,
 } from "@/lib/internal-audit-wip";
-import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import { CopyText } from "@/components/copy-text";
 import { PartCheckEditor } from "./claims/part-check-editor";
@@ -53,6 +52,8 @@ export default async function InternalAuditClaimPage({
   if (audit.auditor_id !== officer.id) notFound();
 
   if (!internalClaims || internalClaims.length === 0) notFound();
+  // Step 1: the announced claims; step 2: the unannounced ones (asked for at the visit).
+  internalClaims.sort((a, b) => Number(b.announced) - Number(a.announced) || a.sort_order - b.sort_order);
 
   const { claim: claimParam, mode: modeParam } = await searchParams;
   const mode: "documents" | "parts" =
@@ -179,8 +180,18 @@ export default async function InternalAuditClaimPage({
       partsQuestionIds.every((id) => answered.has(id));
     return { documentsDone, partsDone, fullyDone: documentsDone && partsDone };
   });
-  const documentsDoneCount = completeness.filter((c) => c.documentsDone).length;
-  const partsDoneCount = completeness.filter((c) => c.partsDone).length;
+  const steps = [true, false].map((announced) => {
+    const idx = internalClaims.map((ic, i) => (ic.announced === announced ? i : -1)).filter((i) => i >= 0);
+    return {
+      announced,
+      first: idx[0] ?? -1,
+      total: idx.length,
+      docsDone: idx.filter((i) => completeness[i].documentsDone).length,
+      partsDone: idx.filter((i) => completeness[i].partsDone).length,
+      position: idx.indexOf(currentIndex) + 1,
+    };
+  });
+  const step = steps[current.announced ? 0 : 1];
   const allDone = completeness.every((c) => c.fullyDone);
   const firstUnfinishedInMode = completeness.findIndex(
     (c) => !(mode === "parts" ? c.partsDone : c.documentsDone),
@@ -226,14 +237,23 @@ export default async function InternalAuditClaimPage({
           )}
         </h1>
         <p className="text-sm text-neutral-500">
-          Claim {currentIndex + 1} of {internalClaims.length} ·{" "}
-          <Link
-            href={`/admin/internal-audit/${auditId}/claims`}
-            className="text-brand hover:underline"
-          >
-            Claims list &amp; parts check
-          </Link>
+          {current.announced ? "Step 1 · Announced" : "Step 2 · Unannounced"} claim {step.position} of {step.total}
         </p>
+        {steps[1].total > 0 && (
+          <div className="mt-2 inline-flex flex-wrap gap-1 rounded-lg border border-neutral-300 bg-white p-0.5 text-sm shadow-sm">
+            {steps.map((st) =>
+              st.total ? (
+                <Link
+                  key={String(st.announced)}
+                  href={`/admin/internal-audit/${auditId}?claim=${st.first}&mode=${mode}`}
+                  className={`rounded px-3 py-1 font-medium ${st.announced === current.announced ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+                >
+                  {st.announced ? "Step 1 · Announced" : "Step 2 · Unannounced"} ({mode === "parts" ? st.partsDone : st.docsDone}/{st.total})
+                </Link>
+              ) : null
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
@@ -241,26 +261,26 @@ export default async function InternalAuditClaimPage({
           <div className="flex flex-wrap gap-6">
             <div className="space-y-1">
               <p className="text-sm font-medium text-neutral-900">
-                Documents: {documentsDoneCount} of {internalClaims.length}
+                Documents: {step.docsDone} of {step.total}{steps[1].total > 0 ? (current.announced ? " announced" : " unannounced") : ""}
               </p>
               <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-100">
                 <div
                   className="h-full rounded-full bg-brand"
                   style={{
-                    width: `${internalClaims.length > 0 ? (documentsDoneCount / internalClaims.length) * 100 : 0}%`,
+                    width: `${step.total > 0 ? (step.docsDone / step.total) * 100 : 0}%`,
                   }}
                 />
               </div>
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-neutral-900">
-                Parts: {partsDoneCount} of {internalClaims.length}
+                Parts: {step.partsDone} of {step.total}{steps[1].total > 0 ? (current.announced ? " announced" : " unannounced") : ""}
               </p>
               <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-100">
                 <div
                   className="h-full rounded-full bg-brand"
                   style={{
-                    width: `${internalClaims.length > 0 ? (partsDoneCount / internalClaims.length) * 100 : 0}%`,
+                    width: `${step.total > 0 ? (step.partsDone / step.total) * 100 : 0}%`,
                   }}
                 />
               </div>
@@ -387,7 +407,6 @@ export default async function InternalAuditClaimPage({
         locked={false}
       />
 
-      <InternalAuditFilesSection auditId={auditId} />
     </div>
   );
 }

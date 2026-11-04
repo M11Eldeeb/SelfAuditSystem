@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { InternalAuditFinalizeForm } from "./internal-audit-finalize-form";
+import { InternalAuditFilesSection } from "@/components/internal-audit-files/files-section";
 import { computeInternalAuditScores, defaultClosingStatement } from "@/lib/internal-audit-scoring";
 import { DEPARTMENT_LABELS } from "@/lib/departments";
 import type { DepartmentId } from "@/lib/supabase/types";
@@ -79,6 +80,9 @@ export default async function InternalAuditFinalizePage({
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Finalize internal audit</h1>
         <p className="text-sm text-neutral-500">Current score: {overallScore}%. Finalizing locks all answers.</p>
       </div>
+
+      {/* The audit's files on Google Drive - added once, at the end (not on every claim). */}
+      <InternalAuditFilesSection auditId={auditId} />
 
       <InternalAuditFinalizeForm
         auditId={auditId}
