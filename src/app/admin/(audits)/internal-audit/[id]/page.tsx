@@ -221,8 +221,8 @@ export default async function InternalAuditClaimPage({
             Documents
           </Link>
           <Link
-            href={`/admin/internal-audit/${auditId}?claim=${currentIndex}&mode=parts`}
-            className={`rounded px-3 py-1 font-medium ${mode === "parts" ? "bg-brand text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+            href={`/admin/internal-audit/${auditId}/claims`}
+            className="rounded px-3 py-1 font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Parts
           </Link>

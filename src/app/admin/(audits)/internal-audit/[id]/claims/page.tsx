@@ -76,7 +76,13 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
         <Link href={`/admin/internal-audit/${auditId}`} className="text-sm text-neutral-500 hover:text-neutral-800">
           &larr; Back to the audit
         </Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Claims list - {branch?.name ?? "Branch"}</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Parts - {branch?.name ?? "Branch"}</h1>
+        <div className="mt-2 inline-flex rounded-lg border border-neutral-300 bg-white p-0.5 text-sm shadow-sm">
+          <Link href={`/admin/internal-audit/${auditId}?claim=0&mode=documents`} className="rounded px-3 py-1 font-medium text-neutral-700 hover:bg-neutral-50">
+            Documents
+          </Link>
+          <span className="rounded bg-brand px-3 py-1 font-medium text-white">Parts</span>
+        </div>
         <p className="text-sm text-neutral-600">
           Check the parts before the visit: for each claim choose how the part is verified (serial number or offline date) and enter what you find. The unannounced list is
           for officers only - the branch never sees it.
