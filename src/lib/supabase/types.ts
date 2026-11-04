@@ -756,6 +756,7 @@ export interface Database {
           claim_id: string; payment_order: string | null; settlement_order: string | null; settle_vat: number | null; first_submit: string | null; settlement_date: string | null;
           status: string | null; claim_amount: number | null; branch_id: string | null; repair_end: string | null; adjusted: number | null; labor_before: number | null;
           part_before: number | null; sublet_before: number | null;
+          has_parts: boolean | null; verification_date: string | null; labor_code: string | null; work_order_no: string | null; main_part_name: string | null;
         };
         Insert: { claim_id: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_claim_settlement"]["Row"]>;

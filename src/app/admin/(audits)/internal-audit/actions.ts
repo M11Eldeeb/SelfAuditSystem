@@ -9,6 +9,7 @@ import { planInternalAuditNotice } from "@/lib/mail/internal-audit";
 import { redirect } from "next/navigation";
 import { requireRole, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuditedClaimIds } from "@/lib/audited-claims";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import { getWarrantyRoomExcludedClaimIds } from "@/lib/warranty-room/excluded-claims";
@@ -46,28 +47,53 @@ function readCriteria(formData: FormData): SampleCriteria {
   return { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart, unannouncedSize };
 }
 
+const LITE_COLUMNS =
+  "id, branch_id, claim_number, work_order_no, claim_amount, prior_approval, return_times, return_times_dealer, labor_code, creation_date, repair_end_date, dealer_submit_date";
+
+/**
+ * The claims the sample is drawn from. Only the few columns the sampling needs are read, page by page (a big branch
+ * has 15,000+ claims with parts - the API returns at most 1,000 rows at a time, and the full rows with raw_row are
+ * too heavy); the status comes from the narrow claim settlement table (same value as raw_row "Status"). The full rows
+ * are read afterwards for the claims picked only.
+ */
 async function sampleEligibleClaims(
   supabase: Awaited<ReturnType<typeof createClient>>,
   { branchId, dateFrom, dateTo, sampleSize, sampleMode, maxPerPart, unannouncedSize }: SampleCriteria
 ) {
-  let query = supabase.from("self_audit_claims").select("*").eq("has_parts", true);
-  if (branchId) query = query.eq("branch_id", branchId);
-  if (dateFrom) query = query.gte("dealer_submit_date", dateFrom);
-  if (dateTo) query = query.lte("dealer_submit_date", dateTo);
-
-  const { data: candidateClaims } = await query;
+  const admin = createAdminClient();
+  type Lite = Pick<
+    Database["public"]["Tables"]["self_audit_claims"]["Row"],
+    "id" | "branch_id" | "claim_number" | "work_order_no" | "claim_amount" | "prior_approval" | "return_times" | "return_times_dealer" | "labor_code" | "creation_date" | "repair_end_date" | "dealer_submit_date"
+  >;
+  const candidateClaims: Lite[] = [];
+  for (let from = 0; ; from += 1000) {
+    let q = admin.from("self_audit_claims").select(LITE_COLUMNS).eq("has_parts", true).order("id").range(from, from + 999);
+    if (branchId) q = q.eq("branch_id", branchId);
+    if (dateFrom) q = q.gte("dealer_submit_date", dateFrom);
+    if (dateTo) q = q.lte("dealer_submit_date", dateTo);
+    const { data, error } = await q;
+    if (error) throw new Error(`Could not read the claims: ${error.message}`);
+    candidateClaims.push(...((data ?? []) as Lite[]));
+    if ((data ?? []).length < 1000) break;
+  }
+  const statusOf = new Map<string, string | null>();
+  for (let from = 0; ; from += 1000) {
+    let q = admin.from("self_audit_claim_settlement").select("claim_id, status").eq("has_parts", true).order("claim_id").range(from, from + 999);
+    if (branchId) q = q.eq("branch_id", branchId);
+    const { data, error } = await q;
+    if (error) throw new Error(`Could not read the claim statuses: ${error.message}`);
+    for (const r of data ?? []) statusOf.set(r.claim_id, r.status);
+    if ((data ?? []).length < 1000) break;
+  }
   const [auditedClaimIds, warrantyRoomExcludedIds] = await Promise.all([
     getAuditedClaimIds(supabase),
     getWarrantyRoomExcludedClaimIds(supabase),
   ]);
-  const eligible = (candidateClaims ?? []).filter(
-    (c) =>
-      !auditedClaimIds.has(c.id) &&
-      !warrantyRoomExcludedIds.has(c.id) &&
-      !isExcludedClaimStatus(String((c.raw_row as Record<string, unknown> | null)?.Status ?? ""))
+  const eligible = candidateClaims.filter(
+    (c) => !auditedClaimIds.has(c.id) && !warrantyRoomExcludedIds.has(c.id) && !isExcludedClaimStatus(String(statusOf.get(c.id) ?? ""))
   );
 
-  let ordered: ((typeof eligible)[number] & { _flag?: number })[];
+  let ordered: (Lite & { _flag?: number })[];
   if (sampleMode === "flagged") {
     const workOrderCounts = buildWorkOrderCounts(eligible);
     ordered = shuffle(eligible) // randomize tie-breaks between equal-flag claims first
@@ -77,11 +103,21 @@ async function sampleEligibleClaims(
     ordered = shuffle(eligible);
   }
 
-  const announced = selectWithPartCap(ordered, sampleSize, maxPerPart);
+  const announcedLite = selectWithPartCap(ordered, sampleSize, maxPerPart);
   // Unannounced claims: always random, from the eligible claims not already in the announced sample.
-  const picked = new Set(announced.map((c) => c.id));
-  const unannounced: typeof announced = unannouncedSize ? shuffle(eligible.filter((c) => !picked.has(c.id))).slice(0, unannouncedSize) : [];
-  return { announced, unannounced };
+  const picked = new Set(announcedLite.map((c) => c.id));
+  const unannouncedLite = unannouncedSize ? shuffle(eligible.filter((c) => !picked.has(c.id))).slice(0, unannouncedSize) : [];
+
+  // The full rows (every claim field, for the preview and its Excel sheet) of the picked claims only.
+  const ids = [...announcedLite, ...unannouncedLite].map((c) => c.id);
+  const full = new Map<string, Database["public"]["Tables"]["self_audit_claims"]["Row"]>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("self_audit_claims").select("*").in("id", ids.slice(i, i + 200));
+    if (error) throw new Error(`Could not read the picked claims: ${error.message}`);
+    for (const r of data ?? []) full.set(r.id, r);
+  }
+  const withFull = (list: (Lite & { _flag?: number })[]) => list.flatMap((c) => (full.has(c.id) ? [{ ...full.get(c.id)!, _flag: c._flag }] : []));
+  return { announced: withFull(announcedLite), unannounced: withFull(unannouncedLite) };
 }
 
 export type InternalAuditPreviewClaim = Database["public"]["Tables"]["self_audit_claims"]["Row"] & {
@@ -126,7 +162,13 @@ export async function previewInternalAuditSample(
     return { error: "Enter a sample size of at least 1." };
   }
 
-  const { announced, unannounced } = await sampleEligibleClaims(supabase, criteria);
+  let sampled: Awaited<ReturnType<typeof sampleEligibleClaims>>;
+  try {
+    sampled = await sampleEligibleClaims(supabase, criteria);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not read the claims - please try again." };
+  }
+  const { announced, unannounced } = sampled;
   const hidden = new Set(unannounced.map((c) => c.id));
   const sample = [...announced, ...unannounced];
   if (announced.length === 0) {
