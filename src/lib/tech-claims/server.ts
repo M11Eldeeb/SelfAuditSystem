@@ -20,6 +20,8 @@ export type TechClaimSummary = {
   files: number;
   timesSubmitted: number;
   createdAt: string;
+  /** Labelled "Prior approval" by the warranty admin. */
+  priorApproval: boolean;
 };
 
 export type TechClaimFile = { id: string; driveId: string; name: string; mimeType: string; size: number; createdAt: string };
@@ -50,7 +52,7 @@ export async function listTechClaims(user: CurrentUser, opts: { status?: string;
   let q = scope(
     admin
       .from("self_audit_tech_claims")
-      .select("id, claim_no, branch_id, technician_name, vin, work_order, end_of_repair, status, submitted_at, reviewed_at, reviewed_by_name, times_submitted, created_at"),
+      .select("id, claim_no, branch_id, technician_name, vin, work_order, end_of_repair, status, submitted_at, reviewed_at, reviewed_by_name, times_submitted, created_at, prior_approval"),
     user
   );
   if (opts.status && opts.status !== "all") q = q.eq("status", opts.status as TechClaimStatus);
@@ -85,6 +87,7 @@ export async function listTechClaims(user: CurrentUser, opts: { status?: string;
     files: fileCount.get(r.id) ?? 0,
     timesSubmitted: r.times_submitted,
     createdAt: r.created_at,
+    priorApproval: r.prior_approval,
   }));
 }
 
@@ -137,6 +140,7 @@ export async function getTechClaim(user: CurrentUser, id: string): Promise<TechC
     files: files?.length ?? 0,
     timesSubmitted: c.times_submitted,
     createdAt: c.created_at,
+    priorApproval: c.prior_approval,
     notes: c.notes,
     reviewComment: c.review_comment,
     driveFolderId: c.drive_folder_id,

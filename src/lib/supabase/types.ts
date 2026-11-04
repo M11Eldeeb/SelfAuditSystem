@@ -825,6 +825,7 @@ export interface Database {
           drive_folder_id: string | null;
           submitted_at: string | null;
           times_submitted: number;
+          prior_approval: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -846,6 +847,7 @@ export interface Database {
           drive_folder_id?: string | null;
           submitted_at?: string | null;
           times_submitted?: number;
+          prior_approval?: boolean;
           created_at?: string;
           updated_at?: string;
         };

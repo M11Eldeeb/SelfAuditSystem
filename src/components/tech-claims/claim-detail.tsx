@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { TechClaimDetail } from "@/lib/tech-claims/server";
 import { StatusPill, fmtDateTime } from "./status";
 import { ReviewPanel } from "./review-panel";
-import { AdminAddFiles, ReturnToAnotherTechnician } from "./admin-claim-tools";
+import { AdminAddFiles, PriorApprovalToggle, ReturnToAnotherTechnician } from "./admin-claim-tools";
 import { TechClaimForm } from "./claim-form";
 import { DownloadAllButton } from "./download-all";
 import { TechClaimFileGallery } from "./file-gallery";
@@ -47,7 +47,14 @@ export function TechClaimDetailView({
             {claim.claimNo} <span className="font-normal text-neutral-500">· {lang ? t.workOrder : "WO"} {claim.workOrder}</span>
           </h1>
         </div>
-        <StatusPill status={claim.status} lang={lang} />
+        <span className="flex flex-wrap items-center gap-2">
+          {canManage ? (
+            <PriorApprovalToggle claimId={claim.id} on={claim.priorApproval} />
+          ) : (
+            claim.priorApproval && <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-800">Prior approval</span>
+          )}
+          <StatusPill status={claim.status} lang={lang} />
+        </span>
       </div>
 
       {claim.reviewComment && (claim.status === "returned" || claim.status === "rejected" || claim.status === "approved") && (
@@ -70,10 +77,12 @@ export function TechClaimDetailView({
           <dt className="text-xs text-neutral-500">{t.workOrder}</dt>
           <dd className="font-medium select-all">{claim.workOrder}</dd>
         </div>
-        <div>
-          <dt className="text-xs text-neutral-500">{t.endOfRepair}</dt>
-          <dd className="font-medium" dir="ltr">{fmtDateTime(claim.endOfRepair)}</dd>
-        </div>
+        {claim.endOfRepair && (
+          <div>
+            <dt className="text-xs text-neutral-500">{t.endOfRepair}</dt>
+            <dd className="font-medium" dir="ltr">{fmtDateTime(claim.endOfRepair)}</dd>
+          </div>
+        )}
         <div>
           <dt className="text-xs text-neutral-500">{t.technician}</dt>
           <dd className="font-medium">{claim.technician}</dd>

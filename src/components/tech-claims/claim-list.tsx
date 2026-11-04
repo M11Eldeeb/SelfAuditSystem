@@ -67,6 +67,7 @@ export function TechClaimList({
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-neutral-900">{c.claimNo}</span>
                     <span className="text-sm text-neutral-600">{lang ? `${t.workOrder} ${c.workOrder}` : `WO ${c.workOrder}`}</span>
+                    {c.priorApproval && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-800">Prior approval</span>}
                   </div>
                   <StatusPill status={c.status as TechClaimStatus} lang={lang} />
                 </div>

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { branchTechnicians, prepareAdminClaimUploads, reassignTechClaim, registerAdminClaimFiles } from "@/app/actions/tech-claims";
+import { branchTechnicians, prepareAdminClaimUploads, reassignTechClaim, registerAdminClaimFiles, setTechClaimPriorApproval } from "@/app/actions/tech-claims";
 import { uploadToSession } from "./upload";
 import { Glyph } from "@/components/ui/glyph";
 
@@ -130,5 +130,33 @@ export function ReturnToAnotherTechnician({ claimId }: { claimId: string }) {
       )}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
     </div>
+  );
+}
+
+/** Warranty admin: label the claim "Prior approval" - a label only, no action follows. */
+export function PriorApprovalToggle({ claimId, on }: { claimId: string; on: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        type="button"
+        disabled={busy}
+        aria-pressed={on}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const r = await setTechClaimPriorApproval(claimId, !on);
+          setBusy(false);
+          if (r.error) setError(r.error);
+          else router.refresh();
+        }}
+        className={`rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 disabled:opacity-50 ${on ? "bg-violet-600 text-white ring-violet-600 hover:bg-violet-700" : "bg-white text-violet-700 ring-violet-300 hover:bg-violet-50"}`}
+      >
+        {busy ? "…" : on ? "Prior approval ✓" : "Mark as Prior approval"}
+      </button>
+      {error && <span className="text-xs text-red-700">{error}</span>}
+    </span>
   );
 }

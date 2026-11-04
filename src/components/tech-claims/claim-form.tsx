@@ -116,9 +116,8 @@ export function TechClaimForm({
   const [workOrder, setWorkOrder] = useState(
     (initial?.workOrder ?? "").replace(/^[A-Za-z]+-/, ""),
   );
-  const [endOfRepair, setEndOfRepair] = useState(
-    initial?.endOfRepair ? localValue(initial.endOfRepair) : "",
-  );
+  // The end of repair is not asked any more; an older claim keeps the one it has.
+  const endOfRepair = initial?.endOfRepair ? localValue(initial.endOfRepair) : "";
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
@@ -413,19 +412,6 @@ export function TechClaimForm({
                 disabled={busy}
               />
             </div>
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-neutral-700">
-              {t.endOfRepair}
-            </span>
-            <input
-              type="datetime-local"
-              value={endOfRepair}
-              max={localValue(null)}
-              onChange={(e) => setEndOfRepair(e.target.value)}
-              className={inputCls}
-              disabled={busy}
-            />
           </label>
           <label className="space-y-1 sm:col-span-2">
             <span className="text-sm font-medium text-neutral-700">

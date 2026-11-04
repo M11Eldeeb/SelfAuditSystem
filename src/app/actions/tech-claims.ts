@@ -36,8 +36,8 @@ function cleanFields(
   if (!digits || digits.length > 20) return { error: "Enter the work order number." };
   const workOrder = branchCode ? `${branchCode}-${digits}` : digits;
   if (vin && (vin.length < 5 || vin.length > 30)) return { error: "Enter the VIN." };
+  // The end of repair is not asked any more (older claims keep theirs).
   const end = f.endOfRepair ? Date.parse(f.endOfRepair) : NaN;
-  if (Number.isNaN(end) && (!draft || f.endOfRepair)) return { error: "Enter the end of repair date and time." };
   if (end > Date.now() + 24 * 3_600_000) return { error: "The end of repair cannot be in the future." };
   return { vin: vin || null, workOrder, endOfRepair: Number.isNaN(end) ? null : new Date(end).toISOString(), notes: f.notes.trim().slice(0, 2000) || null };
 }
@@ -460,4 +460,15 @@ export async function addTechClaimEvidence(claimId: string, stagedIds: string[])
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };
   }
+}
+
+/** Warranty admin / claims reviewer / officer: label the claim "Prior approval" (or take the label off) - nothing else changes. */
+export async function setTechClaimPriorApproval(claimId: string, on: boolean): Promise<{ error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  const admin = createAdminClient();
+  const { error } = await admin.from("self_audit_tech_claims").update({ prior_approval: on, updated_at: new Date().toISOString() }).eq("id", claimId);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return {};
 }
