@@ -11,7 +11,7 @@ export default async function DestroyEvidenceCyclesPage() {
     supabase.from("self_audit_warranty_room_cycles").select("id, cycle_month").order("cycle_month", { ascending: false }),
     supabase.from("self_audit_destroy_evidence").select("cycle_id, branch_id, status"),
     getFlaggedClaimCountsByCycleBranch(supabase),
-    supabase.from("self_audit_branches").select("id").eq("active", true),
+    supabase.from("self_audit_branches").select("id").or("active.eq.true,keeps_parts.eq.true"),
   ]);
   // Closed (inactive) branches are left out of every count.
   const activeBranchIds = new Set((activeBranches ?? []).map((b) => b.id));

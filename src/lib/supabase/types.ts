@@ -28,8 +28,8 @@ export interface Database {
   public: {
     Tables: {
       self_audit_branches: {
-        Row: { id: string; name: string; code: string; active: boolean; created_at: string };
-        Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string };
+        Row: { id: string; name: string; code: string; active: boolean; created_at: string; keeps_parts: boolean };
+        Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string; keeps_parts?: boolean };
         Update: Partial<Database["public"]["Tables"]["self_audit_branches"]["Insert"]>;
         Relationships: [];
       };

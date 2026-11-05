@@ -21,6 +21,8 @@ export type People = {
   branchName: Map<string, string>;
   /** Branches that are still open - a closed branch gets no mail. */
   activeBranches: Set<string>;
+  /** Closed branches that still keep their parts (Qassim): the officers get their flagged-parts mails. */
+  keepsPartsBranches: Set<string>;
   /** The standing lists an officer can edit under Email settings. */
   head: string[];
   aftersales: string[];
@@ -31,7 +33,7 @@ export async function loadPeople(): Promise<People> {
   const [{ data: users }, { data: contacts }, { data: branches }, { data: lists }] = await Promise.all([
     admin().from("self_audit_users").select("email, role, branch_id"),
     admin().from("self_audit_branch_contacts").select("branch_id, email, role"),
-    admin().from("self_audit_branches").select("id, name, active"),
+    admin().from("self_audit_branches").select("id, name, active, keeps_parts"),
     admin().from("self_audit_mail_lists").select("key, emails"),
   ]);
   const adminsByBranch = new Map<string, string[]>();
@@ -60,6 +62,7 @@ export async function loadPeople(): Promise<People> {
     technical: [...new Set((users ?? []).filter((u) => u.role === "technical" && u.email && VALID_EMAIL.test(u.email)).map((u) => u.email.toLowerCase()))],
     branchName: new Map((branches ?? []).map((b) => [b.id, b.name])),
     activeBranches: new Set((branches ?? []).filter((b) => b.active).map((b) => b.id)),
+    keepsPartsBranches: new Set((branches ?? []).filter((b) => !b.active && b.keeps_parts).map((b) => b.id)),
     head: list("warranty_head", [WARRANTY_HEAD_EMAIL]).map((e) => e.toLowerCase()),
     aftersales: list("aftersales_head", []).map((e) => e.toLowerCase()),
     standing: list("standing_managers", PODIUM_STANDING_CC).map((e) => e.toLowerCase()),

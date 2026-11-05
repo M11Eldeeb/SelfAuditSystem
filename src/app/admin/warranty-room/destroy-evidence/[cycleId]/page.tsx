@@ -31,7 +31,7 @@ export default async function DestroyEvidenceCyclePage({ params }: { params: Pro
     supabase.from("self_audit_destroy_evidence").select("branch_id, status, submitted_at, sent_at").eq("cycle_id", cycleId),
     getFlaggedClaimCountsByCycleBranch(supabase, cycleId),
     supabase.from("self_audit_destroy_evidence_videos").select("branch_id, file_name, drive_url").eq("cycle_id", cycleId).order("created_at"),
-    supabase.from("self_audit_branches").select("id, name").eq("active", true),
+    supabase.from("self_audit_branches").select("id, name").or("active.eq.true,keeps_parts.eq.true"),
   ]);
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const evidenceByBranchId = new Map((evidence ?? []).map((e) => [e.branch_id, e]));

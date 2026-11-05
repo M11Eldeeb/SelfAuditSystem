@@ -183,7 +183,8 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
 
   for (const c of counts ?? []) {
     const parts = Number(c.parts);
-    if (parts < 1 || !people.activeBranches.has(c.branch_id)) continue; // closed branches are left out
+    const keepsParts = people.keepsPartsBranches.has(c.branch_id);
+    if (parts < 1 || (!people.activeBranches.has(c.branch_id) && !keepsParts)) continue; // closed branches are left out
     const status = evidenceStatus.get(c.branch_id);
     if (status === "submitted" || status === "sent") continue; // already handed in: nothing to ask for
     const branch = people.branchName.get(c.branch_id) ?? "Branch";
@@ -200,7 +201,8 @@ export async function planFlaggedParts(origin: string, opts: { now?: Date; only?
       link: `${origin}/audit/warranty-room`,
     };
     // A separate mail for every admin of the branch (not one mail with all of them in To).
-    const admins = people.adminsByBranch.get(c.branch_id) ?? [];
+    // A closed branch that keeps its parts has no branch admin: the officers get the mail instead.
+    const admins = keepsParts ? people.officers : (people.adminsByBranch.get(c.branch_id) ?? []);
     if (admins.length === 0) {
       plans.push({
         kind: "flagged-parts",
