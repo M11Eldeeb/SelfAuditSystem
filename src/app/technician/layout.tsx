@@ -4,15 +4,16 @@ import { NavBar } from "@/components/nav-bar";
 import { getTechLang } from "@/lib/i18n/tech-server";
 import { techT } from "@/lib/i18n/tech";
 import { LangSwitch } from "@/components/tech-claims/lang-switch";
+import { getNotifications } from "@/lib/notifications";
 
 /** Technicians: submit warranty claims (VIN, work order, end of repair, evidence) and follow them - English or Arabic. */
 export default async function TechnicianLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("technician");
-  const lang = await getTechLang();
+  const [lang, notifications] = await Promise.all([getTechLang(), getNotifications(user)]);
   const t = techT(lang);
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[{ href: "/technician", label: t.myClaims }, { href: "/technician/new", label: t.newClaim }, { href: "/technician/add-evidence", label: t.addEvidence }]} />
+      <NavBar user={user} notifications={notifications} links={[{ href: "/technician", label: t.myClaims }, { href: "/technician/new", label: t.newClaim }, { href: "/technician/add-evidence", label: t.addEvidence }]} />
       <main dir={lang === "ar" ? "rtl" : "ltr"} lang={lang} className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 py-6">
         <div className="flex justify-end">
           <LangSwitch lang={lang} />

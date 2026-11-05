@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Item = {
   id: string;
-  kind: "feedback" | "reply" | "audit" | "task";
+  kind: "feedback" | "reply" | "audit" | "task" | "returned";
   title: string;
   detail: string;
   href: string;
@@ -31,13 +31,19 @@ async function fetchNotifications(): Promise<Notifications | null> {
 }
 
 function timeAgo(iso: string): string {
-  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  const seconds = Math.max(
+    0,
+    Math.round((Date.now() - new Date(iso).getTime()) / 1000),
+  );
   if (seconds < 60) return "just now";
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+  });
 }
 
 function ageBadgeClass(days: number): string {
@@ -60,11 +66,14 @@ export function NotificationBell({
   feedbackHref,
   feedbackLabel,
   tasksHref,
+  technician = false,
 }: {
   initial: Notifications;
   feedbackHref: string;
   feedbackLabel: string;
   tasksHref: string;
+  /** Technicians: only their returned claims, and the footer links to them. */
+  technician?: boolean;
 }) {
   const pathname = usePathname();
   const [data, setData] = useState<Notifications>(initial);
@@ -112,7 +121,9 @@ export function NotificationBell({
   // Once per browser session, open by itself if there are pending tasks. The
   // "seen" flag is written only when it actually opens, so a re-run of this
   // effect (React strict mode in dev) can't swallow the one opening.
-  const taskCount = data.items.filter((i) => i.kind === "task").length;
+  const taskCount = data.items.filter(
+    (i) => i.kind === "task" || i.kind === "returned",
+  ).length;
   useEffect(() => {
     if (taskCount === 0) return;
     try {
@@ -150,9 +161,19 @@ export function NotificationBell({
 
   const label = data.count > 99 ? "99+" : String(data.count);
   const audits = data.items.filter((i) => i.kind === "audit");
-  const messages = data.items.filter((i) => i.kind === "feedback" || i.kind === "reply");
+  const messages = data.items.filter(
+    (i) => i.kind === "feedback" || i.kind === "reply",
+  );
   const tasks = data.items.filter((i) => i.kind === "task");
-  const hiddenTasks = Math.max(0, data.count - audits.length - messages.length - tasks.length);
+  const returned = data.items.filter((i) => i.kind === "returned");
+  const hiddenTasks = Math.max(
+    0,
+    data.count -
+      audits.length -
+      messages.length -
+      tasks.length -
+      returned.length,
+  );
 
   const renderItem = (n: Item) => (
     <li key={n.id}>
@@ -162,15 +183,24 @@ export function NotificationBell({
         onClick={() => setOpen(false)}
         className="flex gap-3 px-4 py-3 transition-colors hover:bg-neutral-50"
       >
-        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+        <span
+          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand"
+          aria-hidden="true"
+        />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-neutral-900">{n.title}</span>
+            <span className="truncate text-sm font-medium text-neutral-900">
+              {n.title}
+            </span>
             {n.urgent && (
-              <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">Reminder due</span>
+              <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                Reminder due
+              </span>
             )}
           </span>
-          <span className="block truncate text-xs text-neutral-500">{n.detail}</span>
+          <span className="block truncate text-xs text-neutral-500">
+            {n.detail}
+          </span>
         </span>
         {n.kind === "audit" ? null : n.kind === "task" && n.ageDays != null ? (
           <span
@@ -179,7 +209,9 @@ export function NotificationBell({
             {n.ageDays === 0 ? "today" : `${n.ageDays}d`}
           </span>
         ) : (
-          <span className="shrink-0 text-[11px] text-neutral-500">{timeAgo(n.at)}</span>
+          <span className="shrink-0 text-[11px] text-neutral-500">
+            {timeAgo(n.at)}
+          </span>
         )}
       </Link>
     </li>
@@ -193,21 +225,40 @@ export function NotificationBell({
           setRings((n) => n + 1);
           setOpen((o) => !o);
         }}
-        aria-label={data.count > 0 ? `Notifications, ${data.count} unread` : "Notifications"}
+        aria-label={
+          data.count > 0
+            ? `Notifications, ${data.count} unread`
+            : "Notifications"
+        }
         aria-expanded={open}
         aria-haspopup="menu"
         className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-          open ? "bg-[var(--surface)] text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
+          open
+            ? "bg-[var(--surface)] text-neutral-900 shadow-sm"
+            : "text-neutral-600 hover:bg-[var(--surface)] hover:text-neutral-900 hover:shadow-sm"
         }`}
       >
-        <svg key={rings} width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className={rings > 0 ? "bell-ring" : undefined}>
+        <svg
+          key={rings}
+          width="19"
+          height="19"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+          className={rings > 0 ? "bell-ring" : undefined}
+        >
           <path
             d="M6 9.5a6 6 0 1112 0c0 3.6.9 5.2 1.8 6.2.3.3.1.8-.4.8H4.6c-.5 0-.7-.5-.4-.8C5.1 14.7 6 13.1 6 9.5z"
             stroke="currentColor"
             strokeWidth="1.6"
             strokeLinejoin="round"
           />
-          <path d="M10 19.5a2.2 2.2 0 004 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path
+            d="M10 19.5a2.2 2.2 0 004 0"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
         </svg>
         {data.count > 0 && (
           <span
@@ -224,28 +275,54 @@ export function NotificationBell({
         aria-label="Notifications"
         inert={!open}
         className={`theme-follow absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-xl shadow-black/20 transition duration-200 ease-out motion-reduce:transition-none ${
-          open ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-1 scale-95 opacity-0"
+          open
+            ? "translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none -translate-y-1 scale-95 opacity-0"
         }`}
       >
         <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5">
-          <p className="text-sm font-semibold text-neutral-900">Notifications</p>
-          {data.count > 0 && <span className="text-xs text-neutral-500">{data.count} new</span>}
+          <p className="text-sm font-semibold text-neutral-900">
+            Notifications
+          </p>
+          {data.count > 0 && (
+            <span className="text-xs text-neutral-500">{data.count} new</span>
+          )}
         </div>
 
         {data.items.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-neutral-500">You&apos;re all caught up.</p>
+          <p className="px-4 py-8 text-center text-sm text-neutral-500">
+            You&apos;re all caught up.
+          </p>
         ) : (
           <div className="max-h-[60vh] overflow-y-auto">
+            {returned.length > 0 && (
+              <section>
+                <p className="bg-amber-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-amber-800 uppercase">
+                  Returned claims - correct and send again
+                </p>
+                <ul className="divide-y divide-neutral-100">
+                  {returned.map(renderItem)}
+                </ul>
+              </section>
+            )}
             {audits.length > 0 && (
               <section>
-                <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">Upcoming audit</p>
-                <ul className="divide-y divide-neutral-100">{audits.map(renderItem)}</ul>
+                <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Upcoming audit
+                </p>
+                <ul className="divide-y divide-neutral-100">
+                  {audits.map(renderItem)}
+                </ul>
               </section>
             )}
             {messages.length > 0 && (
               <section>
-                <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">Feedback</p>
-                <ul className="divide-y divide-neutral-100">{messages.map(renderItem)}</ul>
+                <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Feedback
+                </p>
+                <ul className="divide-y divide-neutral-100">
+                  {messages.map(renderItem)}
+                </ul>
               </section>
             )}
             {tasks.length > 0 && (
@@ -253,29 +330,45 @@ export function NotificationBell({
                 <p className="bg-neutral-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
                   Pending tasks
                 </p>
-                <ul className="divide-y divide-neutral-100">{tasks.map(renderItem)}</ul>
-                {hiddenTasks > 0 && <p className="px-4 py-2 text-xs text-neutral-500">+{hiddenTasks} more - see all tasks</p>}
+                <ul className="divide-y divide-neutral-100">
+                  {tasks.map(renderItem)}
+                </ul>
+                {hiddenTasks > 0 && (
+                  <p className="px-4 py-2 text-xs text-neutral-500">
+                    +{hiddenTasks} more - see all tasks
+                  </p>
+                )}
               </section>
             )}
           </div>
         )}
 
-        <div className="grid grid-cols-2 divide-x divide-neutral-100 border-t border-neutral-100">
+        {technician ? (
           <Link
-            href={tasksHref}
+            href="/technician?status=returned"
             onClick={() => setOpen(false)}
-            className="px-4 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-neutral-50"
+            className="block border-t border-neutral-100 px-4 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-neutral-50"
           >
-            All tasks
+            My returned claims
           </Link>
-          <Link
-            href={feedbackHref}
-            onClick={() => setOpen(false)}
-            className="px-4 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-neutral-50"
-          >
-            {feedbackLabel}
-          </Link>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 divide-x divide-neutral-100 border-t border-neutral-100">
+            <Link
+              href={tasksHref}
+              onClick={() => setOpen(false)}
+              className="px-4 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-neutral-50"
+            >
+              All tasks
+            </Link>
+            <Link
+              href={feedbackHref}
+              onClick={() => setOpen(false)}
+              className="px-4 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-neutral-50"
+            >
+              {feedbackLabel}
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

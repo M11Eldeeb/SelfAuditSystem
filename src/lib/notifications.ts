@@ -4,10 +4,11 @@ import type { CurrentUser } from "@/lib/auth";
 import { getTasks } from "@/lib/tasks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { auditDays } from "@/lib/ia-schedule-days";
+import { getTechLang } from "@/lib/i18n/tech-server";
 
 export type NotificationItem = {
   id: string;
-  kind: "feedback" | "reply" | "audit" | "task";
+  kind: "feedback" | "reply" | "audit" | "task" | "returned";
   title: string;
   detail: string;
   href: string;
@@ -43,6 +44,7 @@ export async function getNotifications(
 ): Promise<Notifications> {
   // A service manager sees what the branch's warranty admin sees.
   if (user.role === "service_manager") user = { ...user, role: "branch_admin", viewOnly: true };
+  if (user.role === "technician") return getReturnedTechClaims(user);
   if (user.role !== "officer" && user.role !== "branch_admin") return EMPTY;
 
   const [feedback, tasks, planned] = await Promise.all([
@@ -203,4 +205,31 @@ async function getBranchAdminReplies(): Promise<Notifications> {
       at: r.created_at,
     })),
   };
+}
+
+/** A technician: his claims that were returned to him to correct and send again. */
+async function getReturnedTechClaims(user: CurrentUser): Promise<Notifications> {
+  try {
+    const [{ data }, lang] = await Promise.all([
+      createAdminClient()
+        .from("self_audit_tech_claims")
+        .select("id, claim_no, work_order, review_comment, reviewed_at, updated_at")
+        .eq("technician_id", user.id)
+        .eq("status", "returned")
+        .order("reviewed_at", { ascending: false, nullsFirst: false })
+        .limit(MAX_TASK_ITEMS),
+      getTechLang(),
+    ]);
+    const items = (data ?? []).map((c) => ({
+      id: `returned:${c.id}`,
+      kind: "returned" as const,
+      title: lang === "ar" ? `أُعيدت إليك: ${c.work_order ?? c.claim_no}` : `Returned to you: ${c.work_order ?? c.claim_no}`,
+      detail: c.review_comment || (lang === "ar" ? "افتحها للتصحيح ثم أرسلها مرة أخرى." : "Open it, correct it and send it again."),
+      href: `/technician/${c.id}`,
+      at: c.reviewed_at ?? c.updated_at,
+    }));
+    return { count: items.length, items };
+  } catch {
+    return EMPTY;
+  }
 }

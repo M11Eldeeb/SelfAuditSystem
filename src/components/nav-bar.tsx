@@ -28,7 +28,7 @@ type NavNotifications = {
   count: number;
   items: {
     id: string;
-    kind: "feedback" | "reply" | "audit" | "task";
+    kind: "feedback" | "reply" | "audit" | "task" | "returned";
     title: string;
     detail: string;
     href: string;
@@ -381,6 +381,7 @@ export function NavBar({
             {notifications && (
               <NotificationBell
                 initial={notifications}
+                technician={user.role === "technician"}
                 feedbackHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
                 feedbackLabel={user.role === "officer" ? "All feedback" : "My feedback"}
                 tasksHref={user.role === "officer" ? "/admin/dashboard?tab=tasks" : "/audit/dashboard?tab=tasks"}
