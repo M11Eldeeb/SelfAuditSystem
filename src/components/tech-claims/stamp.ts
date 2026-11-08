@@ -211,10 +211,10 @@ const VIDEO_LONG_SIDE = 1280; // 720p: sharp enough to see a part, a fraction of
  * the stamp and re-encoded to 720p H.264, typically several times faster than the video lasts. Null when this phone's
  * browser cannot do it (the caller then uses the slower replay method).
  */
-export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void): Promise<File | null> {
+export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date): Promise<File | null> {
   if (typeof VideoEncoder === "undefined" || typeof VideoDecoder === "undefined") return null;
   const mb = await import("mediabunny");
-  const start = await takenAt(file, "video");
+  const start = startAt ?? (await takenAt(file, "video"));
   const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
   try {
     const track = await input.getPrimaryVideoTrack();
@@ -265,17 +265,80 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
   }
 }
 
-/** A video with the stamp burned in - the fast hardware path when the phone supports it, else the replay method. */
+/**
+ * A video with the stamp burned in - the fast hardware path when the phone supports it, else the replay method. When the
+ * phone cannot open the video at all (e.g. HEVC / HDR from the gallery), it is first converted to 720p H.264 in
+ * software (ffmpeg.wasm) and that copy is stamped, still with the original recording date.
+ */
 export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
   const fast = await stampVideoFast(file, who, onProgress).catch(() => null);
   if (fast) return fast;
-  return stampVideoReplay(file, who, onProgress);
+  try {
+    return await stampVideoReplay(file, who, onProgress);
+  } catch (replayError) {
+    console.warn("Phone cannot open the video, converting it in software:", replayError);
+    const start = await takenAt(file, "video");
+    const h264 = await toH264(file, (p) => onProgress(Math.round(p * 0.7))).catch((e) => {
+      console.warn("Software conversion failed:", e);
+      throw replayError;
+    });
+    const rest = (p: number) => onProgress(70 + Math.round(p * 0.3));
+    const out = (await stampVideoFast(h264, who, rest, start).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start));
+    return new File([out], `${baseName(file.name)}_stamped.${out.name.split(".").pop()}`, { type: out.type, lastModified: start.getTime() });
+  }
 }
 
-async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
+// ffmpeg.wasm core (single-thread, no special page headers needed), fetched once from the CDN and cached by the browser.
+// The worker is served as-is from public/ffmpeg (copied from @ffmpeg/ffmpeg 0.12.15 dist/esm, renamed .mjs so the proxy
+// serves it without a login check): bundled, Turbopack breaks its dynamic import of the core. Re-copy those three files
+// when upgrading @ffmpeg/ffmpeg.
+const FFMPEG_CORE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+
+/** Software conversion to 720p / 30 fps H.264 + AAC MP4 - decodes what the phone's own decoder cannot (HEVC, HDR, ...). */
+async function toH264(file: File, onProgress: (pct: number) => void): Promise<File> {
+  const [{ FFmpeg }, { fetchFile, toBlobURL }] = await Promise.all([import("@ffmpeg/ffmpeg"), import("@ffmpeg/util")]);
+  const ffmpeg = new FFmpeg();
+  const log: string[] = [];
+  ffmpeg.on("log", ({ message }) => {
+    log.push(message);
+    if (log.length > 8) log.shift();
+  });
+  ffmpeg.on("progress", ({ progress }) => {
+    if (progress >= 0 && progress <= 1) onProgress(Math.min(99, Math.round(progress * 100)));
+  });
+  try {
+    const coreURL = await toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.js`, "text/javascript");
+    const wasmURL = await toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.wasm`, "application/wasm");
+    // A worker that fails to start never answers - give up rather than wait forever.
+    await Promise.race([
+      ffmpeg.load({ classWorkerURL: `${location.origin}/ffmpeg/worker.mjs`, coreURL, wasmURL }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("ffmpeg did not start")), 60_000)),
+    ]);
+    const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4";
+    const inName = `in.${ext}`;
+    await ffmpeg.writeFile(inName, await fetchFile(file));
+    const code = await ffmpeg.exec([
+      "-i", inName,
+      "-vf", `scale=w='min(${VIDEO_LONG_SIDE},iw)':h='min(${VIDEO_LONG_SIDE},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "128k",
+      "-movflags", "+faststart",
+      "out.mp4",
+    ]);
+    if (code !== 0) throw new Error(`ffmpeg exit ${code}: ${log.join(" | ")}`);
+    const data = await ffmpeg.readFile("out.mp4");
+    if (typeof data === "string" || !data.byteLength) throw new Error("ffmpeg produced no video");
+    onProgress(100);
+    return new File([new Uint8Array(data)], `${baseName(file.name)}.mp4`, { type: "video/mp4" });
+  } finally {
+    ffmpeg.terminate();
+  }
+}
+
+async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date): Promise<File> {
   const type = recorderType();
   if (!type) throw new Error("This phone's browser cannot stamp videos - use Chrome or Safari.");
-  const start = await takenAt(file, "video");
+  const start = startAt ?? (await takenAt(file, "video"));
   const url = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.src = url;

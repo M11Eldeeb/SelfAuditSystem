@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
     "@gsap/react": "^2.1.2",
     "@react-pdf/renderer": "^4.9.0",
     "@supabase/ssr": "^0.12.4",
