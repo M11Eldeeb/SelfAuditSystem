@@ -27,6 +27,8 @@ type Item = {
   pct: number;
   driveId?: string;
   error?: string;
+  /** A video this phone could not open to stamp: the original is sent. */
+  unstamped?: boolean;
 };
 
 const MAX_VIDEO_SECONDS = 120;
@@ -192,7 +194,12 @@ export function TechClaimForm({
             if (original.type.startsWith("image/"))
               return stampPhoto(original, who);
             if (original.type.startsWith("video/"))
-              return stampVideo(original, who, (pct) => patch(key, { pct }));
+              // Some phone videos (e.g. HEVC / HDR from the gallery) cannot be opened by the browser to stamp:
+              // send the original rather than block the claim.
+              return stampVideo(original, who, (pct) => patch(key, { pct })).catch(() => {
+                patch(key, { unstamped: true });
+                return original;
+              });
             return original;
           },
         );
@@ -594,6 +601,7 @@ export function TechClaimForm({
                     />
                   </div>
                 )}
+                {it.unstamped && !it.error && <p className="text-xs text-amber-700">{t.sentUnstamped}</p>}
                 {it.error && <p className="text-xs text-red-700">{it.error}</p>}
               </li>
             ))}
