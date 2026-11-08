@@ -295,7 +295,12 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
 // when upgrading @ffmpeg/ffmpeg.
 const FFMPEG_CORE = "/ffmpeg";
 
-/** Software conversion to 720p / 30 fps H.264 + AAC MP4 - decodes what the phone's own decoder cannot (HEVC, HDR, ...). */
+/**
+ * Software conversion to H.264 + AAC MP4 - decodes what the phone's own decoder cannot (HEVC, HDR, ...). Slightly lower
+ * quality than the normal path (960 px long side) so a phone converts faster and with less memory.
+ */
+const SOFT_LONG_SIDE = 960;
+
 async function toH264(file: File, onProgress: (pct: number) => void): Promise<File> {
   const [{ FFmpeg }, { fetchFile, toBlobURL }] = await Promise.all([import("@ffmpeg/ffmpeg"), import("@ffmpeg/util")]);
   const ffmpeg = new FFmpeg();
@@ -320,9 +325,9 @@ async function toH264(file: File, onProgress: (pct: number) => void): Promise<Fi
     await ffmpeg.writeFile(inName, await fetchFile(file));
     const code = await ffmpeg.exec([
       "-i", inName,
-      "-vf", `scale=w='min(${VIDEO_LONG_SIDE},iw)':h='min(${VIDEO_LONG_SIDE},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
-      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
-      "-c:a", "aac", "-b:a", "128k",
+      "-vf", `scale=w='min(${SOFT_LONG_SIDE},iw)':h='min(${SOFT_LONG_SIDE},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "96k",
       "-movflags", "+faststart",
       "out.mp4",
     ]);
