@@ -280,7 +280,7 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
     const start = await takenAt(file, "video");
     const h264 = await toH264(file, (p) => onProgress(Math.round(p * 0.7))).catch((e) => {
       console.warn("Software conversion failed:", e);
-      throw replayError;
+      throw new Error(`${replayError instanceof Error ? replayError.message : replayError} / ${e instanceof Error ? e.message : e}`);
     });
     const rest = (p: number) => onProgress(70 + Math.round(p * 0.3));
     const out = (await stampVideoFast(h264, who, rest, start).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start));
@@ -288,11 +288,12 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
   }
 }
 
-// ffmpeg.wasm core (single-thread, no special page headers needed), fetched once from the CDN and cached by the browser.
+// ffmpeg.wasm core 0.12.10 (single-thread, no special page headers needed), served from our own site (public/ffmpeg) -
+// the public CDN is slow / unreliable from the branches. Fetched once and cached by the browser.
 // The worker is served as-is from public/ffmpeg (copied from @ffmpeg/ffmpeg 0.12.15 dist/esm, renamed .mjs so the proxy
 // serves it without a login check): bundled, Turbopack breaks its dynamic import of the core. Re-copy those three files
 // when upgrading @ffmpeg/ffmpeg.
-const FFMPEG_CORE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+const FFMPEG_CORE = "/ffmpeg";
 
 /** Software conversion to 720p / 30 fps H.264 + AAC MP4 - decodes what the phone's own decoder cannot (HEVC, HDR, ...). */
 async function toH264(file: File, onProgress: (pct: number) => void): Promise<File> {
@@ -307,8 +308,8 @@ async function toH264(file: File, onProgress: (pct: number) => void): Promise<Fi
     if (progress >= 0 && progress <= 1) onProgress(Math.min(99, Math.round(progress * 100)));
   });
   try {
-    const coreURL = await toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.js`, "text/javascript");
-    const wasmURL = await toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.wasm`, "application/wasm");
+    const coreURL = await toBlobURL(`${location.origin}${FFMPEG_CORE}/ffmpeg-core.mjs`, "text/javascript");
+    const wasmURL = await toBlobURL(`${location.origin}${FFMPEG_CORE}/ffmpeg-core.wasm`, "application/wasm");
     // A worker that fails to start never answers - give up rather than wait forever.
     await Promise.race([
       ffmpeg.load({ classWorkerURL: `${location.origin}/ffmpeg/worker.mjs`, coreURL, wasmURL }),

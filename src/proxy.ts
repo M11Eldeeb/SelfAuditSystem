@@ -63,6 +63,6 @@ export const config = {
      * asset, which breaks direct <img>/<Image> loads and 400s next/image's
      * optimizer (it receives HTML where it expects image bytes).
      */
-    "/((?!api|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|webp|avif|svg|mjs)$).*)",
+    "/((?!api|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|webp|avif|svg|mjs|wasm)$).*)",
   ],
 };
