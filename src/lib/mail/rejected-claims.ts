@@ -18,13 +18,15 @@ async function openRejectedClaims(today: string): Promise<OpenClaim[]> {
   const admin = createAdminClient();
   const [{ data: claims }, { data: branches }] = await Promise.all([
     admin.from("self_audit_claims").select("id, branch_id, claim_number, work_order_no").like("raw_row->>Status", "Rejected%").limit(2000),
-    admin.from("self_audit_branches").select("id, name"),
+    admin.from("self_audit_branches").select("id, name, no_emails"),
   ]);
   const ids = (claims ?? []).map((c) => c.id);
   const { data: reviews } = ids.length ? await admin.from("self_audit_rejected_claim_reviews").select("claim_id, status, close_date").in("claim_id", ids) : { data: [] };
   const reviewOf = new Map((reviews ?? []).map((r) => [r.claim_id, r]));
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const muted = new Set((branches ?? []).filter((b) => b.no_emails).map((b) => b.id)); // e-mails turned off (Qassim)
   return (claims ?? [])
+    .filter((c) => !muted.has(c.branch_id))
     .map((c) => ({ c, r: reviewOf.get(c.id) }))
     .filter(({ r }) => (!r?.status || r.status === "appeal_submitted") && (!r?.close_date || r.close_date >= today))
     .map(({ c, r }) => ({ claim: c.claim_number, workOrder: c.work_order_no, branch: branchName.get(c.branch_id) ?? "", closeDate: r?.close_date ?? null }))

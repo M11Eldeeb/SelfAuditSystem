@@ -319,8 +319,17 @@ export type SendOutcome = { branchName: string; label: string; status: "sent" | 
 /** Sends each plan (one after another), as a reply where it belongs to a thread. Never throws. */
 export async function sendPlans(plans: PlannedMail[], sentBy: string | null): Promise<SendOutcome[]> {
   const outcomes: SendOutcome[] = [];
+  // Branches with e-mails turned off (no_emails, e.g. Qassim): nothing goes out for them.
+  const { data: muted } = plans.length
+    ? await createAdminClient().from("self_audit_branches").select("id").eq("no_emails", true)
+    : { data: [] };
+  const mutedIds = new Set((muted ?? []).map((b) => b.id));
   for (const p of plans) {
     const base = { branchName: p.branchName, label: p.label };
+    if (mutedIds.has(p.branchId)) {
+      outcomes.push({ ...base, status: "no-recipients", error: "E-mails are turned off for this branch." });
+      continue;
+    }
     if (p.to.length === 0) {
       outcomes.push({ ...base, status: "no-recipients", error: "No branch admin account for this branch." });
       continue;

@@ -108,10 +108,10 @@ export async function createVerificationRequest(input: {
   let mailError: string | undefined;
   if (await getMailStatus()) {
     const [{ data: branch }, to] = await Promise.all([
-      admin.from("self_audit_branches").select("name").eq("id", user.branch_id).maybeSingle(),
+      admin.from("self_audit_branches").select("name, no_emails").eq("id", user.branch_id).maybeSingle(),
       emailsOfRole(["technical"]),
     ]);
-    if (to.length) {
+    if (to.length && !branch?.no_emails) {
       const origin = await siteOrigin();
       const branchName = branch?.name ?? "Branch";
       const body = [
