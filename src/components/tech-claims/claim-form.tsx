@@ -6,6 +6,7 @@ import {
   addTechClaimEvidence,
   discardStagedFile,
   prepareStagedUpload,
+  reportUploadProblem,
   removeTechClaimFile,
   submitTechClaim,
   type ClaimFields,
@@ -69,6 +70,19 @@ function withType(f: File): File {
     mp4: "video/mp4",
     mov: "video/quicktime",
     "3gp": "video/3gpp",
+    "3g2": "video/3gpp2",
+    m4v: "video/x-m4v",
+    webm: "video/webm",
+    mkv: "video/x-matroska",
+    avi: "video/x-msvideo",
+    wmv: "video/x-ms-wmv",
+    flv: "video/x-flv",
+    mpg: "video/mpeg",
+    mpeg: "video/mpeg",
+    ts: "video/mp2t",
+    mts: "video/mp2t",
+    m2ts: "video/mp2t",
+    hevc: "video/mp4",
     pdf: "application/pdf",
   }[ext];
   return t
@@ -197,7 +211,9 @@ export function TechClaimForm({
               // Some phone videos (e.g. HEVC / HDR from the gallery) cannot be opened by the browser to stamp:
               // send the original rather than block the claim.
               return stampVideo(original, who, (pct) => patch(key, { pct })).catch((e) => {
-                patch(key, { unstamped: (e instanceof Error ? e.message : String(e)).slice(0, 300) || "?" });
+                const why = (e instanceof Error ? e.message : String(e)) || "?";
+                patch(key, { unstamped: why.slice(0, 300) });
+                void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: `stamp: ${why}` });
                 return original;
               });
             return original;
@@ -235,6 +251,7 @@ export function TechClaimForm({
         }
         patch(key, { status: "ready", pct: 100, driveId });
       } catch (e) {
+        void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: `failed: ${e instanceof Error ? e.message : String(e)}` });
         patch(key, {
           status: "failed",
           error: e instanceof Error ? trServer(t, e.message) : t.errGeneric,

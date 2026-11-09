@@ -33,6 +33,12 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_branches"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_tech_upload_problems: {
+        Row: { id: string; technician_id: string | null; file_name: string | null; file_type: string | null; file_size: number | null; message: string; user_agent: string | null; created_at: string };
+        Insert: { id?: string; technician_id?: string | null; file_name?: string | null; file_type?: string | null; file_size?: number | null; message: string; user_agent?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_tech_upload_problems"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_users: {
         Row: {
           id: string;

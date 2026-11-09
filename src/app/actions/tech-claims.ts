@@ -472,3 +472,23 @@ export async function setTechClaimPriorApproval(claimId: string, on: boolean): P
   revalidateAll();
   return {};
 }
+
+/** The phone could not stamp or send a file: keep the reason (and the phone's browser) for the warranty team. Never throws. */
+export async function reportUploadProblem(input: { name: string; type: string; size: number; message: string }): Promise<void> {
+  try {
+    const tech = await requireRole("technician");
+    const ua = (await headers()).get("user-agent");
+    await createAdminClient()
+      .from("self_audit_tech_upload_problems")
+      .insert({
+        technician_id: tech.id,
+        file_name: String(input.name).slice(0, 300),
+        file_type: String(input.type).slice(0, 100),
+        file_size: Number.isFinite(input.size) ? Math.round(input.size) : null,
+        message: String(input.message).slice(0, 2000) || "?",
+        user_agent: ua?.slice(0, 500) ?? null,
+      });
+  } catch {
+    // a failed report must not disturb the technician
+  }
+}

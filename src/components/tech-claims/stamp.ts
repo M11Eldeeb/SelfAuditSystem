@@ -206,19 +206,44 @@ export function videoDuration(file: File): Promise<number | null> {
 
 const VIDEO_LONG_SIDE = 1280; // 720p: sharp enough to see a part, a fraction of the size
 
+/** Every stamped video is kept to 20 MB or less - quick to send even on a weak connection. */
+export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+const AUDIO_BITRATE = 96_000;
+
+/**
+ * Video bits per second so `seconds` of video fits in 20 MB (with room for the sound and the file's own overhead),
+ * at most 1.8 Mbit/s (plenty for 720p). `squeeze` < 1 when a first try still came out too big.
+ */
+function videoBitrate(seconds: number | null | undefined, squeeze = 1): number {
+  const secs = seconds && Number.isFinite(seconds) && seconds > 0 ? seconds : 120;
+  const budget = (MAX_VIDEO_BYTES * 8 * 0.88) / secs - AUDIO_BITRATE;
+  return Math.round(Math.max(200_000, Math.min(1_800_000, budget)) * squeeze);
+}
+
+/** Why the last fast stamp could not run (kept for the problem report). */
+let fastProblem = "";
+
 /**
  * Fast path: the phone's hardware video decoder and encoder (WebCodecs, via Mediabunny) - every frame is drawn with
  * the stamp and re-encoded to 720p H.264, typically several times faster than the video lasts. Null when this phone's
  * browser cannot do it (the caller then uses the slower replay method).
  */
-export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date): Promise<File | null> {
-  if (typeof VideoEncoder === "undefined" || typeof VideoDecoder === "undefined") return null;
+export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1): Promise<File | null> {
+  fastProblem = "";
+  if (typeof VideoEncoder === "undefined" || typeof VideoDecoder === "undefined") {
+    fastProblem = "no WebCodecs";
+    return null;
+  }
   const mb = await import("mediabunny");
   const start = startAt ?? (await takenAt(file, "video"));
   const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
   try {
     const track = await input.getPrimaryVideoTrack();
-    if (!track) return null;
+    if (!track) {
+      fastProblem = "no video track";
+      return null;
+    }
+    const seconds = await input.computeDuration().catch(() => null);
     const scale = Math.min(1, VIDEO_LONG_SIDE / Math.max(track.displayWidth, track.displayHeight));
     const outW = Math.round((track.displayWidth * scale) / 2) * 2;
     const outH = Math.round((track.displayHeight * scale) / 2) * 2;
@@ -235,7 +260,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
         height: outH,
         fit: "contain",
         codec: "avc",
-        quality: mb.QUALITY_MEDIUM,
+        bitrate: videoBitrate(seconds, squeeze),
         frameRate: 30, // 60 fps phone videos: half the frames to stamp and send
         forceTranscode: true,
         allowTransformationMetadata: false,
@@ -248,9 +273,12 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
           return canvas;
         },
       },
-      audio: { codec: "aac" },
+      audio: { codec: "aac", bitrate: AUDIO_BITRATE },
     });
-    if (!conversion.isValid) return null;
+    if (!conversion.isValid) {
+      fastProblem = `cannot convert (${conversion.discardedTracks.map((d) => `${d.track.type}: ${d.reason}`).join(", ") || "?"})`;
+      return null;
+    }
     conversion.onProgress = (p) => onProgress(Math.min(99, Math.round(p * 100)));
     await conversion.execute();
     const buffer = output.target.buffer;
@@ -259,6 +287,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
     return new File([buffer], `${baseName(file.name)}_stamped.mp4`, { type: "video/mp4", lastModified: start.getTime() });
   } catch (e) {
     console.warn("Fast video stamp unavailable, using the replay method:", e);
+    fastProblem = e instanceof Error ? e.message : String(e);
     return null;
   } finally {
     input.dispose?.();
@@ -271,19 +300,35 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
  * software (ffmpeg.wasm) and that copy is stamped, still with the original recording date.
  */
 export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
-  const fast = await stampVideoFast(file, who, onProgress).catch(() => null);
+  // A result over 20 MB is made again with fewer bits (from the same source - never a stamp on a stamp).
+  const fit = async (run: (squeeze: number) => Promise<File | null>): Promise<File | null> => {
+    let out = await run(1);
+    for (const squeeze of [0.6, 0.35]) {
+      if (!out || out.size <= MAX_VIDEO_BYTES) break;
+      out = (await run(squeeze).catch(() => null)) ?? out;
+    }
+    return out;
+  };
+  const fast = await fit((sq) => stampVideoFast(file, who, onProgress, undefined, sq).catch(() => null));
   if (fast) return fast;
+  const why = [`fast: ${fastProblem || "?"}`];
   try {
-    return await stampVideoReplay(file, who, onProgress);
+    return (await fit((sq) => stampVideoReplay(file, who, onProgress, undefined, sq)))!;
   } catch (replayError) {
+    why.push(`replay: ${replayError instanceof Error ? replayError.message : replayError}`);
     console.warn("Phone cannot open the video, converting it in software:", replayError);
     const start = await takenAt(file, "video");
     const h264 = await toH264(file, (p) => onProgress(Math.round(p * 0.7))).catch((e) => {
       console.warn("Software conversion failed:", e);
-      throw new Error(`${replayError instanceof Error ? replayError.message : replayError} / ${e instanceof Error ? e.message : e}`);
+      throw new Error([...why, `convert: ${e instanceof Error ? e.message : e}`].join(" / "));
     });
     const rest = (p: number) => onProgress(70 + Math.round(p * 0.3));
-    const out = (await stampVideoFast(h264, who, rest, start).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start));
+    const out = await fit(
+      async (sq) => (await stampVideoFast(h264, who, rest, start, sq).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start, sq)),
+    ).catch((e) => {
+      throw new Error([...why, `fast after convert: ${fastProblem || "?"}`, `replay after convert: ${e instanceof Error ? e.message : e}`].join(" / "));
+    });
+    if (!out) throw new Error(why.join(" / "));
     return new File([out], `${baseName(file.name)}_stamped.${out.name.split(".").pop()}`, { type: out.type, lastModified: start.getTime() });
   }
 }
@@ -341,7 +386,7 @@ async function toH264(file: File, onProgress: (pct: number) => void): Promise<Fi
   }
 }
 
-async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date): Promise<File> {
+async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1): Promise<File> {
   const type = recorderType();
   if (!type) throw new Error("This phone's browser cannot stamp videos - use Chrome or Safari.");
   const start = startAt ?? (await takenAt(file, "video"));
@@ -375,7 +420,7 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
       video.muted = true; // no sound track rather than no video
     }
 
-    const rec = new MediaRecorder(stream, { mimeType: type.mime, videoBitsPerSecond: 4_000_000 });
+    const rec = new MediaRecorder(stream, { mimeType: type.mime, videoBitsPerSecond: videoBitrate(video.duration, squeeze), audioBitsPerSecond: AUDIO_BITRATE });
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
