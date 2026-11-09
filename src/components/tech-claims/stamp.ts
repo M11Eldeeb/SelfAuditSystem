@@ -380,8 +380,26 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
 
+    // Some phones play a video they cannot decode as a black picture without any error: watch for a real picture
+    // (a tiny copy of the frame, before the stamp is drawn) and give up after 2 s of black so the software
+    // conversion runs instead.
+    const probe = document.createElement("canvas");
+    probe.width = 32;
+    probe.height = 18;
+    const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+    let sawPicture = !probeCtx;
+    let frames = 0;
+    const checkPicture = () => {
+      if (sawPicture || !probeCtx || frames++ % 5) return;
+      probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
+      const px = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+      for (let i = 0; i < px.length; i += 4) if (px[i] > 16 || px[i + 1] > 16 || px[i + 2] > 16) return void (sawPicture = true);
+    };
+    let noPicture: (() => void) | null = null;
     const draw = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      checkPicture();
+      if (!sawPicture && video.currentTime > 2) noPicture?.();
       drawStamp(ctx, canvas.width, canvas.height, [fmt(new Date(start.getTime() + video.currentTime * 1000)), who]);
       if (video.duration) onProgress(Math.min(99, Math.round((video.currentTime / video.duration) * 100)));
     };
@@ -395,14 +413,23 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
     };
 
     const ended = new Promise<void>((resolve, reject) => {
-      video.onended = () => resolve();
+      video.onended = () => (sawPicture ? resolve() : reject(new Error("black picture")));
       video.onerror = () => reject(new Error(`Could not stamp "${file.name}".`));
+      noPicture = () => reject(new Error("black picture"));
     });
     rec.start(1000);
     await audio?.resume().catch(() => undefined);
     await video.play();
     loop();
-    await ended;
+    try {
+      await ended;
+    } catch (e) {
+      running = false;
+      rec.stop();
+      stream.getTracks().forEach((t) => t.stop());
+      await audio?.close().catch(() => undefined);
+      throw e;
+    }
     draw();
     running = false;
     rec.stop();
