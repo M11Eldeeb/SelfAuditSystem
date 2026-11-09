@@ -227,7 +227,6 @@ function reportPage(s: Snapshot, folderUrl: string, lang: Lang) {
   // Only what the branch admin filled in is shown; with nothing, the whole section is left out.
   const details: [string, string][] = (
     [
-      [L.customer, entry.customer_name],
       [L.model, entry.vehicle_model],
       [L.advisor, entry.service_advisor],
       [L.leader, entry.team_leader],

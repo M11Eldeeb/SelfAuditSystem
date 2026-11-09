@@ -34,7 +34,6 @@ export async function RejectedClaimDetail({ role, id }: { role: Role; id: string
   const entryFileCount = attachments.filter((a) => a.comment_id === null).length;
   const historyCount = attachments.filter((a) => a.kind === "service_history").length;
   const details = [
-    ["Customer", entry.customer_name],
     ["Vehicle model", entry.vehicle_model],
     ["Service advisor", entry.service_advisor],
     ["Team leader", entry.team_leader],

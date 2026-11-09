@@ -185,7 +185,6 @@ export async function createRejectedClaim(input: {
   date: string;
   reason: string;
   /** Optional additional information; blank values are simply not stored. */
-  customerName?: string;
   vehicleModel?: string;
   serviceAdvisor?: string;
   teamLeader?: string;
@@ -229,13 +228,11 @@ export async function createRejectedClaim(input: {
   if (reason.length > REJECTED_REASON_MAX) return { error: `The reason can be at most ${REJECTED_REASON_MAX} characters.` };
 
   const info = {
-    customerName: input.customerName?.trim() ?? "",
     vehicleModel: input.vehicleModel?.trim() ?? "",
     serviceAdvisor: input.serviceAdvisor?.trim() ?? "",
     teamLeader: input.teamLeader?.trim() ?? "",
   };
   for (const [label, value] of [
-    ["customer name", info.customerName],
     ["vehicle model", info.vehicleModel],
     ["service advisor name", info.serviceAdvisor],
     ["team leader name", info.teamLeader],
@@ -264,7 +261,7 @@ export async function createRejectedClaim(input: {
     p_reason: reason,
     p_attachments: verified.rows,
     p_duplicate_of: duplicateOf,
-    p_customer_name: info.customerName || null,
+    p_customer_name: null, // no customer data is kept
     p_vehicle_model: info.vehicleModel || null,
     p_service_advisor: info.serviceAdvisor || null,
     p_team_leader: info.teamLeader || null,

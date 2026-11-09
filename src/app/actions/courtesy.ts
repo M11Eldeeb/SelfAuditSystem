@@ -19,6 +19,24 @@ export type CourtesyData = {
   error?: string;
 };
 
+// Columns that hold the customer (name, phone, ID, e-mail, address, ...): never sent to the browser - only what the
+// fleet report needs is kept. Plate, VIN, branch, dates and staff columns stay.
+const CUSTOMER_COL = /customer|client|renter|hirer|driver|name|phone|mobile|tel|contact|e-?mail|iqama|national|id|identity|passport|licen[cs]e|address|عميل|اسم|جوال|هاتف|هوية|عنوان/i;
+const KEEP_COL = /branch|model|plate|vehicle|car|agreement|status|stage|wip|advisor|employee|staff|created|updated|by|vin/i;
+
+function withoutCustomer<K extends string>(table: SheetTable | null, cols: Record<K, number>, alsoDrop: number[] = []): { table: SheetTable | null; cols: Record<K, number> } {
+  if (!table) return { table, cols };
+  const keep = table.headers.map((h, i) => !alsoDrop.includes(i) && !(CUSTOMER_COL.test(h) && !KEEP_COL.test(h)));
+  const newIndex: number[] = [];
+  let n = 0;
+  keep.forEach((k, i) => (newIndex[i] = k ? n++ : -1));
+  const remapped = Object.fromEntries(Object.entries(cols).map(([k, i]) => [k, (i as number) >= 0 ? newIndex[i as number] : -1])) as Record<K, number>;
+  return {
+    table: { ...table, headers: table.headers.filter((_, i) => keep[i]), rows: table.rows.map((r) => r.filter((_, i) => keep[i])) },
+    cols: remapped,
+  };
+}
+
 /** Courtesy cars: every replacement vehicle and agreement. Officers see all; a warranty admin his branch. */
 export async function getCourtesyCars(): Promise<CourtesyData> {
   const user = await requireAnyViewer(["officer", "branch_admin"]);
@@ -38,11 +56,14 @@ export async function getCourtesyCars(): Promise<CourtesyData> {
       const { data } = await createAdminClient().from("self_audit_branches").select("name").eq("id", own).maybeSingle();
       scope = data?.name ?? "Your branch";
     }
+    const open = (agreements?.rows ?? []).map((r) => agreementOpen(r, sheet.cols.agreements));
+    const v = withoutCustomer(vehicles, sheet.cols.vehicles);
+    const a = withoutCustomer(agreements, sheet.cols.agreements, [sheet.cols.agreements.customer]);
     return {
-      vehicles,
-      agreements,
-      cols: sheet.cols,
-      open: (agreements?.rows ?? []).map((r) => agreementOpen(r, sheet.cols.agreements)),
+      vehicles: v.table,
+      agreements: a.table,
+      cols: { vehicles: v.cols, agreements: a.cols },
+      open,
       vehicleBranch: vb.filter((_, i) => keepV[i]).map((b) => b?.name ?? null),
       agreementBranch: ab.filter((_, i) => keepA[i]).map((b) => b?.name ?? null),
       scope,

@@ -49,7 +49,6 @@ export function EntryForm({
   const [saving, setSaving] = useState(false);
   // The optional "additional information" section.
   const [showInfo, setShowInfo] = useState(false);
-  const [customerName, setCustomerName] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [serviceAdvisor, setServiceAdvisor] = useState("");
   const [teamLeader, setTeamLeader] = useState("");
@@ -80,7 +79,6 @@ export function EntryForm({
         claimNo,
         date,
         reason,
-        customerName,
         vehicleModel,
         serviceAdvisor,
         teamLeader,
@@ -273,7 +271,6 @@ export function EntryForm({
             {showInfo && (
               <div id="rc-extra" className="space-y-4 border-t border-neutral-100 p-3">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <TextField id="rc-customer" label="Customer name" value={customerName} onChange={setCustomerName} disabled={saving} />
                   <TextField id="rc-model" label="Vehicle model" value={vehicleModel} onChange={setVehicleModel} disabled={saving} />
                   <TextField id="rc-advisor" label="Service advisor name" value={serviceAdvisor} onChange={setServiceAdvisor} disabled={saving} />
                   <TextField id="rc-leader" label="Team leader name" value={teamLeader} onChange={setTeamLeader} disabled={saving} />
