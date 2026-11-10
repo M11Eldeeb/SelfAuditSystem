@@ -1,7 +1,22 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 
+// Security headers on every response. The CSP only sets rules that cannot break the app's own scripts: no framing by
+// other sites (the app frames its own file previews), no <base> or plugin tricks, forms only post back to the site.
+const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Camera and microphone: technicians record photos and videos in the site. Nothing else.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()" },
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   // Part Return moved under Warranty Room; the old addresses (bookmarks, mails, notifications) keep working.
   async redirects() {
     return [
