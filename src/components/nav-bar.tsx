@@ -87,6 +87,7 @@ const ROLE_LABEL: Record<string, string> = {
   team_leader: "Team leader",
   technician: "Technician",
   claims_reviewer: "Technician claims reviewer",
+  service_advisor: "Service advisor",
 };
 
 /**

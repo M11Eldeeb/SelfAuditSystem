@@ -39,7 +39,7 @@ function withoutCustomer<K extends string>(table: SheetTable | null, cols: Recor
 
 /** Courtesy cars: every replacement vehicle and agreement. Officers see all; a warranty admin his branch. */
 export async function getCourtesyCars(): Promise<CourtesyData> {
-  const user = await requireAnyViewer(["officer", "branch_admin"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
   const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
   const own = user.role === "officer" ? null : user.branch_id;
   try {

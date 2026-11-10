@@ -46,7 +46,7 @@ async function branchNames() {
 
 /** MOC / SAIC / CRM complaints from the monthly e-mail. */
 export async function getComplaintsData(): Promise<ComplaintsData> {
-  const user = await requireAnyViewer(["officer", "branch_admin"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
   const admin = createAdminClient();
   const names = await branchNames();
   const rows: Complaint[] = [];
@@ -99,7 +99,7 @@ export type InternalData = { rows: InternalComplaint[]; columns: { date: string 
 
 /** Internal complaints from their Google Sheet: counted per branch and date. */
 export async function getInternalComplaints(): Promise<InternalData> {
-  const user = await requireAnyViewer(["officer", "branch_admin"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
   const names = await branchNames();
   const own = user.role === "officer" ? null : names.own(user.branch_id);
   const scope = user.role === "officer" ? "all" : (own ?? "Your branch");

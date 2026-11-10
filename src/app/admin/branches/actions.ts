@@ -99,7 +99,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const role = String(formData.get("role") ?? "");
   const branchId = String(formData.get("branch_id") ?? "");
 
-  const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer"];
+  const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor"];
   if (!email || (role !== "officer" && role !== "finance" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
@@ -125,7 +125,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role: role as "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer",
+    role: role as "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor",
     branch_id: WORKSHOP_ROLES.includes(role) ? branchId : null,
   });
 
@@ -297,6 +297,7 @@ const ROLE_NAMES: Record<string, string> = {
   technical: "Technical team",
   workshop_supervisor: "Workshop supervisor",
   team_leader: "Team leader",
+  service_advisor: "Service advisor",
   technician: "Technician",
 };
 

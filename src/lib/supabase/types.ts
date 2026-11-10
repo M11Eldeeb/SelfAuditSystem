@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"

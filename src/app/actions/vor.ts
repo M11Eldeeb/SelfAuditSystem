@@ -83,7 +83,7 @@ function variants(v: string): string[] {
 
 /** Officers and warranty admins: VOR rows whose part number, WIP, DCS PO, CI or DN number matches. */
 export async function searchVor(query: string, field: VorField): Promise<VorResult> {
-  await requireAnyViewer(["officer", "branch_admin"]);
+  await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
   const empty = (error: string): VorResult => ({ headers: [], cols: columns([]), searched: [], rows: [], total: 0, file: { name: "", sheet: "", modifiedTime: null, rows: 0 }, error });
   const q = norm(query);
   if (q.length < 3) return empty("Enter at least 3 characters.");

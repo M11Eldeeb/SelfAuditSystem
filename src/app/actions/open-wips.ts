@@ -9,7 +9,7 @@ import { agreementOpen, loadCourtesy, wipKey } from "@/lib/courtesy/sheet";
 import { branchResolver } from "@/lib/courtesy/branches";
 import { vorByWip, type VorLine } from "@/lib/vor/sheet";
 
-const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader"] as const;
+const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor"] as const;
 
 export type OpenWip = {
   key: string;

@@ -34,7 +34,7 @@ const shift = (yyyyMM: string, n: number) => {
  * currency (USD): the invoicing report is in SAR and is converted at 3.75.
  */
 export async function getFinanceMonthly(input: { from: string; to: string; branchIds: string[]; exactRange?: boolean }): Promise<{ months: FinanceMonth[]; partialInvoicing: boolean }> {
-  const user = await requireAnyViewer(["officer", "branch_admin", "workshop_supervisor"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "workshop_supervisor", "service_advisor"]);
   const admin = createAdminClient();
   const end = /^\d{4}-\d{2}$/.test(input.to) ? input.to : new Date().toISOString().slice(0, 7);
   const asked = /^\d{4}-\d{2}$/.test(input.from) ? input.from : end;
