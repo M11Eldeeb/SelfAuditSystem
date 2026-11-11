@@ -3,6 +3,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import type { QcTechnician } from "./constants";
+import { cleanChecklist, type Checklist } from "./checklist";
 
 type CheckRow = Database["public"]["Tables"]["self_audit_qc_checks"]["Row"];
 type TestRow = Database["public"]["Tables"]["self_audit_qc_tests"]["Row"];
@@ -34,7 +35,7 @@ export type QcSummary = {
 };
 
 export type QcFile = { id: string; testId: string | null; name: string; mimeType: string; size: number; createdAt: string };
-export type QcTest = { id: string; attempt: number; result: TestRow["result"]; comment: string | null; technicians: QcTechnician[]; finalOdometer: number | null; by: string | null; at: string };
+export type QcTest = { id: string; attempt: number; result: TestRow["result"]; comment: string | null; technicians: QcTechnician[]; finalOdometer: number | null; by: string | null; at: string; checklist: Checklist | null };
 export type QcDetail = CheckRow & { branch: string; tests: QcTest[]; files: QcFile[] };
 
 async function branchNames(): Promise<Map<string, string>> {
@@ -117,7 +118,7 @@ export async function getQcDetail(user: CurrentUser, id: string): Promise<QcDeta
   return {
     ...c,
     branch: branch?.name ?? "—",
-    tests: (tests ?? []).map((t) => ({ id: t.id, attempt: t.attempt_no, result: t.result, comment: t.comment, technicians: t.technicians ?? [], finalOdometer: t.final_odometer, by: t.tested_by_name, at: t.created_at })),
+    tests: (tests ?? []).map((t) => ({ id: t.id, attempt: t.attempt_no, result: t.result, comment: t.comment, technicians: t.technicians ?? [], finalOdometer: t.final_odometer, by: t.tested_by_name, at: t.created_at, checklist: t.checklist ? cleanChecklist(t.checklist, (t.checklist as Checklist).repairType ?? c.repair_type ?? "") : null })),
     files: (files ?? []).map((f) => ({ id: f.id, testId: f.test_id, name: f.file_name, mimeType: f.mime_type, size: Number(f.size_bytes), createdAt: f.created_at })),
   };
 }

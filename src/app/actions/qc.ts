@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanChecklist, unanswered, type Checklist } from "@/lib/qc/checklist";
 import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
@@ -183,12 +184,31 @@ async function verifiedFiles(folderId: string, ids: string[]) {
 }
 
 /** "Closed" needs the database change (migration 0174): until then a friendly message instead of the database's. */
-const notYet = (message: string | undefined) => (message && /check constraint/i.test(message) ? "Closed is not available yet - the database needs an update (ask the warranty officer)." : message);
+const notYet = (message: string | undefined) => (message && /check constraint/i.test(message) ? "Close as Fail is not available yet - the database needs an update (ask the warranty officer)." : message);
 
 /** Pass closes the case (passed); Closed closes it without a pass (justified); Fail keeps it open for a retest. */
 const STATUS_OF = { pass: "passed", fail: "failed", close: "closed" } as const;
 
-export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[] };
+export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[]; checklist?: unknown };
+
+/** The inspection sheet of the repair type, every item answered (null when the repair type has no sheet). */
+function checkedSheet(raw: unknown, repairType: string | null): { sheet: Checklist | null } | { error: string } {
+  const sheet = cleanChecklist(raw, repairType ?? "");
+  if (!sheet) return { sheet: null };
+  const left = unanswered(sheet);
+  if (left.length) return { error: `Answer every item of the inspection sheet (${left.length} left: ${left.slice(0, 3).join(", ")}${left.length > 3 ? "…" : ""}).` };
+  return { sheet };
+}
+
+type TestInsert = Database["public"]["Tables"]["self_audit_qc_tests"]["Insert"];
+
+/** Saves a test with its inspection sheet - without the sheet until the database has its column (migration 0175). */
+async function insertTest(row: TestInsert, sheet: Checklist | null) {
+  const admin = createAdminClient();
+  const first = await admin.from("self_audit_qc_tests").insert({ ...row, ...(sheet ? { checklist: sheet } : {}) }).select("id").single();
+  if (first.error && sheet && /checklist/i.test(first.error.message)) return admin.from("self_audit_qc_tests").insert(row).select("id").single();
+  return first;
+}
 export type QcNewInput = QcResultInput & {
   wip: string;
   /** WIP numbers files were uploaded under before the WIP was corrected: those files move to the final WIP's folder. */
@@ -211,10 +231,10 @@ const num = (s: string) => {
 
 /** The pass / fail part (shared by a new QC and a test again). */
 async function cleanResult(input: QcResultInput, branchId: string, odometerIn: number | null) {
-  if (input.result !== "pass" && input.result !== "fail" && input.result !== "close") return { error: "Choose Pass, Fail or Closed." };
+  if (input.result !== "pass" && input.result !== "fail" && input.result !== "close") return { error: "Choose Pass, Fail or Close as Fail." };
   const comment = input.comment.trim().slice(0, 4000) || null;
   if (input.result === "fail" && !comment) return { error: "Write why the vehicle failed." };
-  if (input.result === "close" && !comment) return { error: "Write why the case is closed without a pass." };
+  if (input.result === "close" && !comment) return { error: "Write why the case is closed as failed." };
   const finalOdometer = num(input.finalOdometer);
   if (finalOdometer == null) return { error: "Enter the current odometer." };
   if (finalOdometer != null && (finalOdometer > 3_000_000 || (odometerIn != null && finalOdometer < odometerIn))) return { error: "The current odometer must not be lower than the odometer in." };
@@ -252,6 +272,8 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     if (!serviceAdvisor) return { error: "Choose the service advisor." };
     const r = await cleanResult(input, branch.id, odometerIn);
     if ("error" in r) return { error: r.error };
+    const sheetCheck = checkedSheet(input.checklist, input.repairType);
+    if ("error" in sheetCheck) return { error: sheetCheck.error };
 
     const folder = await qcFolder(branch, wip);
     const files = await verifiedFiles(folder, input.driveFileIds);
@@ -301,11 +323,10 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
       ({ data: check, error } = await admin.from("self_audit_qc_checks").insert({ ...older, ...(vin ? { vin } : {}) }).select("id").single());
     }
     if (error || !check) return { error: notYet(error?.message) ?? "Could not save the QC." };
-    const { data: test, error: testError } = await admin
-      .from("self_audit_qc_tests")
-      .insert({ check_id: check.id, attempt_no: 1, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name })
-      .select("id")
-      .single();
+    const { data: test, error: testError } = await insertTest(
+      { check_id: check.id, attempt_no: 1, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name },
+      sheetCheck.sheet
+    );
     if (testError || !test) return { id: check.id, error: testError?.message ?? "Could not save the test." };
     if (files.length) await admin.from("self_audit_qc_files").insert(files.map((f) => ({ check_id: check.id, test_id: test.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: user.id })));
     revalidateAll();
@@ -324,13 +345,14 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     if (check.status !== "failed") return { error: "This case is closed already." };
     const r = await cleanResult(input, branch.id, check.odometer_in);
     if ("error" in r) return { error: r.error };
+    const sheetCheck = checkedSheet(input.checklist, check.repair_type);
+    if ("error" in sheetCheck) return { error: sheetCheck.error };
     const admin = createAdminClient();
     const attempt = check.attempts + 1;
-    const { data: test, error } = await admin
-      .from("self_audit_qc_tests")
-      .insert({ check_id: check.id, attempt_no: attempt, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name })
-      .select("id")
-      .single();
+    const { data: test, error } = await insertTest(
+      { check_id: check.id, attempt_no: attempt, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name },
+      sheetCheck.sheet
+    );
     if (error || !test) return { error: error?.code === "23505" ? "Someone tested this vehicle just now - reload the page." : (notYet(error?.message) ?? "Could not save the test.") };
     const now = new Date().toISOString();
     const update = { attempts: attempt, status: STATUS_OF[r.result], final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now };

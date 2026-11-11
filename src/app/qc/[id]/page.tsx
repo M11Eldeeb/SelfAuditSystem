@@ -12,7 +12,17 @@ export default async function QcRecordPage({ params }: { params: Promise<{ id: s
       user={user}
       base="/qc"
       id={id}
-      retest={(qc) => (qc.status === "failed" ? <QcRetestForm checkId={qc.id} options={options} lastTechnicians={qc.tests[qc.tests.length - 1]?.technicians ?? []} /> : null)}
+      retest={(qc) =>
+        qc.status === "failed" ? (
+          <QcRetestForm
+            checkId={qc.id}
+            options={options}
+            lastTechnicians={qc.tests[qc.tests.length - 1]?.technicians ?? []}
+            repairType={qc.repair_type}
+            lastChecklist={[...qc.tests].reverse().find((t) => t.checklist)?.checklist ?? null}
+          />
+        ) : null
+      }
     />
   );
 }

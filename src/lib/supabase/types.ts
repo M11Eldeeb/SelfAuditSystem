@@ -60,8 +60,8 @@ export interface Database {
         Relationships: [];
       };
       self_audit_qc_tests: {
-        Row: { id: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment: string | null; technicians: { id: string | null; name: string }[]; final_odometer: number | null; tested_by: string | null; tested_by_name: string | null; created_at: string };
-        Insert: { id?: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment?: string | null; technicians?: { id: string | null; name: string }[]; final_odometer?: number | null; tested_by?: string | null; tested_by_name?: string | null; created_at?: string };
+        Row: { id: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment: string | null; technicians: { id: string | null; name: string }[]; final_odometer: number | null; tested_by: string | null; tested_by_name: string | null; created_at: string; checklist?: unknown };
+        Insert: { id?: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment?: string | null; technicians?: { id: string | null; name: string }[]; final_odometer?: number | null; tested_by?: string | null; tested_by_name?: string | null; created_at?: string; checklist?: unknown };
         Update: Partial<Database["public"]["Tables"]["self_audit_qc_tests"]["Insert"]>;
         Relationships: [];
       };

@@ -4,9 +4,54 @@ import type { QcDetail, QcSummary } from "@/lib/qc/server";
 import { purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
 import { fmtDateTime } from "@/components/tech-claims/status";
 import { TechClaimFileGallery } from "@/components/tech-claims/file-gallery";
+import { BRAKE_MEASURES, MARK_LABEL, WHEELS, sectionsFor, sheetTitle, type Checklist, type Mark } from "@/lib/qc/checklist";
+
+const MARK_TONE: Record<Mark, string> = { G: "text-emerald-700", I: "text-amber-700", R: "text-red-700 font-semibold", NA: "text-neutral-500" };
+
+/** One test's inspection sheet, folded: the items not Good first, then everything section by section. */
+function SheetAnswers({ sheet }: { sheet: Checklist }) {
+  const sections = sectionsFor(sheet.repairType);
+  const all = sections.flatMap((s) => s.items);
+  const flagged = all.filter((i) => sheet.answers[i.id] === "I" || sheet.answers[i.id] === "R");
+  return (
+    <details className="group mt-3 rounded-lg bg-neutral-50 p-2.5 ring-1 ring-neutral-200">
+      <summary className="cursor-pointer text-xs font-semibold text-neutral-700 select-none">
+        {sheetTitle(sheet.repairType)} · {all.length - flagged.length} good{flagged.length ? ` · ${flagged.length} to inspect / repair` : ""}
+      </summary>
+      <div className="mt-2 space-y-3 text-xs">
+        {sections.map((s) => (
+          <div key={s.id}>
+            <div className="mb-1 font-semibold text-neutral-800">{s.title}</div>
+            <ul className="space-y-0.5">
+              {s.items.map((i) => {
+                const m = sheet.answers[i.id];
+                return (
+                  <li key={i.id} className="flex justify-between gap-3">
+                    <span className="text-neutral-700">{i.label}{sheet.clarify[i.id] ? ` - ${sheet.clarify[i.id]}` : ""}</span>
+                    <span className={m ? MARK_TONE[m] : "text-neutral-400"}>{m ? MARK_LABEL[m] : "—"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {s.extra === "wheels" && Object.keys(sheet.wheels).length > 0 && (
+              <div className="mt-1 text-neutral-600">{WHEELS.filter((w) => sheet.wheels[w]).map((w) => `${w}: ${sheet.wheels[w]?.pressure || "-"} psi / ${sheet.wheels[w]?.torque || "-"} Nm`).join(" · ")}</div>
+            )}
+            {s.extra === "brakes" && (Object.keys(sheet.brakes).length > 0 || sheet.tireDate) && (
+              <div className="mt-1 text-neutral-600">
+                {BRAKE_MEASURES.filter((b) => sheet.brakes[b.id]).map((b) => `${b.label} ${sheet.brakes[b.id]} mm`).join(" · ")}
+                {sheet.tireDate ? ` · Tire date ${sheet.tireDate}` : ""}
+              </div>
+            )}
+            {sheet.comments[s.id] && <div className="mt-1 text-neutral-600 italic">{sheet.comments[s.id]}</div>}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
 
 export function QcStatusPill({ status, attempts }: { status: "failed" | "passed" | "closed"; attempts?: number }) {
-  if (status === "closed") return <span className="inline-block rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-neutral-700">Closed - not passed</span>;
+  if (status === "closed") return <span className="inline-block rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-neutral-700">Closed as failed</span>;
   return status === "passed" ? (
     <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800">Passed · closed{attempts && attempts > 1 ? ` (test ${attempts})` : ""}</span>
   ) : (
@@ -179,13 +224,14 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
               <span className={`absolute -start-[1.72rem] top-3 h-3.5 w-3.5 rounded-full ring-4 ring-white ${t.result === "pass" ? "bg-emerald-500" : t.result === "close" ? "bg-neutral-500" : "bg-red-500"}`} />
               <div className={`rounded-xl bg-white p-3.5 shadow-sm ring-1 ${t.result === "pass" ? "ring-emerald-200" : t.result === "close" ? "ring-neutral-300" : "ring-red-200"}`}>
                 <div className="text-sm font-semibold text-neutral-900">
-                  Test {t.attempt} · <span className={t.result === "pass" ? "text-emerald-700" : t.result === "close" ? "text-neutral-700" : "text-red-700"}>{t.result === "pass" ? "Pass - case closed" : t.result === "close" ? "Closed - not passed" : "Fail"}</span>
+                  Test {t.attempt} · <span className={t.result === "pass" ? "text-emerald-700" : t.result === "close" ? "text-neutral-700" : "text-red-700"}>{t.result === "pass" ? "Pass - case closed" : t.result === "close" ? "Closed as failed" : "Fail"}</span>
                 </div>
                 {t.comment && <p className="mt-1.5 text-sm whitespace-pre-wrap text-neutral-800">{t.comment}</p>}
                 <div className="mt-2 space-y-0.5 text-xs text-neutral-600">
                   <div>Technician(s): {t.technicians.map((x) => x.name).join(", ") || "—"}</div>
                   {t.finalOdometer != null && <div>Current odometer: {t.finalOdometer.toLocaleString("en-US")} km</div>}
                 </div>
+                {t.checklist && <SheetAnswers sheet={t.checklist} />}
                 {filesOf(t.id).length > 0 && (
                   <div className="mt-3">
                     <TechClaimFileGallery base="/api/qc/file" files={filesOf(t.id).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size }))} />

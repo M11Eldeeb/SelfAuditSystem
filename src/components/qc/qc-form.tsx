@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
 import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
+import { emptyChecklist, sectionsFor, unanswered, type Checklist } from "@/lib/qc/checklist";
+import { ChecklistForm } from "./checklist-form";
 
 // Built for a phone first: one column, big tap targets, 16px text in fields (a smaller size makes iPhones zoom in), and
 // the Submit button always in reach at the bottom of the screen.
@@ -153,7 +155,7 @@ function ResultFields({
               result === r ? (r === "pass" ? "bg-emerald-600 text-white ring-emerald-600" : r === "fail" ? "bg-red-600 text-white ring-red-600" : "bg-neutral-800 text-white ring-neutral-800") : "bg-white text-neutral-700 ring-neutral-300"
             }`}
           >
-            {r === "pass" ? "✓ Pass" : r === "fail" ? "✕ Fail" : "■ Closed"}
+            {r === "pass" ? "✓ Pass" : r === "fail" ? "✕ Fail" : "■ Close as Fail"}
           </button>
         ))}
       </div>
@@ -162,8 +164,8 @@ function ResultFields({
       </Field>
       {result && (
         <Field
-          title={result === "fail" ? "Justification (why it failed) *" : result === "close" ? "Justification (why it is closed without a pass) *" : "Comment (optional)"}
-          hint={result === "pass" ? "Pass closes the case." : result === "close" ? "Closed ends the case without a pass." : "Fail keeps the case open for a retest."}
+          title={result === "fail" ? "Justification (why it failed) *" : result === "close" ? "Justification (why the case is closed as failed) *" : "Comment (optional)"}
+          hint={result === "pass" ? "Pass closes the case." : result === "close" ? "Close as Fail ends the case as failed - no retest." : "Fail keeps the case open for a retest."}
         >
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : result === "close" ? "e.g. customer took the car before the retest" : ""} />
         </Field>
@@ -363,6 +365,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const [serviceAdvisor, setServiceAdvisor] = useState("");
   const [model, setModel] = useState("");
   const [repairType, setRepairType] = useState("");
+  const [checklist, setChecklist] = useState<Checklist>(emptyChecklist(""));
   const [replacedParts, setReplacedParts] = useState("");
   const [defectDescription, setDefectDescription] = useState("");
   const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
@@ -395,9 +398,11 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
     e.preventDefault();
     setError(null);
     if (group === "test_drive" && !kind) return setError("Choose the kind of test drive.");
-    if (!result) return setError("Choose Pass, Fail or Closed.");
+    if (!result) return setError("Choose Pass, Fail or Close as Fail.");
+    const left = sectionsFor(repairType).length ? unanswered({ ...checklist, repairType }) : [];
+    if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
     setSaving(true);
-    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids });
+    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType } });
     setSaving(false);
     if (r.error) return setError(r.error);
     // Saved: back to the QC records (a pass or close closes the case; a fail waits for its retest).
@@ -490,11 +495,17 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         </Field>
       </Section>
 
-      <Section n={5} title="Result">
+      {sectionsFor(repairType).length > 0 && (
+        <Section n={5} title="Inspection sheet">
+          <ChecklistForm value={{ ...checklist, repairType }} onChange={setChecklist} />
+        </Section>
+      )}
+
+      <Section n={sectionsFor(repairType).length ? 6 : 5} title="Result">
         <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} />
       </Section>
 
-      <Section n={6} title="Files">
+      <Section n={sectionsFor(repairType).length ? 7 : 6} title="Files">
         <FilesField files={files} />
       </Section>
 
@@ -504,7 +515,22 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
 }
 
 /** Quality controller: test a failed vehicle again - the technicians may have changed (the workshop assigned another). */
-export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: string; options: QcFormOptions; lastTechnicians: QcTechnician[] }) {
+export function QcRetestForm({
+  checkId,
+  options,
+  lastTechnicians,
+  repairType,
+  lastChecklist,
+}: {
+  checkId: string;
+  options: QcFormOptions;
+  lastTechnicians: QcTechnician[];
+  repairType: string | null;
+  /** The previous test's sheet: its answers are the starting point (only what changed needs a tap). */
+  lastChecklist: Checklist | null;
+}) {
+  const [checklist, setChecklist] = useState<Checklist>(lastChecklist ? { ...lastChecklist, repairType: repairType ?? "" } : emptyChecklist(repairType ?? ""));
+  const hasSheet = sectionsFor(repairType).length > 0;
   const router = useRouter();
   const [technicians, setTechnicians] = useState<QcTechnician[]>(lastTechnicians);
   const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
@@ -517,9 +543,11 @@ export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: s
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!result) return setError("Choose Pass, Fail or Closed.");
+    if (!result) return setError("Choose Pass, Fail or Close as Fail.");
+    const left = hasSheet ? unanswered(checklist) : [];
+    if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
     setSaving(true);
-    const r = await retestQc(checkId, { result, comment, finalOdometer, technicians, driveFileIds: files.ids });
+    const r = await retestQc(checkId, { result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist });
     setSaving(false);
     if (r.error) return setError(r.error);
     router.push(result === "fail" ? "/qc?status=failed" : "/qc?status=closed");
@@ -533,10 +561,15 @@ export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: s
           <TechnicianPicker options={options.technicians} value={technicians} onChange={setTechnicians} />
         </Field>
       </Section>
-      <Section n={2} title="Result">
+      {hasSheet && (
+        <Section n={2} title="Inspection sheet">
+          <ChecklistForm value={checklist} onChange={setChecklist} />
+        </Section>
+      )}
+      <Section n={hasSheet ? 3 : 2} title="Result">
         <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} />
       </Section>
-      <Section n={3} title="Files">
+      <Section n={hasSheet ? 4 : 3} title="Files">
         <FilesField files={files} />
       </Section>
       <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} />
