@@ -54,19 +54,16 @@ export type QcFormOptions = { technicians: QcTechnician[]; models: string[]; tea
 export async function qcFormOptions(): Promise<QcFormOptions> {
   const { branch } = await controller();
   const admin = createAdminClient();
-  const [{ data: techs }, { data: extra }, { data: models }] = await Promise.all([
+  const [{ data: techs }, { data: extra }] = await Promise.all([
     admin.from("self_audit_users").select("id, full_name, email, employee_no").eq("role", "technician").eq("branch_id", branch.id).order("full_name"),
     admin.from("self_audit_qc_extra_technicians").select("name").eq("branch_id", branch.id).order("name"),
-    admin.rpc("qc_vehicle_models"),
   ]);
   const accounts: QcTechnician[] = (techs ?? []).map((t) => ({ id: t.id, name: `${t.full_name ?? t.email}${t.employee_no ? ` - ${t.employee_no}` : ""}` }));
   const taken = new Set(accounts.map((t) => t.name.toLowerCase()));
   const added: QcTechnician[] = (extra ?? []).filter((e) => !taken.has(e.name.toLowerCase())).map((e) => ({ id: null, name: e.name }));
-  // The batches' model codes, shown by name (MG RX5, not AS22); a code with no known name stays as it is.
-  const codes = ((models ?? []) as unknown[]).map((m) => String(m && typeof m === "object" ? Object.values(m)[0] : m)).filter((c) => c && c !== "undefined");
-  const names = [...new Set([...Object.values(QC_MODEL_BY_CODE), ...codes.map((c) => QC_MODEL_BY_CODE[c] ?? c)])];
-  const known = new Set(Object.values(QC_MODEL_BY_CODE));
-  names.sort((a, b) => Number(!known.has(a)) - Number(!known.has(b)) || a.localeCompare(b, "en", { numeric: true }));
+  // The model names (MG RX5, not the batch code AS22). A fixed list: reading the codes from the claims batches took
+  // seconds on every page.
+  const names = [...new Set(Object.values(QC_MODEL_BY_CODE))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
   return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "" };
 }
 
