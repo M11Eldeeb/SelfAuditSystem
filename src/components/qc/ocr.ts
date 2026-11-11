@@ -61,11 +61,40 @@ async function readText(file: File): Promise<string> {
 /** VIN letters never include I, O or Q: read as 1, 0, 0. */
 const vinFix = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/I/g, "1").replace(/[OQ]/g, "0");
 
+/** In the last 6 places of a VIN (the serial number) there are only digits: letters that look like digits are digits. */
+const LOOKS_LIKE_DIGIT: Record<string, string> = { S: "5", B: "8", Z: "2", G: "6", T: "7", D: "0", U: "0", A: "4", L: "1", J: "1" };
+const serialFix = (v: string) => v.slice(0, 11) + v.slice(11).replace(/[A-Z]/g, (c) => LOOKS_LIKE_DIGIT[c] ?? c);
+
+/**
+ * The VIN on the card: a single word of 17 characters (or two pieces the reader split) that really looks like a VIN -
+ * starting with "L", 11 letters/digits then a 6-digit serial number. "LSJ" (SAIC) preferred.
+ * Never a run of letters glued together from other words.
+ */
+function findVin(text: string): string | null {
+  const words = text.toUpperCase().split(/[\s|,;:]+/).map(vinFix).filter(Boolean);
+  const candidates: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    // A stray mark next to the VIN can add a character or two in front: try those offsets too.
+    for (const w of [words[i], words[i] + (words[i + 1] ?? "")]) for (let k = 0; k + 17 <= w.length && k <= 2; k++) {
+        const raw = w.slice(k, k + 17);
+        // As read (before any letter is turned into a digit): a serial number that is mostly digits already, and digits
+        // among the first 11 too - words of the form never look like that.
+        const digits = (x: string) => (x.match(/\d/g) ?? []).length;
+        if (digits(raw.slice(11)) >= 4 && digits(raw.slice(0, 11)) >= 2) candidates.push(serialFix(raw));
+      }
+  }
+  // Every MG here is made by SAIC in China: its VIN starts with "L" (world maker code LSJ).
+  const valid = candidates.filter((v) => /^L[A-HJ-NPR-Z0-9]{10}\d{6}$/.test(v));
+  const score = (v: string) => (v.startsWith("LSJ") ? 3 : v.startsWith("L") ? 1 : 0);
+  valid.sort((a, b) => score(b) - score(a));
+  return valid[0] ?? null;
+}
+
 export type JobCardReading = { wips: string[]; vin: string | null; plates: string[] };
 
 /**
- * Job card: the WIP number (5 digits after "W.I.P. No.", else every 5-digit number on the card, best first) and the VIN
- * (17 characters, after "Chassis No." when it can be found).
+ * Job card: the WIP number (5 digits after "W.I.P. No.", else every 5-digit number on the card, best first), the VIN
+ * (after "Chassis No." when it can be found, else the VIN-shaped word on the card) and the plate.
  */
 export async function readJobCard(file: File): Promise<JobCardReading> {
   const text = await readText(file);
@@ -74,15 +103,8 @@ export async function readJobCard(file: File): Promise<JobCardReading> {
   for (const m of flat.matchAll(/W\s*\.?\s*[I1l|]\s*\.?\s*P\s*\.?\s*(?:N[o0]\s*\.?)?\s*[:.]?\s*(\d{5})(?!\d)/gi)) wips.push(m[1]);
   for (const m of flat.matchAll(/(?<!\d)(\d{5})(?!\d)/g)) if (!wips.includes(m[1])) wips.push(m[1]);
 
-  let vin: string | null = null;
   const afterChassis = flat.match(/Chass[il1]s\s*N[o0]\.?\s*[:.]?\s*([A-Z0-9 ]{17,24})/i)?.[1];
-  for (const raw of [afterChassis, ...text.split(/\n+/), flat].filter(Boolean) as string[]) {
-    const m = vinFix(raw).match(/L[A-HJ-NPR-Z0-9]{16}/) ?? vinFix(raw).match(/[A-HJ-NPR-Z0-9]{17}/);
-    if (m) {
-      vin = m[0];
-      break;
-    }
-  }
+  const vin = (afterChassis && findVin(afterChassis)) || findVin(text);
   // Saudi plates as the job card prints them ("4987BBR"): 1-4 digits and 3 letters.
   const plates = [...new Set([...flat.toUpperCase().matchAll(/(?<![A-Z0-9])(\d{1,4})\s?([A-Z]{3})(?![A-Z0-9])/g)].map((m) => `${m[1]}${m[2]}`))].slice(0, 6);
   return { wips: wips.slice(0, 12), vin, plates };

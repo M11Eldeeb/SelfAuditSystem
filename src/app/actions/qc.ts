@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { driveFileInfo, ensureWipSubFolder, trashDriveFile } from "@/lib/tech-claims/drive";
+import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
@@ -232,6 +232,8 @@ async function verifiedFiles(folderId: string, ids: string[]) {
 export type QcResultInput = { result: "pass" | "fail"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[] };
 export type QcNewInput = QcResultInput & {
   wip: string;
+  /** WIP numbers files were uploaded under before the WIP was corrected: those files move to the final WIP's folder. */
+  uploadWips?: string[];
   vin: string;
   odometerIn: string;
   purpose: string;
@@ -293,6 +295,17 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
 
     const folder = await qcFolder(branch, wip);
     const files = await verifiedFiles(folder, input.driveFileIds);
+    // Files uploaded while another WIP number was typed: found in that WIP's QC folder and moved to this one.
+    for (const other of [...new Set((input.uploadWips ?? []).map((w) => normalizeWip(w, branch.code ?? "")))]) {
+      if (!other || other === wip) continue;
+      const { data: known } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", qcFolderKey(branch.id, other)).maybeSingle();
+      if (!known) continue;
+      const stray = await verifiedFiles(known.drive_id, input.driveFileIds.filter((id) => !files.some((f) => f.id === id)));
+      for (const f of stray) {
+        await moveDriveFile(f.id, known.drive_id, folder);
+        files.push(f);
+      }
+    }
     const now = new Date().toISOString();
     const admin = createAdminClient();
     const vin = input.vin.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17);

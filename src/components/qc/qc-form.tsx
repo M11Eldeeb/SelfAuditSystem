@@ -13,7 +13,7 @@ import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 const field =
   "w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-3 text-base shadow-sm focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none sm:text-sm disabled:bg-neutral-100";
 
-type Upload = { key: string; name: string; size: number; sent: number; driveId?: string; error?: string };
+type Upload = { key: string; name: string; size: number; sent: number; driveId?: string; error?: string; wip?: string };
 
 function Field({ title, children, hint }: { title: string; children: React.ReactNode; hint?: React.ReactNode }) {
   return (
@@ -186,7 +186,7 @@ function useUploads(target: () => { wip?: string; checkId?: string } | null) {
     const list = [...files].slice(0, Math.max(0, room));
     if (files.length > list.length) setError(`Up to ${QC_MAX_FILES} files.`);
     const items = list.map((f) => ({ file: f, key: `u${++seq.current}` }));
-    setUploads((u) => [...u, ...items.map(({ file, key }) => ({ key, name: file.name, size: file.size, sent: 0 }))]);
+    setUploads((u) => [...u, ...items.map(({ file, key }) => ({ key, name: file.name, size: file.size, sent: 0, wip: t.wip }))]);
     let next = 0;
     const worker = async () => {
       while (next < items.length) {
@@ -207,13 +207,15 @@ function useUploads(target: () => { wip?: string; checkId?: string } | null) {
   function remove(key: string) {
     const u = uploads.find((x) => x.key === key);
     setUploads((list) => list.filter((x) => x.key !== key));
-    const t = target();
+    const t = u?.wip ? { wip: u.wip } : target();
     if (u?.driveId && t) void discardQcUpload(t, u.driveId);
   }
 
   const busy = uploads.some((u) => !u.driveId && !u.error);
   const ids = uploads.filter((u) => u.driveId).map((u) => u.driveId!);
-  return { uploads, add, remove, busy, ids, error };
+  // The WIP numbers the files were uploaded under (the WIP can still be changed afterwards: the server moves them).
+  const wips = [...new Set(uploads.filter((u) => u.driveId && u.wip).map((u) => u.wip!))];
+  return { uploads, add, remove, busy, ids, wips, error };
 }
 
 /** Take a photo / video with the camera, or pick files (photos, videos, PDF). */
@@ -396,8 +398,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const [finalOdometer, setFinalOdometer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const wipLocked = useRef<string | null>(null);
-  const files = useUploads(() => (wip.replace(/\D/g, "") ? { wip: wipLocked.current ?? wip } : null));
+  const files = useUploads(() => (wip.length === 5 ? { wip } : null));
   const testDrive = QC_PURPOSE_GROUPS.find((g) => g.key === "test_drive")!;
   const purpose = group === "test_drive" ? kind : group;
 
@@ -425,11 +426,8 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
       const read = await readJobCard(file);
       const m = await matchJobCard(read);
       if (m.vin) setVin(m.vin);
-      if (m.wip && !files.uploads.length) {
-        wipLocked.current = m.wip;
-        await changeWip(m.wip);
-      }
-      const wipNow = files.uploads.length ? wipLocked.current : m.wip;
+      if (m.wip) await changeWip(m.wip);
+      const wipNow = m.wip ?? (wip.length === 5 ? wip : null);
       if (wipNow) void files.add([file], { wip: wipNow });
       setScan({
         kind: "job",
@@ -451,11 +449,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         const lines = parts.map((p) => `${p.partNo} - ${p.description}`);
         setReplacedParts((t) => [t.trim(), ...lines.filter((l) => !t.includes(l))].filter(Boolean).join("\n"));
       }
-      const wipNow = wipLocked.current ?? (wip.length === 5 ? wip : null);
-      if (wipNow) {
-        wipLocked.current = wipNow;
-        void files.add([file], { wip: wipNow });
-      }
+      if (wip.length === 5) void files.add([file], { wip });
       setScan({ kind: "req", busy: false, ok: parts.length > 0, note: parts.length ? `${parts.length} part${parts.length > 1 ? "s" : ""} added - please check them.` : "No part number could be read - type the parts." });
     } catch {
       setScan({ kind: "req", busy: false, note: "The photo could not be read - type the parts." });
@@ -468,13 +462,12 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
     if (group === "test_drive" && !kind) return setError("Choose the kind of test drive.");
     if (!result) return setError("Choose Pass or Fail.");
     setSaving(true);
-    const r = await submitQc({ wip: (files.uploads.length && wipLocked.current) || wip, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids });
+    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids });
     setSaving(false);
     if (r.error) return setError(r.error);
     if (r.id) router.push(`/qc/${r.id}`);
   }
 
-  const wipChangeBlocked = files.uploads.length > 0;
   return (
     <form onSubmit={submit} className="space-y-4">
       <Section n={1} title="Vehicle">
@@ -483,16 +476,14 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         <Field
           title="WIP number *"
           hint={
-            wipChangeBlocked
-              ? "Files are attached to this WIP - remove them to change it."
-              : wip.length > 0 && wip.length < 5
+            wip.length > 0 && wip.length < 5
                 ? `${5 - wip.length} more digit${wip.length === 4 ? "" : "s"}`
                 : options.branchCode
                   ? `5 digits - saved as ${options.branchCode}-${wip.length === 5 ? wip : "…"}`
                   : "5 digits"
           }
         >
-          <input value={wip} disabled={wipChangeBlocked} onChange={(e) => void changeWip(e.target.value)} inputMode="numeric" pattern="\d{5}" maxLength={5} enterKeyHint="next" className={`${field} tracking-widest`} placeholder="12345" />
+          <input value={wip} onChange={(e) => void changeWip(e.target.value)} inputMode="numeric" pattern="\d{5}" maxLength={5} enterKeyHint="next" className={`${field} tracking-widest`} placeholder="12345" />
         </Field>
         {dupOpen && info && info.earlier.length > 0 && <DuplicateWipDialog info={info} onNew={() => setDupOpen(false)} />}
         <Field title="VIN" hint={vin && vin.length !== 17 ? `${vin.length} of 17 characters` : undefined}>
@@ -572,7 +563,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
       </Section>
 
       <Section n={6} title="Files">
-        <FilesField files={files} onBeforeAdd={() => (wipLocked.current = wip)} />
+        <FilesField files={files} />
       </Section>
 
       <SubmitBar label="Submit QC" busy={files.busy} saving={saving} error={error} />
