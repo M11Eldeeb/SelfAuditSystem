@@ -416,8 +416,8 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
           <input value={wip} onChange={(e) => void changeWip(e.target.value)} inputMode="numeric" pattern="\d{5}" maxLength={5} enterKeyHint="next" className={`${field} tracking-widest`} placeholder="12345" />
         </Field>
         {dupOpen && info && info.earlier.length > 0 && <DuplicateWipDialog info={info} onNew={() => setDupOpen(false)} />}
-        <Field title="VIN" hint={vin && vin.length !== 17 ? `${vin.length} of 17 characters` : undefined}>
-          <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17))} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={17} className={`${field} font-mono tracking-wider`} placeholder="17 characters" />
+        <Field title="VIN">
+          <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} font-mono tracking-wider`} placeholder="VIN" />
         </Field>
         {info?.model && (
           <p className="rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-700 ring-1 ring-neutral-200">

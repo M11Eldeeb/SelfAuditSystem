@@ -123,7 +123,7 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
 
 const cleanVin = (v: string | null | undefined) => {
   const s = (v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return s.length === 17 ? s : null;
+  return s || null;
 };
 
 /** A failed QC of the controller's branch (to test again). */
@@ -261,8 +261,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     }
     const now = new Date().toISOString();
     const admin = createAdminClient();
-    const vin = input.vin.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17);
-    if (vin && vin.length !== 17) return { error: "The VIN has 17 characters." };
+    const vin = input.vin.toUpperCase().replace(/\s+/g, "").slice(0, 60);
     const row: Database["public"]["Tables"]["self_audit_qc_checks"]["Insert"] = {
         branch_id: branch.id,
         wip_no: wip,
