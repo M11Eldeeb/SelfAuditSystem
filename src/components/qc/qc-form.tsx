@@ -6,7 +6,7 @@ import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQ
 import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 import { emptyChecklist, sectionsFor, unanswered, type Checklist } from "@/lib/qc/checklist";
-import { ChecklistForm } from "./checklist-form";
+import { ChecklistForm, flaggedItems } from "./checklist-form";
 
 // Built for a phone first: one column, big tap targets, 16px text in fields (a smaller size makes iPhones zoom in), and
 // the Submit button always in reach at the bottom of the screen.
@@ -550,7 +550,12 @@ export function QcRetestForm({
   /** The previous test's sheet: its answers are the starting point (only what changed needs a tap). */
   lastChecklist: Checklist | null;
 }) {
-  const [checklist, setChecklist] = useState<Checklist>(lastChecklist ? { ...lastChecklist, repairType: repairType ?? "" } : emptyChecklist(repairType ?? ""));
+  // The last answers are kept, except the items marked Inspect / Repair: those start empty and must be checked again.
+  const [checklist, setChecklist] = useState<Checklist>(() => {
+    if (!lastChecklist) return emptyChecklist(repairType ?? "");
+    const recheck = new Set(flaggedItems(lastChecklist));
+    return { ...lastChecklist, repairType: repairType ?? "", answers: Object.fromEntries(Object.entries(lastChecklist.answers).filter(([id]) => !recheck.has(id))), comments: {} };
+  });
   const hasSheet = sectionsFor(repairType).length > 0;
   const router = useRouter();
   const [technicians, setTechnicians] = useState<QcTechnician[]>(lastTechnicians);
@@ -584,7 +589,7 @@ export function QcRetestForm({
       </Section>
       {hasSheet && (
         <Section n={2} title="Inspection sheet">
-          <ChecklistForm value={checklist} onChange={setChecklist} />
+          <ChecklistForm value={checklist} onChange={setChecklist} previous={lastChecklist ? { ...lastChecklist, repairType: repairType ?? "" } : null} />
         </Section>
       )}
       <Section n={hasSheet ? 3 : 2} title="Result">
