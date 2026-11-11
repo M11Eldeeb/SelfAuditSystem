@@ -45,7 +45,7 @@ export interface Database {
           purpose: "quality_control" | "test_drive_customer" | "test_drive_pre_repair" | "test_drive_post_repair" | "comeback" | "diagnosis_verification";
           repair_type: "periodic_maintenance" | "general_repair" | "both" | null;
           team_leader: string | null; service_advisor: string | null; replaced_parts: string | null; defect_description: string | null;
-          status: "failed" | "passed"; attempts: number; final_odometer: number | null; passed_at: string | null; drive_folder_id: string | null;
+          status: "failed" | "passed" | "closed"; attempts: number; final_odometer: number | null; passed_at: string | null; closed_at: string | null; drive_folder_id: string | null;
           controller_id: string | null; controller_name: string | null; created_at: string; updated_at: string;
         };
         Insert: {
@@ -53,15 +53,15 @@ export interface Database {
           purpose: Database["public"]["Tables"]["self_audit_qc_checks"]["Row"]["purpose"];
           repair_type?: Database["public"]["Tables"]["self_audit_qc_checks"]["Row"]["repair_type"];
           team_leader?: string | null; service_advisor?: string | null; replaced_parts?: string | null; defect_description?: string | null;
-          status: "failed" | "passed"; attempts?: number; final_odometer?: number | null; passed_at?: string | null; drive_folder_id?: string | null;
+          status: "failed" | "passed" | "closed"; attempts?: number; final_odometer?: number | null; passed_at?: string | null; closed_at?: string | null; drive_folder_id?: string | null;
           controller_id?: string | null; controller_name?: string | null; created_at?: string; updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_qc_checks"]["Insert"]>;
         Relationships: [];
       };
       self_audit_qc_tests: {
-        Row: { id: string; check_id: string; attempt_no: number; result: "pass" | "fail"; comment: string | null; technicians: { id: string | null; name: string }[]; final_odometer: number | null; tested_by: string | null; tested_by_name: string | null; created_at: string };
-        Insert: { id?: string; check_id: string; attempt_no: number; result: "pass" | "fail"; comment?: string | null; technicians?: { id: string | null; name: string }[]; final_odometer?: number | null; tested_by?: string | null; tested_by_name?: string | null; created_at?: string };
+        Row: { id: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment: string | null; technicians: { id: string | null; name: string }[]; final_odometer: number | null; tested_by: string | null; tested_by_name: string | null; created_at: string };
+        Insert: { id?: string; check_id: string; attempt_no: number; result: "pass" | "fail" | "close"; comment?: string | null; technicians?: { id: string | null; name: string }[]; final_odometer?: number | null; tested_by?: string | null; tested_by_name?: string | null; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_qc_tests"]["Insert"]>;
         Relationships: [];
       };

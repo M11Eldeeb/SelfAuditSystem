@@ -63,6 +63,7 @@ export async function listQc(user: CurrentUser, opts: { status?: string; q?: str
   if (scope) q = q.eq("branch_id", scope);
   else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
   if (opts.status === "failed" || opts.status === "passed") q = q.eq("status", opts.status);
+  else if (opts.status === "closed") q = q.in("status", ["passed", "closed"]);
   const term = opts.q?.trim().replace(/[^A-Za-z0-9 -]/g, "");
   if (term) q = q.or(`wip_no.ilike.%${term}%,qc_no.ilike.%${term}%,model.ilike.%${term}%${/^[A-Za-z0-9]{6,17}$/.test(term) ? `,vin.ilike.%${term}%` : ""}`);
   const [{ data }, names] = await Promise.all([q, branchNames()]);
@@ -89,16 +90,16 @@ export async function listQc(user: CurrentUser, opts: { status?: string; q?: str
   });
 }
 
-export async function countQc(user: CurrentUser): Promise<{ failed: number; passed: number }> {
+export async function countQc(user: CurrentUser): Promise<{ failed: number; closed: number }> {
   const scope = qcBranchScope(user);
   const admin = createAdminClient();
-  const count = async (status: "failed" | "passed") => {
-    let q = admin.from("self_audit_qc_checks").select("id", { count: "exact", head: true }).eq("status", status);
+  const count = async (status: ("failed" | "passed" | "closed")[]) => {
+    let q = admin.from("self_audit_qc_checks").select("id", { count: "exact", head: true }).in("status", status);
     if (scope) q = q.eq("branch_id", scope);
     return (await q).count ?? 0;
   };
-  const [failed, passed] = await Promise.all([count("failed"), count("passed")]);
-  return { failed, passed };
+  const [failed, closed] = await Promise.all([count(["failed"]), count(["passed", "closed"])]);
+  return { failed, closed };
 }
 
 export async function getQcDetail(user: CurrentUser, id: string): Promise<QcDetail | null> {
@@ -257,7 +258,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
         const pass = list.find((t) => t.result === "pass");
         if (firstFail && pass) rework.push((Date.parse(pass.created_at) - Date.parse(firstFail.created_at)) / 3_600_000);
       }
-    } else if (now - Date.parse(c.updated_at) > 24 * 3_600_000) waitingOver24h++;
+    } else if (c.status === "failed" && now - Date.parse(c.updated_at) > 24 * 3_600_000) waitingOver24h++;
     for (const t of list) if (t.result === "fail" && t.comment) {
       const k = t.comment.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
       reasons.set(k, (reasons.get(k) ?? 0) + 1);
@@ -307,7 +308,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
     to: opts.to,
     checks: checks.length,
     passed,
-    waiting: checks.length - passed,
+    waiting: checks.filter((c) => c.status === "failed").length,
     tests: tests.length,
     failedTests,
     firstPass,

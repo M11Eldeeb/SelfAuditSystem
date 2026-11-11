@@ -28,7 +28,8 @@ const km = (n: number | null | undefined) => (n == null ? null : `${n.toLocaleSt
 function qcDocument(qc: QcDetail) {
   const folderUrl = qc.drive_folder_id ? `https://drive.google.com/drive/folders/${qc.drive_folder_id}` : null;
   const filesOf = (testId: string) => qc.files.filter((f) => f.testId === testId);
-  const status = qc.status === "passed" ? `Passed${qc.attempts > 1 ? ` at test ${qc.attempts}` : " at the first test"}` : "Failed - waiting for a retest";
+  const status =
+    qc.status === "passed" ? `Passed${qc.attempts > 1 ? ` at test ${qc.attempts}` : " at the first test"} - closed` : qc.status === "closed" ? "Closed without a pass" : "Failed - waiting for a retest";
 
   const row = (name: string, value: string | null | undefined) =>
     value
@@ -72,7 +73,7 @@ function qcDocument(qc: QcDetail) {
           h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: 2, marginTop: 2, textAlign: "center" } }, "QC REPORT"),
           h(View, { style: { width: 36, height: 2, backgroundColor: BRAND, marginTop: 8, marginBottom: 8 } }),
           h(Text, { style: { fontSize: 17, fontWeight: 700, letterSpacing: 0.5, textAlign: "center" } }, `${qc.qc_no} - ${qc.wip_no}`),
-          h(Text, { style: { fontSize: 10, color: qc.status === "passed" ? "#047857" : BRAND, marginTop: 2, fontWeight: 700, textAlign: "center" } }, `${qc.branch} - ${status}`)
+          h(Text, { style: { fontSize: 10, color: qc.status === "passed" ? "#047857" : qc.status === "closed" ? MUTED : BRAND, marginTop: 2, fontWeight: 700, textAlign: "center" } }, `${qc.branch} - ${status}`)
         )
       ),
       h(
@@ -89,7 +90,8 @@ function qcDocument(qc: QcDetail) {
         row("Service advisor", qc.service_advisor),
         row("Quality controller", qc.controller_name),
         row("Recorded", stamp(qc.created_at)),
-        row("Passed", qc.passed_at ? stamp(qc.passed_at) : null)
+        row("Passed", qc.passed_at ? stamp(qc.passed_at) : null),
+        row("Closed", qc.closed_at ? stamp(qc.closed_at) : null)
       ),
       block("Replaced parts", qc.replaced_parts),
       block("Defect description", qc.defect_description),
@@ -100,9 +102,9 @@ function qcDocument(qc: QcDetail) {
           {
             key: t.id,
             wrap: false,
-            style: { borderLeftWidth: 3, borderLeftColor: t.result === "pass" ? "#059669" : BRAND, paddingLeft: 10, paddingBottom: 8, marginBottom: i === qc.tests.length - 1 ? 0 : 10 },
+            style: { borderLeftWidth: 3, borderLeftColor: t.result === "pass" ? "#059669" : t.result === "close" ? MUTED : BRAND, paddingLeft: 10, paddingBottom: 8, marginBottom: i === qc.tests.length - 1 ? 0 : 10 },
           },
-          h(Text, { style: { fontSize: 11, fontWeight: 700, color: t.result === "pass" ? "#047857" : BRAND } }, `Test ${t.attempt} - ${t.result === "pass" ? "PASS" : "FAIL"}`),
+          h(Text, { style: { fontSize: 11, fontWeight: 700, color: t.result === "pass" ? "#047857" : t.result === "close" ? MUTED : BRAND } }, `Test ${t.attempt} - ${t.result === "pass" ? "PASS - CASE CLOSED" : t.result === "close" ? "CLOSED - NOT PASSED" : "FAIL"}`),
           t.comment ? h(Text, { style: { fontSize: 10.5, lineHeight: 1.5, marginTop: 3, textAlign: align(t.comment) } }, t.comment) : null,
           h(Text, { style: { fontSize: 9, color: MUTED, marginTop: 4 } }, `Technician(s): ${t.technicians.map((x) => x.name).join(", ") || "-"}${t.finalOdometer != null ? `   ·   Current odometer: ${km(t.finalOdometer)}` : ""}`),
           filesOf(t.id).length ? h(Text, { style: { fontSize: 8.5, color: MUTED, marginTop: 2 } }, `Files: ${filesOf(t.id).map((f) => f.name).join(", ")}`) : null,

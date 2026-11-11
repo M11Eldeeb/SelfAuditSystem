@@ -133,8 +133,8 @@ function ResultFields({
   finalOdometer,
   setFinalOdometer,
 }: {
-  result: "pass" | "fail" | "";
-  setResult: (r: "pass" | "fail") => void;
+  result: "pass" | "fail" | "close" | "";
+  setResult: (r: "pass" | "fail" | "close") => void;
   comment: string;
   setComment: (s: string) => void;
   finalOdometer: string;
@@ -142,18 +142,18 @@ function ResultFields({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        {(["pass", "fail"] as const).map((r) => (
+      <div className="grid grid-cols-3 gap-2">
+        {(["pass", "fail", "close"] as const).map((r) => (
           <button
             key={r}
             type="button"
             onClick={() => setResult(r)}
             aria-pressed={result === r}
             className={`min-h-16 rounded-2xl text-lg font-bold ring-2 transition active:scale-[0.98] ${
-              result === r ? (r === "pass" ? "bg-emerald-600 text-white ring-emerald-600" : "bg-red-600 text-white ring-red-600") : "bg-white text-neutral-700 ring-neutral-300"
+              result === r ? (r === "pass" ? "bg-emerald-600 text-white ring-emerald-600" : r === "fail" ? "bg-red-600 text-white ring-red-600" : "bg-neutral-800 text-white ring-neutral-800") : "bg-white text-neutral-700 ring-neutral-300"
             }`}
           >
-            {r === "pass" ? "✓ Pass" : "✕ Fail"}
+            {r === "pass" ? "✓ Pass" : r === "fail" ? "✕ Fail" : "■ Closed"}
           </button>
         ))}
       </div>
@@ -161,8 +161,11 @@ function ResultFields({
         <input value={finalOdometer} onChange={(e) => setFinalOdometer(numberOnly(e.target.value))} inputMode="numeric" className={field} placeholder="km" />
       </Field>
       {result && (
-        <Field title={result === "fail" ? "Justification (why it failed) *" : "Comment (optional)"}>
-          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : ""} />
+        <Field
+          title={result === "fail" ? "Justification (why it failed) *" : result === "close" ? "Justification (why it is closed without a pass) *" : "Comment (optional)"}
+          hint={result === "pass" ? "Pass closes the case." : result === "close" ? "Closed ends the case without a pass." : "Fail keeps the case open for a retest."}
+        >
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : result === "close" ? "e.g. customer took the car before the retest" : ""} />
         </Field>
       )}
     </div>
@@ -362,7 +365,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const [repairType, setRepairType] = useState("");
   const [replacedParts, setReplacedParts] = useState("");
   const [defectDescription, setDefectDescription] = useState("");
-  const [result, setResult] = useState<"pass" | "fail" | "">("");
+  const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
   const [comment, setComment] = useState("");
   const [finalOdometer, setFinalOdometer] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -392,12 +395,13 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
     e.preventDefault();
     setError(null);
     if (group === "test_drive" && !kind) return setError("Choose the kind of test drive.");
-    if (!result) return setError("Choose Pass or Fail.");
+    if (!result) return setError("Choose Pass, Fail or Closed.");
     setSaving(true);
     const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids });
     setSaving(false);
     if (r.error) return setError(r.error);
-    if (r.id) router.push(`/qc/${r.id}`);
+    // Saved: back to the QC records (a pass or close closes the case; a fail waits for its retest).
+    if (r.id) router.push(result === "fail" ? "/qc?status=failed" : "/qc?status=closed");
   }
 
   return (
@@ -494,7 +498,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         <FilesField files={files} />
       </Section>
 
-      <SubmitBar label="Submit QC" busy={files.busy} saving={saving} error={error} />
+      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} />
     </form>
   );
 }
@@ -503,7 +507,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
 export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: string; options: QcFormOptions; lastTechnicians: QcTechnician[] }) {
   const router = useRouter();
   const [technicians, setTechnicians] = useState<QcTechnician[]>(lastTechnicians);
-  const [result, setResult] = useState<"pass" | "fail" | "">("");
+  const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
   const [comment, setComment] = useState("");
   const [finalOdometer, setFinalOdometer] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -513,14 +517,12 @@ export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: s
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!result) return setError("Choose Pass or Fail.");
+    if (!result) return setError("Choose Pass, Fail or Closed.");
     setSaving(true);
     const r = await retestQc(checkId, { result, comment, finalOdometer, technicians, driveFileIds: files.ids });
     setSaving(false);
     if (r.error) return setError(r.error);
-    setResult("");
-    setComment("");
-    setFinalOdometer("");
+    router.push(result === "fail" ? "/qc?status=failed" : "/qc?status=closed");
     router.refresh();
   }
 
@@ -537,7 +539,7 @@ export function QcRetestForm({ checkId, options, lastTechnicians }: { checkId: s
       <Section n={3} title="Files">
         <FilesField files={files} />
       </Section>
-      <SubmitBar label="Save the test" busy={files.busy} saving={saving} error={error} />
+      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} />
     </form>
   );
 }

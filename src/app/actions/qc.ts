@@ -182,7 +182,13 @@ async function verifiedFiles(folderId: string, ids: string[]) {
   return infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(folderId) && ALLOWED.test(f.mimeType) && f.size <= QC_MAX_FILE_BYTES);
 }
 
-export type QcResultInput = { result: "pass" | "fail"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[] };
+/** "Closed" needs the database change (migration 0174): until then a friendly message instead of the database's. */
+const notYet = (message: string | undefined) => (message && /check constraint/i.test(message) ? "Closed is not available yet - the database needs an update (ask the warranty officer)." : message);
+
+/** Pass closes the case (passed); Closed closes it without a pass (justified); Fail keeps it open for a retest. */
+const STATUS_OF = { pass: "passed", fail: "failed", close: "closed" } as const;
+
+export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[] };
 export type QcNewInput = QcResultInput & {
   wip: string;
   /** WIP numbers files were uploaded under before the WIP was corrected: those files move to the final WIP's folder. */
@@ -205,9 +211,10 @@ const num = (s: string) => {
 
 /** The pass / fail part (shared by a new QC and a test again). */
 async function cleanResult(input: QcResultInput, branchId: string, odometerIn: number | null) {
-  if (input.result !== "pass" && input.result !== "fail") return { error: "Choose Pass or Fail." };
+  if (input.result !== "pass" && input.result !== "fail" && input.result !== "close") return { error: "Choose Pass, Fail or Closed." };
   const comment = input.comment.trim().slice(0, 4000) || null;
   if (input.result === "fail" && !comment) return { error: "Write why the vehicle failed." };
+  if (input.result === "close" && !comment) return { error: "Write why the case is closed without a pass." };
   const finalOdometer = num(input.finalOdometer);
   if (finalOdometer == null) return { error: "Enter the current odometer." };
   if (finalOdometer != null && (finalOdometer > 3_000_000 || (odometerIn != null && finalOdometer < odometerIn))) return { error: "The current odometer must not be lower than the odometer in." };
@@ -273,10 +280,11 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
         service_advisor: serviceAdvisor,
         replaced_parts: input.replacedParts.trim().slice(0, 4000) || null,
         defect_description: input.defectDescription.trim().slice(0, 4000) || null,
-        status: r.result === "pass" ? "passed" : "failed",
+        status: STATUS_OF[r.result],
         attempts: 1,
         final_odometer: r.finalOdometer,
         passed_at: r.result === "pass" ? now : null,
+        closed_at: r.result === "fail" ? null : now,
         drive_folder_id: folder,
         controller_id: user.id,
         controller_name: name,
@@ -286,9 +294,13 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
       .insert({ ...row, ...(vin ? { vin } : {}) })
       .select("id")
       .single();
-    // Until the VIN column exists in the database (migration 0173), the QC is saved without it.
-    if (error && vin && /vin/i.test(error.message)) ({ data: check, error } = await admin.from("self_audit_qc_checks").insert(row).select("id").single());
-    if (error || !check) return { error: error?.message ?? "Could not save the QC." };
+    // Until the "closed" database change (migration 0174) is in, the QC is saved without its closing time.
+    if (error && /closed_at/i.test(error.message)) {
+      const { closed_at: _closedAt, ...older } = row;
+      void _closedAt;
+      ({ data: check, error } = await admin.from("self_audit_qc_checks").insert({ ...older, ...(vin ? { vin } : {}) }).select("id").single());
+    }
+    if (error || !check) return { error: notYet(error?.message) ?? "Could not save the QC." };
     const { data: test, error: testError } = await admin
       .from("self_audit_qc_tests")
       .insert({ check_id: check.id, attempt_no: 1, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name })
@@ -309,7 +321,7 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     const { user, branch, name } = await controller();
     const check = await failedCheck(checkId, branch.id);
     if (!check) return { error: "QC not found." };
-    if (check.status !== "failed") return { error: "This vehicle has passed already." };
+    if (check.status !== "failed") return { error: "This case is closed already." };
     const r = await cleanResult(input, branch.id, check.odometer_in);
     if ("error" in r) return { error: r.error };
     const admin = createAdminClient();
@@ -319,12 +331,11 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
       .insert({ check_id: check.id, attempt_no: attempt, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name })
       .select("id")
       .single();
-    if (error || !test) return { error: error?.code === "23505" ? "Someone tested this vehicle just now - reload the page." : (error?.message ?? "Could not save the test.") };
+    if (error || !test) return { error: error?.code === "23505" ? "Someone tested this vehicle just now - reload the page." : (notYet(error?.message) ?? "Could not save the test.") };
     const now = new Date().toISOString();
-    await admin
-      .from("self_audit_qc_checks")
-      .update({ attempts: attempt, status: r.result === "pass" ? "passed" : "failed", final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now })
-      .eq("id", check.id);
+    const update = { attempts: attempt, status: STATUS_OF[r.result], final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now };
+    const { error: updateError } = await admin.from("self_audit_qc_checks").update({ ...update, closed_at: r.result === "fail" ? null : now }).eq("id", check.id);
+    if (updateError) await admin.from("self_audit_qc_checks").update(update).eq("id", check.id);
     const folder = check.drive_folder_id ?? (await qcFolder(branch, check.wip_no));
     const files = await verifiedFiles(folder, input.driveFileIds);
     if (files.length) await admin.from("self_audit_qc_files").insert(files.map((f) => ({ check_id: check.id, test_id: test.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: user.id })));

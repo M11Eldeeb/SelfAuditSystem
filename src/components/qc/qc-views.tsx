@@ -5,9 +5,10 @@ import { purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
 import { fmtDateTime } from "@/components/tech-claims/status";
 import { TechClaimFileGallery } from "@/components/tech-claims/file-gallery";
 
-export function QcStatusPill({ status, attempts }: { status: "failed" | "passed"; attempts?: number }) {
+export function QcStatusPill({ status, attempts }: { status: "failed" | "passed" | "closed"; attempts?: number }) {
+  if (status === "closed") return <span className="inline-block rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-neutral-700">Closed - not passed</span>;
   return status === "passed" ? (
-    <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800">Passed{attempts && attempts > 1 ? ` (test ${attempts})` : ""}</span>
+    <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800">Passed · closed{attempts && attempts > 1 ? ` (test ${attempts})` : ""}</span>
   ) : (
     <span className="inline-block rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-red-700">Failed - waiting for retest</span>
   );
@@ -175,10 +176,10 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
         <ol className="relative space-y-3 border-s-2 border-neutral-200 ps-5">
           {qc.tests.map((t) => (
             <li key={t.id} className="relative">
-              <span className={`absolute -start-[1.72rem] top-3 h-3.5 w-3.5 rounded-full ring-4 ring-white ${t.result === "pass" ? "bg-emerald-500" : "bg-red-500"}`} />
-              <div className={`rounded-xl bg-white p-3.5 shadow-sm ring-1 ${t.result === "pass" ? "ring-emerald-200" : "ring-red-200"}`}>
+              <span className={`absolute -start-[1.72rem] top-3 h-3.5 w-3.5 rounded-full ring-4 ring-white ${t.result === "pass" ? "bg-emerald-500" : t.result === "close" ? "bg-neutral-500" : "bg-red-500"}`} />
+              <div className={`rounded-xl bg-white p-3.5 shadow-sm ring-1 ${t.result === "pass" ? "ring-emerald-200" : t.result === "close" ? "ring-neutral-300" : "ring-red-200"}`}>
                 <div className="text-sm font-semibold text-neutral-900">
-                  Test {t.attempt} · <span className={t.result === "pass" ? "text-emerald-700" : "text-red-700"}>{t.result === "pass" ? "Pass" : "Fail"}</span>
+                  Test {t.attempt} · <span className={t.result === "pass" ? "text-emerald-700" : t.result === "close" ? "text-neutral-700" : "text-red-700"}>{t.result === "pass" ? "Pass - case closed" : t.result === "close" ? "Closed - not passed" : "Fail"}</span>
                 </div>
                 {t.comment && <p className="mt-1.5 text-sm whitespace-pre-wrap text-neutral-800">{t.comment}</p>}
                 <div className="mt-2 space-y-0.5 text-xs text-neutral-600">

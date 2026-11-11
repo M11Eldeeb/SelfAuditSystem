@@ -21,7 +21,7 @@ export async function QcListPage({ user, base, params, newHref }: { user: Curren
   const [rows, counts, branches] = await Promise.all([listQc(user, { status, q: params.q, branchId }), countQc(user), all ? allBranches() : Promise.resolve([])]);
   const tabs = [
     { key: "failed", label: "Waiting for retest", count: counts.failed },
-    { key: "passed", label: "Passed", count: counts.passed },
+    { key: "closed", label: "Closed", count: counts.closed },
     { key: "all", label: "All" },
   ];
   return (
