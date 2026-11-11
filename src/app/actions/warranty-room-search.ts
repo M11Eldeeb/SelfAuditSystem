@@ -2,6 +2,7 @@
 
 import { requireAnyViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadSubDealerSet, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 /** Claims kept in the warranty room for this many days after verification before they are flagged to scrap. */
 const HOLDING_DAYS = 90;
@@ -29,6 +30,8 @@ export type RoomResult = {
   /** One line explaining the state, e.g. "Flagged to be scrapped - cycle 2026-11, waiting for destroy evidence". */
   detail: string;
   parts: { partNo: string | null; name: string | null; qty: number | null }[];
+  /** A Heraa work order done for the sub-dealer (listed in the sub-dealer's Google Sheet). */
+  subDealer: boolean;
 };
 
 const todayKsa = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
@@ -72,6 +75,7 @@ export async function searchWarrantyRoom(query: string): Promise<{ results?: Roo
   const monthOf = new Map((cycles ?? []).map((c) => [c.id, c.cycle_month.slice(0, 7)]));
   const collectionOf = new Map((collections ?? []).map((c) => [c.id, c]));
   const today = todayKsa();
+  const subDealerWips = await loadSubDealerSet();
 
   const results: RoomResult[] = claims.map((c) => {
     const claimStatus = statusOf.get(c.id) ?? null;
@@ -122,6 +126,7 @@ export async function searchWarrantyRoom(query: string): Promise<{ results?: Roo
       heldDays,
       state,
       detail,
+      subDealer: !!c.work_order_no && subDealerWips.has(normalizeWorkOrder(c.work_order_no)),
       parts: (() => {
         const list = (parts ?? []).filter((p) => p.claim_id === c.id).map((p) => ({ partNo: p.part_no, name: p.part_name, qty: p.quantity == null ? null : Number(p.quantity) }));
         return list.length || !c.main_part_name ? list : [{ partNo: null, name: c.main_part_name, qty: null }];

@@ -1626,6 +1626,18 @@ export interface Database {
         Update: Partial<{ id: number; refresh_token: string; account_email: string; connected_by: string | null; connected_at: string }>;
         Relationships: [];
       };
+      self_audit_sub_dealer_wips: {
+        Row: { work_order: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string };
+        Insert: { work_order: string; source_tab: string; sub_dealer_wo?: string | null; synced_at?: string };
+        Update: Partial<{ work_order: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string }>;
+        Relationships: [];
+      };
+      self_audit_sub_dealer_sync: {
+        Row: { id: number; synced_at: string | null; wip_count: number; removed_assignments: number; removed_internal_claims: number; last_error: string | null };
+        Insert: { id: number; synced_at?: string | null; wip_count?: number; removed_assignments?: number; removed_internal_claims?: number; last_error?: string | null };
+        Update: Partial<{ id: number; synced_at: string | null; wip_count: number; removed_assignments: number; removed_internal_claims: number; last_error: string | null }>;
+        Relationships: [];
+      };
       self_audit_cron_secret: {
         Row: { id: number; secret: string };
         Insert: { id?: number; secret?: string };
@@ -2100,6 +2112,10 @@ export interface Database {
         }[];
       };
       get_warranty_room_excluded_claim_ids: {
+        Args: Record<string, never>;
+        Returns: string[];
+      };
+      get_sub_dealer_claim_ids: {
         Args: Record<string, never>;
         Returns: string[];
       };

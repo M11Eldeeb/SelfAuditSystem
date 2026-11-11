@@ -21,7 +21,10 @@ import type { Database } from "@/lib/supabase/types";
 export async function getWarrantyRoomExcludedClaimIds(
   supabase: SupabaseClient<Database>
 ): Promise<Set<string>> {
-  const { data, error } = await supabase.rpc("get_warranty_room_excluded_claim_ids");
+  const [{ data, error }, subDealer] = await Promise.all([supabase.rpc("get_warranty_room_excluded_claim_ids"), supabase.rpc("get_sub_dealer_claim_ids")]);
   if (error) throw new Error(error.message);
-  return new Set(data ?? []);
+  if (subDealer.error) throw new Error(subDealer.error.message);
+  // Sub-dealer WIPs (Heraa work orders done for a sub-dealer, listed in its Google Sheet - src/lib/sub-dealer-wips.ts) are
+  // not the branch's own work: never sampled for a self audit or an internal audit.
+  return new Set([...(data ?? []), ...(subDealer.data ?? [])]);
 }

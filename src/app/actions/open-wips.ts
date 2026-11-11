@@ -8,6 +8,8 @@ import { parseOpenWips } from "@/lib/open-wips/parse";
 import { agreementOpen, loadCourtesy, wipKey } from "@/lib/courtesy/sheet";
 import { branchResolver } from "@/lib/courtesy/branches";
 import { vorByWip, type VorLine } from "@/lib/vor/sheet";
+import { isSubDealerWip, loadSubDealerSet } from "@/lib/sub-dealer-wips";
+import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 
 const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor"] as const;
 
@@ -43,6 +45,8 @@ export type OpenWip = {
   complaints: { no: string | null; date: string | null; source: string; category: string | null; subcategory: string | null; valid: string | null; status: string | null; advisor: string | null; branch: string | null }[];
   /** VOR part orders on this WIP (from the VOR file). */
   vor: VorLine[];
+  /** A Heraa WIP that is a warranty job card done for the sub-dealer (listed in the sub-dealer's Google Sheet). */
+  subDealer: boolean;
 };
 export type WipComment = { id: string; body: string; by: string | null; byId: string | null; at: string };
 export type OpenWipsData = {
@@ -130,6 +134,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
       complaintsByVin.set(c.vin!, [...(complaintsByVin.get(c.vin!) ?? []), { no: c.complaint_no, date: c.created_on, source: c.source, category: c.category, subcategory: c.subcategory, valid: c.validity, status: c.status, advisor: c.service_advisor, branch: c.branch_label }]);
   }
   const vorMap = await vorMapPromise;
+  const subDealerWips = await loadSubDealerSet();
   const resolveBranch = await branchResolver().catch(() => null);
   /** VOR lines on this WIP: the same branch (when the file says) and ordered no earlier than a month before the car came in. */
   const vorFor = (wip: string, branchId: string | null, received: string | null) =>
@@ -184,6 +189,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
         courtesy: courtesyFor(w.wip_no, w.branch_id),
         complaints: complaintsFor(w.vin, w.received),
         vor: vorFor(w.wip_no, w.branch_id, w.received),
+        subDealer: isSubDealerWip(subDealerWips, JIAD_DEALER_CODE_SUFFIX_MAP[w.dealer_code], w.wip_no),
       };
     }),
     daily,

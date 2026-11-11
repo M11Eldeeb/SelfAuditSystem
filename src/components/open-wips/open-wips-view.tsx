@@ -543,6 +543,7 @@ export function OpenWipsView() {
   const exportCols: ExportColumn<OpenWip>[] = [
     { header: "Branch", value: (w) => w.branch },
     { header: "WIP", value: (w) => w.wip },
+    { header: "Sub-Dealer WIP", value: (w) => (w.subDealer ? "Sub-Dealer WIP" : "") },
     { header: "Dept", value: (w) => w.dept },
     { header: "Advisor", value: (w) => w.operator, width: 22 },
     { header: "WIP status", value: (w) => w.status, width: 28 },
@@ -1104,6 +1105,16 @@ export function OpenWipsView() {
                             label="WIP number"
                             className="font-mono font-semibold text-[#1d1d1f]"
                           />
+                          {w.subDealer && (
+                            <div>
+                              <span
+                                title="A Heraa work order done for the sub-dealer (listed in the sub-dealer's Google Sheet) - not part of the branch's own audits."
+                                className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900"
+                              >
+                                Sub-Dealer WIP
+                              </span>
+                            </div>
+                          )}
                           {data.scope === "all" && (
                             <div className="text-[10px] text-[#8e8e93]">
                               {w.branch}

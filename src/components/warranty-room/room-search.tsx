@@ -69,6 +69,11 @@ export function WarrantyRoomSearch() {
               <dt className="opacity-70">Work order</dt>
               <dd className="font-medium">
                 <CopyText value={r.workOrder} label="work order" />
+                {r.subDealer && (
+                  <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900" title="A Heraa work order done for the sub-dealer.">
+                    Sub-Dealer WIP
+                  </span>
+                )}
               </dd>
             </div>
             <div>
