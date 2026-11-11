@@ -155,7 +155,7 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
           <dl className="mt-2 divide-y divide-neutral-100">
             <Row k="WIP number" v={qc.wip_no} />
             <Row k="Odometer IN" v={qc.odometer_in != null ? `${qc.odometer_in.toLocaleString("en-US")} km` : null} />
-            <Row k="Final odometer" v={qc.final_odometer != null ? `${qc.final_odometer.toLocaleString("en-US")} km` : null} />
+            <Row k="Current odometer" v={qc.final_odometer != null ? `${qc.final_odometer.toLocaleString("en-US")} km` : null} />
             <Row k="Purpose" v={purposeLabel(qc.purpose)} />
             <Row k="Vehicle model" v={qc.model} />
             <Row k="Repair type" v={repairTypeLabel(qc.repair_type)} />
@@ -182,7 +182,7 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
                 {t.comment && <p className="mt-1.5 text-sm whitespace-pre-wrap text-neutral-800">{t.comment}</p>}
                 <div className="mt-2 space-y-0.5 text-xs text-neutral-600">
                   <div>Technician(s): {t.technicians.map((x) => x.name).join(", ") || "—"}</div>
-                  {t.finalOdometer != null && <div>Final odometer: {t.finalOdometer.toLocaleString("en-US")} km</div>}
+                  {t.finalOdometer != null && <div>Current odometer: {t.finalOdometer.toLocaleString("en-US")} km</div>}
                 </div>
                 {filesOf(t.id).length > 0 && (
                   <div className="mt-3">

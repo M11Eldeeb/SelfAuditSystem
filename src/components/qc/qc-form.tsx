@@ -2,9 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
-import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 
 // Built for a phone first: one column, big tap targets, 16px text in fields (a smaller size makes iPhones zoom in), and
@@ -125,7 +124,7 @@ function TechnicianPicker({ options, value, onChange }: { options: QcTechnician[
   );
 }
 
-/** Pass / Fail, the final odometer (always), and the justification (fail) or comment (pass). */
+/** Pass / Fail, the current odometer (always), and the justification (fail) or comment (pass). */
 function ResultFields({
   result,
   setResult,
@@ -158,7 +157,7 @@ function ResultFields({
           </button>
         ))}
       </div>
-      <Field title="Final odometer *">
+      <Field title="Current odometer *">
         <input value={finalOdometer} onChange={(e) => setFinalOdometer(numberOnly(e.target.value))} inputMode="numeric" className={field} placeholder="km" />
       </Field>
       {result && (
@@ -265,6 +264,74 @@ function FilesField({ files, onBeforeAdd }: { files: ReturnType<typeof useUpload
   );
 }
 
+/** A name from the list, or "Other" - which opens a box to type the name. */
+function PersonChoice({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  const [other, setOther] = useState(false);
+  const OTHER = "__other";
+  return (
+    <div className="space-y-2">
+      <Choice
+        options={[...options.map((n) => ({ key: n, label: n })), { key: OTHER, label: "Other" }]}
+        value={other ? OTHER : value}
+        onChange={(v) => {
+          if (v === OTHER) {
+            setOther(true);
+            onChange("");
+          } else {
+            setOther(false);
+            onChange(v);
+          }
+        }}
+      />
+      {other && <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Write the name" className={field} autoFocus />}
+    </div>
+  );
+}
+
+const fmtDate = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
+
+/** The WIP number already has a QC: open the failed one to test it again, or start a new QC anyway. */
+function DuplicateWipDialog({ info, onNew }: { info: QcWipInfo; onNew: () => void }) {
+  const router = useRouter();
+  const failed = info.earlier.filter((e) => e.status === "failed");
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Duplicate WIP number">
+      <div className="w-full max-w-md space-y-4 rounded-t-3xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl">
+        <div className="space-y-1">
+          <h2 className="text-lg font-bold text-neutral-900">Duplicate WIP number</h2>
+          <p className="text-sm text-neutral-600">
+            WIP <b>{info.wip}</b> already has {info.earlier.length === 1 ? "a QC" : `${info.earlier.length} QCs`}
+            {failed.length ? ", with a failed test waiting for a retest." : "."}
+          </p>
+        </div>
+        <ul className="space-y-2">
+          {info.earlier.map((e) => (
+            <li key={e.id} className={`rounded-2xl p-3 ring-1 ${e.status === "failed" ? "bg-red-50 ring-red-200" : "bg-emerald-50 ring-emerald-200"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-neutral-900">{e.qcNo}</span>
+                <span className={`text-xs font-semibold ${e.status === "failed" ? "text-red-700" : "text-emerald-700"}`}>{e.status === "failed" ? "Failed - waiting for retest" : "Passed"}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-neutral-600">
+                {purposeLabel(e.purpose)} · {e.attempts} test{e.attempts > 1 ? "s" : ""} · {fmtDate(e.createdAt)}
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push(`/qc/${e.id}`)}
+                className={`mt-2.5 min-h-11 w-full rounded-xl text-sm font-bold ${e.status === "failed" ? "bg-red-600 text-white" : "bg-white text-neutral-800 ring-1 ring-neutral-300"}`}
+              >
+                {e.status === "failed" ? "Continue - test it again" : "View this QC"}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={onNew} className="min-h-12 w-full rounded-xl bg-neutral-900 text-sm font-bold text-white">
+          Start a new QC for this WIP
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The Submit button, kept at the bottom of the screen on a phone. */
 function SubmitBar({ label, busy, saving, error }: { label: string; busy: boolean; saving: boolean; error: string | null }) {
   return (
@@ -302,11 +369,17 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const testDrive = QC_PURPOSE_GROUPS.find((g) => g.key === "test_drive")!;
   const purpose = group === "test_drive" ? kind : group;
 
-  async function lookup() {
-    if (!wip.replace(/\D/g, "")) return setInfo(null);
-    const r = await lookupQcWip(wip);
+  const [dupOpen, setDupOpen] = useState(false);
+
+  /** A WIP number has 5 digits: once the 5th is typed, the Open WIPs report and earlier QCs are checked on their own. */
+  async function changeWip(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 5);
+    setWip(digits);
+    if (digits.length < 5) return setInfo(null);
+    const r = await lookupQcWip(digits);
     if (!r.info) return;
     setInfo(r.info);
+    if (r.info.earlier.length) setDupOpen(true);
     if (r.info.mileage && !odometerIn) setOdometerIn(String(r.info.mileage));
     if (r.info.advisor && !serviceAdvisor) setServiceAdvisor(r.info.advisor);
     if (r.info.modelName && !model && options.models.includes(r.info.modelName)) setModel(r.info.modelName);
@@ -330,34 +403,29 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
       <Section n={1} title="Vehicle">
         <Field
           title="WIP number *"
-          hint={wipChangeBlocked ? "Files are attached to this WIP - remove them to change it." : options.branchCode ? `Numbers only - saved as ${options.branchCode}-…` : undefined}
+          hint={
+            wipChangeBlocked
+              ? "Files are attached to this WIP - remove them to change it."
+              : wip.length > 0 && wip.length < 5
+                ? `${5 - wip.length} more digit${wip.length === 4 ? "" : "s"}`
+                : options.branchCode
+                  ? `5 digits - saved as ${options.branchCode}-${wip.length === 5 ? wip : "…"}`
+                  : "5 digits"
+          }
         >
-          <div className="flex gap-2">
-            <input value={wip} disabled={wipChangeBlocked} onChange={(e) => setWip(e.target.value)} onBlur={lookup} inputMode="numeric" enterKeyHint="next" className={field} placeholder="e.g. 12345" />
-            <button type="button" onClick={lookup} disabled={wipChangeBlocked} className="shrink-0 rounded-xl border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-700 disabled:opacity-50">
-              Find
-            </button>
-          </div>
+          <input value={wip} disabled={wipChangeBlocked} onChange={(e) => void changeWip(e.target.value)} inputMode="numeric" pattern="\d{5}" maxLength={5} enterKeyHint="next" className={`${field} tracking-widest`} placeholder="12345" />
         </Field>
+        {dupOpen && info && info.earlier.length > 0 && <DuplicateWipDialog info={info} onNew={() => setDupOpen(false)} />}
         {info?.model && (
           <p className="rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-700 ring-1 ring-neutral-200">
             Open WIPs: <b>{info.model}</b>
             {info.registration ? ` · ${info.registration}` : ""}
           </p>
         )}
-        {info && info.earlier.length > 0 && (
-          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
-            This WIP already has a QC:{" "}
-            {info.earlier.map((e, i) => (
-              <span key={e.id}>
-                {i > 0 && ", "}
-                <Link href={`/qc/${e.id}`} className="font-semibold underline">
-                  {e.qcNo}
-                </Link>{" "}
-                ({e.status === "failed" ? "failed - test it again there" : "passed"})
-              </span>
-            ))}
-          </p>
+        {info && info.earlier.length > 0 && !dupOpen && (
+          <button type="button" onClick={() => setDupOpen(true)} className="w-full rounded-xl bg-amber-50 px-3 py-2 text-left text-sm text-amber-900 ring-1 ring-amber-200">
+            This WIP already has {info.earlier.length === 1 ? "a QC" : `${info.earlier.length} QCs`} - <span className="font-semibold underline">see it</span>
+          </button>
         )}
         <div className="grid grid-cols-2 gap-3">
           <Field title="Odometer IN *">
@@ -396,10 +464,10 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
           <TechnicianPicker options={options.technicians} value={technicians} onChange={setTechnicians} />
         </Field>
         <Field title="Team leader *">
-          <Choice options={options.teamLeaders.map((n) => ({ key: n, label: n }))} value={teamLeader} onChange={setTeamLeader} />
+          <PersonChoice options={options.teamLeaders} value={teamLeader} onChange={setTeamLeader} />
         </Field>
         <Field title="Service advisor *">
-          <Choice options={options.advisors.map((n) => ({ key: n, label: n }))} value={serviceAdvisor} onChange={setServiceAdvisor} />
+          <PersonChoice options={options.advisors} value={serviceAdvisor} onChange={setServiceAdvisor} />
         </Field>
       </Section>
 

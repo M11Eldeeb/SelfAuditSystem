@@ -26,10 +26,10 @@ async function controller() {
   return { user, branch, name: user.full_name ?? user.email };
 }
 
-/** "12345", "HER-12345" or "her 12345" -> "HER-12345" (the branch code in front, as on the technician claims). */
+/** "12345", "HER-12345" or "her 12345" -> "HER-12345" (the branch code in front, as on the technician claims). A WIP number has 5 digits. */
 function normalizeWip(input: string, code: string): string | null {
   const digits = input.replace(/\D/g, "");
-  if (!digits || digits.length > 20) return null;
+  if (!/^\d{5}$/.test(digits)) return null;
   return code ? `${code}-${digits}` : digits;
 }
 
@@ -82,18 +82,18 @@ export async function addQcTechnician(name: string): Promise<{ technician?: QcTe
   return { technician: { id: null, name: had?.name ?? clean } };
 }
 
-export type QcWipInfo = { wip: string; model: string | null; modelName: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string }[] };
+export type QcWipInfo = { wip: string; model: string | null; modelName: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string; purpose: string; attempts: number; createdAt: string }[] };
 
 /** What the Open WIPs report and earlier QCs know about this WIP (to fill the form in). */
 export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; error?: string }> {
   const { branch } = await controller();
   const wip = normalizeWip(input, branch.code ?? "");
-  if (!wip) return { error: "Enter the WIP number." };
+  if (!wip) return { error: "A WIP number has 5 digits." };
   const digits = wip.replace(/\D/g, "");
   const admin = createAdminClient();
   const [{ data: open }, { data: earlier }] = await Promise.all([
     admin.from("self_audit_open_wips").select("model, mileage, operator, registration").eq("branch_id", branch.id).eq("wip_no", digits).limit(1).maybeSingle(),
-    admin.from("self_audit_qc_checks").select("id, qc_no, status").eq("branch_id", branch.id).eq("wip_no", wip).order("created_at", { ascending: false }),
+    admin.from("self_audit_qc_checks").select("id, qc_no, status, purpose, attempts, created_at").eq("branch_id", branch.id).eq("wip_no", wip).order("created_at", { ascending: false }),
   ]);
   const mileage = open?.mileage ? Number(String(open.mileage).replace(/\D/g, "")) : NaN;
   // The report writes the advisor's name its own way ("MoayedAlothman"): match on letters only.
@@ -114,7 +114,7 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
       mileage: Number.isFinite(mileage) && mileage > 0 ? mileage : null,
       advisor,
       registration: open?.registration ?? null,
-      earlier: (earlier ?? []).map((e) => ({ id: e.id, qcNo: e.qc_no, status: e.status })),
+      earlier: (earlier ?? []).map((e) => ({ id: e.id, qcNo: e.qc_no, status: e.status, purpose: e.purpose, attempts: e.attempts, createdAt: e.created_at })),
     },
   };
 }
@@ -199,8 +199,8 @@ async function cleanResult(input: QcResultInput, branchId: string, odometerIn: n
   const comment = input.comment.trim().slice(0, 4000) || null;
   if (input.result === "fail" && !comment) return { error: "Write why the vehicle failed." };
   const finalOdometer = num(input.finalOdometer);
-  if (finalOdometer == null) return { error: "Enter the final odometer." };
-  if (finalOdometer != null && (finalOdometer > 3_000_000 || (odometerIn != null && finalOdometer < odometerIn))) return { error: "The final odometer must not be lower than the odometer in." };
+  if (finalOdometer == null) return { error: "Enter the current odometer." };
+  if (finalOdometer != null && (finalOdometer > 3_000_000 || (odometerIn != null && finalOdometer < odometerIn))) return { error: "The current odometer must not be lower than the odometer in." };
   // Technicians: accounts of this branch (checked) or names typed in.
   const ids = input.technicians.map((t) => t.id).filter((x): x is string => !!x);
   const { data: accounts } = ids.length ? await createAdminClient().from("self_audit_users").select("id").in("id", ids).eq("role", "technician").eq("branch_id", branchId) : { data: [] };
@@ -222,7 +222,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
   try {
     const { user, branch, name } = await controller();
     const wip = normalizeWip(input.wip, branch.code ?? "");
-    if (!wip) return { error: "Enter the WIP number." };
+    if (!wip) return { error: "Enter the WIP number (5 digits)." };
     const odometerIn = num(input.odometerIn);
     if (odometerIn == null || odometerIn > 3_000_000) return { error: "Enter the odometer in." };
     if (!QC_PURPOSES.some((p) => p.key === input.purpose)) return { error: "Choose the purpose of the QC test." };

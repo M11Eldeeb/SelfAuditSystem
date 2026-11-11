@@ -81,7 +81,7 @@ function qcDocument(qc: QcDetail) {
         row("WIP number", qc.wip_no),
         row("Vehicle model", qc.model),
         row("Odometer IN", km(qc.odometer_in)),
-        row("Final odometer", km(qc.final_odometer)),
+        row("Current odometer", km(qc.final_odometer)),
         row("Purpose", purposeLabel(qc.purpose)),
         row("Repair type", repairTypeLabel(qc.repair_type)),
         row("Team leader", qc.team_leader),
@@ -103,7 +103,7 @@ function qcDocument(qc: QcDetail) {
           },
           h(Text, { style: { fontSize: 11, fontWeight: 700, color: t.result === "pass" ? "#047857" : BRAND } }, `Test ${t.attempt} - ${t.result === "pass" ? "PASS" : "FAIL"}`),
           t.comment ? h(Text, { style: { fontSize: 10.5, lineHeight: 1.5, marginTop: 3, textAlign: align(t.comment) } }, t.comment) : null,
-          h(Text, { style: { fontSize: 9, color: MUTED, marginTop: 4 } }, `Technician(s): ${t.technicians.map((x) => x.name).join(", ") || "-"}${t.finalOdometer != null ? `   ·   Final odometer: ${km(t.finalOdometer)}` : ""}`),
+          h(Text, { style: { fontSize: 9, color: MUTED, marginTop: 4 } }, `Technician(s): ${t.technicians.map((x) => x.name).join(", ") || "-"}${t.finalOdometer != null ? `   ·   Current odometer: ${km(t.finalOdometer)}` : ""}`),
           filesOf(t.id).length ? h(Text, { style: { fontSize: 8.5, color: MUTED, marginTop: 2 } }, `Files: ${filesOf(t.id).map((f) => f.name).join(", ")}`) : null,
           h(
             View,
