@@ -13,6 +13,8 @@ export type AlreadyScrappedRow = {
   first_submit_date: string | null;
   repair_end_date: string | null;
   submitted_at: string | null;
+  /** A Heraa work order done for the sub-dealer (set by the download route from the sub-dealer's sheet). */
+  sub_dealer?: boolean;
 };
 
 /**

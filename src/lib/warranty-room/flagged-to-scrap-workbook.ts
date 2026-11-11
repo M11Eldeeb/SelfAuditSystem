@@ -5,6 +5,7 @@ import type { FlaggedToScrapRow } from "@/lib/warranty-room/flagged-to-scrap";
 const COLUMNS: { header: string; key: string }[] = [
   { header: "Warranty Claim", key: "claim_number" },
   { header: "Work Order", key: "work_order_no" },
+  { header: "Sub-Dealer WIP", key: "sub_dealer" },
   { header: "VIN", key: "vin" },
   { header: "Cycle", key: "cycle_label" },
   { header: "Part No", key: "part_no" },
@@ -47,6 +48,7 @@ export async function buildFlaggedToScrapWorkbookBuffer(rows: FlaggedToScrapRow[
     const row = sheet.addRow({
       claim_number: r.claim_number,
       work_order_no: r.work_order_no ?? "",
+      sub_dealer: r.sub_dealer ? "Sub-Dealer WIP" : "",
       vin: r.vin ?? "",
       cycle_label: cycleLabel(r.cycle_month),
       part_no: r.part_no ?? "",

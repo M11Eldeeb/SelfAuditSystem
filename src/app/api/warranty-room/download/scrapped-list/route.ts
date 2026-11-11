@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAlreadyScrappedClaims } from "@/lib/warranty-room/already-scrapped";
 import { buildAlreadyScrappedWorkbookBuffer } from "@/lib/warranty-room/already-scrapped-workbook";
+import { loadSubDealerSet, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 /**
  * See src/app/api/warranty-room/download/do-not-scrap/route.ts for why this
@@ -23,10 +24,12 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createClient();
-    const [rows, { data: branch }] = await Promise.all([
+    const [scrapped, { data: branch }, subDealerWips] = await Promise.all([
       getAlreadyScrappedClaims(supabase, branchId),
       supabase.from("self_audit_branches").select("name").eq("id", branchId).single(),
+      loadSubDealerSet(),
     ]);
+    const rows = scrapped.map((r) => ({ ...r, sub_dealer: !!r.work_order_no && subDealerWips.has(normalizeWorkOrder(r.work_order_no)) }));
     const buffer = await buildAlreadyScrappedWorkbookBuffer(rows);
     const claimCount = new Set(rows.map((r) => r.claim_number)).size;
     const branchSlug = (branch?.name ?? "branch").replace(/\s+/g, "_");

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getWarrantyRoomFileUrl } from "@/lib/warranty-room/file-url";
+import { loadSubDealerSet, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -48,6 +49,7 @@ export default async function ScrapMonthBranchPage({
       : Promise.resolve({ data: [] }),
   ]);
 
+  const subDealerWips = await loadSubDealerSet();
   const claimNumberById = new Map((claims ?? []).map((c) => [c.id, c.claim_number]));
   const partsByRequestId = new Map<string, { part_no: string; part_name: string | null; quantity: number | null }[]>();
   (parts ?? []).forEach((p) => {
@@ -92,6 +94,9 @@ export default async function ScrapMonthBranchPage({
                   <p className="font-medium text-neutral-900">Claim {claimNumberById.get(r.claim_id) ?? r.claim_id}</p>
                   <p className="text-xs text-neutral-500">
                     {r.work_order_no ?? "—"} &middot; submitted {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
+                    {r.work_order_no && subDealerWips.has(normalizeWorkOrder(r.work_order_no)) && (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">Sub-Dealer WIP</span>
+                    )}
                   </p>
                 </div>
                 {r.holding_period_days != null && (

@@ -14,6 +14,8 @@ export type FlaggedToScrapRow = {
   repair_end_date: string | null;
   /** The warranty room cycle this part was flagged in (e.g. "2026-10-01") - null if flagged before cycles existed. */
   cycle_month: string | null;
+  /** A Heraa work order done for the sub-dealer (set by the download route from the sub-dealer's sheet). */
+  sub_dealer?: boolean;
 };
 
 /**
