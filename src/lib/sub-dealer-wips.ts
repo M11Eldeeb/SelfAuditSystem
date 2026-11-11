@@ -15,11 +15,15 @@ const BRANCH_CODE = "HER";
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
-/** "her-44846 ", "HER 44846" or "44846" -> "HER-44846" (the form the claims use); "" when there is nothing to use. */
+/**
+ * The base work order number, the form the list and the matching use: "her-44846 ", "HER 44846", "44846" and the follow-up
+ * job card "HER-44846-1" are all "HER-44846" (a WIP listed by the sub-dealer makes its "-1", "-2" job cards sub-dealer WIPs
+ * too - keep in step with get_sub_dealer_claim_ids, migration 0166). "" when there is nothing to use.
+ */
 export function normalizeWorkOrder(v: unknown): string {
   const t = String(v ?? "").toUpperCase().replace(/\s+/g, "");
   if (!t) return "";
-  return /^\d/.test(t) ? `${BRANCH_CODE}-${t}` : t;
+  return (/^\d/.test(t) ? `${BRANCH_CODE}-${t}` : t).replace(/^([A-Z]{2,4}-\d+)-\d+$/, "$1");
 }
 
 /** The set of sub-dealer WIPs (normalised work orders) for marking WIPs in lists. Never throws: no list means no marks. */
