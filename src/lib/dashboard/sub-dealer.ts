@@ -12,7 +12,7 @@ import { SUB_DEALER_SHEET_ID, normalizeVin, normalizeWorkOrder } from "@/lib/sub
  * number AND the VIN match (see src/lib/sub-dealer-wips.ts).
  *
  * Money: "Labor Approved (SAR, VAT incl.)" in the sheet is what came to the sub-dealer (riyals); "Adjusted Claim TOL." on the batch is
- * what the dealer is paid for the claim, in US dollars (converted at 3.75); the difference is the dealer's profit.
+ * what the dealer is paid for the claim, in US dollars (converted at 3.75); the difference is the dealer's revenue.
  */
 
 export type SdClaim = {

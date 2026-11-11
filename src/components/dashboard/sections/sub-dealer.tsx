@@ -202,12 +202,12 @@ function SubDealerView({ data }: { data: Ok }) {
 
       {!data.hasLaborApproved && (
         <p className="rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
-          The sub-dealer sheet has no <strong>Labor Approved (SAR, VAT incl.)</strong> column, so what was settled with the sub-dealer and the dealer&apos;s profit cannot be shown. It fills in as soon as the column is on the Claims tab.
+          The sub-dealer sheet has no <strong>Labor Approved (SAR, VAT incl.)</strong> column, so what was settled with the sub-dealer and the dealer&apos;s revenue cannot be shown. It fills in as soon as the column is on the Claims tab.
         </p>
       )}
 
       {/* The money */}
-      <Panel eyebrow="Money" title="Who received what" subtitle="For the work orders the sub-dealer did for the dealer, matched on work order number and VIN">
+      <Panel eyebrow="Money" title="Sub-Dealer Warranty Revenue" subtitle="For the work orders the sub-dealer did for the dealer, matched on work order number and VIN">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card className="space-y-1">
             <Label>Paid to the dealer on the batch</Label>
@@ -217,7 +217,7 @@ function SubDealerView({ data }: { data: Ok }) {
             </div>
           </Card>
           <Card className="space-y-1">
-            <Label>Settled with the sub-dealer (from warranty claims)</Label>
+            <Label>Settled with the sub-dealer</Label>
             <Metric value={data.hasLaborApproved ? money(approvedTotal) : "—"} unit="SAR" />
             <div className="text-xs text-[#6e6e73]">
               Labor approved, VAT included, on {fmtInt(total)} claim{total === 1 ? "" : "s"}
@@ -225,7 +225,7 @@ function SubDealerView({ data }: { data: Ok }) {
             </div>
           </Card>
           <Card className="space-y-1">
-            <Label>Profit to the dealer (from warranty claims)</Label>
+            <Label>Revenue to the dealer</Label>
             <Metric value={data.hasLaborApproved ? money(leftWithDealer) : "—"} unit="SAR" tone={data.hasLaborApproved && leftWithDealer < 0 ? "red" : "green"} />
             <div className="text-xs text-[#6e6e73]">Paid on the batch minus the {money(approvedOnBatch)} settled with the sub-dealer on the same work orders</div>
           </Card>
@@ -259,36 +259,6 @@ function SubDealerView({ data }: { data: Ok }) {
             <div className="text-xs text-[#6e6e73]">Invoiced to I660 minus paid to the sub-dealer</div>
           </Card>
         </div>
-        {free.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-[#e5e5ea] text-[11px] font-semibold tracking-wide text-[#6e6e73] uppercase">
-                  <th className="py-2 pr-3">Dealer WIP</th>
-                  <th className="py-2 pr-3">Sub-dealer WIP</th>
-                  <th className="py-2 pr-3">Service</th>
-                  <th className="py-2 pr-3">Opened</th>
-                  <th className="py-2 pr-3 text-right">Invoiced to I660</th>
-                  <th className="py-2 pr-3 text-right">Paid to sub-dealer (I1855)</th>
-                  <th className="py-2 text-right">Settled</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f0f0f2]">
-                {free.map((f) => (
-                  <tr key={f.id} className="align-top">
-                    <td className="py-2 pr-3 font-mono font-semibold whitespace-nowrap text-[#1d1d1f]">{f.workOrder || NO_WIP}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{f.subWorkOrder || "—"}</td>
-                    <td className="py-2 pr-3 text-[#6e6e73]">{f.service || "—"}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{fmtDate(f.created)}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{f.invoiced != null ? money(f.invoiced) : <span className="text-[#6e6e73]">not invoiced yet</span>}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{f.invoiced != null ? money(f.paid ?? 0) : "—"}</td>
-                    <td className="py-2 text-right font-semibold tabular-nums">{f.invoiced != null ? money(f.invoiced - (f.paid ?? 0)) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
         <p className="mt-3 text-xs text-[#6e6e73]">
           {freeNotInvoiced > 0 ? `${fmtInt(freeNotInvoiced)} request${freeNotInvoiced === 1 ? " is" : "s are"} not invoiced yet and join the totals once invoiced. ` : ""}
           Amounts are SAR from the Warranty Invoicing report{data.invoicingThrough ? ` (invoices up to ${fmtDate(data.invoicingThrough)})` : ""}; a line belongs to a request when its work order and VIN both match.
@@ -399,7 +369,7 @@ function SubDealerView({ data }: { data: Ok }) {
                   <th className="py-2 pr-3 text-right">Settled with sub-dealer</th>
                   <th className="py-2 pr-3 text-right">Paid on the batch</th>
                   <th className="py-2 pr-3">Batch status</th>
-                  <th className="py-2 text-right">Profit to dealer</th>
+                  <th className="py-2 text-right">Revenue to dealer</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0f0f2]">
