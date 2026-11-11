@@ -79,6 +79,7 @@ function qcDocument(qc: QcDetail) {
         View,
         { style: { marginBottom: 12 } },
         row("WIP number", qc.wip_no),
+        row("VIN", qc.vin),
         row("Vehicle model", qc.model),
         row("Odometer IN", km(qc.odometer_in)),
         row("Current odometer", km(qc.final_odometer)),

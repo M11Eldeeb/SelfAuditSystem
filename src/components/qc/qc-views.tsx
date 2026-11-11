@@ -71,7 +71,7 @@ export function QcList({
         {Object.entries({ ...extraParams, status: active }).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
-        <input name="q" defaultValue={q} placeholder="Search WIP, QC no. or model" className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none" />
+        <input name="q" defaultValue={q} placeholder="Search WIP, QC no., VIN or model" className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none" />
         <button className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">Search</button>
       </form>
       {rows.length === 0 ? (
@@ -154,6 +154,7 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
           </summary>
           <dl className="mt-2 divide-y divide-neutral-100">
             <Row k="WIP number" v={qc.wip_no} />
+            <Row k="VIN" v={qc.vin} />
             <Row k="Odometer IN" v={qc.odometer_in != null ? `${qc.odometer_in.toLocaleString("en-US")} km` : null} />
             <Row k="Current odometer" v={qc.final_odometer != null ? `${qc.final_odometer.toLocaleString("en-US")} km` : null} />
             <Row k="Purpose" v={purposeLabel(qc.purpose)} />

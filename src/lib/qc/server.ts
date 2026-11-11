@@ -64,7 +64,7 @@ export async function listQc(user: CurrentUser, opts: { status?: string; q?: str
   else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
   if (opts.status === "failed" || opts.status === "passed") q = q.eq("status", opts.status);
   const term = opts.q?.trim().replace(/[^A-Za-z0-9 -]/g, "");
-  if (term) q = q.or(`wip_no.ilike.%${term}%,qc_no.ilike.%${term}%,model.ilike.%${term}%`);
+  if (term) q = q.or(`wip_no.ilike.%${term}%,qc_no.ilike.%${term}%,model.ilike.%${term}%${/^[A-Za-z0-9]{6,17}$/.test(term) ? `,vin.ilike.%${term}%` : ""}`);
   const [{ data }, names] = await Promise.all([q, branchNames()]);
   const rows = data ?? [];
   const last = await latestTests(rows.map((r) => r.id));

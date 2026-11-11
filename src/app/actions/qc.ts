@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, trashDriveFile } from "@/lib/tech-claims/drive";
 import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
@@ -82,7 +83,7 @@ export async function addQcTechnician(name: string): Promise<{ technician?: QcTe
   return { technician: { id: null, name: had?.name ?? clean } };
 }
 
-export type QcWipInfo = { wip: string; model: string | null; modelName: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string; purpose: string; attempts: number; createdAt: string }[] };
+export type QcWipInfo = { wip: string; vin: string | null; model: string | null; modelName: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string; purpose: string; attempts: number; createdAt: string }[] };
 
 /** What the Open WIPs report and earlier QCs know about this WIP (to fill the form in). */
 export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; error?: string }> {
@@ -92,7 +93,7 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
   const digits = wip.replace(/\D/g, "");
   const admin = createAdminClient();
   const [{ data: open }, { data: earlier }] = await Promise.all([
-    admin.from("self_audit_open_wips").select("model, mileage, operator, registration").eq("branch_id", branch.id).eq("wip_no", digits).limit(1).maybeSingle(),
+    admin.from("self_audit_open_wips").select("vin, model, mileage, operator, registration").eq("branch_id", branch.id).eq("wip_no", digits).limit(1).maybeSingle(),
     admin.from("self_audit_qc_checks").select("id, qc_no, status, purpose, attempts, created_at").eq("branch_id", branch.id).eq("wip_no", wip).order("created_at", { ascending: false }),
   ]);
   const mileage = open?.mileage ? Number(String(open.mileage).replace(/\D/g, "")) : NaN;
@@ -109,6 +110,7 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
   return {
     info: {
       wip,
+      vin: cleanVin(open?.vin),
       model: open?.model ?? null,
       modelName: modelFromText(open?.model),
       mileage: Number.isFinite(mileage) && mileage > 0 ? mileage : null,
@@ -117,6 +119,58 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
       earlier: (earlier ?? []).map((e) => ({ id: e.id, qcNo: e.qc_no, status: e.status, purpose: e.purpose, attempts: e.attempts, createdAt: e.created_at })),
     },
   };
+}
+
+const cleanVin = (v: string | null | undefined) => {
+  const s = (v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return s.length === 17 ? s : null;
+};
+
+/** Characters that differ between two VINs of the same length (a misread letter or two). */
+const vinDistance = (a: string, b: string) => {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+  return d;
+};
+
+export type JobCardMatch = { wip: string | null; vin: string | null; confirmed: boolean };
+
+/**
+ * The job card photo was read on the phone: its candidate WIP numbers and VIN are checked against this branch's Open WIPs.
+ * A WIP and a VIN that belong together there are taken as read (a VIN misread by up to 3 characters is corrected).
+ */
+export async function matchJobCard(input: { wips: string[]; vin: string | null; plates?: string[] }): Promise<JobCardMatch> {
+  const { branch } = await controller();
+  const wips = [...new Set((input.wips ?? []).map((w) => String(w).replace(/\D/g, "")).filter((w) => /^\d{5}$/.test(w)))].slice(0, 12);
+  const read = (input.vin ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const ocrVin = read.length === 17 ? read : null;
+  const { data } = await createAdminClient().from("self_audit_open_wips").select("wip_no, vin, registration").eq("branch_id", branch.id).limit(3000);
+  const plateKey = (p: string | null | undefined) => (p ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const rows = (data ?? []).map((r) => ({ wip: String(r.wip_no ?? "").replace(/\D/g, ""), vin: cleanVin(r.vin), plate: plateKey(r.registration) })).filter((r) => /^\d{5}$/.test(r.wip));
+  const close = (v: string | null) => !!ocrVin && !!v && vinDistance(ocrVin, v) <= 3;
+
+  // 1. A WIP read on the card whose VIN matches the VIN read on the card.
+  for (const w of wips) {
+    const row = rows.find((r) => r.wip === w && close(r.vin));
+    if (row) return { wip: w, vin: row.vin, confirmed: true };
+  }
+  // 2. The VIN alone points to one open WIP.
+  if (ocrVin) {
+    const byVin = rows.filter((r) => close(r.vin)).sort((a, b) => vinDistance(ocrVin, a.vin!) - vinDistance(ocrVin, b.vin!));
+    if (byVin.length) return { wip: byVin[0].wip, vin: byVin[0].vin, confirmed: true };
+  }
+  // 3. The plate number read on the card belongs to one open WIP.
+  const plates = (input.plates ?? []).map(plateKey).filter((p) => p.length >= 4);
+  const byPlate = rows.filter((r) => r.plate && plates.includes(r.plate));
+  if (byPlate.length === 1 || (byPlate.length > 1 && byPlate.some((r) => wips.includes(r.wip)))) {
+    const row = byPlate.find((r) => wips.includes(r.wip)) ?? byPlate[0];
+    return { wip: row.wip, vin: row.vin ?? ocrVin, confirmed: true };
+  }
+  // 4. A WIP read on the card that is open in this branch.
+  const open = wips.find((w) => rows.some((r) => r.wip === w));
+  if (open) return { wip: open, vin: rows.find((r) => r.wip === open)?.vin ?? ocrVin, confirmed: false };
+  // 5. Only what was read.
+  return { wip: wips[0] ?? null, vin: ocrVin, confirmed: false };
 }
 
 /** A failed QC of the controller's branch (to test again). */
@@ -178,6 +232,7 @@ async function verifiedFiles(folderId: string, ids: string[]) {
 export type QcResultInput = { result: "pass" | "fail"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[] };
 export type QcNewInput = QcResultInput & {
   wip: string;
+  vin: string;
   odometerIn: string;
   purpose: string;
   model: string;
@@ -240,9 +295,9 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     const files = await verifiedFiles(folder, input.driveFileIds);
     const now = new Date().toISOString();
     const admin = createAdminClient();
-    const { data: check, error } = await admin
-      .from("self_audit_qc_checks")
-      .insert({
+    const vin = input.vin.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17);
+    if (vin && vin.length !== 17) return { error: "The VIN has 17 characters." };
+    const row: Database["public"]["Tables"]["self_audit_qc_checks"]["Insert"] = {
         branch_id: branch.id,
         wip_no: wip,
         model,
@@ -260,9 +315,14 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
         drive_folder_id: folder,
         controller_id: user.id,
         controller_name: name,
-      })
+    };
+    let { data: check, error } = await admin
+      .from("self_audit_qc_checks")
+      .insert({ ...row, ...(vin ? { vin } : {}) })
       .select("id")
       .single();
+    // Until the VIN column exists in the database (migration 0173), the QC is saved without it.
+    if (error && vin && /vin/i.test(error.message)) ({ data: check, error } = await admin.from("self_audit_qc_checks").insert(row).select("id").single());
     if (error || !check) return { error: error?.message ?? "Could not save the QC." };
     const { data: test, error: testError } = await admin
       .from("self_audit_qc_tests")
