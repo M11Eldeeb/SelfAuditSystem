@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSheetsStatus, readSheetNamed } from "@/lib/google-sheets";
+import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
 import { SUB_DEALER_SHEET_ID, normalizeVin, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 /**
@@ -9,8 +10,8 @@ import { SUB_DEALER_SHEET_ID, normalizeVin, normalizeWorkOrder } from "@/lib/sub
  * on the claims batch for the same work orders. A sheet row and a batch claim belong together when the base work order
  * number AND the VIN match (see src/lib/sub-dealer-wips.ts).
  *
- * Money: "Labor Approved (SAR, VAT incl.)" in the sheet is what came to the sub-dealer; "Adjusted Claim TOL." on the batch is
- * what the dealer is paid for the claim; the rest stays with the dealer.
+ * Money: "Labor Approved (SAR, VAT incl.)" in the sheet is what came to the sub-dealer (riyals); "Adjusted Claim TOL." on the batch is
+ * what the dealer is paid for the claim, in US dollars (converted at 3.75); the difference is the dealer's profit.
  */
 
 export type SdClaim = {
@@ -33,7 +34,8 @@ export type SdClaim = {
 export type SdFree = { id: string; status: string; branch: string; workOrder: string; service: string; approved: number | null; created: string | null; month: string | null };
 
 /** What the dealer's claims batch holds for one key (work order + VIN): all its follow-up job cards together. */
-export type SdBatch = { claimNumbers: string[]; statuses: string[]; adjusted: number; settled: number };
+/** The batch is in US dollars; `adjusted` / `settled` are the same amounts in riyals (x 3.75), the currency of the sub-dealer sheet. */
+export type SdBatch = { claimNumbers: string[]; statuses: string[]; adjusted: number; settled: number; adjustedUsd: number; settledUsd: number };
 
 export type SubDealerDashboard =
   | {
@@ -187,11 +189,14 @@ async function loadBatch(): Promise<Record<string, SdBatch>> {
     for (const s of settle ?? []) {
       const key = keyOf(s.work_order_no ?? "", vinOf.get(s.claim_id) ?? "");
       if (!key) continue;
-      const b = (batch[key] ??= { claimNumbers: [], statuses: [], adjusted: 0, settled: 0 });
+      const b = (batch[key] ??= { claimNumbers: [], statuses: [], adjusted: 0, settled: 0, adjustedUsd: 0, settledUsd: 0 });
       if (s.claim_number) b.claimNumbers.push(s.claim_number);
       if (s.status && !b.statuses.includes(s.status)) b.statuses.push(s.status);
-      b.adjusted += Number(s.adjusted ?? 0);
-      b.settled += Number(s.settle_vat ?? 0);
+      // The batch amounts are in US dollars: kept as they are and converted to riyals at the fixed rate.
+      b.adjustedUsd += Number(s.adjusted ?? 0);
+      b.settledUsd += Number(s.settle_vat ?? 0);
+      b.adjusted = b.adjustedUsd * SAR_PER_USD;
+      b.settled = b.settledUsd * SAR_PER_USD;
     }
   }
   return batch;

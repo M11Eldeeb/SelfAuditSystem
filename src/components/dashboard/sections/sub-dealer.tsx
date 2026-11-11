@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { SdBatch, SubDealerDashboard } from "@/lib/dashboard/sub-dealer";
+import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
 import { BarList, C, Donut, LineChart, Meter, monthShort } from "@/components/dashboard/charts";
 import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
 
@@ -99,6 +100,7 @@ function SubDealerView({ data }: { data: Ok }) {
   // Rejected claims have no work order and never reach the batch: only real work orders count as "not on the batch yet".
   const notOnBatch = groups.filter((g) => !g.batch && g.workOrder);
   const adjusted = onBatch.reduce((s, g) => s + (g.batch?.adjusted ?? 0), 0);
+  const adjustedUsd = onBatch.reduce((s, g) => s + (g.batch?.adjustedUsd ?? 0), 0);
   const settled = onBatch.reduce((s, g) => s + (g.batch?.settled ?? 0), 0);
   const approvedOnBatch = onBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
   const leftWithDealer = adjusted - approvedOnBatch;
@@ -205,7 +207,7 @@ function SubDealerView({ data }: { data: Ok }) {
             <Label>Paid to the dealer on the batch</Label>
             <Metric value={money(adjusted)} unit="SAR" />
             <div className="text-xs text-[#6e6e73]">
-              Adjusted claim total of {fmtInt(onBatch.length)} work order{onBatch.length === 1 ? "" : "s"} · settled so far {money(settled)}
+              Adjusted claim total of {fmtInt(onBatch.length)} work order{onBatch.length === 1 ? "" : "s"}: ${money(adjustedUsd)} USD at {SAR_PER_USD} SAR · settled so far {money(settled)} SAR
             </div>
           </Card>
           <Card className="space-y-1">
@@ -353,7 +355,16 @@ function SubDealerView({ data }: { data: Ok }) {
                       </div>
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{g.approved != null ? money(g.approved) : "—"}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{g.batch ? money(g.batch.adjusted) : <span className="text-[#6e6e73]">{g.workOrder ? "not on batch" : "—"}</span>}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">
+                      {g.batch ? (
+                        <>
+                          {money(g.batch.adjusted)}
+                          <div className="text-[11px] text-[#6e6e73]">${money(g.batch.adjustedUsd)}</div>
+                        </>
+                      ) : (
+                        <span className="text-[#6e6e73]">{g.workOrder ? "not on batch" : "—"}</span>
+                      )}
+                    </td>
                     <td className="py-2 pr-3">
                       {g.batch ? (
                         <div className="flex flex-wrap gap-1">
@@ -382,7 +393,7 @@ function SubDealerView({ data }: { data: Ok }) {
       </Panel>
 
       <p className="px-1 text-[11px] text-[#6e6e73]">
-        Live from the sub-dealer&apos;s Google Sheet (refreshed every couple of minutes). A sub-dealer work order and a dealer claim belong together when the work order number (including its -1, -2 follow-up job cards) and the VIN both match. Batch amounts are the adjusted claim totals; all amounts in SAR.
+        Live from the sub-dealer&apos;s Google Sheet (refreshed every couple of minutes). A sub-dealer work order and a dealer claim belong together when the work order number (including its -1, -2 follow-up job cards) and the VIN both match. Batch amounts are the adjusted claim totals, which the batch holds in US dollars: they are converted at the fixed rate of 3.75 SAR = 1 USD. All other amounts are in SAR.
       </p>
     </div>
   );
