@@ -126,53 +126,6 @@ const cleanVin = (v: string | null | undefined) => {
   return s.length === 17 ? s : null;
 };
 
-/** Characters that differ between two VINs of the same length (a misread letter or two). */
-const vinDistance = (a: string, b: string) => {
-  let d = 0;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
-  return d;
-};
-
-export type JobCardMatch = { wip: string | null; vin: string | null; confirmed: boolean };
-
-/**
- * The job card photo was read on the phone: its candidate WIP numbers and VIN are checked against this branch's Open WIPs.
- * A WIP and a VIN that belong together there are taken as read (a VIN misread by up to 3 characters is corrected).
- */
-export async function matchJobCard(input: { wips: string[]; vin: string | null; plates?: string[] }): Promise<JobCardMatch> {
-  const { branch } = await controller();
-  const wips = [...new Set((input.wips ?? []).map((w) => String(w).replace(/\D/g, "")).filter((w) => /^\d{5}$/.test(w)))].slice(0, 12);
-  const read = (input.vin ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const ocrVin = read.length === 17 ? read : null;
-  const { data } = await createAdminClient().from("self_audit_open_wips").select("wip_no, vin, registration").eq("branch_id", branch.id).limit(3000);
-  const plateKey = (p: string | null | undefined) => (p ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const rows = (data ?? []).map((r) => ({ wip: String(r.wip_no ?? "").replace(/\D/g, ""), vin: cleanVin(r.vin), plate: plateKey(r.registration) })).filter((r) => /^\d{5}$/.test(r.wip));
-  const close = (v: string | null) => !!ocrVin && !!v && vinDistance(ocrVin, v) <= 3;
-
-  // 1. A WIP read on the card whose VIN matches the VIN read on the card.
-  for (const w of wips) {
-    const row = rows.find((r) => r.wip === w && close(r.vin));
-    if (row) return { wip: w, vin: row.vin, confirmed: true };
-  }
-  // 2. The VIN alone points to one open WIP.
-  if (ocrVin) {
-    const byVin = rows.filter((r) => close(r.vin)).sort((a, b) => vinDistance(ocrVin, a.vin!) - vinDistance(ocrVin, b.vin!));
-    if (byVin.length) return { wip: byVin[0].wip, vin: byVin[0].vin, confirmed: true };
-  }
-  // 3. The plate number read on the card belongs to one open WIP.
-  const plates = (input.plates ?? []).map(plateKey).filter((p) => p.length >= 4);
-  const byPlate = rows.filter((r) => r.plate && plates.includes(r.plate));
-  if (byPlate.length === 1 || (byPlate.length > 1 && byPlate.some((r) => wips.includes(r.wip)))) {
-    const row = byPlate.find((r) => wips.includes(r.wip)) ?? byPlate[0];
-    return { wip: row.wip, vin: row.vin ?? ocrVin, confirmed: true };
-  }
-  // 4. A WIP read on the card that is open in this branch.
-  const open = wips.find((w) => rows.some((r) => r.wip === w));
-  if (open) return { wip: open, vin: rows.find((r) => r.wip === open)?.vin ?? ocrVin, confirmed: false };
-  // 5. Only what was read.
-  return { wip: wips[0] ?? null, vin: ocrVin, confirmed: false };
-}
-
 /** A failed QC of the controller's branch (to test again). */
 async function failedCheck(checkId: string, branchId: string) {
   const { data } = await createAdminClient().from("self_audit_qc_checks").select("*").eq("id", checkId).maybeSingle();

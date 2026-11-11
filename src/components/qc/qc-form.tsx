@@ -2,8 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addQcTechnician, discardQcUpload, lookupQcWip, matchJobCard, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
-import { readJobCard, readRequisition } from "./ocr";
+import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
 import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 
@@ -267,35 +266,6 @@ function FilesField({ files, onBeforeAdd }: { files: ReturnType<typeof useUpload
   );
 }
 
-/** A button that takes a photo with the camera (or picks one) and hands it over to be read. */
-function ScanButton({ label, busy, onFile }: { label: string; busy: boolean; onFile: (f: File) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  return (
-    <>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (f) onFile(f);
-        }}
-      />
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => ref.current?.click()}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand/40 bg-brand/5 px-3 text-sm font-bold text-brand active:scale-[0.99] disabled:opacity-60"
-      >
-        {busy ? "Reading the photo…" : label}
-      </button>
-    </>
-  );
-}
-
 /** A name from the list, or "Other" - which opens a box to type the name. */
 function PersonChoice({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   const [other, setOther] = useState(false);
@@ -381,7 +351,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const router = useRouter();
   const [wip, setWip] = useState("");
   const [vin, setVin] = useState("");
-  const [scan, setScan] = useState<{ kind: "job" | "req"; busy: boolean; note?: string; ok?: boolean } | null>(null);
   const [info, setInfo] = useState<QcWipInfo | null>(null);
   const [odometerIn, setOdometerIn] = useState("");
   const [group, setGroup] = useState<string>("");
@@ -419,43 +388,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
     if (r.info.modelName && !model && options.models.includes(r.info.modelName)) setModel(r.info.modelName);
   }
 
-  /** Job card photo: read the WIP number and the VIN, check them against Open WIPs, and keep the photo with the QC. */
-  async function scanJobCard(file: File) {
-    setScan({ kind: "job", busy: true });
-    try {
-      const read = await readJobCard(file);
-      const m = await matchJobCard(read);
-      if (m.vin) setVin(m.vin);
-      if (m.wip) await changeWip(m.wip);
-      const wipNow = m.wip ?? (wip.length === 5 ? wip : null);
-      if (wipNow) void files.add([file], { wip: wipNow });
-      setScan({
-        kind: "job",
-        busy: false,
-        ok: m.confirmed,
-        note: !m.wip && !m.vin ? "Nothing could be read - take the photo again closer, or type the numbers." : m.confirmed ? "Read from the job card and found in Open WIPs." : "Read from the job card - please check the numbers.",
-      });
-    } catch {
-      setScan({ kind: "job", busy: false, note: "The photo could not be read - type the numbers." });
-    }
-  }
-
-  /** Requisition photo: add each part number and description to Replaced parts, and keep the photo with the QC. */
-  async function scanRequisition(file: File) {
-    setScan({ kind: "req", busy: true });
-    try {
-      const parts = await readRequisition(file);
-      if (parts.length) {
-        const lines = parts.map((p) => `${p.partNo} - ${p.description}`);
-        setReplacedParts((t) => [t.trim(), ...lines.filter((l) => !t.includes(l))].filter(Boolean).join("\n"));
-      }
-      if (wip.length === 5) void files.add([file], { wip });
-      setScan({ kind: "req", busy: false, ok: parts.length > 0, note: parts.length ? `${parts.length} part${parts.length > 1 ? "s" : ""} added - please check them.` : "No part number could be read - type the parts." });
-    } catch {
-      setScan({ kind: "req", busy: false, note: "The photo could not be read - type the parts." });
-    }
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -471,8 +403,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <Section n={1} title="Vehicle">
-        <ScanButton label="📷 Scan the job card (WIP + VIN)" busy={scan?.kind === "job" && scan.busy} onFile={scanJobCard} />
-        {scan?.kind === "job" && scan.note && <p className={`rounded-xl px-3 py-2 text-sm ring-1 ${scan.ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`}>{scan.note}</p>}
         <Field
           title="WIP number *"
           hint={
@@ -548,8 +478,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         <Field title="Repair type *">
           <Choice options={QC_REPAIR_TYPES.map((r) => ({ key: r.key as string, label: r.label }))} value={repairType} onChange={setRepairType} cols={3} />
         </Field>
-        <ScanButton label="📷 Scan the requisition (parts)" busy={scan?.kind === "req" && scan.busy} onFile={scanRequisition} />
-        {scan?.kind === "req" && scan.note && <p className={`rounded-xl px-3 py-2 text-sm ring-1 ${scan.ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`}>{scan.note}</p>}
         <Field title="Replaced parts">
           <textarea value={replacedParts} onChange={(e) => setReplacedParts(e.target.value)} rows={3} className={field} placeholder="Part numbers / names" />
         </Field>
