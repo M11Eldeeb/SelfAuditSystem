@@ -13,6 +13,10 @@ const STATUS_COLORS = ["#c4121a", "#8a8d91", "#7a0010", "#e2747b", "#55585c", "#
 
 const pretty = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const isClosed = (s: string) => s.trim().toLowerCase() === "closed";
+/** A claim that is over for good - closed, rejected or cancelled - is never "open". */
+const isRejected = (s: string) => /^(rejected|cancel+ed)$/i.test(s.trim());
+const isOpen = (s: string) => !isClosed(s) && !isRejected(s);
+const NO_WIP = "No work order";
 const money = (v: number) => fmtNum(v, 2);
 const niceCeil = (v: number) => {
   if (v <= 0) return 10;
@@ -25,7 +29,6 @@ type Group = {
   key: string;
   workOrder: string;
   subWorkOrders: string[];
-  claimIds: string[];
   statuses: string[];
   vin: string;
   created: string | null;
@@ -77,8 +80,7 @@ function SubDealerView({ data }: { data: Ok }) {
       const key = c.key ?? `claim:${c.id}`;
       const g =
         m.get(key) ??
-        ({ key, workOrder: c.workOrder, subWorkOrders: [], claimIds: [], statuses: [], vin: c.vin, created: c.created, approved: null, batch: c.key ? (data.batch[c.key] ?? null) : null } as Group);
-      g.claimIds.push(c.id);
+        ({ key, workOrder: c.workOrder, subWorkOrders: [], statuses: [], vin: c.vin, created: c.created, approved: null, batch: c.key ? (data.batch[c.key] ?? null) : null } as Group);
       if (c.subWorkOrder && !g.subWorkOrders.includes(c.subWorkOrder)) g.subWorkOrders.push(c.subWorkOrder);
       if (!g.statuses.includes(c.status)) g.statuses.push(c.status);
       if (c.created && (!g.created || c.created > g.created)) g.created = c.created;
@@ -90,10 +92,12 @@ function SubDealerView({ data }: { data: Ok }) {
 
   const total = claims.length;
   const closed = claims.filter((c) => isClosed(c.status)).length;
-  const open = total - closed;
+  const rejected = claims.filter((c) => isRejected(c.status)).length;
+  const open = total - closed - rejected;
   const approvedTotal = claims.reduce((s, c) => s + (c.laborApproved ?? 0), 0);
   const onBatch = groups.filter((g) => g.batch);
-  const notOnBatch = groups.filter((g) => !g.batch);
+  // Rejected claims have no work order and never reach the batch: only real work orders count as "not on the batch yet".
+  const notOnBatch = groups.filter((g) => !g.batch && g.workOrder);
   const adjusted = onBatch.reduce((s, g) => s + (g.batch?.adjusted ?? 0), 0);
   const settled = onBatch.reduce((s, g) => s + (g.batch?.settled ?? 0), 0);
   const approvedOnBatch = onBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
@@ -103,10 +107,10 @@ function SubDealerView({ data }: { data: Ok }) {
 
   const today = new Date().toISOString().slice(0, 10);
   const oldestOpen = claims
-    .filter((c) => !isClosed(c.status) && c.created)
-    .reduce<{ id: string; days: number } | null>((best, c) => {
+    .filter((c) => isOpen(c.status) && c.created)
+    .reduce<{ workOrder: string; days: number } | null>((best, c) => {
       const days = Math.max(0, Math.round((Date.parse(today) - Date.parse(c.created!)) / 86_400_000));
-      return !best || days > best.days ? { id: c.id, days } : best;
+      return !best || days > best.days ? { workOrder: c.workOrder || NO_WIP, days } : best;
     }, null);
 
   const monthsInRange = data.months.filter((m) => m >= from && m <= to);
@@ -119,9 +123,14 @@ function SubDealerView({ data }: { data: Ok }) {
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([label, value], i) => ({ label: pretty(label), value, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
   }, [claims]);
 
-  const partsGot = claims.reduce((s, c) => s + c.partsGot, 0);
-  const partsTotal = claims.reduce((s, c) => s + c.partsTotal, 0);
+  // Defective parts are due back once the repair is finished: counted on closed claims only (open claims are not due yet,
+  // rejected ones never had a part supplied).
+  const closedClaims = claims.filter((c) => isClosed(c.status));
+  const partsGot = closedClaims.reduce((s, c) => s + c.partsGot, 0);
+  const partsTotal = closedClaims.reduce((s, c) => s + c.partsTotal, 0);
   const partsPct = partsTotal ? (partsGot / partsTotal) * 100 : 0;
+  const partsToReturn = closedClaims.filter((c) => c.partsGot < c.partsTotal).map((c) => ({ workOrder: c.workOrder || NO_WIP, left: c.partsTotal - c.partsGot }));
+  const partsOnOpen = claims.filter((c) => isOpen(c.status)).reduce((s, c) => s + c.partsTotal, 0);
   const topParts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of claims) for (const p of c.parts) m.set(p.name, (m.get(p.name) ?? 0) + p.qty);
@@ -185,7 +194,7 @@ function SubDealerView({ data }: { data: Ok }) {
 
       {!data.hasLaborApproved && (
         <p className="rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
-          The sub-dealer sheet has no <strong>Labor Approved (SAR, VAT incl.)</strong> column yet, so the money to the sub-dealer and what stays with the dealer cannot be shown. It fills in as soon as the column is added to the Claims tab.
+          The sub-dealer sheet has no <strong>Labor Approved (SAR, VAT incl.)</strong> column, so what was settled with the sub-dealer and the dealer&apos;s profit cannot be shown. It fills in as soon as the column is on the Claims tab.
         </p>
       )}
 
@@ -200,14 +209,14 @@ function SubDealerView({ data }: { data: Ok }) {
             </div>
           </Card>
           <Card className="space-y-1">
-            <Label>Came to the sub-dealer</Label>
+            <Label>Settled with the sub-dealer (from warranty claims)</Label>
             <Metric value={data.hasLaborApproved ? money(approvedTotal) : "—"} unit="SAR" />
             <div className="text-xs text-[#6e6e73]">Labor approved, VAT included, on {fmtInt(total)} claim{total === 1 ? "" : "s"}</div>
           </Card>
           <Card className="space-y-1">
-            <Label>Stays with the dealer</Label>
+            <Label>Profit to the dealer (from warranty claims)</Label>
             <Metric value={data.hasLaborApproved ? money(leftWithDealer) : "—"} unit="SAR" tone={data.hasLaborApproved && leftWithDealer < 0 ? "red" : "green"} />
-            <div className="text-xs text-[#6e6e73]">Batch total minus the labor approved to the sub-dealer on the same work orders ({money(approvedOnBatch)})</div>
+            <div className="text-xs text-[#6e6e73]">Paid on the batch minus the {money(approvedOnBatch)} settled with the sub-dealer on the same work orders</div>
           </Card>
         </div>
         {notOnBatch.length > 0 && (
@@ -224,18 +233,18 @@ function SubDealerView({ data }: { data: Ok }) {
           <Label>Sub-dealer claims</Label>
           <Metric value={fmtInt(total)} />
           <div className="text-xs text-[#6e6e73]">
-            {fmtInt(closed)} closed · {fmtInt(open)} open
+            {fmtInt(closed)} closed · {fmtInt(open)} open{rejected ? ` · ${fmtInt(rejected)} rejected` : ""}
           </div>
         </Card>
         <Card className="space-y-1">
           <Label>Closed share</Label>
           <Metric value={total ? `${Math.round((closed / total) * 100)}%` : "—"} />
-          <div className="text-xs text-[#6e6e73]">of all claims in this period</div>
+          <div className="text-xs text-[#6e6e73]">of all claims in this period (rejected ones included)</div>
         </Card>
         <Card className="space-y-1">
           <Label>Oldest open claim</Label>
           <Metric value={oldestOpen ? fmtInt(oldestOpen.days) : "—"} unit={oldestOpen ? "days" : undefined} />
-          <div className="truncate text-xs text-[#6e6e73]">{oldestOpen?.id ?? "No open claims"}</div>
+          <div className="truncate text-xs text-[#6e6e73]">{oldestOpen ? `Work order ${oldestOpen.workOrder}` : "No open claims"}</div>
         </Card>
         <Card className="space-y-1">
           <Label>Free service</Label>
@@ -274,22 +283,28 @@ function SubDealerView({ data }: { data: Ok }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {data.hasLaborApproved && (
-          <Panel className="lg:col-span-7" title="Labor approved over time" subtitle="Came to the sub-dealer, per month (SAR, VAT incl.)">
+          <Panel className="lg:col-span-7" title="Labor approved over time" subtitle="Settled with the sub-dealer, per month (SAR, VAT incl.)">
             <LineChart series={[{ name: "Labor approved", color: C.accent, points: perMonthApproved }]} yMax={niceCeil(Math.max(...perMonthApproved.map((p) => p.value), 1))} unit=" SAR" decimals={0} emptyText="Nothing approved in this period." />
           </Panel>
         )}
-        <Panel className={data.hasLaborApproved ? "lg:col-span-5" : "lg:col-span-6"} title="Defective parts returned" subtitle="Parts the sub-dealer has sent back to the dealer">
+        <Panel className={data.hasLaborApproved ? "lg:col-span-5" : "lg:col-span-6"} title="Defective parts returned" subtitle="Closed claims: parts the sub-dealer has sent back to the dealer">
           {partsTotal === 0 ? (
-            <p className="py-8 text-center text-sm text-neutral-500">No parts on these claims.</p>
+            <p className="py-8 text-center text-sm text-neutral-500">No closed claims with parts in this period.</p>
           ) : (
             <div className="space-y-3">
               <div className="flex items-baseline justify-between">
                 <Metric value={`${Math.round(partsPct)}%`} />
                 <span className="text-sm text-[#6e6e73]">
-                  {fmtInt(partsGot)} of {fmtInt(partsTotal)} parts received
+                  {fmtInt(partsGot)} of {fmtInt(partsTotal)} parts returned
                 </span>
               </div>
               <Meter pct={partsPct} />
+              <p className="text-xs text-[#6e6e73]">
+                {partsToReturn.length === 0
+                  ? "Every part of the closed claims is back."
+                  : `${fmtInt(partsTotal - partsGot)} still to be returned: ${partsToReturn.map((p) => p.workOrder).join(", ")}.`}
+                {partsOnOpen > 0 ? ` ${fmtInt(partsOnOpen)} more part${partsOnOpen === 1 ? "" : "s"} on open claims are not due yet.` : ""}
+              </p>
             </div>
           )}
         </Panel>
@@ -309,24 +324,21 @@ function SubDealerView({ data }: { data: Ok }) {
                 <tr className="border-b border-[#e5e5ea] text-[11px] font-semibold tracking-wide text-[#6e6e73] uppercase">
                   <th className="py-2 pr-3">Dealer WIP</th>
                   <th className="py-2 pr-3">Sub-dealer WIP</th>
-                  <th className="py-2 pr-3">Claim</th>
+                  <th className="py-2 pr-3">Opened</th>
                   <th className="py-2 pr-3">VIN</th>
                   <th className="py-2 pr-3">Sub-dealer status</th>
-                  <th className="py-2 pr-3 text-right">Came to sub-dealer</th>
-                  <th className="py-2 pr-3 text-right">Dealer batch</th>
+                  <th className="py-2 pr-3 text-right">Settled with sub-dealer</th>
+                  <th className="py-2 pr-3 text-right">Paid on the batch</th>
                   <th className="py-2 pr-3">Batch status</th>
-                  <th className="py-2 text-right">Stays with dealer</th>
+                  <th className="py-2 text-right">Profit to dealer</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0f0f2]">
                 {shown.map((g) => (
                   <tr key={g.key} className="align-top">
-                    <td className="py-2 pr-3 font-mono font-semibold whitespace-nowrap text-[#1d1d1f]">{g.workOrder}</td>
+                    <td className="py-2 pr-3 font-mono font-semibold whitespace-nowrap text-[#1d1d1f]">{g.workOrder || <span className="font-sans font-normal text-[#6e6e73]">{NO_WIP}</span>}</td>
                     <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{g.subWorkOrders.join(", ") || "—"}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">
-                      {g.claimIds.join(", ")}
-                      <div className="text-[11px]">{fmtDate(g.created)}</div>
-                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{fmtDate(g.created)}</td>
                     <td className="py-2 pr-3 font-mono text-[12px] whitespace-nowrap text-[#6e6e73]">…{g.vin.slice(-6)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap gap-1">
@@ -338,7 +350,7 @@ function SubDealerView({ data }: { data: Ok }) {
                       </div>
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{g.approved != null ? money(g.approved) : "—"}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{g.batch ? money(g.batch.adjusted) : <span className="text-[#6e6e73]">not on batch</span>}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{g.batch ? money(g.batch.adjusted) : <span className="text-[#6e6e73]">{g.workOrder ? "not on batch" : "—"}</span>}</td>
                     <td className="py-2 pr-3">
                       {g.batch ? (
                         <div className="flex flex-wrap gap-1">
