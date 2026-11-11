@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, trashDriveFile } from "@/lib/tech-claims/drive";
-import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -60,7 +60,12 @@ export async function qcFormOptions(): Promise<QcFormOptions> {
   const accounts: QcTechnician[] = (techs ?? []).map((t) => ({ id: t.id, name: `${t.full_name ?? t.email}${t.employee_no ? ` - ${t.employee_no}` : ""}` }));
   const taken = new Set(accounts.map((t) => t.name.toLowerCase()));
   const added: QcTechnician[] = (extra ?? []).filter((e) => !taken.has(e.name.toLowerCase())).map((e) => ({ id: null, name: e.name }));
-  return { technicians: [...accounts, ...added], models: (models ?? []).map(String), teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "" };
+  // The batches' model codes, shown by name (MG RX5, not AS22); a code with no known name stays as it is.
+  const codes = ((models ?? []) as unknown[]).map((m) => String(m && typeof m === "object" ? Object.values(m)[0] : m)).filter((c) => c && c !== "undefined");
+  const names = [...new Set([...Object.values(QC_MODEL_BY_CODE), ...codes.map((c) => QC_MODEL_BY_CODE[c] ?? c)])];
+  const known = new Set(Object.values(QC_MODEL_BY_CODE));
+  names.sort((a, b) => Number(!known.has(a)) - Number(!known.has(b)) || a.localeCompare(b, "en", { numeric: true }));
+  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "" };
 }
 
 /** Quality controller: a technician without an account, kept for his branch's next QCs. */
@@ -77,7 +82,7 @@ export async function addQcTechnician(name: string): Promise<{ technician?: QcTe
   return { technician: { id: null, name: had?.name ?? clean } };
 }
 
-export type QcWipInfo = { wip: string; model: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string }[] };
+export type QcWipInfo = { wip: string; model: string | null; modelName: string | null; mileage: number | null; advisor: string | null; registration: string | null; earlier: { id: string; qcNo: string; status: string }[] };
 
 /** What the Open WIPs report and earlier QCs know about this WIP (to fill the form in). */
 export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; error?: string }> {
@@ -105,6 +110,7 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
     info: {
       wip,
       model: open?.model ?? null,
+      modelName: modelFromText(open?.model),
       mileage: Number.isFinite(mileage) && mileage > 0 ? mileage : null,
       advisor,
       registration: open?.registration ?? null,
@@ -193,7 +199,7 @@ async function cleanResult(input: QcResultInput, branchId: string, odometerIn: n
   const comment = input.comment.trim().slice(0, 4000) || null;
   if (input.result === "fail" && !comment) return { error: "Write why the vehicle failed." };
   const finalOdometer = num(input.finalOdometer);
-  if (input.result === "pass" && finalOdometer == null) return { error: "Enter the final odometer." };
+  if (finalOdometer == null) return { error: "Enter the final odometer." };
   if (finalOdometer != null && (finalOdometer > 3_000_000 || (odometerIn != null && finalOdometer < odometerIn))) return { error: "The final odometer must not be lower than the odometer in." };
   // Technicians: accounts of this branch (checked) or names typed in.
   const ids = input.technicians.map((t) => t.id).filter((x): x is string => !!x);
@@ -208,7 +214,7 @@ async function cleanResult(input: QcResultInput, branchId: string, odometerIn: n
     technicians.push({ id: t.id && ok.has(t.id) ? t.id : null, name });
   }
   if (!technicians.length) return { error: "Choose the technician." };
-  return { result: input.result, comment, finalOdometer: input.result === "pass" ? finalOdometer : null, technicians };
+  return { result: input.result, comment, finalOdometer, technicians };
 }
 
 /** Quality controller: records a QC (its first test) with the files attached. */

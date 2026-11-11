@@ -121,9 +121,14 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
   const last = qc.tests[qc.tests.length - 1];
   return (
     <div className="space-y-4">
-      <Link href={back} className="text-sm text-neutral-500 hover:text-brand">
-        ‹ Back
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href={back} className="text-sm text-neutral-500 hover:text-brand">
+          ‹ Back
+        </Link>
+        <a href={`/api/qc/report/${qc.id}`} target="_blank" rel="noreferrer" className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50">
+          Print report (PDF)
+        </a>
+      </div>
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -165,26 +170,29 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-bold text-neutral-900">Tests</h2>
-        <ol className="space-y-2">
+        <h2 className="text-sm font-bold text-neutral-900">History</h2>
+        <ol className="relative space-y-3 border-s-2 border-neutral-200 ps-5">
           {qc.tests.map((t) => (
-            <li key={t.id} className={`rounded-xl bg-white p-3 shadow-sm ring-1 ${t.result === "pass" ? "ring-emerald-200" : "ring-red-200"}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <li key={t.id} className="relative">
+              <span className={`absolute -start-[1.72rem] top-3 h-3.5 w-3.5 rounded-full ring-4 ring-white ${t.result === "pass" ? "bg-emerald-500" : "bg-red-500"}`} />
+              <div className={`rounded-xl bg-white p-3.5 shadow-sm ring-1 ${t.result === "pass" ? "ring-emerald-200" : "ring-red-200"}`}>
                 <div className="text-sm font-semibold text-neutral-900">
                   Test {t.attempt} · <span className={t.result === "pass" ? "text-emerald-700" : "text-red-700"}>{t.result === "pass" ? "Pass" : "Fail"}</span>
                 </div>
-                <div className="text-xs text-neutral-500">
-                  {t.by ?? "—"} · {fmtDateTime(t.at)}
+                {t.comment && <p className="mt-1.5 text-sm whitespace-pre-wrap text-neutral-800">{t.comment}</p>}
+                <div className="mt-2 space-y-0.5 text-xs text-neutral-600">
+                  <div>Technician(s): {t.technicians.map((x) => x.name).join(", ") || "—"}</div>
+                  {t.finalOdometer != null && <div>Final odometer: {t.finalOdometer.toLocaleString("en-US")} km</div>}
+                </div>
+                {filesOf(t.id).length > 0 && (
+                  <div className="mt-3">
+                    <TechClaimFileGallery base="/api/qc/file" files={filesOf(t.id).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size }))} />
+                  </div>
+                )}
+                <div className="mt-3 border-t border-dashed border-neutral-200 pt-2 text-xs text-neutral-500">
+                  Signed: <span className="font-semibold text-neutral-700">{t.by ?? "—"}</span> · {fmtDateTime(t.at)}
                 </div>
               </div>
-              <div className="mt-1 text-xs text-neutral-600">Technician(s): {t.technicians.map((x) => x.name).join(", ") || "—"}</div>
-              {t.finalOdometer != null && <div className="text-xs text-neutral-600">Final odometer: {t.finalOdometer.toLocaleString("en-US")} km</div>}
-              {t.comment && <p className="mt-2 text-sm whitespace-pre-wrap text-neutral-800">{t.comment}</p>}
-              {filesOf(t.id).length > 0 && (
-                <div className="mt-3">
-                  <TechClaimFileGallery base="/api/qc/file" files={filesOf(t.id).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size }))} />
-                </div>
-              )}
             </li>
           ))}
         </ol>
