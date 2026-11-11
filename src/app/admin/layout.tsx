@@ -17,7 +17,7 @@ const ADMIN_LINKS = [
   },
   { href: "/admin/warranty-room", label: "Warranty Room", group: "Warranty" },
   { ...AMS_LINK, group: "Warranty" },
-  { href: "/admin/sub-dealer", label: "Sub-Dealer Dashboard", group: "Warranty" },
+  { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", group: "Warranty" },
   { href: "/admin/reconciliation", label: "Reconciliation", group: "Warranty" },
   { href: "/admin/technician-claims", label: "Technician Claims", group: "Warranty" },
   { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },

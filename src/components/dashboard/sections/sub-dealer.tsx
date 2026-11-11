@@ -106,6 +106,12 @@ function SubDealerView({ data }: { data: Ok }) {
   const leftWithDealer = adjusted - approvedOnBatch;
   const approvedNotOnBatch = notOnBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
   const freeApproved = free.reduce((s, f) => s + (f.approved ?? 0), 0);
+  // Free service: what was invoiced to I660 on the work order minus what was invoiced to I1855 (paid to the sub-dealer).
+  const freeInvoiced = free.filter((f) => f.invoiced != null);
+  const freeInvoicedTotal = freeInvoiced.reduce((s, f) => s + (f.invoiced ?? 0), 0);
+  const freePaidTotal = freeInvoiced.reduce((s, f) => s + (f.paid ?? 0), 0);
+  const freeSettled = freeInvoicedTotal - freePaidTotal;
+  const freeNotInvoiced = free.length - freeInvoiced.length;
 
   const today = new Date().toISOString().slice(0, 10);
   const oldestOpen = claims
@@ -232,6 +238,64 @@ function SubDealerView({ data }: { data: Ok }) {
         )}
       </Panel>
 
+      {/* Free service: invoiced to I660 minus what is paid to the sub-dealer (I1855) */}
+      <Panel eyebrow="Free service" title="Free service settlement" subtitle="Invoiced to account I660, minus what is paid to the sub-dealer (account I1855), on the same work order - labor (KH9) and parts (MG5) lines of the Warranty Invoicing report">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Card className="space-y-1">
+            <Label>Invoiced to I660 (free service)</Label>
+            <Metric value={money(freeInvoicedTotal)} unit="SAR" />
+            <div className="text-xs text-[#6e6e73]">
+              {fmtInt(freeInvoiced.length)} of {fmtInt(free.length)} request{free.length === 1 ? "" : "s"} invoiced
+            </div>
+          </Card>
+          <Card className="space-y-1">
+            <Label>Paid to the sub-dealer (I1855)</Label>
+            <Metric value={money(freePaidTotal)} unit="SAR" />
+            <div className="text-xs text-[#6e6e73]">Invoiced to I1855 on the same work orders</div>
+          </Card>
+          <Card className="space-y-1">
+            <Label>Settled amount (free service)</Label>
+            <Metric value={money(freeSettled)} unit="SAR" tone={freeSettled < 0 ? "red" : "green"} />
+            <div className="text-xs text-[#6e6e73]">Invoiced to I660 minus paid to the sub-dealer</div>
+          </Card>
+        </div>
+        {free.length > 0 && (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[48rem] text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-[#e5e5ea] text-[11px] font-semibold tracking-wide text-[#6e6e73] uppercase">
+                  <th className="py-2 pr-3">Dealer WIP</th>
+                  <th className="py-2 pr-3">Sub-dealer WIP</th>
+                  <th className="py-2 pr-3">Service</th>
+                  <th className="py-2 pr-3">Opened</th>
+                  <th className="py-2 pr-3 text-right">Invoiced to I660</th>
+                  <th className="py-2 pr-3 text-right">Paid to sub-dealer (I1855)</th>
+                  <th className="py-2 text-right">Settled</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f0f0f2]">
+                {free.map((f) => (
+                  <tr key={f.id} className="align-top">
+                    <td className="py-2 pr-3 font-mono font-semibold whitespace-nowrap text-[#1d1d1f]">{f.workOrder || NO_WIP}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{f.subWorkOrder || "—"}</td>
+                    <td className="py-2 pr-3 text-[#6e6e73]">{f.service || "—"}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{fmtDate(f.created)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{f.invoiced != null ? money(f.invoiced) : <span className="text-[#6e6e73]">not invoiced yet</span>}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{f.invoiced != null ? money(f.paid ?? 0) : "—"}</td>
+                    <td className="py-2 text-right font-semibold tabular-nums">{f.invoiced != null ? money(f.invoiced - (f.paid ?? 0)) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="mt-3 text-xs text-[#6e6e73]">
+          {freeNotInvoiced > 0 ? `${fmtInt(freeNotInvoiced)} request${freeNotInvoiced === 1 ? " is" : "s are"} not invoiced yet and join the totals once invoiced. ` : ""}
+          Amounts are SAR from the Warranty Invoicing report{data.invoicingThrough ? ` (invoices up to ${fmtDate(data.invoicingThrough)})` : ""}; a line belongs to a request when its work order and VIN both match.
+          {free.some((f) => f.approved != null) ? ` The sub-dealer's own approved amount (sheet): ${money(freeApproved)} SAR.` : ""}
+        </p>
+      </Panel>
+
       {/* Headline numbers */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="space-y-1">
@@ -254,7 +318,7 @@ function SubDealerView({ data }: { data: Ok }) {
         <Card className="space-y-1">
           <Label>Free service</Label>
           <Metric value={fmtInt(free.length)} unit="requests" />
-          <div className="text-xs text-[#6e6e73]">{free.some((f) => f.approved != null) ? `${money(freeApproved)} SAR approved` : "No amounts yet"}</div>
+          <div className="text-xs text-[#6e6e73]">{freeInvoiced.length ? `${money(freeSettled)} SAR settled` : "Nothing invoiced yet"}</div>
         </Card>
       </div>
 

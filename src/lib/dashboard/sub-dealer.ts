@@ -3,10 +3,11 @@ import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSheetsStatus, readSheetNamed } from "@/lib/google-sheets";
 import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
+import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 import { SUB_DEALER_SHEET_ID, normalizeVin, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 /**
- * The Sub-Dealer Dashboard: the sub-dealer's live Google Sheet (Claims and Free Service tabs) set beside what the dealer got
+ * The Sub-Dealer Analytics page: the sub-dealer's live Google Sheet (Claims and Free Service tabs) set beside what the dealer got
  * on the claims batch for the same work orders. A sheet row and a batch claim belong together when the base work order
  * number AND the VIN match (see src/lib/sub-dealer-wips.ts).
  *
@@ -31,7 +32,25 @@ export type SdClaim = {
   laborApproved: number | null;
 };
 
-export type SdFree = { id: string; status: string; branch: string; workOrder: string; service: string; approved: number | null; created: string | null; month: string | null };
+/**
+ * A free service request. `invoiced` is what the dealer invoiced on that work order to account I660 (free service for the
+ * customer) and `paid` what it invoiced to I1855 (the amount paid to the sub-dealer) - both from the Warranty Invoicing report
+ * (KH9 labor + MG5 parts lines, riyals), matched on work order and VIN. null = no such line invoiced yet.
+ */
+export type SdFree = {
+  id: string;
+  status: string;
+  branch: string;
+  workOrder: string;
+  subWorkOrder: string;
+  vin: string;
+  service: string;
+  approved: number | null;
+  created: string | null;
+  month: string | null;
+  invoiced: number | null;
+  paid: number | null;
+};
 
 /** What the dealer's claims batch holds for one key (work order + VIN): all its follow-up job cards together. */
 /** The batch is in US dollars; `adjusted` / `settled` are the same amounts in riyals (x 3.75), the currency of the sub-dealer sheet. */
@@ -43,6 +62,8 @@ export type SubDealerDashboard =
       updatedAt: string;
       /** The sheet has the "Labor Approved (SAR, VAT incl.)" column. */
       hasLaborApproved: boolean;
+      /** The last invoice date in the Warranty Invoicing report (free service invoices after it are not in yet). */
+      invoicingThrough: string | null;
       claims: SdClaim[];
       free: SdFree[];
       batch: Record<string, SdBatch>;
@@ -142,7 +163,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
   if (freeRows && freeRows.length) {
     const h = freeRows[0].map(norm);
     const col = (name: string) => h.indexOf(name);
-    const [id, status, branch, dealerWo, service, approved, created] = ["free service id", "status", "branch", "work order (dealer)", "service requested", "approved amount", "creation date"].map(col);
+    const [id, status, branch, dealerWo, subWo, vin, service, approved, created] = ["free service id", "status", "branch", "work order (dealer)", "work order (sub-dealer)", "vin", "service requested", "approved amount", "creation date"].map(col);
     for (const r of freeRows.slice(1)) {
       if (!text(r[id])) continue;
       const day = isoDay(r[created]);
@@ -151,10 +172,14 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
         status: text(r[status]) || "unknown",
         branch: text(r[branch]) || "Sub-dealer",
         workOrder: normalizeWorkOrder(r[dealerWo]) || text(r[dealerWo]),
+        subWorkOrder: subWo === -1 ? "" : text(r[subWo]),
+        vin: vin === -1 ? "" : normalizeVin(r[vin]),
         service: text(r[service]),
         approved: approved === -1 ? null : money(r[approved]),
         created: day,
         month: day ? day.slice(0, 7) : null,
+        invoiced: null,
+        paid: null,
       });
     }
   }
@@ -202,16 +227,59 @@ async function loadBatch(): Promise<Record<string, SdBatch>> {
   return batch;
 }
 
+const accountNo = (code: string) => code.trim().toUpperCase().replace(/^[A-Z]+/, "").replace(/^0+/, "");
+
+/**
+ * What the Warranty Invoicing report holds for each free service work order: the lines invoiced to account I660 (free service
+ * for the customer) and to I1855 (goodwill - what is paid to the sub-dealer), labor (KH9) and parts (MG5) together. A line
+ * belongs to a request when its branch, work order number and VIN all match.
+ */
+async function addInvoicing(free: SdFree[]): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data: last } = await admin.from("self_audit_invoicing_detail").select("invoice_date").order("invoice_date", { ascending: false, nullsFirst: false }).limit(1);
+  const through = last?.[0]?.invoice_date ?? null;
+  // dealer code of the request's branch (HER -> A7) and its WIP number
+  const wanted = free.flatMap((f) => {
+    const m = f.workOrder.match(/^([A-Z]{2,4})-(\d+)/);
+    const dealer = m ? Object.entries(JIAD_DEALER_CODE_SUFFIX_MAP).find(([, code]) => code === m[1])?.[0] : undefined;
+    return m && dealer && f.vin ? [{ f, dealer, wip: m[2] }] : [];
+  });
+  if (!wanted.length) return through;
+  const numbers = [...new Set(wanted.map((w) => w.wip))];
+  const { data } = await admin
+    .from("self_audit_invoicing_detail")
+    .select("branch, wip, vin, account_code, amount")
+    .or(numbers.map((n) => `wip.like.${n}*`).join(","))
+    .in("account_code", ["I0000660", "I0001855", "I660", "I1855"]);
+  for (const w of wanted) {
+    let i660: number | null = null;
+    let i1855: number | null = null;
+    for (const r of data ?? []) {
+      if (r.branch !== w.dealer || normalizeVin(r.vin) !== w.f.vin || r.wip.trim().replace(/-\d+$/, "") !== w.wip) continue;
+      const acc = accountNo(r.account_code);
+      if (acc === "660") i660 = (i660 ?? 0) + Number(r.amount);
+      else if (acc === "1855") i1855 = (i1855 ?? 0) + Number(r.amount);
+    }
+    w.f.invoiced = i660;
+    w.f.paid = i1855;
+  }
+  return through;
+}
+
 export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
   if (!(await getSheetsStatus())) return { status: "not_connected" };
   try {
     const [parsed, batch] = await Promise.all([readSheet(), loadBatch()]);
+    // The cached sheet rows are shared: the invoicing amounts go on copies.
+    const free = parsed.free.map((f) => ({ ...f }));
+    const invoicingThrough = await addInvoicing(free).catch(() => null);
     return {
       status: "ok",
       updatedAt: new Date().toISOString(),
       hasLaborApproved: parsed.hasLaborApproved,
+      invoicingThrough,
       claims: parsed.claims,
-      free: parsed.free,
+      free,
       batch,
       branches: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.branch))].sort(),
       months: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.month).filter((m): m is string => !!m))].sort(),
