@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor";
+export type UserRole = "officer" | "branch_admin" | "finance" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -37,6 +37,44 @@ export interface Database {
         Row: { id: number; key: string; at: string };
         Insert: { id?: never; key: string; at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_login_failures"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_checks: {
+        Row: {
+          id: string; qc_no: string; branch_id: string; wip_no: string; model: string | null; odometer_in: number | null;
+          purpose: "quality_control" | "test_drive_customer" | "test_drive_pre_repair" | "test_drive_post_repair" | "comeback" | "diagnosis_verification";
+          repair_type: "periodic_maintenance" | "general_repair" | "both" | null;
+          team_leader: string | null; service_advisor: string | null; replaced_parts: string | null; defect_description: string | null;
+          status: "failed" | "passed"; attempts: number; final_odometer: number | null; passed_at: string | null; drive_folder_id: string | null;
+          controller_id: string | null; controller_name: string | null; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; qc_no?: string; branch_id: string; wip_no: string; model?: string | null; odometer_in?: number | null;
+          purpose: Database["public"]["Tables"]["self_audit_qc_checks"]["Row"]["purpose"];
+          repair_type?: Database["public"]["Tables"]["self_audit_qc_checks"]["Row"]["repair_type"];
+          team_leader?: string | null; service_advisor?: string | null; replaced_parts?: string | null; defect_description?: string | null;
+          status: "failed" | "passed"; attempts?: number; final_odometer?: number | null; passed_at?: string | null; drive_folder_id?: string | null;
+          controller_id?: string | null; controller_name?: string | null; created_at?: string; updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_checks"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_tests: {
+        Row: { id: string; check_id: string; attempt_no: number; result: "pass" | "fail"; comment: string | null; technicians: { id: string | null; name: string }[]; final_odometer: number | null; tested_by: string | null; tested_by_name: string | null; created_at: string };
+        Insert: { id?: string; check_id: string; attempt_no: number; result: "pass" | "fail"; comment?: string | null; technicians?: { id: string | null; name: string }[]; final_odometer?: number | null; tested_by?: string | null; tested_by_name?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_tests"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_files: {
+        Row: { id: string; check_id: string; test_id: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes: number; uploaded_by: string | null; created_at: string };
+        Insert: { id?: string; check_id: string; test_id?: string | null; drive_file_id: string; file_name: string; mime_type: string; size_bytes?: number; uploaded_by?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_files"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_extra_technicians: {
+        Row: { id: string; branch_id: string; name: string; created_at: string };
+        Insert: { id?: string; branch_id: string; name: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_extra_technicians"]["Insert"]>;
         Relationships: [];
       };
       self_audit_tech_upload_problems: {
@@ -1831,6 +1869,7 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      qc_vehicle_models: { Args: Record<string, never>; Returns: string[] };
       invoicing_monthly: {
         Args: { p_type: string; p_account: string; p_branch: string; p_operator: string };
         Returns: { month: string; source: string; department: string; amount: number; lines: number }[];

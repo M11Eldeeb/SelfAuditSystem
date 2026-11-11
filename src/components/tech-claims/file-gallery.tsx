@@ -6,11 +6,13 @@ import { fmtBytes } from "./upload";
 
 type GalleryFile = { id: string; name: string; mimeType: string; size: number };
 
-const fileUrl = (id: string, download = false) => `/api/tech-claims/file/${id}${download ? "?download=1" : ""}`;
+const DEFAULT_BASE = "/api/tech-claims/file";
+const makeUrl = (base: string) => (id: string, download = false) => `${base}/${id}${download ? "?download=1" : ""}`;
 const kindOf = (mime: string) => (mime.startsWith("image/") ? "image" : mime.startsWith("video/") ? "video" : mime === "application/pdf" ? "pdf" : "none");
 
 /** Full-screen preview of one file (as in Warranty and Technical Documents), with previous / next through the claim's files. */
-function Preview({ files, index, onIndex, onClose }: { files: GalleryFile[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+function Preview({ files, index, onIndex, onClose, base }: { files: GalleryFile[]; index: number; onIndex: (i: number) => void; onClose: () => void; base: string }) {
+  const fileUrl = makeUrl(base);
   const f = files[index];
   const k = kindOf(f.mimeType);
   const prev = useCallback(() => onIndex((index - 1 + files.length) % files.length), [index, files.length, onIndex]);
@@ -81,7 +83,9 @@ function Preview({ files, index, onIndex, onClose }: { files: GalleryFile[]; ind
 }
 
 /** The claim's files: photo / video tiles and a PDF list - a click opens the preview. */
-export function TechClaimFileGallery({ files }: { files: GalleryFile[] }) {
+/** `base`: the file route (default the technician claims' one; quality control uses /api/qc/file). */
+export function TechClaimFileGallery({ files, base = DEFAULT_BASE }: { files: GalleryFile[]; base?: string }) {
+  const fileUrl = makeUrl(base);
   const media = files.filter((f) => f.mimeType.startsWith("image/") || f.mimeType.startsWith("video/"));
   const docs = files.filter((f) => !media.includes(f));
   const ordered = [...media, ...docs];
@@ -127,7 +131,7 @@ export function TechClaimFileGallery({ files }: { files: GalleryFile[] }) {
           ))}
         </ul>
       )}
-      {open != null && ordered[open] && <Preview files={ordered} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
+      {open != null && ordered[open] && <Preview files={ordered} index={open} onIndex={setOpen} onClose={() => setOpen(null)} base={base} />}
     </>
   );
 }

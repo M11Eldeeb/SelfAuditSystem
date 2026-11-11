@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
-import { cleanStagingFolder, driveFileInfo, ensureClaimFolder, ensureStagingFolder, ensureTechnicianFolder, knownStagingFolder, moveDriveFile, renameDriveFile, renameDriveItem, trashDriveFile } from "@/lib/tech-claims/drive";
+import { cleanStagingFolder, driveFileInfo, ensureStagingFolder, ensureTechnicianFolder, ensureWipSubFolder, knownStagingFolder, moveDriveFile, relocateClaimFolder, renameDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import type { Database } from "@/lib/supabase/types";
 
 const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims", "/reviewer/technician-claims"];
@@ -90,6 +90,12 @@ async function renameClaimFiles(claimId: string, oldWorkOrder: string, newWorkOr
   }
 }
 
+/** The work order of a claim changed: its folder follows (moved to the new WIP's folder, or renamed for older claims). */
+async function moveClaimFolder(claim: { drive_folder_id: string | null; claim_no: string; branch_id: string }, workOrder: string, branchName: string) {
+  if (!claim.drive_folder_id) return;
+  await relocateClaimFolder({ folderId: claim.drive_folder_id, claimNo: claim.claim_no, branchId: claim.branch_id, branchName, workOrder }).catch(() => undefined);
+}
+
 const techLabel = (name: string, employeeNo: string | null) => (employeeNo ? `${name} - ${employeeNo}` : name);
 
 /** The signed-in technician, his branch name and his Drive staging folder. */
@@ -158,8 +164,9 @@ async function ownEditableClaim(claimId: string) {
 
 /**
  * Technician presses Submit: the claim is created (or, for a returned / unsent claim, corrected), its uploaded files are
- * moved from the staging folder into Warranty Documents / Branch / Technician / Work order (a move - instant), recorded,
- * and the claim goes to the branch's warranty admin.
+ * moved from the staging folder into Warranty Documents / Branch / <WIP> / <claim no.> (a move - instant; the WIP folder
+ * is shared with the WIP's QC, rejected claim and inquiry folders), recorded, and the claim goes to the branch's warranty
+ * admin.
  */
 export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], claimId?: string, send = true): Promise<{ claimId?: string; error?: string }> {
   const admin = createAdminClient();
@@ -177,14 +184,21 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
       claim = own.claim;
     } else {
       if (send && !ids.length) return { error: "Add at least one photo, video or PDF." };
-      const folderId = await ensureClaimFolder({ ...ctx.place, workOrder: clean.workOrder });
       const { data, error } = await admin
         .from("self_audit_tech_claims")
-        .insert({ branch_id: ctx.place.branchId, technician_id: ctx.tech.id, technician_name: ctx.name, vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, drive_folder_id: folderId })
+        .insert({ branch_id: ctx.place.branchId, technician_id: ctx.tech.id, technician_name: ctx.name, vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes })
         .select("*")
         .single();
       if (error || !data) return { error: error?.message ?? "Could not save the claim." };
-      claim = data;
+      // The folder is named after the claim number, which the database just gave it.
+      try {
+        const folderId = await ensureWipSubFolder({ branchId: ctx.place.branchId, branchName: ctx.place.branchName, wip: clean.workOrder, sub: data.claim_no, key: `tc:claim:${data.id}` });
+        await admin.from("self_audit_tech_claims").update({ drive_folder_id: folderId }).eq("id", data.id);
+        claim = { ...data, drive_folder_id: folderId };
+      } catch (e) {
+        await admin.from("self_audit_tech_claims").delete().eq("id", data.id);
+        throw e;
+      }
     }
     const folder = claim.drive_folder_id;
     if (!folder) return { error: "The claim's Drive folder is missing." };
@@ -207,7 +221,7 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
     }
     // Save (draft): the claim and its files are kept, nothing goes to the warranty admin yet.
     if (!send) {
-      if (claimId && clean.workOrder !== claim.work_order) await renameDriveItem(folder, clean.workOrder).catch(() => undefined);
+      if (claimId && clean.workOrder !== claim.work_order) await moveClaimFolder(claim, clean.workOrder, ctx.place.branchName);
       const { error } = await admin
         .from("self_audit_tech_claims")
         .update({ vin: clean.vin, work_order: clean.workOrder, end_of_repair: clean.endOfRepair, notes: clean.notes, updated_at: new Date().toISOString() })
@@ -223,7 +237,7 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
     const edited =
       !!claimId &&
       (clean.vin !== claim.vin || clean.workOrder !== claim.work_order || clean.endOfRepair !== (claim.end_of_repair ? new Date(claim.end_of_repair).toISOString() : null) || clean.notes !== claim.notes);
-    if (claimId && clean.workOrder !== claim.work_order) await renameDriveItem(folder, clean.workOrder).catch(() => undefined);
+    if (claimId && clean.workOrder !== claim.work_order) await moveClaimFolder(claim, clean.workOrder, ctx.place.branchName);
     const resubmit = claim.status === "returned";
     const now = new Date().toISOString();
     const { error } = await admin
@@ -388,12 +402,16 @@ export async function reassignTechClaim(claimId: string, technicianId: string, c
   if (!tech || tech.role !== "technician" || tech.branch_id !== claim.branch_id) return { error: "Choose a technician of this branch." };
   if (tech.id === claim.technician_id) return { error: "The claim is already with this technician." };
   const techName = tech.full_name ?? tech.email;
-  // Move the work order folder under the new technician (Warranty Documents / Branch / Technician / Work order).
+  // An older claim (Warranty Documents / Branch / Technician / Work order) moves under the new technician. A newer one
+  // sits in its WIP's folder, which does not depend on the technician - it stays.
   if (claim.drive_folder_id) {
     try {
-      const newTechFolder = await ensureTechnicianFolder({ branchId: claim.branch_id, branchName: branch?.name ?? "Branch", technicianId: tech.id, technicianLabel: techLabel(techName, tech.employee_no) });
       const info = await driveFileInfo(claim.drive_folder_id);
-      if (info && info.parents[0] && !info.parents.includes(newTechFolder)) await moveDriveFile(claim.drive_folder_id, info.parents[0], newTechFolder);
+      const { data: oldTech } = await admin.from("self_audit_drive_folders").select("drive_id").eq("key", `tc:tech:${claim.branch_id}:${claim.technician_id}`).maybeSingle();
+      if (info && info.parents[0] && oldTech && info.parents.includes(oldTech.drive_id)) {
+        const newTechFolder = await ensureTechnicianFolder({ branchId: claim.branch_id, branchName: branch?.name ?? "Branch", technicianId: tech.id, technicianLabel: techLabel(techName, tech.employee_no) });
+        if (!info.parents.includes(newTechFolder)) await moveDriveFile(claim.drive_folder_id, info.parents[0], newTechFolder);
+      }
     } catch {
       // The claim still moves; the folder just stays where it was.
     }

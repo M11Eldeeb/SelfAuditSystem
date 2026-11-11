@@ -3,9 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, FOLDER_MIME, LIBRARIES, createDocsFolder, docsFetch } from "@/lib/documents/drive-docs";
 
 /**
- * Technician claims live in Google Drive under Warranty Documents / <Branch> / <Technician> / <Work order>, written with
- * the documents' Google account. Branch and technician folder ids are remembered (self_audit_drive_folders) so the
- * folder tree is looked up once; a folder that was deleted or trashed in Drive is found or made again.
+ * Technician claims live in Google Drive under Warranty Documents / <Branch> / <WIP> / <claim no.> (claims before
+ * 2026-11 under <Branch> / <Technician> / <Work order>), written with the documents' Google account. Folder ids are
+ * remembered (self_audit_drive_folders) so the folder tree is looked up once; a folder that was deleted or trashed in
+ * Drive is found or made again.
  */
 const API = "https://www.googleapis.com/drive/v3";
 
@@ -46,11 +47,31 @@ export async function ensureTechnicianFolder(input: { branchId: string; branchNa
   return ensureFolder(branch, input.technicianLabel, `tc:tech:${input.branchId}:${input.technicianId}`);
 }
 
-/** Warranty Documents / <Branch> / <Technician> / <Work order> - created as needed. Returns the work order folder. */
-export async function ensureClaimFolder(input: { branchId: string; branchName: string; technicianId: string; technicianLabel: string; workOrder: string }): Promise<string> {
+/**
+ * Warranty Documents / <Branch> / <WIP> - the one folder per WIP that quality control (QC-<WIP>), technician claims,
+ * rejected claims and technical inquiries put their own sub-folder in. Created as needed.
+ */
+export async function ensureWipFolder(input: { branchId: string; branchName: string; wip: string }): Promise<string> {
   const branch = await ensureFolder(LIBRARIES.warranty.rootId, input.branchName, `tc:branch:${input.branchId}`);
-  const tech = await ensureFolder(branch, input.technicianLabel, `tc:tech:${input.branchId}:${input.technicianId}`);
-  return ensureFolder(tech, input.workOrder);
+  return ensureFolder(branch, input.wip, `wip:${input.branchId}:${input.wip}`);
+}
+
+/** Warranty Documents / <Branch> / <WIP> / <sub> (e.g. "QC-HER-12345"). `key` remembers the folder id. */
+export async function ensureWipSubFolder(input: { branchId: string; branchName: string; wip: string; sub: string; key: string }): Promise<string> {
+  const wip = await ensureWipFolder(input);
+  return ensureFolder(wip, input.sub, input.key);
+}
+
+/**
+ * A technician claim's folder after its work order changed. New claims sit in Warranty Documents / <Branch> / <WIP> /
+ * <claim no.> - that folder moves to the new WIP's folder. Older claims (Branch / Technician / <work order>) are renamed.
+ */
+export async function relocateClaimFolder(input: { folderId: string; claimNo: string; branchId: string; branchName: string; workOrder: string }): Promise<void> {
+  const info = await driveFileInfo(input.folderId);
+  if (!info) return;
+  if (info.name !== input.claimNo) return renameDriveItem(input.folderId, input.workOrder);
+  const wip = await ensureWipFolder({ branchId: input.branchId, branchName: input.branchName, wip: input.workOrder });
+  if (info.parents[0] && !info.parents.includes(wip)) await moveDriveFile(input.folderId, info.parents[0], wip);
 }
 
 export async function renameDriveItem(id: string, name: string): Promise<void> {
