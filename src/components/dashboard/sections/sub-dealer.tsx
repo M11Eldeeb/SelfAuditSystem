@@ -211,7 +211,10 @@ function SubDealerView({ data }: { data: Ok }) {
           <Card className="space-y-1">
             <Label>Settled with the sub-dealer (from warranty claims)</Label>
             <Metric value={data.hasLaborApproved ? money(approvedTotal) : "—"} unit="SAR" />
-            <div className="text-xs text-[#6e6e73]">Labor approved, VAT included, on {fmtInt(total)} claim{total === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#6e6e73]">
+              Labor approved, VAT included, on {fmtInt(total)} claim{total === 1 ? "" : "s"}
+              {data.hasLaborApproved ? `: ${money(approvedOnBatch)} on work orders already on the batch + ${money(approvedNotOnBatch)} on work orders not on it yet` : ""}
+            </div>
           </Card>
           <Card className="space-y-1">
             <Label>Profit to the dealer (from warranty claims)</Label>
