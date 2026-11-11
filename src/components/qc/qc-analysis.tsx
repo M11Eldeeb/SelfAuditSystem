@@ -137,7 +137,6 @@ export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranche
       {showBranches && <Breakdown title="By branch" rows={a.byBranch} />}
       <Breakdown title="By technician" rows={a.byTechnician} perTest />
       <Breakdown title="By team leader" rows={a.byTeamLeader} />
-      <Breakdown title="By service advisor" rows={a.byAdvisor} />
       <Breakdown title="By purpose" rows={a.byPurpose} label={purposeLabel} />
       <Breakdown title="By repair type" rows={a.byRepairType} label={repairTypeLabel} />
       <Breakdown title="By vehicle model" rows={a.byModel} />

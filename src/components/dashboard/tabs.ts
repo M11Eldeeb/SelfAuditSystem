@@ -1,5 +1,5 @@
 export const DASHBOARD_TABS = [
-  { id: "tasks", label: "Tasks", title: "Task tracking", officerOnly: false },
+  { id: "quality", label: "Quality Dashboard", title: "Quality control", officerOnly: false },
   { id: "overview", label: "Overview", title: "Warranty KPI overview", officerOnly: false },
   { id: "cycle", label: "Cycle Times & SLA", title: "Cycle times & SLA", officerOnly: false },
   { id: "financials", label: "Claims & Financials", title: "Claims & financials", officerOnly: false },
@@ -14,6 +14,8 @@ export function parseTab(value: string | undefined, isOfficer = false): Dashboar
   if (value === "invoicing") value = "financials";
   // Prior Approvals is a section of the Warranty tab (which also holds Warranty Room & Parts).
   if (value === "prior") value = "warranty";
+  // Tasks moved to their own page (from the notification bell).
+  if (value === "tasks") value = "overview";
   const tab = DASHBOARD_TABS.find((t) => t.id === value);
   return tab && (isOfficer || !tab.officerOnly) ? tab.id : "overview";
 }

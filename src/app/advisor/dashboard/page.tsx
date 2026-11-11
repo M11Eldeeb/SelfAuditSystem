@@ -38,7 +38,6 @@ export default async function AdvisorDashboardPage({ searchParams }: { searchPar
         selectedBranchIds={[]}
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
-        tasks={{ tasks: [], branchEmails: {} }}
         support={support}
       />
     </div>

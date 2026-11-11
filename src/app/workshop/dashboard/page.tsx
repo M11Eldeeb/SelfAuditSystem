@@ -8,6 +8,7 @@ import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
+import { getQcAnalysis } from "@/lib/qc/server";
 
 /**
  * The workshop supervisor: his branch's KPI dashboard (read only), as the warranty admin sees it. The data is read with
@@ -21,6 +22,8 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
   const { data: branch } = await supabase.from("self_audit_branches").select("id, name").eq("id", user.branch_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle();
   const scopeBranches = branch ? [branch] : [];
 
+  const quality = getQcAnalysis(user, { from, to });
+  quality.catch(() => {});
   const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support.catch(() => {});
   const data = await getDashboardData(createAdminClient(), { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
@@ -38,7 +41,8 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         selectedBranchIds={[]}
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
-        tasks={{ tasks: [], branchEmails: {} }}
+        quality={quality}
+        qualityRecordsHref="/workshop/quality-control"
         support={support}
       />
     </div>

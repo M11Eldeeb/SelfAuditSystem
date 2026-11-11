@@ -386,7 +386,7 @@ export function NavBar({
                 technician={user.role === "technician"}
                 feedbackHref={user.role === "officer" ? "/admin/feedbacks" : "/audit/feedback"}
                 feedbackLabel={user.role === "officer" ? "All feedback" : "My feedback"}
-                tasksHref={user.role === "officer" ? "/admin/dashboard?tab=tasks" : "/audit/dashboard?tab=tasks"}
+                tasksHref={user.role === "officer" ? "/admin/tasks" : "/audit/tasks"}
               />
             )}
             <SettingsMenu links={settingsLinksFor(user)} />

@@ -5,7 +5,7 @@ import { displayFont } from "@/components/dashboard/font";
 import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
-import { getTasks } from "@/lib/tasks";
+import { getQcAnalysis } from "@/lib/qc/server";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { loadPriorApprovals } from "@/lib/dashboard/prior-approvals";
@@ -66,7 +66,8 @@ export default async function AdminDashboardPage({
             : params.sheets === "bad-state" || params.sheets === "not-configured"
               ? "Google sign-in is not set up for this link - try connecting again."
               : undefined;
-  const tasksPromise = getTasks(supabase, user);
+  const quality = getQcAnalysis(user, { from, to, branchIds: selectedBranchIds.size ? scopeBranches.map((b) => b.id) : undefined });
+  quality.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
   return (
@@ -88,7 +89,8 @@ export default async function AdminDashboardPage({
         rejected={rejected}
         prior={prior}
         sheetsNotice={sheetsNotice}
-        tasks={await tasksPromise}
+        quality={quality}
+        qualityRecordsHref="/admin/quality-control"
       />
     </div>
   );

@@ -188,7 +188,7 @@ export type QcAnalysis = {
  * fail rate per test, tests per vehicle, rework time from a fail to the pass, vehicles still waiting for a test again -
  * overall, per month and per purpose / repair type / model / technician / team leader / service advisor / branch.
  */
-export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to: string; branchId?: string }): Promise<QcAnalysis> {
+export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to: string; branchId?: string; branchIds?: string[] }): Promise<QcAnalysis> {
   const admin = createAdminClient();
   const scope = qcBranchScope(user);
   // KSA months: created_at from the 1st 00:00 KSA of `from` to the 1st of the month after `to`.
@@ -199,6 +199,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
     let q = admin.from("self_audit_qc_checks").select("*").gte("created_at", start).lt("created_at", end).order("created_at").range(page * 1000, page * 1000 + 999);
     if (scope) q = q.eq("branch_id", scope);
     else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
+    else if (opts.branchIds?.length) q = q.in("branch_id", opts.branchIds);
     const { data } = await q;
     checks.push(...(data ?? []));
     if (!data || data.length < 1000) break;

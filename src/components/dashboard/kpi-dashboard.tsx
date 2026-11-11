@@ -22,12 +22,12 @@ import { TrendsSection, TrendsSkeleton } from "@/components/dashboard/sections/t
 import { PriorApprovalsSection, PriorApprovalsSkeleton } from "@/components/dashboard/sections/prior-approvals";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { Reveal } from "@/components/dashboard/motion";
-import { TaskTracker } from "@/components/tasks/task-list";
-import type { TaskData } from "@/lib/tasks";
+import { QualitySection } from "@/components/dashboard/sections/quality";
+import type { QcAnalysis } from "@/lib/qc/server";
 import { CarLoaderCard, CarProgress } from "@/components/spinner";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
-  tasks: Icon.check,
+  quality: Icon.check,
   overview: Icon.gauge,
   cycle: Icon.timer,
   financials: Icon.receipt,
@@ -81,7 +81,8 @@ export function KpiDashboard({
   rangeClamped,
   trends,
   forecast,
-  tasks,
+  quality,
+  qualityRecordsHref,
   support,
   rejected,
   prior,
@@ -101,8 +102,10 @@ export function KpiDashboard({
   trends?: Promise<TrendData>;
   /** Officer only - settlement history + 3-month forecast, streamed in. */
   forecast?: Promise<SettlementForecast>;
-  /** Officer only - newest first. */
-  tasks?: TaskData;
+  /** Quality control KPIs (Quality Dashboard tab), streamed in; absent where this user may not see QCs (no tab then). */
+  quality?: Promise<QcAnalysis>;
+  /** Where "QC records" goes from the Quality Dashboard tab. */
+  qualityRecordsHref?: string;
   /** Technical Inquiries / Verification Codes closure lead time (Cycle Times tab), streamed in. */
   support?: Promise<SupportLeadTimes>;
   /** Rejected Claims Diary entries (Overview tab), streamed in; absent while the diary is locked for this user. */
@@ -116,7 +119,7 @@ export function KpiDashboard({
   const [isPending, startTransition] = useTransition();
   // Sections are all rendered from data already on the page, so switching
   // is instant - only the URL is updated (for sharing / reload).
-  const [tab, setTab] = useState<DashboardTab>(initialTab);
+  const [tab, setTab] = useState<DashboardTab>(initialTab === "quality" && !quality ? "overview" : initialTab);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "claimCount", desc: true });
   // The section bar slides away while scrolling down (more room to read) and comes back on the first scroll up.
   const [barHidden, setBarHidden] = useState(false);
@@ -143,7 +146,7 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = DASHBOARD_TABS.filter((x) => !x.officerOnly || isOfficer);
+  const tabs = DASHBOARD_TABS.filter((x) => (!x.officerOnly || isOfficer) && (x.id !== "quality" || !!quality));
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -233,8 +236,9 @@ export function KpiDashboard({
         </div>
       </nav>
 
-      {/* Filters (not for Tasks, which has its own). */}
-      {tab !== "tasks" && (
+      {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too). */}
+      {(
+
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
@@ -320,7 +324,13 @@ export function KpiDashboard({
 
       <div className="min-w-0">
         <Reveal animKey={tab} className={`space-y-5 transition-opacity duration-200 ${isPending ? "pointer-events-none opacity-50" : ""}`}>
-          {tab === "tasks" && (tasks ? <TaskTracker data={tasks} isOfficer={isOfficer} /> : null)}
+          {tab === "quality" && quality && (
+            <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
+              <Suspense fallback={<CarLoaderCard label="Loading quality control…" />}>
+                <QualitySection quality={quality} recordsHref={qualityRecordsHref ?? "#"} showBranches={isOfficer} />
+              </Suspense>
+            </SectionErrorBoundary>
+          )}
           {tab === "overview" && <OverviewSection {...sectionProps} />}
           {tab === "overview" && rejected && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
