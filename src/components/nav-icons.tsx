@@ -32,7 +32,7 @@ function keyFor(href: string, label: string): string {
   if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";
   if (h === "/technician" || l === "my claims") return "list";
-  if (h.includes("dashboard")) return "dashboard";
+  if (h.includes("dashboard") || h.includes("sub-dealer")) return "dashboard";
   if (h.includes("schedule")) return "schedule";
   if (h.includes("results")) return "results";
   if (h.includes("technician-claims")) return "wrench";

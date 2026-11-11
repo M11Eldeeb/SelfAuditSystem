@@ -30,7 +30,7 @@ export function normalizeWorkOrder(v: unknown): string {
   return (/^\d/.test(t) ? `${BRANCH_CODE}-${t}` : t).replace(/^([A-Z]{2,4}-\d+)-\d+$/, "$1");
 }
 
-const normalizeVin = (v: unknown): string => String(v ?? "").toUpperCase().replace(/\s+/g, "");
+export const normalizeVin = (v: unknown): string => String(v ?? "").toUpperCase().replace(/\s+/g, "");
 
 export type SubDealerList = {
   /** The base work order AND the VIN both match a sub-dealer entry (the WIP counter restarts after 8000, so a number alone is not enough). */
