@@ -142,30 +142,51 @@ function ResultFields({
   finalOdometer: string;
   setFinalOdometer: (s: string) => void;
 }) {
+  const card = (r: "pass" | "fail" | "close", icon: string, title: string, sub: string, tone: { on: string; dot: string; text: string; radio: string }) => {
+    const on = result === r;
+    return (
+      <button
+        key={r}
+        type="button"
+        onClick={() => setResult(r)}
+        aria-pressed={on}
+        className={`relative flex w-full items-center gap-3 rounded-2xl p-3.5 text-left ring-2 transition active:scale-[0.99] ${on ? tone.on : "bg-white ring-neutral-200 hover:ring-neutral-300"}`}
+      >
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold ${on ? "bg-white/20 text-white" : tone.dot}`}>{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className={`block text-base leading-tight font-bold ${on ? "text-white" : tone.text}`}>{title}</span>
+          <span className={`mt-0.5 block text-xs leading-snug ${on ? "text-white/85" : "text-neutral-500"}`}>{sub}</span>
+        </span>
+        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-2 ${on ? "bg-white ring-white" : "ring-neutral-300"}`}>
+          {on && <span className={`h-2.5 w-2.5 rounded-full ${tone.radio}`} />}
+        </span>
+      </button>
+    );
+  };
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
-        {(["pass", "fail", "close"] as const).map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setResult(r)}
-            aria-pressed={result === r}
-            className={`min-h-16 rounded-2xl text-lg font-bold ring-2 transition active:scale-[0.98] ${
-              result === r ? (r === "pass" ? "bg-emerald-600 text-white ring-emerald-600" : r === "fail" ? "bg-red-600 text-white ring-red-600" : "bg-neutral-800 text-white ring-neutral-800") : "bg-white text-neutral-700 ring-neutral-300"
-            }`}
-          >
-            {r === "pass" ? "✓ Pass" : r === "fail" ? "✕ Fail" : "■ Close as Fail"}
-          </button>
-        ))}
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {card("pass", "✓", "Pass", "Vehicle is OK - the case closes", { on: "bg-emerald-600 ring-emerald-600", dot: "bg-emerald-50 text-emerald-700", text: "text-emerald-800", radio: "bg-emerald-600" })}
+        {card("fail", "✕", "Fail", "Back to the workshop - retest needed", { on: "bg-red-600 ring-red-600", dot: "bg-red-50 text-red-700", text: "text-red-800", radio: "bg-red-600" })}
       </div>
+      <div className="flex items-center gap-3 text-[11px] font-semibold tracking-wide text-neutral-400 uppercase">
+        <span className="h-px flex-1 bg-neutral-200" />
+        or
+        <span className="h-px flex-1 bg-neutral-200" />
+      </div>
+      {card("close", "■", "Close as Fail", "End the case as failed - no retest", { on: "bg-slate-800 ring-slate-800", dot: "bg-slate-100 text-slate-700", text: "text-slate-800", radio: "bg-slate-800" })}
+      {result === "close" && (
+        <div className="flex gap-2.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          <span aria-hidden="true">⚠</span>
+          <span>The case will be closed as <b>failed</b> and cannot be tested again. Write the justification below.</span>
+        </div>
+      )}
       <Field title="Current odometer *">
         <input value={finalOdometer} onChange={(e) => setFinalOdometer(numberOnly(e.target.value))} inputMode="numeric" className={field} placeholder="km" />
       </Field>
       {result && (
         <Field
           title={result === "fail" ? "Justification (why it failed) *" : result === "close" ? "Justification (why the case is closed as failed) *" : "Comment (optional)"}
-          hint={result === "pass" ? "Pass closes the case." : result === "close" ? "Close as Fail ends the case as failed - no retest." : "Fail keeps the case open for a retest."}
         >
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : result === "close" ? "e.g. customer took the car before the retest" : ""} />
         </Field>
