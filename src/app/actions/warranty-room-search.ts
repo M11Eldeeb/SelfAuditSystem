@@ -2,7 +2,7 @@
 
 import { requireAnyViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadSubDealerSet, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
+import { loadSubDealerList } from "@/lib/sub-dealer-wips";
 
 /** Claims kept in the warranty room for this many days after verification before they are flagged to scrap. */
 const HOLDING_DAYS = 90;
@@ -75,7 +75,7 @@ export async function searchWarrantyRoom(query: string): Promise<{ results?: Roo
   const monthOf = new Map((cycles ?? []).map((c) => [c.id, c.cycle_month.slice(0, 7)]));
   const collectionOf = new Map((collections ?? []).map((c) => [c.id, c]));
   const today = todayKsa();
-  const subDealerWips = await loadSubDealerSet();
+  const subDealerWips = await loadSubDealerList();
 
   const results: RoomResult[] = claims.map((c) => {
     const claimStatus = statusOf.get(c.id) ?? null;
@@ -126,7 +126,7 @@ export async function searchWarrantyRoom(query: string): Promise<{ results?: Roo
       heldDays,
       state,
       detail,
-      subDealer: !!c.work_order_no && subDealerWips.has(normalizeWorkOrder(c.work_order_no)),
+      subDealer: subDealerWips.match(c.work_order_no, c.vin),
       parts: (() => {
         const list = (parts ?? []).filter((p) => p.claim_id === c.id).map((p) => ({ partNo: p.part_no, name: p.part_name, qty: p.quantity == null ? null : Number(p.quantity) }));
         return list.length || !c.main_part_name ? list : [{ partNo: null, name: c.main_part_name, qty: null }];

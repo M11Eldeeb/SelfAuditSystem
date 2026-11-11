@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getFlaggedToScrapClaims } from "@/lib/warranty-room/flagged-to-scrap";
 import { buildFlaggedToScrapWorkbookBuffer } from "@/lib/warranty-room/flagged-to-scrap-workbook";
-import { loadSubDealerSet, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
+import { loadSubDealerList } from "@/lib/sub-dealer-wips";
 
 /** See src/app/api/warranty-room/download/do-not-scrap/route.ts for why this is a file route, not a Server Action, and why maxDuration is set. */
 export const maxDuration = 60;
@@ -26,9 +26,9 @@ export async function GET(request: Request) {
       cycleId
         ? supabase.from("self_audit_warranty_room_cycles").select("cycle_month").eq("id", cycleId).single()
         : Promise.resolve({ data: null }),
-      loadSubDealerSet(),
+      loadSubDealerList(),
     ]);
-    const rows = flagged.map((r) => ({ ...r, sub_dealer: !!r.work_order_no && subDealerWips.has(normalizeWorkOrder(r.work_order_no)) }));
+    const rows = flagged.map((r) => ({ ...r, sub_dealer: subDealerWips.match(r.work_order_no, r.vin) }));
     const buffer = await buildFlaggedToScrapWorkbookBuffer(rows);
     const claimCount = new Set(rows.map((r) => r.claim_number)).size;
     const branchSlug = (branch?.name ?? "branch").replace(/\s+/g, "_");

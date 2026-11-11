@@ -1627,9 +1627,9 @@ export interface Database {
         Relationships: [];
       };
       self_audit_sub_dealer_wips: {
-        Row: { work_order: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string };
-        Insert: { work_order: string; source_tab: string; sub_dealer_wo?: string | null; synced_at?: string };
-        Update: Partial<{ work_order: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string }>;
+        Row: { work_order: string; vin: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string };
+        Insert: { work_order: string; vin: string; source_tab: string; sub_dealer_wo?: string | null; synced_at?: string };
+        Update: Partial<{ work_order: string; vin: string; source_tab: string; sub_dealer_wo: string | null; synced_at: string }>;
         Relationships: [];
       };
       self_audit_sub_dealer_sync: {

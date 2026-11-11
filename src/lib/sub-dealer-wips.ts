@@ -1,4 +1,6 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readSheetNamed } from "@/lib/google-sheets";
 
@@ -6,7 +8,9 @@ import { readSheetNamed } from "@/lib/google-sheets";
  * Sub-dealer WIPs: Heraa (HER) work orders that are warranty job cards done for a sub-dealer. The sub-dealer's live Google
  * Sheet lists them in the column "Work Order (Dealer)" of its Claims and Free Service tabs. The list is copied into
  * self_audit_sub_dealer_wips every 30 minutes (/api/cron/sub-dealer-wips); those WIPs are marked "Sub-Dealer WIP" and
- * their claims are left out of the self audits and internal audits (see get_sub_dealer_claim_ids, migration 0165).
+ * their claims are left out of the self audits and internal audits (see get_sub_dealer_claim_ids, migrations 0165-0168).
+ * A WIP counts only when the base work order number AND the VIN match: the WIP counter restarts after 8000, so the same
+ * number can come back for another car.
  */
 export const SUB_DEALER_SHEET_ID = process.env.SUB_DEALER_SHEET_ID || "17aNXQXHJNn8Alo-3r2patbY1scw-EScbd9oyLfDD250";
 export const SUB_DEALER_LABEL = "Sub-Dealer WIP";
@@ -26,31 +30,75 @@ export function normalizeWorkOrder(v: unknown): string {
   return (/^\d/.test(t) ? `${BRANCH_CODE}-${t}` : t).replace(/^([A-Z]{2,4}-\d+)-\d+$/, "$1");
 }
 
-/** The set of sub-dealer WIPs (normalised work orders) for marking WIPs in lists. Never throws: no list means no marks. */
-export async function loadSubDealerSet(): Promise<Set<string>> {
+const normalizeVin = (v: unknown): string => String(v ?? "").toUpperCase().replace(/\s+/g, "");
+
+export type SubDealerList = {
+  /** The base work order AND the VIN both match a sub-dealer entry (the WIP counter restarts after 8000, so a number alone is not enough). */
+  match(workOrder: string | null | undefined, vin: string | null | undefined): boolean;
+  /** Only the work order is listed (the VIN is not checked): narrows which rows need their VIN looked up. */
+  hasWorkOrder(workOrder: string | null | undefined): boolean;
+};
+
+const emptyList: SubDealerList = { match: () => false, hasWorkOrder: () => false };
+
+/** The sub-dealer list for marking WIPs and claims. Never throws: no list means no marks. */
+export async function loadSubDealerList(): Promise<SubDealerList> {
   try {
-    const set = new Set<string>();
+    const keys = new Set<string>();
+    const orders = new Set<string>();
     const admin = createAdminClient();
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await admin.from("self_audit_sub_dealer_wips").select("work_order").range(from, from + 999);
-      if (error) return set;
-      for (const r of data ?? []) set.add(r.work_order);
+      const { data, error } = await admin.from("self_audit_sub_dealer_wips").select("work_order, vin").range(from, from + 999);
+      if (error) return emptyList;
+      for (const r of data ?? []) {
+        keys.add(`${r.work_order}|${r.vin}`);
+        orders.add(r.work_order);
+      }
       if ((data ?? []).length < 1000) break;
     }
-    return set;
+    return {
+      match: (workOrder, vin) => {
+        const wo = normalizeWorkOrder(workOrder);
+        const v = normalizeVin(vin);
+        return !!wo && !!v && keys.has(`${wo}|${v}`);
+      },
+      hasWorkOrder: (workOrder) => {
+        const wo = normalizeWorkOrder(workOrder);
+        return !!wo && orders.has(wo);
+      },
+    };
   } catch {
-    return new Set();
+    return emptyList;
   }
 }
 
-/** True when this branch's WIP number (as the open WIP report or a claim writes it) is a sub-dealer WIP. */
-export const isSubDealerWip = (set: Set<string>, branchCode: string | null | undefined, wip: string | null | undefined): boolean =>
-  !!branchCode && !!wip && set.has(normalizeWorkOrder(/^\d/.test(String(wip).trim()) ? `${branchCode}-${wip}` : wip));
+/** The open WIP report writes the bare number ("44846") with the branch on a separate column: put the branch code in front. */
+export const wipWorkOrder = (branchCode: string | null | undefined, wip: string | null | undefined): string => {
+  const w = String(wip ?? "").trim();
+  return /^\d/.test(w) && branchCode ? `${branchCode}-${w}` : w;
+};
+
+/**
+ * Of rows that carry a claim number and a work order but no VIN (the scrap lists), the claim numbers that are sub-dealer
+ * WIPs. Only rows whose work order is listed get their VIN looked up.
+ */
+export async function subDealerClaimNumbers(supabase: SupabaseClient<Database>, list: SubDealerList, rows: { claim_number: string; work_order_no: string | null }[]): Promise<Set<string>> {
+  const need = [...new Set(rows.filter((r) => list.hasWorkOrder(r.work_order_no)).map((r) => r.claim_number))];
+  const workOrderOf = new Map(rows.map((r) => [r.claim_number, r.work_order_no]));
+  const hits = new Set<string>();
+  for (let i = 0; i < need.length; i += 200) {
+    const { data } = await supabase.from("self_audit_claims").select("claim_number, vin").in("claim_number", need.slice(i, i + 200));
+    for (const c of data ?? []) if (list.match(workOrderOf.get(c.claim_number), c.vin)) hits.add(c.claim_number);
+  }
+  return hits;
+}
 
 export type SubDealerSyncResult = { wips: number; removedAssignments: number; removedInternalClaims: number } | { error: string };
 
-async function readWorkOrders(): Promise<{ list: Map<string, { tab: string; subDealerWo: string | null }>; problems: string[] }> {
-  const list = new Map<string, { tab: string; subDealerWo: string | null }>();
+type SheetEntry = { workOrder: string; vin: string; tab: string; subDealerWo: string | null };
+
+async function readWorkOrders(): Promise<{ list: Map<string, SheetEntry>; problems: string[] }> {
+  const list = new Map<string, SheetEntry>();
   const problems: string[] = [];
   for (const tab of TABS) {
     const rows = await readSheetNamed(SUB_DEALER_SHEET_ID, tab);
@@ -65,9 +113,16 @@ async function readWorkOrders(): Promise<{ list: Map<string, { tab: string; subD
       problems.push(`The "${tab}" tab has no "Work Order (Dealer)" column.`);
       continue;
     }
+    const vinCol = header.indexOf("vin");
+    if (vinCol === -1) {
+      problems.push(`The "${tab}" tab has no "VIN" column.`);
+      continue;
+    }
     for (const r of rows.slice(1)) {
       const wo = normalizeWorkOrder(r[dealerCol]);
-      if (wo && !list.has(wo)) list.set(wo, { tab, subDealerWo: subCol === -1 ? null : String(r[subCol] ?? "").trim() || null });
+      const vin = normalizeVin(r[vinCol]);
+      // A row with no VIN cannot be matched safely (the WIP counter restarts), so it is not listed.
+      if (wo && vin && !list.has(`${wo}|${vin}`)) list.set(`${wo}|${vin}`, { workOrder: wo, vin, tab, subDealerWo: subCol === -1 ? null : String(r[subCol] ?? "").trim() || null });
     }
   }
   return { list, problems };
@@ -125,9 +180,9 @@ export async function syncSubDealerWips(): Promise<SubDealerSyncResult> {
     if (list.size === 0) return fail("The sub-dealer sheet has no work orders - the list was not changed.");
 
     const now = new Date().toISOString();
-    const rows = [...list.entries()].map(([work_order, v]) => ({ work_order, source_tab: v.tab, sub_dealer_wo: v.subDealerWo, synced_at: now }));
+    const rows = [...list.values()].map((v) => ({ work_order: v.workOrder, vin: v.vin, source_tab: v.tab, sub_dealer_wo: v.subDealerWo, synced_at: now }));
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await admin.from("self_audit_sub_dealer_wips").upsert(rows.slice(i, i + 500), { onConflict: "work_order" });
+      const { error } = await admin.from("self_audit_sub_dealer_wips").upsert(rows.slice(i, i + 500), { onConflict: "work_order,vin" });
       if (error) return fail(error.message);
     }
     const { error: delError } = await admin.from("self_audit_sub_dealer_wips").delete().lt("synced_at", now);
