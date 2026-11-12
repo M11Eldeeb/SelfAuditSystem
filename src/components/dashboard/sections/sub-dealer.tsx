@@ -364,7 +364,6 @@ function SubDealerView({ data }: { data: Ok }) {
                   <th className="py-2 pr-3">Dealer WIP</th>
                   <th className="py-2 pr-3">Sub-dealer WIP</th>
                   <th className="py-2 pr-3">Opened</th>
-                  <th className="py-2 pr-3">VIN</th>
                   <th className="py-2 pr-3">Sub-dealer status</th>
                   <th className="py-2 pr-3 text-right">Settled with sub-dealer</th>
                   <th className="py-2 pr-3 text-right">Paid on the batch</th>
@@ -378,7 +377,6 @@ function SubDealerView({ data }: { data: Ok }) {
                     <td className="py-2 pr-3 font-mono font-semibold whitespace-nowrap text-[#1d1d1f]">{g.workOrder || <span className="font-sans font-normal text-[#6e6e73]">{NO_WIP}</span>}</td>
                     <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{g.subWorkOrders.join(", ") || "—"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap text-[#6e6e73]">{fmtDate(g.created)}</td>
-                    <td className="py-2 pr-3 font-mono text-[12px] whitespace-nowrap text-[#6e6e73]">…{g.vin.slice(-6)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap gap-1">
                         {g.statuses.map((s) => (
