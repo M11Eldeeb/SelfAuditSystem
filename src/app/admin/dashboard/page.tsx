@@ -55,7 +55,7 @@ export default async function AdminDashboardPage({
   forecast?.catch(() => {});
   const support = manager ? undefined : getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support?.catch(() => {});
-  const rejected = manager ? undefined : getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
+  const rejected = manager || national ? undefined : getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
   rejected?.catch(() => {});
   // The Prior Approvals tab streams in like the others (switching tabs does not reload the page). The sheet read is
   // cached for two minutes and never rejects - a problem shows inside that tab only.

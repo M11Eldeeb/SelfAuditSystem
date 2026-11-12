@@ -26,11 +26,12 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refreshes the session cookie if needed - required for Server Components,
-  // which cannot write cookies themselves.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Refreshes the session cookie if needed - required for Server Components, which cannot write cookies themselves.
+  // getClaims checks the token's signature here (the project signs with an asymmetric key) instead of asking the
+  // auth server on every request: one network round trip less on every page.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  // No valid claims: ask the auth server once before sending the person to the login page (a safety net).
+  const user = claimsData?.claims?.sub ? claimsData.claims : (await supabase.auth.getUser()).data.user;
 
   const { pathname } = request.nextUrl;
   const isPublicPath = PUBLIC_PATHS.includes(pathname);

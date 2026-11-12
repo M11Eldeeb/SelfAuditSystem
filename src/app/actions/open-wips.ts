@@ -72,72 +72,89 @@ export async function getOpenWips(): Promise<OpenWipsData> {
   const user = await requireAnyViewer([...VIEWERS]);
   const admin = createAdminClient();
   const own = user.role === "officer" ? null : (user.branch_id ?? NO_BRANCH);
-  const { data: branches } = await admin.from("self_audit_branches").select("id, name");
+  // Everything that does not depend on the WIP rows is read at the same time (the pages used to wait on each other).
+  const wipRowsP = (async () => {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      let q = admin.from("self_audit_open_wips").select("*").order("received", { ascending: true }).range(from, from + 999);
+      if (own) q = q.eq("branch_id", own);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    return rows;
+  })();
+  const dailyP = (async () => {
+    const rows: { day: string; dealer_code: string; branch_id: string | null; operator: string; count: number }[] = [];
+    const since = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
+    for (let from = 0; ; from += 1000) {
+      let q = admin.from("self_audit_open_wip_daily").select("day, dealer_code, branch_id, operator, count").gte("day", since).order("day").range(from, from + 999);
+      if (own) q = q.eq("branch_id", own);
+      const { data } = await q;
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    return rows;
+  })();
+  // Courtesy cars: agreements by WIP number (and branch, when the sheet says it). A sheet problem never breaks this page.
+  const courtesyP = (async () => {
+    const byWip = new Map<string, { branchId: string | null; plate: string | null; since: string | null; open: boolean; ref: string | null }[]>();
+    try {
+      const sheet = await loadCourtesy();
+      const c = sheet.cols.agreements;
+      if (sheet.agreements && c.wip >= 0) {
+        const resolve = await branchResolver();
+        for (const r of sheet.agreements.rows) {
+          const k = wipKey(r[c.wip] ?? "");
+          if (!k) continue;
+          const list = byWip.get(k) ?? [];
+          list.push({
+            branchId: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
+            plate: c.plate >= 0 ? r[c.plate] || null : null,
+            since: c.out >= 0 ? r[c.out] || null : null,
+            open: agreementOpen(r, c),
+            ref: c.agreement >= 0 ? r[c.agreement] || null : null,
+          });
+          byWip.set(k, list);
+        }
+      }
+    } catch {
+      // no courtesy column data
+    }
+    return byWip;
+  })();
+  // VOR orders by WIP - never breaks this page (and never holds it for more than 15 s).
+  const vorMapPromise = Promise.race([vorByWip(), new Promise<null>((r) => setTimeout(() => r(null), 15_000))]).catch(() => null);
+  const [{ data: branches }, wipRows, dailyRows, { data: last }, courtesyByWip, subDealerWips, resolveBranch] = await Promise.all([
+    admin.from("self_audit_branches").select("id, name"),
+    wipRowsP,
+    dailyP,
+    admin.from("self_audit_open_wip_imports").select("*").order("imported_at", { ascending: false }).limit(1).maybeSingle(),
+    courtesyP,
+    loadSubDealerList(),
+    branchResolver().catch(() => null),
+  ]);
   const nameOf = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const branchName = (id: string | null, code: string) => (id && nameOf.get(id)) || code;
+  const daily: OpenWipsData["daily"] = dailyRows.map((d) => ({ day: d.day, branch: branchName(d.branch_id, d.dealer_code), operator: d.operator, count: d.count }));
 
-  const wipRows = [];
-  for (let from = 0; ; from += 1000) {
-    let q = admin.from("self_audit_open_wips").select("*").order("received", { ascending: true }).range(from, from + 999);
-    if (own) q = q.eq("branch_id", own);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    wipRows.push(...(data ?? []));
-    if ((data ?? []).length < 1000) break;
-  }
+  // Comments and complaints of these WIPs: all the chunks at once.
   const keys = wipRows.map((w) => w.key);
   const comments = new Map<string, WipComment[]>();
-  for (let i = 0; i < keys.length; i += 300) {
-    const { data } = await admin.from("self_audit_open_wip_comments").select("id, key, body, author_id, author_name, created_at").in("key", keys.slice(i, i + 300)).order("created_at");
-    for (const c of data ?? []) comments.set(c.key, [...(comments.get(c.key) ?? []), { id: c.id, body: c.body, by: c.author_name, byId: c.author_id, at: c.created_at }]);
-  }
-  const daily: OpenWipsData["daily"] = [];
-  const since = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
-  for (let from = 0; ; from += 1000) {
-    let q = admin.from("self_audit_open_wip_daily").select("day, dealer_code, branch_id, operator, count").gte("day", since).order("day").range(from, from + 999);
-    if (own) q = q.eq("branch_id", own);
-    const { data } = await q;
-    for (const d of data ?? []) daily.push({ day: d.day, branch: branchName(d.branch_id, d.dealer_code), operator: d.operator, count: d.count });
-    if ((data ?? []).length < 1000) break;
-  }
-  const { data: last } = await admin.from("self_audit_open_wip_imports").select("*").order("imported_at", { ascending: false }).limit(1).maybeSingle();
-
-  // Courtesy cars: agreements by WIP number (and branch, when the sheet says it). A sheet problem never breaks this page.
-  const courtesyByWip = new Map<string, { branchId: string | null; plate: string | null; since: string | null; open: boolean; ref: string | null }[]>();
-  try {
-    const sheet = await loadCourtesy();
-    const c = sheet.cols.agreements;
-    if (sheet.agreements && c.wip >= 0) {
-      const resolve = await branchResolver();
-      for (const r of sheet.agreements.rows) {
-        const k = wipKey(r[c.wip] ?? "");
-        if (!k) continue;
-        const list = courtesyByWip.get(k) ?? [];
-        list.push({
-          branchId: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
-          plate: c.plate >= 0 ? r[c.plate] || null : null,
-          since: c.out >= 0 ? r[c.out] || null : null,
-          open: agreementOpen(r, c),
-          ref: c.agreement >= 0 ? r[c.agreement] || null : null,
-        });
-        courtesyByWip.set(k, list);
-      }
-    }
-  } catch {
-    // no courtesy column data
-  }
-  // Complaints by VIN, and VOR orders by WIP - neither ever breaks this page.
   const vins = [...new Set(wipRows.map((w) => w.vin).filter((v): v is string => !!v && v.length >= 10))];
   const complaintsByVin = new Map<string, OpenWip["complaints"]>();
-  const vorMapPromise = Promise.race([vorByWip(), new Promise<null>((r) => setTimeout(() => r(null), 15_000))]).catch(() => null);
-  for (let i = 0; i < vins.length; i += 300) {
-    const { data } = await admin.from("self_audit_complaints").select("vin, complaint_no, created_on, source, category, subcategory, validity, status, service_advisor, branch_label").in("vin", vins.slice(i, i + 300));
+  const chunks = <T,>(list: T[]) => Array.from({ length: Math.ceil(list.length / 300) }, (_, i) => list.slice(i * 300, i * 300 + 300));
+  const [commentChunks, complaintChunks] = await Promise.all([
+    Promise.all(chunks(keys).map((k) => admin.from("self_audit_open_wip_comments").select("id, key, body, author_id, author_name, created_at").in("key", k).order("created_at"))),
+    Promise.all(chunks(vins).map((v) => admin.from("self_audit_complaints").select("vin, complaint_no, created_on, source, category, subcategory, validity, status, service_advisor, branch_label").in("vin", v))),
+  ]);
+  for (const { data } of commentChunks)
+    for (const c of data ?? []) comments.set(c.key, [...(comments.get(c.key) ?? []), { id: c.id, body: c.body, by: c.author_name, byId: c.author_id, at: c.created_at }]);
+  for (const { data } of complaintChunks)
     for (const c of data ?? [])
       complaintsByVin.set(c.vin!, [...(complaintsByVin.get(c.vin!) ?? []), { no: c.complaint_no, date: c.created_on, source: c.source, category: c.category, subcategory: c.subcategory, valid: c.validity, status: c.status, advisor: c.service_advisor, branch: c.branch_label }]);
-  }
   const vorMap = await vorMapPromise;
-  const subDealerWips = await loadSubDealerList();
-  const resolveBranch = await branchResolver().catch(() => null);
   /** VOR lines on this WIP: the same branch (when the file says) and ordered no earlier than a month before the car came in. */
   const vorFor = (wip: string, branchId: string | null, received: string | null) =>
     (vorMap?.get(wipNo(wip)) ?? []).filter((v) => {

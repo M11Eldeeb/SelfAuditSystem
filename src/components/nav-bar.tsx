@@ -17,6 +17,8 @@ type NavLink = {
   match?: string[];
   /** Small tag after the label, e.g. "Soon" for a tab that is not open yet. */
   badge?: string;
+  /** The name shown in the top bar for this page when it differs from the (short) menu label. */
+  title?: string;
   /** Tabs with the same group name fold under one heading (shown where the first of them is). */
   group?: string;
   /** Shown at the bottom of the sidebar, just above the user name. */
@@ -294,7 +296,8 @@ export function NavBar({
   const activeHref = activeHrefFor(pathname, links, search);
   const mainLinks = links.filter((l) => !l.bottom);
   const bottomLinks = links.filter((l) => l.bottom);
-  const activeLabel = links.find((l) => l.href === activeHref)?.label;
+  const activeLink = links.find((l) => l.href === activeHref);
+  const activeLabel = activeLink?.title ?? activeLink?.label;
   const displayName = user.full_name?.trim() || user.email;
   const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${roleDetail ? ` · ${roleDetail}` : user.managerKind === "manager" || user.managerKind === "national_manager" ? " · all branches" : user.viewOnly ? " · view only" : ""}`;
   const initials = displayName

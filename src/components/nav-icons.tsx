@@ -30,10 +30,10 @@ const P: Record<string, string> = {
 function keyFor(href: string, label: string): string {
   const h = href.toLowerCase();
   const l = label.toLowerCase();
-  if (h === "#group") return "shield";
+  if (h === "#group") return l === "dashboards" ? "dashboard" : "shield";
   if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";
-  if (l === "quality dashboard") return "quality";
+  if (h.includes("tab=quality")) return "quality";
   if (h === "/technician" || l === "my claims") return "list";
   if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || l === "qc records") return "quality";
   if (h.includes("dashboard") || h.includes("sub-dealer")) return "dashboard";

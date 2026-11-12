@@ -26,16 +26,15 @@ export type CurrentUser = Database["public"]["Tables"]["self_audit_users"]["Row"
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
-
-  if (!authUser) return null;
+  // The token's signature and expiry are checked here without a call to the auth server (the proxy has just refreshed it).
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub ?? (await supabase.auth.getUser()).data.user?.id;
+  if (!userId) return null;
 
   const { data: profile } = await supabase
     .from("self_audit_users")
     .select("*")
-    .eq("id", authUser.id)
+    .eq("id", userId)
     .single();
 
   return profile ?? null;
