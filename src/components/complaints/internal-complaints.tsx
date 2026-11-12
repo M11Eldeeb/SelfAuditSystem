@@ -56,17 +56,18 @@ export function InternalComplaints({ data }: { data: InternalData }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-3 ${data.scope === "all" ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         <Kpi label="Complaints" value={fmtInt(list.length)} sub={<Change now={list.length} before={prev?.length ?? null} />} />
         <Kpi label="This month" value={fmtInt(thisMonth)} sub={monthShort(data.today.slice(0, 7))} />
         <Kpi label="Per month (avg.)" value={perMonthAvg.toFixed(1)} sub={`${months.length} months`} />
-        <Kpi label="Most complaints" value={perBranch[0]?.[0] ?? "—"} sub={perBranch[0] ? `${fmtInt(perBranch[0][1])} · ${((perBranch[0][1] / Math.max(1, list.length)) * 100).toFixed(0)}% of all` : undefined} />
+        {data.scope === "all" && <Kpi label="Most complaints" value={perBranch[0]?.[0] ?? "—"} sub={perBranch[0] ? `${fmtInt(perBranch[0][1])} · ${((perBranch[0][1] / Math.max(1, list.length)) * 100).toFixed(0)}% of all` : undefined} />}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
-        <Panel className="lg:col-span-3" title="Complaints per month" subtitle="By complaint date">
+        <Panel className={data.scope === "all" ? "lg:col-span-3" : "lg:col-span-5"} title="Complaints per month" subtitle="By complaint date">
           <MonthColumns months={months} series={[{ key: "n", label: "Internal complaints", color: "#c4121a" }]} values={(mm) => list.filter((r) => r.date!.startsWith(mm)).length} />
         </Panel>
+        {data.scope === "all" && (
         <Panel className="lg:col-span-2" title="Per branch" subtitle={`${monthShort(range.from)} – ${monthShort(range.to)}`}>
           <div className="space-y-2">
             {perBranch.map(([b, n]) => (
@@ -84,6 +85,7 @@ export function InternalComplaints({ data }: { data: InternalData }) {
             ))}
           </div>
         </Panel>
+        )}
       </div>
 
       {data.scope === "all" && branch === "all" && (
