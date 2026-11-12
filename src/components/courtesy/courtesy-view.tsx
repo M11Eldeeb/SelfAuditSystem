@@ -222,10 +222,13 @@ export function CourtesyView() {
         )
       ) : data.agreements ? (
         <>
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Panel title="Open agreements per branch" subtitle="Cars with customers now">
-              <Bars items={countBy(aRows.map((_, i) => i).filter((i) => data.open[i]).map(branchOfA))} active={branch} onPick={data.scope === "all" ? (v) => setBranch(branch === v ? "all" : v) : undefined} />
-            </Panel>
+          <div className={data.scope === "all" ? "grid gap-5 lg:grid-cols-2" : "grid gap-5"}>
+            {/* One branch only: a per-branch panel would just repeat that branch. */}
+            {data.scope === "all" && (
+              <Panel title="Open agreements per branch" subtitle="Cars with customers now">
+                <Bars items={countBy(aRows.map((_, i) => i).filter((i) => data.open[i]).map(branchOfA))} active={branch} onPick={(v) => setBranch(branch === v ? "all" : v)} />
+              </Panel>
+            )}
             <Panel title="Days out (open agreements)">
               <Bars
                 items={(
