@@ -33,6 +33,7 @@ function keyFor(href: string, label: string): string {
   if (h === "#group") return "shield";
   if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";
+  if (l === "quality dashboard") return "quality";
   if (h === "/technician" || l === "my claims") return "list";
   if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || l === "qc records") return "quality";
   if (h.includes("dashboard") || h.includes("sub-dealer")) return "dashboard";

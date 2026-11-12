@@ -52,14 +52,14 @@ type Group = {
   batch: SdBatch | null;
 };
 
-/** `managerView`: the manager (view only) does not get the work-order-by-work-order table nor the Google connect button. */
-export function SubDealerSection({ data, managerView = false }: { data: SubDealerDashboard; managerView?: boolean }) {
+/** `managerView`: the manager does not get the work-order-by-work-order table. `viewOnly`: no Google connect button (view-only accounts cannot connect). */
+export function SubDealerSection({ data, managerView = false, viewOnly = managerView }: { data: SubDealerDashboard; managerView?: boolean; viewOnly?: boolean }) {
   if (data.status === "not_connected") {
     return (
       <Panel eyebrow="Sub-Dealer" title="Connect Google Sheets" subtitle="This dashboard reads the sub-dealer's live Google Sheet, read-only.">
         <div className="space-y-3 text-sm text-neutral-700">
           <p>An officer connects their Google account once (the same connection the Warranty tab uses). The portal then only reads the sheet.</p>
-          {!managerView && (
+          {!viewOnly && (
             <a href="/api/google-sheets/connect" className="inline-flex rounded-lg bg-[#c4121a] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#a30f16]">
               Connect Google Sheets
             </a>

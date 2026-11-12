@@ -200,7 +200,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
     canEdit: !user.viewOnly,
     userId: user.id,
     canImport: user.role === "officer" && !user.viewOnly,
-    managerView: !!user.managerKind,
+    managerView: user.managerKind === "manager" || user.managerKind === "service_manager",
     today: todayKsa(),
   };
 }

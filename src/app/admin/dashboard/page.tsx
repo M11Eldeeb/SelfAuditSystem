@@ -24,7 +24,9 @@ export default async function AdminDashboardPage({
 }) {
   const user = await requireRole("officer");
   // A manager (view only, every branch) gets the slimmer Warranty Overview + Audits view: no trends, forecast, prior approvals or rejected-claims diary.
-  const manager = !!user.managerKind;
+  const manager = user.managerKind === "manager";
+  // The national manager gets the officer's dashboard (view only) with an Audits tab and a rejected-claims card.
+  const national = user.managerKind === "national_manager";
   const params = await searchParams;
   // Reconciliation moved to its own page in the sidebar.
   if (params.tab === "reconciliation") redirect("/admin/reconciliation");
@@ -79,7 +81,7 @@ export default async function AdminDashboardPage({
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab, true, manager)}
+        tab={parseTab(params.tab, true, manager, national)}
         basePath="/admin/dashboard"
         from={from}
         to={to}
@@ -97,9 +99,10 @@ export default async function AdminDashboardPage({
         quality={quality}
         qualityRecordsHref="/admin/quality-control"
         manager={manager}
+        national={national}
         hasSubDealer={manager}
         auditsPanel={
-          manager ? (
+          manager || national ? (
             <Suspense fallback={null}>
               <AuditsPanel />
             </Suspense>

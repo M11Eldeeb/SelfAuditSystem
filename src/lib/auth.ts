@@ -10,10 +10,11 @@ import type { Database, UserRole } from "@/lib/supabase/types";
  * manager on the branch admin's pages (own branch), or a `view_all` user (e.g. a technical team member) on the warranty
  * officer's pages, or a manager (every branch) on the warranty officer's pages. The role is then the role whose pages are
  * shown, so the pages render exactly as for that role.
- * `managerKind`: set for the two manager accounts (the manager sees every branch, the service manager his own); they get the
- * slimmer manager view of the dashboard and the menu.
+ * `managerKind`: set for the manager accounts. The manager (every branch) and the service manager (his branch) get the
+ * slimmer manager view of the dashboard and the menu; the national manager (every branch) gets the officer's dashboard
+ * with a shorter menu.
  */
-export type CurrentUser = Database["public"]["Tables"]["self_audit_users"]["Row"] & { viewOnly?: boolean; managerKind?: "manager" | "service_manager" };
+export type CurrentUser = Database["public"]["Tables"]["self_audit_users"]["Row"] & { viewOnly?: boolean; managerKind?: "manager" | "service_manager" | "national_manager" };
 
 /**
  * Returns the signed-in user's app profile (role, branch), or null if not
@@ -42,7 +43,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
 /** Each role's landing page: the dashboard. */
 export function homePathFor(role: UserRole | null | undefined): string {
-  if (role === "officer" || role === "manager") return "/admin/dashboard";
+  if (role === "officer" || role === "manager" || role === "national_manager") return "/admin/dashboard";
   if (role === "technical") return "/technical/technical-inquiries";
   if (role === "technician") return "/technician";
   if (role === "claims_reviewer") return "/reviewer/technician-claims";
@@ -56,6 +57,7 @@ export function homePathFor(role: UserRole | null | undefined): string {
 function viewAs(user: CurrentUser, role: UserRole): CurrentUser | null {
   if (role === "branch_admin" && user.role === "service_manager") return { ...user, role: "branch_admin", viewOnly: true, managerKind: "service_manager" };
   if (role === "officer" && user.role === "manager") return { ...user, role: "officer", viewOnly: true, managerKind: "manager" };
+  if (role === "officer" && user.role === "national_manager") return { ...user, role: "officer", viewOnly: true, managerKind: "national_manager" };
   if (role === "officer" && user.view_all && user.role !== "officer") return { ...user, role: "officer", viewOnly: true };
   return null;
 }

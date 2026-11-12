@@ -1,5 +1,5 @@
 /** Roles from the highest to the lowest: the Users list and the users download follow this order. An unknown role goes last. */
-const ROLE_ORDER = ["officer", "manager", "service_manager", "technical", "claims_reviewer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor", "quality_controller", "technician"];
+const ROLE_ORDER = ["officer", "national_manager", "manager", "service_manager", "technical", "claims_reviewer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor", "quality_controller", "technician"];
 
 const rank = (role: string | null | undefined) => {
   const i = ROLE_ORDER.indexOf(role ?? "");

@@ -88,3 +88,57 @@ export async function saveRejectedClaimReview(claimId: string, status: RejectedR
   });
   return error ? { error: error.message } : {};
 }
+
+export type RejectedBatchSummary = {
+  /** Claims of the claims batch whose status is Rejected (or Rejected from chief agent). */
+  total: number;
+  /** Of those, reviewed as resolved. */
+  solved: number;
+  /** Not solved yet: total minus solved. */
+  left: number;
+  /** Of the left ones: an appeal is submitted / the rejection is confirmed / nobody reviewed it yet. */
+  appealSubmitted: number;
+  confirmedRejection: number;
+  notReviewed: number;
+  /** Claim amount of the ones left. */
+  amountLeft: number;
+  amountTotal: number;
+};
+
+/** How many rejected claims of the claims batch are solved and how many are left, for the given branches (all periods). */
+export async function getRejectedBatchSummary(branchIds: string[]): Promise<RejectedBatchSummary> {
+  await requireViewer("officer");
+  const admin = createAdminClient();
+  const claims: { id: string; branch_id: string; claim_amount: number | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin
+      .from("self_audit_claims")
+      .select("id, branch_id, claim_amount")
+      .like("raw_row->>Status", "Rejected%")
+      .order("id")
+      .range(from, from + 999);
+    claims.push(...(data ?? []));
+    if ((data?.length ?? 0) < 1000) break;
+  }
+  const { data: reviews } = await admin.from("self_audit_rejected_claim_reviews").select("claim_id, status");
+  const statusOf = new Map((reviews ?? []).map((r) => [r.claim_id, r.status as RejectedReviewStatus | null]));
+  const scope = new Set(branchIds);
+  const out: RejectedBatchSummary = { total: 0, solved: 0, left: 0, appealSubmitted: 0, confirmedRejection: 0, notReviewed: 0, amountLeft: 0, amountTotal: 0 };
+  for (const c of claims) {
+    if (!scope.has(c.branch_id)) continue;
+    const amount = Number(c.claim_amount ?? 0);
+    const status = statusOf.get(c.id) ?? null;
+    out.total += 1;
+    out.amountTotal += amount;
+    if (status === "resolved") {
+      out.solved += 1;
+      continue;
+    }
+    out.left += 1;
+    out.amountLeft += amount;
+    if (status === "appeal_submitted") out.appealSubmitted += 1;
+    else if (status === "confirmed_rejection") out.confirmedRejection += 1;
+    else out.notReviewed += 1;
+  }
+  return out;
+}

@@ -9,6 +9,7 @@ import type { SettlementForecast } from "@/lib/dashboard/forecast";
 import { ForecastPanel, ForecastSkeleton } from "./forecast";
 import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { FinanceMonths } from "@/components/dashboard/sections/finance-months";
+import { RejectedBatchCard } from "@/components/dashboard/sections/rejected-batch-card";
 
 const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = {
   Settled: "good",
@@ -120,7 +121,8 @@ export function FinancialsSection({
   forecast,
   from,
   to,
-}: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast>; from: string; to: string }) {
+  showRejectedBatch = false,
+}: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast>; from: string; to: string; showRejectedBatch?: boolean }) {
   const t = data.totals;
   const cur = data.currency;
   const statusTotal = data.statusCounts.reduce((s, x) => s + x.count, 0) || 1;
@@ -129,7 +131,7 @@ export function FinancialsSection({
   return (
     <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${showRejectedBatch ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <GrossClaimsCard data={data} />
 
         <Card accent={C.blue} className="flex flex-col justify-between gap-3">
@@ -164,6 +166,8 @@ export function FinancialsSection({
         </Card>
 
         <AvgClaimValueCard data={data} />
+
+        {showRejectedBatch && <RejectedBatchCard branchIds={scopeBranches.map((b) => b.id)} currency={cur} />}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">

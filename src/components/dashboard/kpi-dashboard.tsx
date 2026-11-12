@@ -92,6 +92,7 @@ export function KpiDashboard({
   prior,
   sheetsNotice,
   manager = false,
+  national = false,
   auditsPanel,
   hasSubDealer = false,
 }: {
@@ -123,7 +124,9 @@ export function KpiDashboard({
   sheetsNotice?: string;
   /** A manager (every branch) or a service manager (his branch): the slimmer Warranty Overview + Audits view. */
   manager?: boolean;
-  /** Manager only - the podium and standings of the Audits tab (built on the server). */
+  /** The national manager (view only, every branch): the officer's dashboard plus the Audits tab and the rejected-claims card. */
+  national?: boolean;
+  /** Manager / national manager - the podium and standings of the Audits tab (built on the server). */
   auditsPanel?: React.ReactNode;
   /** Manager only - the Sub-dealer Dashboard tab (a service manager gets it only where his branch has sub-dealer work). */
   hasSubDealer?: boolean;
@@ -161,7 +164,7 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = tabsFor(isOfficer, manager).filter((x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer));
+  const tabs = tabsFor(isOfficer, manager, national).filter((x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer));
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -347,7 +350,7 @@ export function KpiDashboard({
             </SectionErrorBoundary>
           )}
           {tab === "overview" && <OverviewSection {...sectionProps} manager={manager} />}
-          {tab === "audits" && manager && <AuditsSection data={data} scopeBranches={scopeBranches} panel={auditsPanel} />}
+          {tab === "audits" && (manager || national) && <AuditsSection data={data} scopeBranches={scopeBranches} panel={auditsPanel} />}
           {tab === "subdealer" && manager && hasSubDealer && <SubDealerTab />}
           {tab === "overview" && rejected && !manager && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
@@ -370,6 +373,7 @@ export function KpiDashboard({
               from={from}
               to={to}
               forecast={isOfficer ? forecast : undefined}
+              showRejectedBatch={national}
               onOpenReconciliation={isOfficer ? () => router.push("/admin/reconciliation") : undefined}
             />
           )}

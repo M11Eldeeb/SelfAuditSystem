@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
@@ -48,12 +48,17 @@ const DESKTOP = "(min-width: 1280px)"; // keep in sync with globals.css (docked 
 // Longest matching href wins, so a parent index route (e.g. "/admin") does
 // not stay highlighted once you're on a more specific nested route (e.g.
 // "/admin/cycles") that also starts with "/admin".
-function activeHrefFor(pathname: string, links: NavLink[]) {
-  const matches = links.flatMap((link) =>
-    [link.href, ...(link.match ?? [])]
+// A link may carry a query ("/admin/dashboard?tab=quality"): it is the current one only while the page has that query,
+// and then it beats the plain link to the same page.
+function activeHrefFor(pathname: string, links: NavLink[], search: URLSearchParams | null) {
+  const matches = links.flatMap((link) => {
+    const [path, query] = link.href.split("?");
+    const want = query ? new URLSearchParams(query) : null;
+    if (want && ![...want].every(([k, v]) => search?.get(k) === v)) return [];
+    return [path, ...(link.match ?? [])]
       .filter((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
-      .map((prefix) => ({ href: link.href, length: prefix.length }))
-  );
+      .map((prefix) => ({ href: link.href, length: prefix.length + (want ? 1000 : 0) }));
+  });
   return matches.sort((a, b) => b.length - a.length)[0]?.href;
 }
 
@@ -82,6 +87,7 @@ const ROLE_LABEL: Record<string, string> = {
   branch_admin: "Warranty admin",
   service_manager: "Service manager",
   manager: "Manager",
+  national_manager: "National Manager",
   technical: "Technical team",
   workshop_supervisor: "Workshop supervisor",
   team_leader: "Team leader",
@@ -245,6 +251,7 @@ export function NavBar({
   roleDetail?: string;
 }) {
   const pathname = usePathname();
+  const search = useSearchParams();
   const [open, setOpen] = useState(false); // phone / tablet drawer
   const [signingOut, setSigningOut] = useState(false);
   const [lastPathname, setLastPathname] = useState(pathname);
@@ -284,12 +291,12 @@ export function NavBar({
     }
   }
 
-  const activeHref = activeHrefFor(pathname, links);
+  const activeHref = activeHrefFor(pathname, links, search);
   const mainLinks = links.filter((l) => !l.bottom);
   const bottomLinks = links.filter((l) => l.bottom);
   const activeLabel = links.find((l) => l.href === activeHref)?.label;
   const displayName = user.full_name?.trim() || user.email;
-  const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${roleDetail ? ` · ${roleDetail}` : user.managerKind === "manager" ? " · all branches" : user.viewOnly ? " · view only" : ""}`;
+  const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${roleDetail ? ` · ${roleDetail}` : user.managerKind === "manager" || user.managerKind === "national_manager" ? " · all branches" : user.viewOnly ? " · view only" : ""}`;
   const initials = displayName
     .split(/[\s@.]+/)
     .filter(Boolean)

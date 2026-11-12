@@ -41,12 +41,26 @@ const MANAGER_LINKS = [
   { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
+/** The national manager (every branch, view only): the officer's dashboard and a shorter menu. */
+const NATIONAL_LINKS = [
+  { href: "/admin/dashboard", label: "Warranty Dashboard", group: "Warranty" },
+  { href: "/admin/dashboard?tab=quality", label: "Quality Dashboard", group: "Warranty" },
+  { ...AMS_LINK, group: "Warranty" },
+  { href: "/admin/sub-dealer", label: "Sub-Dealer Dashboard", group: "Warranty" },
+  { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },
+  { href: "/admin/documents", label: "Warranty and Technical Documents", group: "Warranty" },
+  { href: "/admin/complaints", label: "Complaints" },
+  { href: "/admin/open-wips", label: "Open WIPs" },
+  { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
+  { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
+];
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
   if (user.managerKind) {
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
-        <NavBar user={user} links={MANAGER_LINKS} />
+        <NavBar user={user} links={user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS} />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       </div>
     );

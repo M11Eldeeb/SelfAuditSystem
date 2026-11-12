@@ -12,7 +12,7 @@ const NONE = "00000000-0000-0000-0000-000000000000";
 
 /** Which branch the user's QC pages show: null = every branch (officers), else his own branch. */
 export function qcBranchScope(user: CurrentUser): string | null {
-  if (user.role === "officer" || user.view_all) return null;
+  if (user.role === "officer" || user.role === "national_manager" || user.view_all) return null;
   if (["quality_controller", "branch_admin", "service_manager", "workshop_supervisor"].includes(user.role)) return user.branch_id ?? NONE;
   return NONE;
 }
