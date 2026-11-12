@@ -156,17 +156,19 @@ function SubDealerView({ data }: { data: Ok }) {
   const partsToReturn = closedClaims.filter((c) => c.partsGot < c.partsTotal).map((c) => ({ workOrder: c.workOrder || NO_WIP, left: c.partsTotal - c.partsGot }));
   const partsOnOpen = claims.filter((c) => isOpen(c.status)).reduce((s, c) => s + c.partsTotal, 0);
 
-  // Lead times: every step from the one before it (a claim counts in a step only when both times are known).
+  // Lead times: every step from the one before it (a claim counts in a step only when both times are known). Rejected claims are
+  // left out: their decision can be logged long after it was made (clean-ups), which would distort the averages.
+  const leadClaims = claims.filter((c) => !isRejected(c.status));
   const leadStages = STAGES.map((st, i) => {
     const days: number[] = [];
-    for (const c of claims) {
+    for (const c of leadClaims) {
       const from = i === 0 ? c.createdAt : c.stages[STAGES[i - 1].key];
       const to = c.stages[st.key];
       if (from != null && to != null && to >= from) days.push((to - from) / DAY_MS);
     }
     return { ...st, n: days.length, avg: days.length ? days.reduce((a, b) => a + b, 0) / days.length : null, med: days.length ? median(days) : null, max: days.length ? Math.max(...days) : null };
   });
-  const totalDays = claims.flatMap((c) => (c.createdAt != null && c.stages.closed != null && c.stages.closed >= c.createdAt ? [(c.stages.closed - c.createdAt) / DAY_MS] : []));
+  const totalDays = leadClaims.flatMap((c) => (c.createdAt != null && c.stages.closed != null && c.stages.closed >= c.createdAt ? [(c.stages.closed - c.createdAt) / DAY_MS] : []));
   const totalAvg = totalDays.length ? totalDays.reduce((a, b) => a + b, 0) / totalDays.length : null;
   const leadSegments = leadStages.filter((l) => l.avg != null && l.avg > 0).map((l, i) => ({ label: l.label, value: Math.round((l.avg ?? 0) * 1000) / 1000, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
   const topParts = useMemo(() => {
@@ -404,7 +406,7 @@ function SubDealerView({ data }: { data: Ok }) {
       {view === "lead" && (
         <>
       {/* Lead time, A to Z */}
-      <Panel eyebrow="Lead time" title="Lead time, A to Z" subtitle="How long a sub-dealer claim takes at each step, from the sub-dealer opening it to the dealer closing it">
+      <Panel eyebrow="Lead time" title="Lead time, A to Z" subtitle="How long a sub-dealer claim takes at each step, from the sub-dealer opening it to the dealer closing it (rejected claims are not counted)">
         {!data.hasStageTimes && (
           <p className="mb-4 rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
             The sheet has no step times yet. Add these date-and-time columns to the Claims tab and the steps below fill in:{" "}
