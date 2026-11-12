@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export type TipRow = { label: string; value: string; color?: string; strong?: boolean };
 
@@ -58,7 +59,9 @@ export function useHoverCard() {
     onMouseMove: (e: React.MouseEvent) => setState({ x: e.clientX, y: e.clientY, tip }),
     onMouseLeave: () => setState(null),
   });
-  return { bind, layer: state ? <Layer state={state} /> : null };
+  // Drawn into <body>: the card is positioned with the cursor's screen coordinates, so it must not sit inside a transformed
+  // parent (the dashboards are centred with a CSS transform, which would move a "fixed" card away from the cursor).
+  return { bind, layer: state ? createPortal(<Layer state={state} />, document.body) : null };
 }
 
 /** Single-mark convenience wrapper (a div) with hover details. */
