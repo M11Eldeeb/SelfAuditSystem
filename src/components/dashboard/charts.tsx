@@ -78,12 +78,14 @@ export function LineChart({
 
   const W = 640;
   const H = 230;
-  const pad = { top: 12, right: 16, bottom: 28, left: 38 };
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
+  const tickLabel = (t: number) => `${t.toLocaleString("en-US")}${unit}`;
+  // The left margin grows with the longest axis label ("2,000 SAR"), so big numbers are never clipped to their last digits.
+  const pad = { top: 12, right: 16, bottom: 28, left: Math.max(38, Math.max(...ticks.map((t) => tickLabel(t).length)) * 6.2 + 10) };
   const innerW = W - pad.left - pad.right;
   const innerH = H - pad.top - pad.bottom;
   const x = (i: number) => pad.left + (months.length === 1 ? innerW / 2 : (i / (months.length - 1)) * innerW);
   const y = (v: number) => pad.top + innerH - (Math.min(Math.max(v, 0), yMax) / yMax) * innerH;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
   const labelEvery = Math.ceil(months.length / 10);
   const visible = series.filter((s) => !hidden.has(s.name));
   const single = visible.length === 1 ? visible[0] : null;
@@ -123,8 +125,7 @@ export function LineChart({
             <g key={t}>
               <line x1={pad.left} x2={W - pad.right} y1={y(t)} y2={y(t)} stroke={C.grid} strokeDasharray={t === 0 ? undefined : "3 4"} />
               <text x={pad.left - 6} y={y(t) + 4} textAnchor="end" className="fill-neutral-400 text-[11px]">
-                {t}
-                {unit}
+                {tickLabel(t)}
               </text>
             </g>
           ))}
