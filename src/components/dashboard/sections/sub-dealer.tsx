@@ -21,7 +21,7 @@ const NO_WIP = "No work order";
 
 /** The claim's journey from A to Z; each step is timed from the one before it. */
 const STAGES = [
-  { key: "dealerReceived", label: "Sub-dealer to dealer", detail: "Claim opened until the dealer read it" },
+  { key: "dealerReceived", label: "Sub-dealer to dealer", detail: "Claim opened until the dealer approved or rejected it" },
   { key: "partsReplied", label: "Dealer to parts reply", detail: "Dealer read it until parts replied" },
   { key: "partsArrived", label: "Parts reply to parts arrival", detail: "Parts replied until the parts arrived" },
   { key: "repairDone", label: "Parts arrival to after repair", detail: "Parts arrived until the repair was completed" },
@@ -411,6 +411,11 @@ function SubDealerView({ data }: { data: Ok }) {
             <strong>Dealer Received At</strong>, <strong>Parts Replied At</strong>, <strong>Parts Arrived At</strong>, <strong>Repair Completed At</strong>, <strong>Closed At</strong>.
           </p>
         )}
+        {data.hasStageTimes && data.dealerStep === "received" && (
+          <p className="mb-4 rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
+            Step 1 is not your approve / reject time yet: the sheet only holds the time the claim was logged as received, which is set automatically about a minute after it is opened. Add a <strong>Dealer Decision At</strong> column (the date and time you approve or reject a claim) to the Claims tab and step 1 uses it.
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
           {leadStages.map((l, i) => (
             <Card key={l.key} className="space-y-1">
@@ -418,6 +423,9 @@ function SubDealerView({ data }: { data: Ok }) {
                 {i + 1}. {l.label}
               </Label>
               <Metric value={l.avg != null ? fmtDur(l.avg) : "—"} />
+              {i === 0 && data.dealerStep === "received" && l.n > 0 && (
+                <div className="text-xs text-[#a52a00]">Only the time the system logged the claim as received (set automatically) - not your approve / reject click.</div>
+              )}
               <div className="text-xs text-[#6e6e73]">
                 {l.n ? `average of ${fmtInt(l.n)} claim${l.n === 1 ? "" : "s"} · median ${fmtDur(l.med ?? 0)} · longest ${fmtDur(l.max ?? 0)}` : l.detail}
               </div>

@@ -71,6 +71,8 @@ export type SubDealerDashboard =
       hasLaborApproved: boolean;
       /** The Claims tab has at least one stage time column (Dealer Received At ... Closed At) - the lead-time chain needs them. */
       hasStageTimes: boolean;
+      /** What the first step ends at: the dealer's approve / reject click ("Dealer Decision At"), or only the time the system logged the claim as received (set automatically, about a minute after it is opened). */
+      dealerStep: "decision" | "received" | null;
       /** The last invoice date in the Warranty Invoicing report (free service invoices after it are not in yet). */
       invoicingThrough: string | null;
       claims: SdClaim[];
@@ -141,12 +143,13 @@ const keyOf = (workOrder: string, vin: string) => {
   return wo && v ? `${wo}|${v}` : null;
 };
 
-type Parsed = { hasLaborApproved: boolean; hasStageTimes: boolean; claims: SdClaim[]; free: SdFree[] };
+type Parsed = { hasLaborApproved: boolean; hasStageTimes: boolean; dealerStep: "decision" | "received" | null; claims: SdClaim[]; free: SdFree[] };
 
 function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null): Parsed {
   const claims: SdClaim[] = [];
   let hasLaborApproved = false;
   let hasStageTimes = false;
+  let dealerStep: "decision" | "received" | null = null;
   if (claimRows && claimRows.length) {
     const h = claimRows[0].map(norm);
     const col = (name: string) => h.indexOf(name);
@@ -155,7 +158,17 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
     // Stage time columns (each is a date and time); the first header that matches one of its names is used.
     const stageCol = (names: string[]) => h.findIndex((x) => names.includes(x));
     const stageCols = {
-      dealerReceived: stageCol(["dealer received at", "dealer received", "received by dealer at", "dealer read at"]),
+      // The dealer's approve / reject time is what the first step should end at; the "received" time is only a fallback.
+      dealerReceived: (() => {
+        const decision = stageCol(["dealer decision at", "dealer decision", "dealer approved or rejected at", "dealer approved at", "dealer rejected at", "dealer reviewed at", "decision at", "decision date", "approved at", "approved or rejected at"]);
+        if (decision !== -1) {
+          dealerStep = "decision";
+          return decision;
+        }
+        const received = stageCol(["dealer received at", "dealer received", "received by dealer at", "dealer read at"]);
+        if (received !== -1) dealerStep = "received";
+        return received;
+      })(),
       partsReplied: stageCol(["parts replied at", "parts replied", "parts reply at", "parts response at"]),
       partsArrived: stageCol(["parts arrived at", "parts arrival at", "parts arrived date"]),
       repairDone: stageCol(["repair completed at", "repair completed", "repair done at", "after repair at", "repaired at"]),
@@ -229,7 +242,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
       });
     }
   }
-  return { hasLaborApproved, hasStageTimes, claims, free };
+  return { hasLaborApproved, hasStageTimes, dealerStep, claims, free };
 }
 
 /** The sheet is read at most every two minutes; a failed read is never cached. */
@@ -239,7 +252,7 @@ const readSheet = unstable_cache(
     if (!claimRows) throw new Error('The sub-dealer sheet has no "Claims" tab.');
     return parseSheet(claimRows, freeRows);
   },
-  ["sub-dealer-sheet-v2"],
+  ["sub-dealer-sheet-v3"],
   { revalidate: 120 }
 );
 
@@ -324,6 +337,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
       updatedAt: new Date().toISOString(),
       hasLaborApproved: parsed.hasLaborApproved,
       hasStageTimes: parsed.hasStageTimes,
+      dealerStep: parsed.dealerStep,
       invoicingThrough,
       claims: parsed.claims,
       free,
