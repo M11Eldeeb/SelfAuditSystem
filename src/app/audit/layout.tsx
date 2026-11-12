@@ -44,7 +44,6 @@ export default async function AuditLayout({ children }: { children: ReactNode })
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
         <NavBar user={user} links={SERVICE_MANAGER_LINKS} notifications={notifications} />
-        <ViewOnlyBanner />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
       </div>
     );

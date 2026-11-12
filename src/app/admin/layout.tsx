@@ -47,7 +47,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
         <NavBar user={user} links={MANAGER_LINKS} />
-        <ViewOnlyBanner />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       </div>
     );
