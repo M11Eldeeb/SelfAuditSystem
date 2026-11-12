@@ -28,7 +28,7 @@ const STAGES = [
   { key: "closed", label: "After repair to closed", detail: "Repair completed until the claim closed" },
 ] as const;
 const DAY_MS = 86_400_000;
-const fmtDur = (days: number) => (days < 1 ? `${Math.max(1, Math.round(days * 24))} h` : `${days.toFixed(1)} days`);
+const fmtDur = (days: number) => (days < 1 / 24 ? `${Math.max(1, Math.round(days * 1440))} min` : days < 1 ? `${Math.round(days * 24)} h` : `${days.toFixed(1)} days`);
 const median = (v: number[]) => {
   const a = [...v].sort((x, y) => x - y);
   return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : 0;
@@ -168,7 +168,7 @@ function SubDealerView({ data }: { data: Ok }) {
   });
   const totalDays = claims.flatMap((c) => (c.createdAt != null && c.stages.closed != null && c.stages.closed >= c.createdAt ? [(c.stages.closed - c.createdAt) / DAY_MS] : []));
   const totalAvg = totalDays.length ? totalDays.reduce((a, b) => a + b, 0) / totalDays.length : null;
-  const leadSegments = leadStages.filter((l) => l.avg != null && l.avg > 0).map((l, i) => ({ label: l.label, value: Math.round((l.avg ?? 0) * 100) / 100, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
+  const leadSegments = leadStages.filter((l) => l.avg != null && l.avg > 0).map((l, i) => ({ label: l.label, value: Math.round((l.avg ?? 0) * 1000) / 1000, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
   const topParts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of claims) for (const p of c.parts) m.set(p.name, (m.get(p.name) ?? 0) + p.qty);
