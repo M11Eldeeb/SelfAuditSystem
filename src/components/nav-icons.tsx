@@ -23,6 +23,7 @@ const P: Record<string, string> = {
   code: "M10 3.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6L10 11.7l-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z",
   home: "M3.5 9L10 3.5 16.5 9v7.5h-13z",
   submit: "M4 15.5h12M10 13.5V4M6.5 7.5L10 4l3.5 3.5",
+  query: "M8.5 14.5a6 6 0 100-12 6 6 0 000 12zM13 13l4.5 4.5M6 7.5h5M6 10h3.5",
   // Quality seal: a rosette with a check mark and two ribbons.
   quality: "M10 13a5 5 0 100-10 5 5 0 000 10zM7.8 8.1l1.5 1.5 2.9-3M7.2 12.2L6 17.5l4-2 4 2-1.2-5.3",
 };
@@ -35,6 +36,7 @@ function keyFor(href: string, label: string): string {
   if (l.startsWith("submit")) return "plus";
   if (h.includes("tab=quality")) return "quality";
   if (h === "/technician" || l === "my claims") return "list";
+  if (h.endsWith("/query")) return "query";
   if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || l === "qc records") return "quality";
   if (h.includes("dashboard") || h.includes("sub-dealer")) return "dashboard";
   if (h.includes("schedule")) return "schedule";

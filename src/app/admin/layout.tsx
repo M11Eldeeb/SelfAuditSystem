@@ -8,6 +8,7 @@ import { AMS_LINK } from "@/lib/site";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
+  { href: "/admin/query", label: "Query", group: "Warranty" },
   {
     // Overview, Self Audit, Internal Audit and their results are one tab.
     href: "/admin/audits",

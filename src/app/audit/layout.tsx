@@ -12,6 +12,7 @@ import { MyAuditsTabs } from "./my-audits-tabs";
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard", group: "Warranty" },
+  { href: "/audit/query", label: "Query", group: "Warranty" },
   // Audits, Results and the Audit Schedule are tabs inside My Audits.
   { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"], group: "Warranty" },
   { href: "/audit/warranty-room", label: "Warranty Room", group: "Warranty" },
