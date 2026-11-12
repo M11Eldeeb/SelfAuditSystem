@@ -8,6 +8,7 @@ import type { PriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
 import { tabLabel, tabsFor, type DashboardTab } from "@/components/dashboard/tabs";
 import { AuditsSection } from "@/components/dashboard/sections/audits";
+import { SubDealerTab } from "@/components/dashboard/sections/sub-dealer-tab";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
 import { RejectedClaimsPanel } from "@/components/dashboard/sections/rejected-claims";
 import type { RejectedEntry } from "@/lib/dashboard/rejected";
@@ -35,6 +36,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   warranty: Icon.box,
   trends: Icon.alert,
   audits: Icon.check,
+  subdealer: Icon.car,
 };
 
 const inputClass =
@@ -91,6 +93,7 @@ export function KpiDashboard({
   sheetsNotice,
   manager = false,
   auditsPanel,
+  hasSubDealer = false,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -122,12 +125,16 @@ export function KpiDashboard({
   manager?: boolean;
   /** Manager only - the podium and standings of the Audits tab (built on the server). */
   auditsPanel?: React.ReactNode;
+  /** Manager only - the Sub-dealer Dashboard tab (a service manager gets it only where his branch has sub-dealer work). */
+  hasSubDealer?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   // Sections are all rendered from data already on the page, so switching
   // is instant - only the URL is updated (for sharing / reload).
-  const [tab, setTab] = useState<DashboardTab>(initialTab === "quality" && !quality ? "overview" : initialTab);
+  const [tab, setTab] = useState<DashboardTab>(
+    (initialTab === "quality" && !quality) || (initialTab === "subdealer" && !hasSubDealer) ? "overview" : initialTab
+  );
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "claimCount", desc: true });
   // The section bar slides away while scrolling down (more room to read) and comes back on the first scroll up.
   const [barHidden, setBarHidden] = useState(false);
@@ -154,7 +161,7 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = tabsFor(isOfficer, manager).filter((x) => x.id !== "quality" || !!quality);
+  const tabs = tabsFor(isOfficer, manager).filter((x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer));
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -245,7 +252,7 @@ export function KpiDashboard({
       </nav>
 
       {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too; the Audits podium is not by month). */}
-      {tab !== "audits" && (
+      {tab !== "audits" && tab !== "subdealer" && (
 
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
@@ -341,6 +348,7 @@ export function KpiDashboard({
           )}
           {tab === "overview" && <OverviewSection {...sectionProps} manager={manager} />}
           {tab === "audits" && manager && <AuditsSection data={data} scopeBranches={scopeBranches} panel={auditsPanel} />}
+          {tab === "subdealer" && manager && hasSubDealer && <SubDealerTab />}
           {tab === "overview" && rejected && !manager && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
               <Suspense fallback={<CarLoaderCard label="Loading rejected claims…" />}>

@@ -11,7 +11,10 @@ import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
 import { Suspense } from "react";
+import { branchHasSubDealer } from "@/lib/dashboard/sub-dealer-access";
 import { AuditsPanel } from "@/components/dashboard/audits-panel";
+
+export const maxDuration = 60;
 
 export default async function BranchDashboardPage({
   searchParams,
@@ -38,8 +41,9 @@ export default async function BranchDashboardPage({
   const manager = user.managerKind === "service_manager";
   const rejected = !manager && (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
   rejected?.catch(() => {});
-  const quality = getQcAnalysis(user, { from, to });
-  quality.catch(() => {});
+  // Quality control is not part of the manager's view.
+  const quality = manager ? undefined : getQcAnalysis(user, { from, to });
+  quality?.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
   return (
@@ -60,6 +64,7 @@ export default async function BranchDashboardPage({
         support={support}
         rejected={rejected}
         manager={manager}
+        hasSubDealer={manager && (await branchHasSubDealer(supabase, user.branch_id))}
         auditsPanel={
           manager ? (
             <Suspense fallback={null}>

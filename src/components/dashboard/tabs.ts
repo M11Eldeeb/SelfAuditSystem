@@ -6,12 +6,13 @@ export const DASHBOARD_TABS = [
   { id: "warranty", label: "Warranty Room", title: "Warranty Room", officerOnly: false, managerOnly: false },
   { id: "trends", label: "Trends & Repeats", title: "Trends & repeat repairs", officerOnly: true, managerOnly: false },
   { id: "audits", label: "Audits", title: "Audits", officerOnly: false, managerOnly: true },
+  { id: "subdealer", label: "Sub-dealer Dashboard", title: "Sub-dealer Dashboard", officerOnly: false, managerOnly: true },
 ] as const;
 
 export type DashboardTab = (typeof DASHBOARD_TABS)[number]["id"];
 
-/** What a manager (or service manager) sees: the quality dashboard, the Warranty Overview and the Audits podium. */
-const MANAGER_TABS: readonly DashboardTab[] = ["quality", "overview", "audits"];
+/** What a manager (or service manager) sees: the Warranty Overview, the Audits podium and the Sub-dealer Dashboard. */
+const MANAGER_TABS: readonly DashboardTab[] = ["overview", "audits", "subdealer"];
 
 /** The tabs of the dashboard for this kind of user. */
 export function tabsFor(isOfficer: boolean, manager: boolean) {

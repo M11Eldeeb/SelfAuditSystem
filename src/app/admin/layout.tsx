@@ -33,13 +33,11 @@ const ADMIN_LINKS = [
 
 /** The manager (every branch, view only) sees what matters to a manager: the dashboard and a few working pages. */
 const MANAGER_LINKS = [
-  { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
-  { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", group: "Warranty" },
+  { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
   { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
-  { href: "/admin/quality-control", label: "Quality Control" },
   { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 

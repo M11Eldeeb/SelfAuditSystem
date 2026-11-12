@@ -70,8 +70,9 @@ export default async function AdminDashboardPage({
             : params.sheets === "bad-state" || params.sheets === "not-configured"
               ? "Google sign-in is not set up for this link - try connecting again."
               : undefined;
-  const quality = getQcAnalysis(user, { from, to, branchIds: selectedBranchIds.size ? scopeBranches.map((b) => b.id) : undefined });
-  quality.catch(() => {});
+  // Quality control is not part of the manager's view.
+  const quality = manager ? undefined : getQcAnalysis(user, { from, to, branchIds: selectedBranchIds.size ? scopeBranches.map((b) => b.id) : undefined });
+  quality?.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
   return (
@@ -96,6 +97,7 @@ export default async function AdminDashboardPage({
         quality={quality}
         qualityRecordsHref="/admin/quality-control"
         manager={manager}
+        hasSubDealer={manager}
         auditsPanel={
           manager ? (
             <Suspense fallback={null}>
