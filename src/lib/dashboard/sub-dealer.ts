@@ -30,7 +30,14 @@ export type SdClaim = {
   partsTotal: number;
   parts: { name: string; qty: number }[];
   laborApproved: number | null;
+  /** When the sub-dealer opened the claim (with the time), milliseconds - null when the sheet has no usable date. */
+  createdAt: number | null;
+  /** The stages after it, from the sheet's stage columns (milliseconds, same clock as createdAt); null until reached or when the sheet has no such column. */
+  stages: SdStages;
 };
+
+/** sub-dealer -> dealer (read) -> parts reply -> parts arrived -> repair completed -> closed. */
+export type SdStages = { dealerReceived: number | null; partsReplied: number | null; partsArrived: number | null; repairDone: number | null; closed: number | null };
 
 /**
  * A free service request. `invoiced` is what the dealer invoiced on that work order to account I660 (free service for the
@@ -62,6 +69,8 @@ export type SubDealerDashboard =
       updatedAt: string;
       /** The sheet has the "Labor Approved (SAR, VAT incl.)" column. */
       hasLaborApproved: boolean;
+      /** The Claims tab has at least one stage time column (Dealer Received At ... Closed At) - the lead-time chain needs them. */
+      hasStageTimes: boolean;
       /** The last invoice date in the Warranty Invoicing report (free service invoices after it are not in yet). */
       invoicingThrough: string | null;
       claims: SdClaim[];
@@ -84,6 +93,24 @@ function money(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const fixMonth = (t: string) => t.replace(/\bSept\b/i, "Sep");
+
+/** "11 Nov 2026, 10:51", "2026-11-11 10:51" or a Sheets serial number (with its time) -> milliseconds, all on one clock (only differences are used). */
+function timeMs(v: unknown): number | null {
+  if (typeof v === "number") return v > 20_000 && v < 80_000 ? Date.UTC(1899, 11, 30) + Math.round(v * 86_400_000) : null;
+  const t = fixMonth(text(v));
+  if (!t) return null;
+  let ms: number;
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+    // ISO-like ("2026-11-11", "2026-11-11 10:51", "2026-11-11T10:51:00Z"): no zone given means the sheet's own clock, read as UTC.
+    const iso = t.replace(" ", "T");
+    ms = Date.parse(/Z$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
+  } else {
+    ms = Date.parse(`${t} UTC`); // "11 Nov 2026, 10:51"
+  }
+  return Number.isNaN(ms) ? null : ms;
+}
+
 /** "11 Nov 2026, 10:51", "2026-11-11" or a Sheets serial number -> "2026-11-11". */
 function isoDay(v: unknown): string | null {
   if (typeof v === "number" && v > 20_000 && v < 80_000) return new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86_400_000).toISOString().slice(0, 10);
@@ -91,7 +118,7 @@ function isoDay(v: unknown): string | null {
   if (!t) return null;
   const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const ms = Date.parse(`${t} UTC`);
+  const ms = Date.parse(`${fixMonth(t)} UTC`);
   return Number.isNaN(ms) ? null : new Date(ms).toISOString().slice(0, 10);
 }
 
@@ -114,16 +141,27 @@ const keyOf = (workOrder: string, vin: string) => {
   return wo && v ? `${wo}|${v}` : null;
 };
 
-type Parsed = { hasLaborApproved: boolean; claims: SdClaim[]; free: SdFree[] };
+type Parsed = { hasLaborApproved: boolean; hasStageTimes: boolean; claims: SdClaim[]; free: SdFree[] };
 
 function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null): Parsed {
   const claims: SdClaim[] = [];
   let hasLaborApproved = false;
+  let hasStageTimes = false;
   if (claimRows && claimRows.length) {
     const h = claimRows[0].map(norm);
     const col = (name: string) => h.indexOf(name);
     const approvedCol = h.findIndex((x) => x.startsWith("labor approved"));
     hasLaborApproved = approvedCol !== -1;
+    // Stage time columns (each is a date and time); the first header that matches one of its names is used.
+    const stageCol = (names: string[]) => h.findIndex((x) => names.includes(x));
+    const stageCols = {
+      dealerReceived: stageCol(["dealer received at", "dealer received", "received by dealer at", "dealer read at"]),
+      partsReplied: stageCol(["parts replied at", "parts replied", "parts reply at", "parts response at"]),
+      partsArrived: stageCol(["parts arrived at", "parts arrival at", "parts arrived date"]),
+      repairDone: stageCol(["repair completed at", "repair completed", "repair done at", "after repair at", "repaired at"]),
+      closed: stageCol(["closed at", "closed date", "close date", "closed on"]),
+    };
+    hasStageTimes = Object.values(stageCols).some((c) => c !== -1);
     const [id, status, arrived, branch, vin, subWo, dealerWo, created, reception, parts] = [
       "warranty claim id",
       "status",
@@ -156,6 +194,14 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
         partsTotal: got ? Number(got[2]) : 0,
         parts: parseParts(r[parts]),
         laborApproved: approvedCol === -1 ? null : money(r[approvedCol]),
+        createdAt: timeMs(r[created]),
+        stages: {
+          dealerReceived: stageCols.dealerReceived === -1 ? null : timeMs(r[stageCols.dealerReceived]),
+          partsReplied: stageCols.partsReplied === -1 ? null : timeMs(r[stageCols.partsReplied]),
+          partsArrived: stageCols.partsArrived === -1 ? null : timeMs(r[stageCols.partsArrived]),
+          repairDone: stageCols.repairDone === -1 ? null : timeMs(r[stageCols.repairDone]),
+          closed: stageCols.closed === -1 ? null : timeMs(r[stageCols.closed]),
+        },
       });
     }
   }
@@ -183,7 +229,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
       });
     }
   }
-  return { hasLaborApproved, claims, free };
+  return { hasLaborApproved, hasStageTimes, claims, free };
 }
 
 /** The sheet is read at most every two minutes; a failed read is never cached. */
@@ -193,7 +239,7 @@ const readSheet = unstable_cache(
     if (!claimRows) throw new Error('The sub-dealer sheet has no "Claims" tab.');
     return parseSheet(claimRows, freeRows);
   },
-  ["sub-dealer-sheet-v1"],
+  ["sub-dealer-sheet-v2"],
   { revalidate: 120 }
 );
 
@@ -277,6 +323,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
       status: "ok",
       updatedAt: new Date().toISOString(),
       hasLaborApproved: parsed.hasLaborApproved,
+      hasStageTimes: parsed.hasStageTimes,
       invoicingThrough,
       claims: parsed.claims,
       free,

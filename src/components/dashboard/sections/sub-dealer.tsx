@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { SdBatch, SubDealerDashboard } from "@/lib/dashboard/sub-dealer";
 import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
-import { BarList, C, Donut, LineChart, Meter, monthShort } from "@/components/dashboard/charts";
+import { BarList, C, Donut, LineChart, Meter, StackedBar, monthShort } from "@/components/dashboard/charts";
 import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
 
 const chip = "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition";
@@ -18,6 +18,21 @@ const isClosed = (s: string) => s.trim().toLowerCase() === "closed";
 const isRejected = (s: string) => /^(rejected|cancel+ed)$/i.test(s.trim());
 const isOpen = (s: string) => !isClosed(s) && !isRejected(s);
 const NO_WIP = "No work order";
+
+/** The claim's journey from A to Z; each step is timed from the one before it. */
+const STAGES = [
+  { key: "dealerReceived", label: "Sub-dealer to dealer", detail: "Claim opened until the dealer read it" },
+  { key: "partsReplied", label: "Dealer to parts reply", detail: "Dealer read it until parts replied" },
+  { key: "partsArrived", label: "Parts reply to parts arrival", detail: "Parts replied until the parts arrived" },
+  { key: "repairDone", label: "Parts arrival to after repair", detail: "Parts arrived until the repair was completed" },
+  { key: "closed", label: "After repair to closed", detail: "Repair completed until the claim closed" },
+] as const;
+const DAY_MS = 86_400_000;
+const fmtDur = (days: number) => (days < 1 ? `${Math.max(1, Math.round(days * 24))} h` : `${days.toFixed(1)} days`);
+const median = (v: number[]) => {
+  const a = [...v].sort((x, y) => x - y);
+  return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : 0;
+};
 const money = (v: number) => fmtNum(v, 2);
 const niceCeil = (v: number) => {
   if (v <= 0) return 10;
@@ -69,6 +84,7 @@ function SubDealerView({ data }: { data: Ok }) {
   const [from, setFrom] = useState(firstMonth);
   const [to, setTo] = useState(lastMonth);
   const [showAll, setShowAll] = useState(false);
+  const [view, setView] = useState<"revenue" | "lead">("revenue");
 
   const inScope = (branch: string, month: string | null) => (picked.size === 0 || picked.has(branch)) && (month === null ? from <= firstMonth && to >= lastMonth : month >= from && month <= to);
   const claims = useMemo(() => data.claims.filter((c) => inScope(c.branch, c.month)), [data.claims, picked, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -139,6 +155,20 @@ function SubDealerView({ data }: { data: Ok }) {
   const partsPct = partsTotal ? (partsGot / partsTotal) * 100 : 0;
   const partsToReturn = closedClaims.filter((c) => c.partsGot < c.partsTotal).map((c) => ({ workOrder: c.workOrder || NO_WIP, left: c.partsTotal - c.partsGot }));
   const partsOnOpen = claims.filter((c) => isOpen(c.status)).reduce((s, c) => s + c.partsTotal, 0);
+
+  // Lead times: every step from the one before it (a claim counts in a step only when both times are known).
+  const leadStages = STAGES.map((st, i) => {
+    const days: number[] = [];
+    for (const c of claims) {
+      const from = i === 0 ? c.createdAt : c.stages[STAGES[i - 1].key];
+      const to = c.stages[st.key];
+      if (from != null && to != null && to >= from) days.push((to - from) / DAY_MS);
+    }
+    return { ...st, n: days.length, avg: days.length ? days.reduce((a, b) => a + b, 0) / days.length : null, med: days.length ? median(days) : null, max: days.length ? Math.max(...days) : null };
+  });
+  const totalDays = claims.flatMap((c) => (c.createdAt != null && c.stages.closed != null && c.stages.closed >= c.createdAt ? [(c.stages.closed - c.createdAt) / DAY_MS] : []));
+  const totalAvg = totalDays.length ? totalDays.reduce((a, b) => a + b, 0) / totalDays.length : null;
+  const leadSegments = leadStages.filter((l) => l.avg != null && l.avg > 0).map((l, i) => ({ label: l.label, value: Math.round((l.avg ?? 0) * 100) / 100, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
   const topParts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of claims) for (const p of c.parts) m.set(p.name, (m.get(p.name) ?? 0) + p.qty);
@@ -159,6 +189,28 @@ function SubDealerView({ data }: { data: Ok }) {
 
   return (
     <div className="space-y-5">
+      {/* The menu bar of this page: revenue and lead times are separate views. */}
+      <nav aria-label="Sub-Dealer Analytics sections" className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px]">
+        {(
+          [
+            ["revenue", "Revenue"],
+            ["lead", "Lead times"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setView(id)}
+            aria-current={view === id ? "page" : undefined}
+            className={`flex min-h-9 flex-1 shrink-0 items-center justify-center rounded-[11px] px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-all ${
+              view === id ? "bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.04)]" : "text-neutral-700 hover:bg-white/50"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       {/* Which sub-dealer, and which months */}
       <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] ring-1 ring-black/[0.05]">
         <div className="min-w-0 flex-1 space-y-1">
@@ -200,6 +252,8 @@ function SubDealerView({ data }: { data: Ok }) {
         )}
       </div>
 
+      {view === "revenue" && (
+        <>
       {!data.hasLaborApproved && (
         <p className="rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
           The sub-dealer sheet has no <strong>Labor Approved (SAR, VAT incl.)</strong> column, so what was settled with the sub-dealer and the dealer&apos;s revenue cannot be shown. It fills in as soon as the column is on the Claims tab.
@@ -266,91 +320,11 @@ function SubDealerView({ data }: { data: Ok }) {
         </p>
       </Panel>
 
-      {/* Headline numbers */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="space-y-1">
-          <Label>Sub-dealer claims</Label>
-          <Metric value={fmtInt(total)} />
-          <div className="text-xs text-[#6e6e73]">
-            {fmtInt(closed)} closed · {fmtInt(open)} open{rejected ? ` · ${fmtInt(rejected)} rejected` : ""}
-          </div>
-        </Card>
-        <Card className="space-y-1">
-          <Label>Closed share</Label>
-          <Metric value={total ? `${Math.round((closed / total) * 100)}%` : "—"} />
-          <div className="text-xs text-[#6e6e73]">of all claims in this period (rejected ones included)</div>
-        </Card>
-        <Card className="space-y-1">
-          <Label>Oldest open claim</Label>
-          <Metric value={oldestOpen ? fmtInt(oldestOpen.days) : "—"} unit={oldestOpen ? "days" : undefined} />
-          <div className="truncate text-xs text-[#6e6e73]">{oldestOpen ? `Work order ${oldestOpen.workOrder}` : "No open claims"}</div>
-        </Card>
-        <Card className="space-y-1">
-          <Label>Free service</Label>
-          <Metric value={fmtInt(free.length)} unit="requests" />
-          <div className="text-xs text-[#6e6e73]">{freeInvoiced.length ? `${money(freeSettled)} SAR settled` : "Nothing invoiced yet"}</div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel className="lg:col-span-7" title="Claims over time" subtitle="Sub-dealer claims opened per month">
-          <LineChart series={[{ name: "Claims", color: C.accent, points: perMonth }]} yMax={niceCeil(Math.max(...perMonth.map((p) => p.value), 1))} unit="" decimals={0} emptyText="No claims in this period." />
-        </Panel>
-        <Panel className="lg:col-span-5" title="Where the claims stand" subtitle="Status in the sub-dealer's system">
-          {perStatus.length === 0 ? (
-            <p className="py-12 text-center text-sm text-neutral-500">No claims in this period.</p>
-          ) : (
-            <div className="space-y-4">
-              <Donut segments={perStatus} center={fmtInt(total)} caption="claims" />
-              <ul className="space-y-1.5">
-                {perStatus.map((s) => (
-                  <li key={s.label} className="flex items-center justify-between gap-3 text-[13px]">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                      <span className="truncate text-[#1d1d1f]">{s.label}</span>
-                    </span>
-                    <span className="shrink-0 tabular-nums text-[#6e6e73]">
-                      <span className="font-semibold text-[#1d1d1f]">{fmtInt(s.value)}</span> · {total ? ((s.value / total) * 100).toFixed(1) : "0"}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Panel>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {data.hasLaborApproved && (
-          <Panel className="lg:col-span-7" title="Labor approved over time" subtitle="Settled with the sub-dealer, per month (SAR, VAT incl.)">
+          <Panel title="Labor approved over time" subtitle="Settled with the sub-dealer, per month (SAR, VAT incl.)">
             <LineChart series={[{ name: "Labor approved", color: C.accent, points: perMonthApproved }]} yMax={niceCeil(Math.max(...perMonthApproved.map((p) => p.value), 1))} unit=" SAR" decimals={0} emptyText="Nothing approved in this period." />
           </Panel>
         )}
-        <Panel className={data.hasLaborApproved ? "lg:col-span-5" : "lg:col-span-6"} title="Defective parts returned" subtitle="Closed claims: parts the sub-dealer has sent back to the dealer">
-          {partsTotal === 0 ? (
-            <p className="py-8 text-center text-sm text-neutral-500">No closed claims with parts in this period.</p>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-baseline justify-between">
-                <Metric value={`${Math.round(partsPct)}%`} />
-                <span className="text-sm text-[#6e6e73]">
-                  {fmtInt(partsGot)} of {fmtInt(partsTotal)} parts returned
-                </span>
-              </div>
-              <Meter pct={partsPct} />
-              <p className="text-xs text-[#6e6e73]">
-                {partsToReturn.length === 0
-                  ? "Every part of the closed claims is back."
-                  : `${fmtInt(partsTotal - partsGot)} still to be returned: ${partsToReturn.map((p) => p.workOrder).join(", ")}.`}
-                {partsOnOpen > 0 ? ` ${fmtInt(partsOnOpen)} more part${partsOnOpen === 1 ? "" : "s"} on open claims are not due yet.` : ""}
-              </p>
-            </div>
-          )}
-        </Panel>
-        <Panel className={data.hasLaborApproved ? "lg:col-span-12" : "lg:col-span-6"} title="Most replaced parts" subtitle="Parts used on the sub-dealer claims, by quantity">
-          <BarList items={topParts} />
-        </Panel>
-      </div>
 
       {/* The detail behind every number */}
       <Panel title="Work order by work order" subtitle="Each sub-dealer work order next to the dealer's claim for the same car" action={<Pill tone="muted">{fmtInt(groups.length)} work orders</Pill>}>
@@ -423,6 +397,131 @@ function SubDealerView({ data }: { data: Ok }) {
           </div>
         )}
       </Panel>
+
+        </>
+      )}
+
+      {view === "lead" && (
+        <>
+      {/* Lead time, A to Z */}
+      <Panel eyebrow="Lead time" title="Lead time, A to Z" subtitle="How long a sub-dealer claim takes at each step, from the sub-dealer opening it to the dealer closing it">
+        {!data.hasStageTimes && (
+          <p className="mb-4 rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
+            The sheet has no step times yet. Add these date-and-time columns to the Claims tab and the steps below fill in:{" "}
+            <strong>Dealer Received At</strong>, <strong>Parts Replied At</strong>, <strong>Parts Arrived At</strong>, <strong>Repair Completed At</strong>, <strong>Closed At</strong>.
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          {leadStages.map((l, i) => (
+            <Card key={l.key} className="space-y-1">
+              <Label>
+                {i + 1}. {l.label}
+              </Label>
+              <Metric value={l.avg != null ? fmtDur(l.avg) : "—"} />
+              <div className="text-xs text-[#6e6e73]">
+                {l.n ? `average of ${fmtInt(l.n)} claim${l.n === 1 ? "" : "s"} · median ${fmtDur(l.med ?? 0)} · longest ${fmtDur(l.max ?? 0)}` : l.detail}
+              </div>
+            </Card>
+          ))}
+          <Card className="space-y-1">
+            <Label>A to Z: opened to closed</Label>
+            <Metric value={totalAvg != null ? fmtDur(totalAvg) : "—"} tone={totalAvg != null ? "red" : undefined} />
+            <div className="text-xs text-[#6e6e73]">
+              {totalDays.length ? `average of ${fmtInt(totalDays.length)} closed claim${totalDays.length === 1 ? "" : "s"} · median ${fmtDur(median(totalDays))}` : "Needs the opened and closed times"}
+            </div>
+          </Card>
+        </div>
+        {leadSegments.length > 0 && (
+          <div className="mt-5 space-y-2">
+            <Label>Where the average time goes</Label>
+            <StackedBar segments={leadSegments} format={(v) => fmtDur(v)} />
+          </div>
+        )}
+      </Panel>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="space-y-1">
+          <Label>Sub-dealer claims</Label>
+          <Metric value={fmtInt(total)} />
+          <div className="text-xs text-[#6e6e73]">
+            {fmtInt(closed)} closed · {fmtInt(open)} open{rejected ? ` · ${fmtInt(rejected)} rejected` : ""}
+          </div>
+        </Card>
+        <Card className="space-y-1">
+          <Label>Closed share</Label>
+          <Metric value={total ? `${Math.round((closed / total) * 100)}%` : "—"} />
+          <div className="text-xs text-[#6e6e73]">of all claims in this period (rejected ones included)</div>
+        </Card>
+        <Card className="space-y-1">
+          <Label>Oldest open claim</Label>
+          <Metric value={oldestOpen ? fmtInt(oldestOpen.days) : "—"} unit={oldestOpen ? "days" : undefined} />
+          <div className="truncate text-xs text-[#6e6e73]">{oldestOpen ? `Work order ${oldestOpen.workOrder}` : "No open claims"}</div>
+        </Card>
+        <Card className="space-y-1">
+          <Label>Free service</Label>
+          <Metric value={fmtInt(free.length)} unit="requests" />
+          <div className="text-xs text-[#6e6e73]">{freeInvoiced.length ? `${money(freeSettled)} SAR settled` : "Nothing invoiced yet"}</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <Panel className="lg:col-span-7" title="Claims over time" subtitle="Sub-dealer claims opened per month">
+          <LineChart series={[{ name: "Claims", color: C.accent, points: perMonth }]} yMax={niceCeil(Math.max(...perMonth.map((p) => p.value), 1))} unit="" decimals={0} emptyText="No claims in this period." />
+        </Panel>
+        <Panel className="lg:col-span-5" title="Where the claims stand" subtitle="Status in the sub-dealer's system">
+          {perStatus.length === 0 ? (
+            <p className="py-12 text-center text-sm text-neutral-500">No claims in this period.</p>
+          ) : (
+            <div className="space-y-4">
+              <Donut segments={perStatus} center={fmtInt(total)} caption="claims" />
+              <ul className="space-y-1.5">
+                {perStatus.map((s) => (
+                  <li key={s.label} className="flex items-center justify-between gap-3 text-[13px]">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                      <span className="truncate text-[#1d1d1f]">{s.label}</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-[#6e6e73]">
+                      <span className="font-semibold text-[#1d1d1f]">{fmtInt(s.value)}</span> · {total ? ((s.value / total) * 100).toFixed(1) : "0"}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <Panel className="lg:col-span-6" title="Defective parts returned" subtitle="Closed claims: parts the sub-dealer has sent back to the dealer">
+          {partsTotal === 0 ? (
+            <p className="py-8 text-center text-sm text-neutral-500">No closed claims with parts in this period.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <Metric value={`${Math.round(partsPct)}%`} />
+                <span className="text-sm text-[#6e6e73]">
+                  {fmtInt(partsGot)} of {fmtInt(partsTotal)} parts returned
+                </span>
+              </div>
+              <Meter pct={partsPct} />
+              <p className="text-xs text-[#6e6e73]">
+                {partsToReturn.length === 0
+                  ? "Every part of the closed claims is back."
+                  : `${fmtInt(partsTotal - partsGot)} still to be returned: ${partsToReturn.map((p) => p.workOrder).join(", ")}.`}
+                {partsOnOpen > 0 ? ` ${fmtInt(partsOnOpen)} more part${partsOnOpen === 1 ? "" : "s"} on open claims are not due yet.` : ""}
+              </p>
+            </div>
+          )}
+        </Panel>
+        <Panel className="lg:col-span-6" title="Most replaced parts" subtitle="Parts used on the sub-dealer claims, by quantity">
+          <BarList items={topParts} />
+        </Panel>
+      </div>
+
+        </>
+      )}
 
       <p className="px-1 text-[11px] text-[#6e6e73]">
         Live from the sub-dealer&apos;s Google Sheet (refreshed every couple of minutes). A sub-dealer work order and a dealer claim belong together when the work order number (including its -1, -2 follow-up job cards) and the VIN both match. Batch amounts are the adjusted claim totals, which the batch holds in US dollars: they are converted at the fixed rate of 3.75 SAR = 1 USD. All other amounts are in SAR.
