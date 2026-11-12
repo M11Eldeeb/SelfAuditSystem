@@ -31,6 +31,7 @@ const P: Record<string, string> = {
 function keyFor(href: string, label: string): string {
   const h = href.toLowerCase();
   const l = label.toLowerCase();
+  if (h === "#folder") return "documents";
   if (h === "#group") return l === "dashboards" ? "dashboard" : "shield";
   if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";

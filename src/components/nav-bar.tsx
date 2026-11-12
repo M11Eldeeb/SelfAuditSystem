@@ -3,29 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
 import { SIDEBAR_KEY } from "@/lib/site";
-import { NavIcon } from "@/components/nav-icons";
+import { NavList, type NavLink } from "@/components/nav-menu";
+import { saveNavLayout } from "@/app/actions/nav-layout";
+import type { NavLayout } from "@/lib/nav-layout";
 
-type NavLink = {
-  href: string;
-  label: string;
-  /** Other path prefixes that also belong to this tab. */
-  match?: string[];
-  /** Small tag after the label, e.g. "Soon" for a tab that is not open yet. */
-  badge?: string;
-  /** The name shown in the top bar for this page when it differs from the (short) menu label. */
-  title?: string;
-  /** Tabs with the same group name fold under one heading (shown where the first of them is). */
-  group?: string;
-  /** Shown at the bottom of the sidebar, just above the user name. */
-  bottom?: boolean;
-  /** Another website, opened in a new tab (not a page of this portal). */
-  external?: boolean;
-};
 type NavNotifications = {
   count: number;
   items: {
@@ -99,146 +85,6 @@ const ROLE_LABEL: Record<string, string> = {
   quality_controller: "Quality controller",
 };
 
-/**
- * Sidebar rows (Apple sidebars.md): a symbol in the app's accent colour, the label, an optional count capsule. The
- * current page gets a soft grey selection, not a coloured block.
- */
-const GROUPS_KEY = "sidebar-groups-open";
-
-/** Which groups are open: kept in this browser; a group holding the current page opens by itself. */
-function useOpenGroups(activeGroup: string | undefined) {
-  const [open, setOpen] = useState<Set<string>>(() => new Set(activeGroup ? [activeGroup] : []));
-  // The groups left open last time come back after the first paint (the server cannot know them).
-  useEffect(() => {
-    queueMicrotask(() => {
-      try {
-        const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "[]") as string[];
-        if (saved.length) setOpen((cur) => new Set([...cur, ...saved]));
-      } catch {
-        // nothing saved
-      }
-    });
-  }, []);
-  const [lastActive, setLastActive] = useState(activeGroup);
-  if (activeGroup !== lastActive) {
-    setLastActive(activeGroup);
-    if (activeGroup && !open.has(activeGroup)) setOpen(new Set([...open, activeGroup]));
-  }
-  const toggle = (g: string) =>
-    setOpen((cur) => {
-      const next = new Set(cur);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      try {
-        localStorage.setItem(GROUPS_KEY, JSON.stringify([...next]));
-      } catch {
-        // private window: lasts for this page only
-      }
-      return next;
-    });
-  return { open, toggle };
-}
-
-type Row = { kind: "link"; link: NavLink } | { kind: "group"; name: string; links: NavLink[] };
-
-function NavList({ links, activeHref, animateIn }: { links: NavLink[]; activeHref?: string; animateIn?: boolean | null }) {
-  const activeGroup = links.find((l) => l.href === activeHref)?.group;
-  const { open, toggle } = useOpenGroups(activeGroup);
-  const rows: Row[] = [];
-  for (const link of links) {
-    if (!link.group) rows.push({ kind: "link", link });
-    else {
-      const g = rows.find((r): r is Extract<Row, { kind: "group" }> => r.kind === "group" && r.name === link.group);
-      if (g) g.links.push(link);
-      else rows.push({ kind: "group", name: link.group, links: [link] });
-    }
-  }
-  const anim = (i: number) => ({
-    style: animateIn == null ? undefined : { transitionDelay: animateIn ? `${60 + i * 25}ms` : "0ms" },
-    className: animateIn == null ? undefined : `transition-all duration-300 ease-out motion-reduce:transition-none ${animateIn ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"}`,
-  });
-  return (
-    <ul className="space-y-1">
-      {rows.map((row, i) =>
-        row.kind === "link" ? (
-          <li key={row.link.href} {...anim(i)}>
-            <NavRow link={row.link} active={row.link.href === activeHref} />
-          </li>
-        ) : (
-          <li key={`group:${row.name}`} {...anim(i)}>
-            <button
-              type="button"
-              onClick={() => toggle(row.name)}
-              aria-expanded={open.has(row.name)}
-              className={`flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] leading-snug transition-colors hover:bg-neutral-900/[0.04] ${
-                row.name === activeGroup && !open.has(row.name) ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700"
-              }`}
-            >
-              <span className="text-brand">
-                <NavIcon href="#group" label={row.name} size={20} />
-              </span>
-              <span className="min-w-0 flex-1">{row.name}</span>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={`shrink-0 text-neutral-400 transition-transform duration-200 ${open.has(row.name) ? "rotate-90" : ""}`}>
-                <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {/* Always mounted so it can slide open and shut (grid rows 0fr <-> 1fr); the tabs fade in one after another. */}
-            <div
-              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open.has(row.name) ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
-              inert={!open.has(row.name)}
-            >
-              <div className="overflow-hidden">
-                <ul className="mt-1 ml-[1.35rem] space-y-0.5 border-l border-neutral-900/[0.08] pl-2">
-                  {row.links.map((link, j) => (
-                    <li
-                      key={link.href}
-                      style={{ transitionDelay: open.has(row.name) ? `${40 + j * 30}ms` : "0ms" }}
-                      className={`transition-all duration-300 ease-out motion-reduce:transition-none ${open.has(row.name) ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
-                    >
-                      <NavRow link={link} active={link.href === activeHref} compact />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </li>
-        )
-      )}
-    </ul>
-  );
-}
-
-function NavRow({ link, active, compact = false }: { link: NavLink; active: boolean; compact?: boolean }) {
-  const className = `flex ${compact ? "min-h-9 gap-2.5 px-2.5 py-1.5 text-[14px]" : "min-h-10 gap-3 px-3 py-2 text-[15px]"} items-center rounded-xl leading-snug transition-colors ${
-    active ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
-  }`;
-  const content = (
-    <>
-      <span className="text-brand">
-        <NavIcon href={link.href} label={link.label} size={compact ? 18 : 20} />
-      </span>
-      <span className="min-w-0 flex-1">{link.label}</span>
-      {link.badge && <span className="shrink-0 rounded-full bg-neutral-900/[0.07] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-neutral-600">{link.badge}</span>}
-      {link.external && (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-neutral-400">
-          <path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h2.5" />
-        </svg>
-      )}
-    </>
-  );
-  // An outside site (AMS) opens in its own tab; it is not a page of this portal.
-  return link.external ? (
-    <a href={link.href} target="_blank" rel="noopener noreferrer" title={`${link.label} - opens in a new tab`} className={className}>
-      {content}
-      <span className="sr-only">(opens in a new tab)</span>
-    </a>
-  ) : (
-    <Link href={link.href} aria-current={active ? "page" : undefined} className={className}>
-      {content}
-    </Link>
-  );
-}
-
 export function NavBar({
   user,
   links,
@@ -254,6 +100,16 @@ export function NavBar({
 }) {
   const pathname = usePathname();
   const search = useSearchParams();
+  // Each account arranges its own menu (kept on the account): drag entries into an order and into folders.
+  const [layout, setLayout] = useState<NavLayout | null>((user.nav_layout as NavLayout | null) ?? null);
+  const [organize, setOrganize] = useState(false);
+  const [, startSave] = useTransition();
+  const changeLayout = (next: NavLayout | null) => {
+    setLayout(next);
+    startSave(async () => {
+      await saveNavLayout(next);
+    });
+  };
   const [open, setOpen] = useState(false); // phone / tablet drawer
   const [signingOut, setSigningOut] = useState(false);
   const [lastPathname, setLastPathname] = useState(pathname);
@@ -307,6 +163,29 @@ export function NavBar({
     .map((w) => w[0]?.toUpperCase())
     .join("");
 
+  // "Menu" and the button that turns arranging on: drag entries to reorder them, drop them on a folder, make folders.
+  const organizeBar = (
+    <div className="flex items-center justify-between gap-2 px-6 pb-1.5">
+      <p className="text-[12px] font-medium text-neutral-500">{organize ? "Drag to arrange" : "Menu"}</p>
+      <div className="flex items-center gap-1">
+        {organize && layout && (
+          <button type="button" onClick={() => changeLayout(null)} className="rounded-md px-1.5 py-0.5 text-[12px] font-medium text-neutral-500 hover:bg-neutral-900/[0.05] hover:text-neutral-900" title="Back to the standard menu">
+            Reset
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOrganize((v) => !v)}
+          aria-pressed={organize}
+          title={organize ? "Done arranging" : "Arrange the menu: reorder entries and make folders"}
+          className={`rounded-md px-1.5 py-0.5 text-[12px] font-medium transition ${organize ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-900/[0.05] hover:text-neutral-900"}`}
+        >
+          {organize ? "Done" : "Arrange"}
+        </button>
+      </div>
+    </div>
+  );
+
   const brand = (
     <Link href="/" className="flex min-w-0 items-center gap-2.5">
       <Image src="/mg-logo.png" alt="MG" width={1037} height={1024} priority className="h-9 w-auto shrink-0" />
@@ -348,9 +227,9 @@ export function NavBar({
             <SidebarIcon />
           </button>
         </div>
-        <p className="px-6 pb-1.5 text-[12px] font-medium text-neutral-500">Menu</p>
+        {organizeBar}
         <nav className="flex-1 overflow-y-auto px-3 pb-3">
-          <NavList links={mainLinks} activeHref={activeHref} />
+          <NavList links={mainLinks} activeHref={activeHref} layout={layout} organize={organize} onLayoutChange={changeLayout} />
         </nav>
         {bottomLinks.length > 0 && (
           <div className="px-3 pb-1.5">
@@ -453,8 +332,9 @@ export function NavBar({
               </svg>
             </button>
           </div>
+          {organizeBar}
           <nav className="flex-1 overflow-y-auto px-2 pb-2">
-            <NavList links={mainLinks} activeHref={activeHref} animateIn={open} />
+            <NavList links={mainLinks} activeHref={activeHref} animateIn={open} layout={layout} organize={organize} onLayoutChange={changeLayout} />
           </nav>
           {bottomLinks.length > 0 && (
             <div className="px-2 pb-1">

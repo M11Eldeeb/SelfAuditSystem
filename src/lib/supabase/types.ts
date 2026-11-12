@@ -97,6 +97,8 @@ export interface Database {
           employee_no: string | null;
           /** Signed in with a password someone else chose: must pick his own first. */
           must_change_password: boolean;
+          /** The menu this person arranged (order, own folders); null = the standard menu. */
+          nav_layout: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
         };
         Insert: {
           id: string;
@@ -108,6 +110,7 @@ export interface Database {
           view_all?: boolean;
           employee_no?: string | null;
           must_change_password?: boolean;
+          nav_layout?: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];
