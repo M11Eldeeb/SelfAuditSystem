@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signFeedbackAttachments } from "@/lib/feedback-files";
@@ -10,7 +10,7 @@ import { ReplyForm } from "./reply-form";
 import { DeleteFeedbackActions } from "./delete-feedback-button";
 
 export default async function FeedbackDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole("officer");
+  if ((await requireRole("officer")).managerKind) redirect("/admin/my-feedback");
   const { id } = await params;
   const supabase = await createClient();
 

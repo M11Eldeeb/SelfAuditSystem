@@ -40,7 +40,6 @@ const MANAGER_LINKS = [
   { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
   { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
-  { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
 /** The national manager (every branch, view only): the officer's dashboard and a shorter menu. */
@@ -54,13 +53,12 @@ const NATIONAL_LINKS = [
   { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
   { href: "/admin/documents", label: "Warranty and Technical Documents" },
   { ...AMS_LINK },
-  { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
   if (user.managerKind) {
-    const feedback = await feedbackLink(user.id, "/admin/my-feedback", "Send feedback");
+    const feedback = await feedbackLink(user.id, "/admin/my-feedback");
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
         <NavBar user={user} links={[...(user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS), feedback]} />

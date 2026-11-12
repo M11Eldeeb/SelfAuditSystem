@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function FeedbacksPage() {
-  await requireRole("officer");
+  // The inbox is the warranty officers' (managers only send feedback).
+  if ((await requireRole("officer")).managerKind) redirect("/admin/my-feedback");
   const supabase = await createClient();
 
   const [{ data: feedback }, { data: attachments }, { data: replies }, { data: users }, { data: branches }] = await Promise.all([
