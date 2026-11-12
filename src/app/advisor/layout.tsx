@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { requireRole } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
+import { feedbackLink } from "@/lib/feedback-server";
 
 /** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. */
 const LINKS = [
@@ -13,9 +14,10 @@ const LINKS = [
 
 export default async function AdvisorLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("service_advisor");
+  const feedback = await feedbackLink(user.id, "/advisor/feedback");
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={LINKS} />
+      <NavBar user={user} links={[...LINKS, feedback]} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
     </div>
   );

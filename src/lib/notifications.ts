@@ -111,7 +111,7 @@ async function getOfficerFeedback(): Promise<Notifications> {
       id: `feedback:${r.id}`,
       kind: "feedback" as const,
       title: r.subject,
-      detail: `${senderName.get(r.sender_id) ?? "Branch admin"}${r.branch_id ? ` · ${branchName.get(r.branch_id) ?? ""}` : ""}`,
+      detail: `${senderName.get(r.sender_id) ?? "Sender"}${r.branch_id ? ` · ${branchName.get(r.branch_id) ?? ""}` : ""}`,
       href: `/admin/feedbacks/${r.id}`,
       at: r.created_at,
     })),

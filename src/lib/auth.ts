@@ -99,6 +99,17 @@ async function resolve(roles: UserRole[], allowViewOnlyActions: boolean): Promis
   redirect(homePathFor(user.role));
 }
 
+/**
+ * Any signed-in user, whatever the role (and view-only accounts too): for what every role may do, e.g. send feedback to
+ * the warranty team. The real role is kept (no officer / branch admin "view" copy).
+ */
+export async function requireAnyUser(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.must_change_password) redirect("/account/password?first=1");
+  return user;
+}
+
 /** Like requireRole, for pages two account types share (the workshop supervisor and the team leader). */
 export async function requireAnyRole(roles: UserRole[]): Promise<CurrentUser> {
   return resolve(roles, false);

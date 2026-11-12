@@ -37,7 +37,7 @@ export default async function FeedbackDetailPage({ params }: { params: Promise<{
     : { data: [] };
   const authorName = new Map((authors ?? []).map((u) => [u.id, u.full_name?.trim() || u.email]));
 
-  const senderName = sender?.full_name?.trim() || sender?.email || "Branch admin";
+  const senderName = sender?.full_name?.trim() || sender?.email || "Sender";
 
   return (
     <div className="space-y-6">

@@ -13,7 +13,7 @@ export default async function FeedbacksPage() {
       .order("created_at", { ascending: false }),
     supabase.from("self_audit_feedback_attachments").select("feedback_id"),
     supabase.from("self_audit_feedback_replies").select("feedback_id"),
-    supabase.from("self_audit_users").select("id, full_name, email").eq("role", "branch_admin"),
+    supabase.from("self_audit_users").select("id, full_name, email"),
     supabase.from("self_audit_branches").select("id, name"),
   ]);
 
@@ -31,7 +31,7 @@ export default async function FeedbacksPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Feedbacks</h1>
         <p className="text-sm text-neutral-600">
-          Messages from branch admins. Open one to read it, reply (the sender sees your reply) or delete it to free storage.
+          Messages from every role (branch admins, technicians, the technical team and the others). Open one to read it, reply (the sender sees your reply) or delete it to free storage.
           {unread > 0 && <span className="ml-1 font-medium text-brand">{unread} unread.</span>}
         </p>
       </div>
@@ -58,7 +58,7 @@ export default async function FeedbacksPage() {
                       {f.subject}
                     </p>
                     <p className="truncate text-xs text-neutral-500">
-                      {senderName.get(f.sender_id) ?? "Branch admin"}
+                      {senderName.get(f.sender_id) ?? "Sender"}
                       {f.branch_id ? ` · ${branchName.get(f.branch_id) ?? ""}` : ""} · {new Date(f.created_at).toLocaleString()}
                     </p>
                   </div>

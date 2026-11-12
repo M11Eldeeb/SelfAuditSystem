@@ -14,7 +14,7 @@ import {
   isAllowedFeedbackMime,
   safeStorageName,
 } from "@/lib/feedback-constants";
-import { submitFeedback } from "./actions";
+import { submitFeedback } from "@/app/audit/feedback/actions";
 
 type Picked = { key: string; file: File; path: string | null };
 

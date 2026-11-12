@@ -5,6 +5,7 @@ import { ViewOnlyBanner } from "@/components/view-only-banner";
 import { getNotifications } from "@/lib/notifications";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
 import { AMS_LINK } from "@/lib/site";
+import { feedbackLink } from "@/lib/feedback-server";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
@@ -59,9 +60,10 @@ const NATIONAL_LINKS = [
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
   if (user.managerKind) {
+    const feedback = await feedbackLink(user.id, "/admin/my-feedback", "Send feedback");
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
-        <NavBar user={user} links={user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS} />
+        <NavBar user={user} links={[...(user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS), feedback]} />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       </div>
     );

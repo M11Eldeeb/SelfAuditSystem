@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth";
+import { requireAnyUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
   FEEDBACK_BODY_MAX,
@@ -29,7 +29,7 @@ export async function submitFeedback(input: {
   body: string;
   attachments: FeedbackAttachmentInput[];
 }): Promise<{ error?: string }> {
-  const user = await requireRole("branch_admin");
+  const user = await requireAnyUser();
   const supabase = await createClient();
 
   const subject = input.subject.trim();
@@ -74,7 +74,7 @@ export async function submitFeedback(input: {
 
 /** Clears the "new reply" marker once the sender has opened their thread. */
 export async function markRepliesSeen(feedbackId: string): Promise<void> {
-  await requireRole("branch_admin");
+  await requireAnyUser();
   if (!UUID.test(feedbackId)) return;
   const supabase = await createClient();
   await supabase.rpc("mark_feedback_replies_seen", { p_feedback_id: feedbackId });
