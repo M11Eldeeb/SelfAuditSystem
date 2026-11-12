@@ -47,6 +47,7 @@ const NATIONAL_LINKS = [
   { href: "/admin/dashboard", label: "Warranty", title: "Warranty Dashboard", group: "Dashboards" },
   { href: "/admin/dashboard?tab=quality", label: "Quality", title: "Quality Dashboard", group: "Dashboards" },
   { href: "/admin/sub-dealer", label: "Sub-Dealer", title: "Sub-Dealer Dashboard", group: "Dashboards" },
+  { href: "/admin/query", label: "Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/courtesy-cars", label: "Courtesy Cars" },

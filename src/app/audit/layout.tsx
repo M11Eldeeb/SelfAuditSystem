@@ -12,7 +12,6 @@ import { MyAuditsTabs } from "./my-audits-tabs";
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard", group: "Warranty" },
-  { href: "/audit/query", label: "Query", group: "Warranty" },
   // Audits, Results and the Audit Schedule are tabs inside My Audits.
   { href: "/audit", label: "My Audits", match: ["/audit/results", "/audit/audit-schedule"], group: "Warranty" },
   { href: "/audit/warranty-room", label: "Warranty Room", group: "Warranty" },
@@ -32,6 +31,7 @@ const BRANCH_ADMIN_LINKS = [
 /** The service manager (his own branch, view only) sees what matters to a manager: the dashboard and a few working pages. */
 const SERVICE_MANAGER_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
+  { href: "/audit/query", label: "Query" },
   { href: "/audit/complaints", label: "Complaints" },
   { href: "/audit/vor-parts", label: "VOR Part Query" },
   { href: "/audit/open-wips", label: "Open WIPs" },
