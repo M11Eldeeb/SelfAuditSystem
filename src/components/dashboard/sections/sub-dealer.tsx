@@ -176,12 +176,13 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
   const leadSegments = leadStages.filter((l) => l.avg != null && l.avg > 0).map((l, i) => ({ label: l.label, value: Math.round((l.avg ?? 0) * 1000) / 1000, color: STATUS_COLORS[i % STATUS_COLORS.length] }));
   const topParts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const c of claims) for (const p of c.parts) m.set(p.name, (m.get(p.name) ?? 0) + p.qty);
+    // The part names come from the dealer's warranty batch (the sheet's own spelling can differ): one count per work order + VIN.
+    for (const g of groups) for (const p of g.batch?.parts ?? []) m.set(p.name, (m.get(p.name) ?? 0) + p.qty);
     return [...m.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([label, value]) => ({ label, value, display: `${fmtInt(value)} pcs` }));
-  }, [claims]);
+  }, [groups]);
 
   const toggle = (b: string) =>
     setPicked((p) => {
@@ -530,7 +531,7 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
             </div>
           )}
         </Panel>
-        <Panel className="lg:col-span-6" title="Most replaced parts" subtitle="Parts used on the sub-dealer claims, by quantity">
+        <Panel className="lg:col-span-6" title="Most replaced parts" subtitle="Parts on the sub-dealer work orders, from the dealer's warranty batch, by quantity">
           <BarList items={topParts} />
         </Panel>
       </div>

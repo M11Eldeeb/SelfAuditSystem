@@ -61,7 +61,7 @@ export type SdFree = {
 
 /** What the dealer's claims batch holds for one key (work order + VIN): all its follow-up job cards together. */
 /** The batch is in US dollars; `adjusted` / `settled` are the same amounts in riyals (x 3.75), the currency of the sub-dealer sheet. */
-export type SdBatch = { claimNumbers: string[]; statuses: string[]; adjusted: number; settled: number; adjustedUsd: number; settledUsd: number };
+export type SdBatch = { claimNumbers: string[]; statuses: string[]; adjusted: number; settled: number; adjustedUsd: number; settledUsd: number; /** The parts on those claims, named as in the batch (not as typed in the sub-dealer's sheet). */ parts: { name: string; qty: number }[] };
 
 export type SubDealerDashboard =
   | {
@@ -265,15 +265,18 @@ async function loadBatch(): Promise<Record<string, SdBatch>> {
   const batch: Record<string, SdBatch> = {};
   for (let i = 0; i < claimIds.length; i += 150) {
     const chunk = claimIds.slice(i, i + 150);
-    const [{ data: settle }, { data: vins }] = await Promise.all([
+    const [{ data: settle }, { data: vins }, { data: partLines }] = await Promise.all([
       admin.from("self_audit_claim_settlement").select("claim_id, claim_number, work_order_no, status, adjusted, settle_vat").in("claim_id", chunk),
       admin.from("self_audit_claims").select("id, vin").in("id", chunk),
+      admin.from("self_audit_claim_parts").select("claim_id, part_name, quantity").in("claim_id", chunk),
     ]);
     const vinOf = new Map((vins ?? []).map((c) => [c.id, c.vin]));
+    const keyOfClaim = new Map<string, string>();
     for (const s of settle ?? []) {
       const key = keyOf(s.work_order_no ?? "", vinOf.get(s.claim_id) ?? "");
       if (!key) continue;
-      const b = (batch[key] ??= { claimNumbers: [], statuses: [], adjusted: 0, settled: 0, adjustedUsd: 0, settledUsd: 0 });
+      keyOfClaim.set(s.claim_id, key);
+      const b = (batch[key] ??= { claimNumbers: [], statuses: [], adjusted: 0, settled: 0, adjustedUsd: 0, settledUsd: 0, parts: [] });
       if (s.claim_number) b.claimNumbers.push(s.claim_number);
       if (s.status && !b.statuses.includes(s.status)) b.statuses.push(s.status);
       // The batch amounts are in US dollars: kept as they are and converted to riyals at the fixed rate.
@@ -281,6 +284,17 @@ async function loadBatch(): Promise<Record<string, SdBatch>> {
       b.settledUsd += Number(s.settle_vat ?? 0);
       b.adjusted = b.adjustedUsd * SAR_PER_USD;
       b.settled = b.settledUsd * SAR_PER_USD;
+    }
+    // The parts of those claims, with the batch's own part names.
+    for (const l of partLines ?? []) {
+      const key = keyOfClaim.get(l.claim_id);
+      const name = l.part_name?.trim();
+      if (!key || !name) continue;
+      const parts = batch[key].parts;
+      const qty = Number(l.quantity ?? 1) || 1;
+      const hit = parts.find((p) => p.name === name);
+      if (hit) hit.qty += qty;
+      else parts.push({ name, qty });
     }
   }
   return batch;
