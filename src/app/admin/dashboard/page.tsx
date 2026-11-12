@@ -80,6 +80,8 @@ export default async function AdminDashboardPage({
   return (
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
+        // The national manager's menu switches between two dashboards on this one page: start afresh on each.
+        key={national && params.tab === "quality" ? "quality" : "warranty"}
         data={data}
         tab={parseTab(params.tab, true, manager, national)}
         basePath="/admin/dashboard"

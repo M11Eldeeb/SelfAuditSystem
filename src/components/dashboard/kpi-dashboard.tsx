@@ -164,7 +164,11 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = tabsFor(isOfficer, manager, national).filter((x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer));
+  // The national manager has two menu entries: the Quality Dashboard (quality only, no other tabs) and the Warranty Dashboard (every tab but quality).
+  const qualityOnly = national && initialTab === "quality" && !!quality;
+  const tabs = tabsFor(isOfficer, manager, national).filter(
+    (x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer) && (!national || (qualityOnly ? x.id === "quality" : x.id !== "quality"))
+  );
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -225,6 +229,7 @@ export function KpiDashboard({
       </header>
 
       {/* Sections: a segmented control that stays on screen while scrolling. */}
+      {!qualityOnly && (
       <nav
         aria-label="Dashboard sections"
         onFocusCapture={() => setBarHidden(false)}
@@ -253,6 +258,7 @@ export function KpiDashboard({
           })}
         </div>
       </nav>
+      )}
 
       {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too; the Audits podium is not by month). */}
       {tab !== "audits" && tab !== "subdealer" && (
