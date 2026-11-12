@@ -43,15 +43,15 @@ const MANAGER_LINKS = [
 
 /** The national manager (every branch, view only): the officer's dashboard and a shorter menu. */
 const NATIONAL_LINKS = [
-  { href: "/admin/dashboard", label: "Warranty Dashboard", group: "Warranty" },
-  { href: "/admin/dashboard?tab=quality", label: "Quality Dashboard", group: "Warranty" },
-  { ...AMS_LINK, group: "Warranty" },
-  { href: "/admin/sub-dealer", label: "Sub-Dealer Dashboard", group: "Warranty" },
-  { href: "/admin/rejected-claims", label: "Rejected Claims", group: "Warranty" },
-  { href: "/admin/documents", label: "Warranty and Technical Documents", group: "Warranty" },
-  { href: "/admin/complaints", label: "Complaints" },
+  { href: "/admin/dashboard", label: "Warranty Dashboard" },
+  { href: "/admin/dashboard?tab=quality", label: "Quality Dashboard" },
+  { href: "/admin/sub-dealer", label: "Sub-Dealer Dashboard" },
   { href: "/admin/open-wips", label: "Open WIPs" },
+  { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
+  { href: "/admin/rejected-claims", label: "Rejected Claims" },
+  { href: "/admin/documents", label: "Warranty and Technical Documents" },
+  { ...AMS_LINK },
   { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
