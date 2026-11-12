@@ -61,6 +61,7 @@ export function LineChart({
   unit = "%",
   decimals = 1,
   emptyText = "No data yet.",
+  compact = false,
 }: {
   series: LineSeries[];
   yMax?: number;
@@ -68,6 +69,8 @@ export function LineChart({
   /** Decimals in the hover values (counts want 0). */
   decimals?: number;
   emptyText?: string;
+  /** A smaller chart (centred, at most 40rem wide) for a page where the full width looks too big. */
+  compact?: boolean;
 }) {
   // Legend entries toggle their line; hovering a month shows every visible
   // branch's value for it.
@@ -99,7 +102,7 @@ export function LineChart({
           .sort((a, b) => b.p.value - a.p.value);
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${compact ? "mx-auto max-w-[40rem]" : ""}`}>
       <div className="relative">
         <svg
           viewBox={`0 0 ${W} ${H}`}

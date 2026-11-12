@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     branchId = a?.branch_id ?? null;
   }
   if (!path) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  const allowed = user.role === "officer" || user.view_all || ((user.role === "branch_admin" || user.role === "service_manager") && user.branch_id === branchId);
+  const allowed = user.role === "officer" || user.role === "manager" || user.view_all || ((user.role === "branch_admin" || user.role === "service_manager") && user.branch_id === branchId);
   if (!allowed) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const ext = (path.split(".").pop() ?? "").toLowerCase();

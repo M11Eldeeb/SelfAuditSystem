@@ -1,6 +1,7 @@
 import { BarList, C, Donut, Meter, StackedBar } from "@/components/dashboard/charts";
 import { TipCard } from "@/components/dashboard/hover";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
+import type { DashboardData } from "@/lib/dashboard/kpis";
 import type { SectionProps } from "./overview";
 import { ReconProgress } from "./recon-progress";
 import { Suspense } from "react";
@@ -17,6 +18,101 @@ const STATUS_TONE: Record<string, "good" | "warn" | "bad" | "muted" | "blue"> = 
   Rejected: "bad",
 };
 
+/** Gross claims: what was claimed, what SAIC kept after its adjustment. */
+export function GrossClaimsCard({ data }: { data: DashboardData }) {
+  const t = data.totals;
+  const cur = data.currency;
+  return (
+    <Card accent={C.red} className="flex flex-col justify-between gap-3">
+      <div>
+        <Label>Gross claims</Label>
+        <Metric value={fmtMoney(t.totalClaimAmount)} unit={cur} />
+        <div className="flex justify-between text-xs text-[#6e6e73]">
+          <span>{fmtInt(t.claimCount)} claims</span>
+          <span className="font-semibold text-[#1d1d1f]">Adjusted {fmtMoney(t.totalAdjustedAmount)}</span>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between text-[11px]">
+          <span className="text-[#6e6e73]">Kept after SAIC adjustment</span>
+          <span className="font-bold text-[#9a000d]">
+            {t.totalClaimAmount ? fmtPct((t.totalAdjustedAmount / t.totalClaimAmount) * 100) : "—"}
+          </span>
+        </div>
+        <Meter pct={t.totalClaimAmount ? (t.totalAdjustedAmount / t.totalClaimAmount) * 100 : 0} color={C.red} />
+      </div>
+    </Card>
+  );
+}
+
+/** Average claim value, with the top three models. */
+export function AvgClaimValueCard({ data }: { data: DashboardData }) {
+  const t = data.totals;
+  const cur = data.currency;
+  const topSeries = data.seriesStats.slice(0, 3);
+  const acvMax = Math.max(...topSeries.map((s) => (s.count ? s.amount / s.count : 0)), 1);
+  return (
+    <Card accent={C.slate} className="flex flex-col justify-between gap-3">
+      <div className="flex items-center justify-between">
+        <Label>Average claim value</Label>
+        <IconBadge tone="slate">
+          <Icon.receipt />
+        </IconBadge>
+      </div>
+      <Metric value={fmtNum(t.avgClaimValue, 2)} unit={`${cur} / claim`} />
+      <div className="space-y-1.5">
+        {topSeries.map((s, i) => {
+          const acv = s.count ? s.amount / s.count : 0;
+          return (
+            <div key={s.series} className="space-y-0.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-[#6e6e73]">{s.series}</span>
+                <span className="font-bold">{fmtMoney(acv)}</span>
+              </div>
+              <Meter pct={(acv / acvMax) * 100} color={[C.red, C.blue, C.slate][i]} height="h-1.5" />
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** Cost breakdown (parts, labor, sublet) before SAIC adjustment. */
+export function CostBreakdownPanel({ data, className }: { data: DashboardData; className?: string }) {
+  const cost = data.costSplit;
+  const costTotal = cost.part + cost.labor + cost.sublet;
+  const costSegments = [
+    { label: "Parts", value: cost.part, color: C.red },
+    { label: "Labor", value: cost.labor, color: C.blueLight },
+    { label: "Sublet", value: cost.sublet, color: C.slate },
+  ];
+  const biggest = [...costSegments].sort((a, b) => b.value - a.value)[0];
+  return (
+    <Panel className={className} eyebrow="Cost mix" title="Cost breakdown" subtitle="Before SAIC adjustment">
+      <Donut
+        segments={costSegments}
+        center={costTotal ? `${Math.round((biggest.value / costTotal) * 100)}%` : "—"}
+        caption={biggest.label}
+      />
+      <div className="mt-4 space-y-2.5">
+        {costSegments.map((s) => (
+          <div key={s.label} className="space-y-1">
+            <div className="flex justify-between text-xs font-semibold">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+                {s.label} ({costTotal ? Math.round((s.value / costTotal) * 100) : 0}%)
+              </span>
+              <span>{fmtMoney(s.value)}</span>
+            </div>
+            <Meter pct={costTotal ? (s.value / costTotal) * 100 : 0} color={s.color} height="h-1.5" tip={<TipCard title={s.label} rows={[{ label: "Claimed", value: fmtMoney(s.value), strong: true }, { label: "Share of cost", value: costTotal ? `${((s.value / costTotal) * 100).toFixed(1)}%` : "—" }]} />} />
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
 export function FinancialsSection({
   data,
   scopeBranches,
@@ -27,16 +123,6 @@ export function FinancialsSection({
 }: SectionProps & { onOpenReconciliation?: () => void; forecast?: Promise<SettlementForecast>; from: string; to: string }) {
   const t = data.totals;
   const cur = data.currency;
-  const cost = data.costSplit;
-  const costTotal = cost.part + cost.labor + cost.sublet;
-  const costSegments = [
-    { label: "Parts", value: cost.part, color: C.red },
-    { label: "Labor", value: cost.labor, color: C.blueLight },
-    { label: "Sublet", value: cost.sublet, color: C.slate },
-  ];
-  const biggest = [...costSegments].sort((a, b) => b.value - a.value)[0];
-  const topSeries = data.seriesStats.slice(0, 3);
-  const acvMax = Math.max(...topSeries.map((s) => (s.count ? s.amount / s.count : 0)), 1);
   const statusTotal = data.statusCounts.reduce((s, x) => s + x.count, 0) || 1;
   const byAmount = [...data.topLaborCodes].sort((a, b) => b.amount - a.amount).slice(0, 10);
 
@@ -44,25 +130,7 @@ export function FinancialsSection({
     <div className="space-y-5">
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card accent={C.red} className="flex flex-col justify-between gap-3">
-          <div>
-            <Label>Gross claims</Label>
-            <Metric value={fmtMoney(t.totalClaimAmount)} unit={cur} />
-            <div className="flex justify-between text-xs text-[#6e6e73]">
-              <span>{fmtInt(t.claimCount)} claims</span>
-              <span className="font-semibold text-[#1d1d1f]">Adjusted {fmtMoney(t.totalAdjustedAmount)}</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px]">
-              <span className="text-[#6e6e73]">Kept after SAIC adjustment</span>
-              <span className="font-bold text-[#9a000d]">
-                {t.totalClaimAmount ? fmtPct((t.totalAdjustedAmount / t.totalClaimAmount) * 100) : "—"}
-              </span>
-            </div>
-            <Meter pct={t.totalClaimAmount ? (t.totalAdjustedAmount / t.totalClaimAmount) * 100 : 0} color={C.red} />
-          </div>
-        </Card>
+        <GrossClaimsCard data={data} />
 
         <Card accent={C.blue} className="flex flex-col justify-between gap-3">
           <div className="flex items-center justify-between">
@@ -95,29 +163,7 @@ export function FinancialsSection({
           </div>
         </Card>
 
-        <Card accent={C.slate} className="flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between">
-            <Label>Average claim value</Label>
-            <IconBadge tone="slate">
-              <Icon.receipt />
-            </IconBadge>
-          </div>
-          <Metric value={fmtNum(t.avgClaimValue, 2)} unit={`${cur} / claim`} />
-          <div className="space-y-1.5">
-            {topSeries.map((s, i) => {
-              const acv = s.count ? s.amount / s.count : 0;
-              return (
-                <div key={s.series} className="space-y-0.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#6e6e73]">{s.series}</span>
-                    <span className="font-bold">{fmtMoney(acv)}</span>
-                  </div>
-                  <Meter pct={(acv / acvMax) * 100} color={[C.red, C.blue, C.slate][i]} height="h-1.5" />
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+        <AvgClaimValueCard data={data} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -125,27 +171,7 @@ export function FinancialsSection({
           <FinanceMonths from={from} to={to} branchIds={scopeBranches.map((b) => b.id)} cur={cur} />
         </div>
 
-        <Panel className="lg:col-span-4" eyebrow="Cost mix" title="Cost breakdown" subtitle="Before SAIC adjustment">
-          <Donut
-            segments={costSegments}
-            center={costTotal ? `${Math.round((biggest.value / costTotal) * 100)}%` : "—"}
-            caption={biggest.label}
-          />
-          <div className="mt-4 space-y-2.5">
-            {costSegments.map((s) => (
-              <div key={s.label} className="space-y-1">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
-                    {s.label} ({costTotal ? Math.round((s.value / costTotal) * 100) : 0}%)
-                  </span>
-                  <span>{fmtMoney(s.value)}</span>
-                </div>
-                <Meter pct={costTotal ? (s.value / costTotal) * 100 : 0} color={s.color} height="h-1.5" tip={<TipCard title={s.label} rows={[{ label: "Claimed", value: fmtMoney(s.value), strong: true }, { label: "Share of cost", value: costTotal ? `${((s.value / costTotal) * 100).toFixed(1)}%` : "—" }]} />} />
-              </div>
-            ))}
-          </div>
-        </Panel>
+        <CostBreakdownPanel data={data} className="lg:col-span-4" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">

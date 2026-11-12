@@ -59,6 +59,8 @@ export type OpenWipsData = {
   /** The signed-in user (to delete his own comments). */
   userId: string;
   canImport: boolean;
+  /** A manager (view only): no per-branch table. */
+  managerView: boolean;
   today: string;
 };
 
@@ -198,6 +200,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
     canEdit: !user.viewOnly,
     userId: user.id,
     canImport: user.role === "officer" && !user.viewOnly,
+    managerView: !!user.managerKind,
     today: todayKsa(),
   };
 }

@@ -52,15 +52,18 @@ type Group = {
   batch: SdBatch | null;
 };
 
-export function SubDealerSection({ data }: { data: SubDealerDashboard }) {
+/** `managerView`: the manager (view only) does not get the work-order-by-work-order table nor the Google connect button. */
+export function SubDealerSection({ data, managerView = false }: { data: SubDealerDashboard; managerView?: boolean }) {
   if (data.status === "not_connected") {
     return (
       <Panel eyebrow="Sub-Dealer" title="Connect Google Sheets" subtitle="This dashboard reads the sub-dealer's live Google Sheet, read-only.">
         <div className="space-y-3 text-sm text-neutral-700">
           <p>An officer connects their Google account once (the same connection the Warranty tab uses). The portal then only reads the sheet.</p>
-          <a href="/api/google-sheets/connect" className="inline-flex rounded-lg bg-[#c4121a] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#a30f16]">
-            Connect Google Sheets
-          </a>
+          {!managerView && (
+            <a href="/api/google-sheets/connect" className="inline-flex rounded-lg bg-[#c4121a] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#a30f16]">
+              Connect Google Sheets
+            </a>
+          )}
         </div>
       </Panel>
     );
@@ -72,12 +75,12 @@ export function SubDealerSection({ data }: { data: SubDealerDashboard }) {
       </Panel>
     );
   }
-  return <SubDealerView data={data} />;
+  return <SubDealerView data={data} managerView={managerView} />;
 }
 
 type Ok = Extract<SubDealerDashboard, { status: "ok" }>;
 
-function SubDealerView({ data }: { data: Ok }) {
+function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }) {
   const [picked, setPicked] = useState<Set<string>>(new Set()); // sub-dealers; empty = all
   const firstMonth = data.months[0] ?? "";
   const lastMonth = data.months[data.months.length - 1] ?? "";
@@ -324,11 +327,12 @@ function SubDealerView({ data }: { data: Ok }) {
 
         {data.hasLaborApproved && (
           <Panel title="Labor approved over time" subtitle="Settled with the sub-dealer, per month (SAR, VAT incl.)">
-            <LineChart series={[{ name: "Labor approved", color: C.accent, points: perMonthApproved }]} yMax={niceCeil(Math.max(...perMonthApproved.map((p) => p.value), 1))} unit=" SAR" decimals={0} emptyText="Nothing approved in this period." />
+            <LineChart series={[{ name: "Labor approved", color: C.accent, points: perMonthApproved }]} yMax={niceCeil(Math.max(...perMonthApproved.map((p) => p.value), 1))} unit=" SAR" decimals={0} compact emptyText="Nothing approved in this period." />
           </Panel>
         )}
 
-      {/* The detail behind every number */}
+      {/* The detail behind every number (not in the manager view) */}
+      {!managerView && (
       <Panel title="Work order by work order" subtitle="Each sub-dealer work order next to the dealer's claim for the same car" action={<Pill tone="muted">{fmtInt(groups.length)} work orders</Pill>}>
         {groups.length === 0 ? (
           <p className="py-8 text-center text-sm text-neutral-500">No claims in this period.</p>
@@ -399,6 +403,7 @@ function SubDealerView({ data }: { data: Ok }) {
           </div>
         )}
       </Panel>
+      )}
 
         </>
       )}

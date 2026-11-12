@@ -89,7 +89,7 @@ export default async function BranchesPage() {
                     {u.employee_no && <span className="ml-1 text-xs text-neutral-400">#{u.employee_no}</span>}
                   </td>
                   <td className="px-4 py-2 text-neutral-600">
-                    {{ officer: "Warranty officer", finance: "Finance", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader", service_manager: "Service manager (view only)", technician: "Technician", claims_reviewer: "Technician claims reviewer", service_advisor: "Service advisor", quality_controller: "Quality controller" }[u.role as string] ?? "Branch admin"}
+                    {{ officer: "Warranty officer", technical: "Technical team", workshop_supervisor: "Workshop supervisor", team_leader: "Team leader", manager: "Manager (view only)", service_manager: "Service manager (view only)", technician: "Technician", claims_reviewer: "Technician claims reviewer", service_advisor: "Service advisor", quality_controller: "Quality controller" }[u.role as string] ?? "Branch admin"}
                   </td>
                   <td className="px-4 py-2 text-neutral-600">
                     {u.branch_id ? (branchNameById.get(u.branch_id) ?? "—") : "—"}

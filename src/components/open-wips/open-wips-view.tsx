@@ -956,7 +956,7 @@ export function OpenWipsView() {
             </Panel>
           </div>
 
-          {data.scope === "all" && f.branch === "all" && (
+          {data.scope === "all" && f.branch === "all" && !data.managerView && (
             <Panel title="Per branch" subtitle="Click a branch to show only it">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-[13px] tabular-nums">
@@ -1023,7 +1023,15 @@ export function OpenWipsView() {
             title={`WIPs (${fmtInt(list.length)})`}
             subtitle="Oldest first. Autoline notes are from the report; comments stay on the WIP across imports - everyone who sees the WIP can add one."
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="search"
+                  value={f.q}
+                  onChange={(e) => set({ q: e.target.value })}
+                  placeholder="Search WIPs: number, VIN, plate, note"
+                  aria-label="Search the WIPs"
+                  className={`${sel} w-64`}
+                />
                 <button
                   type="button"
                   onClick={() => setFull((v) => !v)}

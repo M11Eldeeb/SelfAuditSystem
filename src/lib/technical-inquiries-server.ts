@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { INQUIRIES_FLAG, canVerifyRole, isWorkshopRole, type InquiryRole, type InquiryStatus } from "@/lib/technical-inquiries";
 
-/** The role as far as Technical Inquiries is concerned, or null for roles with no access (finance). */
+/** The role as far as Technical Inquiries is concerned, or null for roles with no access. */
 export function inquiryRole(user: CurrentUser): InquiryRole | null {
   return user.role === "officer" || user.role === "technical" || isWorkshopRole(user.role) ? (user.role as InquiryRole) : null;
 }

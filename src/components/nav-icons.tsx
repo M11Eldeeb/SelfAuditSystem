@@ -49,7 +49,7 @@ function keyFor(href: string, label: string): string {
   if (h.includes("open-wips")) return "wips";
   if (h.includes("courtesy")) return "key";
   if (h.includes("feedback")) return "feedback";
-  if (h.includes("finance") || h.includes("reconciliation")) return "money";
+  if (h.includes("reconciliation")) return "money";
   if (h.includes("audit") || h === "/audit") return "audits";
   if (h.startsWith("/technical")) return "code";
   return "home";

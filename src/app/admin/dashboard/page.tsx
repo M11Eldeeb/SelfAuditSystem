@@ -11,6 +11,8 @@ import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { loadPriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { requireRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { AuditsPanel } from "@/components/dashboard/audits-panel";
 
 // The Warranty Invoicing refresh reads the report e-mail and its ~11 MB Excel file.
 export const maxDuration = 60;
@@ -21,6 +23,8 @@ export default async function AdminDashboardPage({
   searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; sheets?: string; detail?: string }>;
 }) {
   const user = await requireRole("officer");
+  // A manager (view only, every branch) gets the slimmer Warranty Overview + Audits view: no trends, forecast, prior approvals or rejected-claims diary.
+  const manager = !!user.managerKind;
   const params = await searchParams;
   // Reconciliation moved to its own page in the sidebar.
   if (params.tab === "reconciliation") redirect("/admin/reconciliation");
@@ -41,19 +45,19 @@ export default async function AdminDashboardPage({
   // Not awaited: the trends tab streams in once ready, so the rest of the
   // dashboard isn't held up by the 7-month comparison. Started only after the
   // claims side is done, so the two don't hit the database at the same time.
-  const trends = claimSide.then(() => getCachedTrends(scopeBranches, from, to));
+  const trends = manager ? undefined : claimSide.then(() => getCachedTrends(scopeBranches, from, to));
   // Rejections surface in the trends tab (its error boundary), not here.
-  trends.catch(() => {});
+  trends?.catch(() => {});
   // Same idea for the settlement forecast (Claims & Financials), after trends.
-  const forecast = trends.then(() => getCachedForecast(), () => getCachedForecast());
-  forecast.catch(() => {});
-  const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
-  support.catch(() => {});
-  const rejected = getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
-  rejected.catch(() => {});
+  const forecast = trends ? trends.then(() => getCachedForecast(), () => getCachedForecast()) : undefined;
+  forecast?.catch(() => {});
+  const support = manager ? undefined : getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
+  support?.catch(() => {});
+  const rejected = manager ? undefined : getRejectedClaimsStats(scopeBranches.map((b) => b.id), to);
+  rejected?.catch(() => {});
   // The Prior Approvals tab streams in like the others (switching tabs does not reload the page). The sheet read is
   // cached for two minutes and never rejects - a problem shows inside that tab only.
-  const prior = loadPriorApprovals((branches ?? []).map((b) => ({ name: b.name, code: b.code })));
+  const prior = manager ? undefined : loadPriorApprovals((branches ?? []).map((b) => ({ name: b.name, code: b.code })));
   const sheetsNotice =
     params.sheets === "failed"
       ? `Google Sheets could not be connected. ${params.detail ?? ""}`.trim()
@@ -74,7 +78,7 @@ export default async function AdminDashboardPage({
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab, true)}
+        tab={parseTab(params.tab, true, manager)}
         basePath="/admin/dashboard"
         from={from}
         to={to}
@@ -91,6 +95,14 @@ export default async function AdminDashboardPage({
         sheetsNotice={sheetsNotice}
         quality={quality}
         qualityRecordsHref="/admin/quality-control"
+        manager={manager}
+        auditsPanel={
+          manager ? (
+            <Suspense fallback={null}>
+              <AuditsPanel />
+            </Suspense>
+          ) : undefined
+        }
       />
     </div>
   );

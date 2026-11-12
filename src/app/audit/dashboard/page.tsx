@@ -10,6 +10,8 @@ import { getQcAnalysis } from "@/lib/qc/server";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
+import { Suspense } from "react";
+import { AuditsPanel } from "@/components/dashboard/audits-panel";
 
 export default async function BranchDashboardPage({
   searchParams,
@@ -32,7 +34,9 @@ export default async function BranchDashboardPage({
   const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support.catch(() => {});
   // The diary's numbers only once the Rejected Claims Diary is open for this branch admin.
-  const rejected = (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
+  // A service manager (view only, own branch) gets the slimmer Warranty Overview + Audits view, without the rejected-claims diary.
+  const manager = user.managerKind === "service_manager";
+  const rejected = !manager && (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
   rejected?.catch(() => {});
   const quality = getQcAnalysis(user, { from, to });
   quality.catch(() => {});
@@ -42,7 +46,7 @@ export default async function BranchDashboardPage({
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab)}
+        tab={parseTab(params.tab, false, manager)}
         basePath="/audit/dashboard"
         from={from}
         to={to}
@@ -55,6 +59,14 @@ export default async function BranchDashboardPage({
         qualityRecordsHref="/audit/quality-control"
         support={support}
         rejected={rejected}
+        manager={manager}
+        auditsPanel={
+          manager ? (
+            <Suspense fallback={null}>
+              <AuditsPanel />
+            </Suspense>
+          ) : undefined
+        }
       />
     </div>
   );

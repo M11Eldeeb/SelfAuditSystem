@@ -6,7 +6,8 @@ import type { BranchRow, DashboardData } from "@/lib/dashboard/kpis";
 import type { TrendData } from "@/lib/dashboard/trends";
 import type { PriorApprovals } from "@/lib/dashboard/prior-approvals";
 import { Icon, Label, Panel, Pill, card, fmtInt, fmtMoney, fmtNum } from "@/components/dashboard/ui";
-import { DASHBOARD_TABS, type DashboardTab } from "@/components/dashboard/tabs";
+import { tabLabel, tabsFor, type DashboardTab } from "@/components/dashboard/tabs";
+import { AuditsSection } from "@/components/dashboard/sections/audits";
 import { SupportLeadTimesPanel } from "@/components/dashboard/sections/support";
 import { RejectedClaimsPanel } from "@/components/dashboard/sections/rejected-claims";
 import type { RejectedEntry } from "@/lib/dashboard/rejected";
@@ -33,6 +34,7 @@ const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode>
   financials: Icon.receipt,
   warranty: Icon.box,
   trends: Icon.alert,
+  audits: Icon.check,
 };
 
 const inputClass =
@@ -87,6 +89,8 @@ export function KpiDashboard({
   rejected,
   prior,
   sheetsNotice,
+  manager = false,
+  auditsPanel,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -114,6 +118,10 @@ export function KpiDashboard({
   prior?: Promise<PriorApprovals>;
   /** What happened on the way back from connecting Google Sheets, if anything went wrong. */
   sheetsNotice?: string;
+  /** A manager (every branch) or a service manager (his branch): the slimmer Warranty Overview + Audits view. */
+  manager?: boolean;
+  /** Manager only - the podium and standings of the Audits tab (built on the server). */
+  auditsPanel?: React.ReactNode;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -146,7 +154,7 @@ export function KpiDashboard({
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
-  const tabs = DASHBOARD_TABS.filter((x) => (!x.officerOnly || isOfficer) && (x.id !== "quality" || !!quality));
+  const tabs = tabsFor(isOfficer, manager).filter((x) => x.id !== "quality" || !!quality);
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
@@ -193,7 +201,7 @@ export function KpiDashboard({
       <header className="flex flex-wrap items-end justify-between gap-4 px-1">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-[#6e6e73]">KPI Dashboard</p>
-          <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{current.title}</h1>
+          <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{manager && current.id === "overview" ? "Warranty Overview" : current.title}</h1>
           <p className="mt-1 text-[15px] text-[#6e6e73]">
             {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
           </p>
@@ -229,15 +237,15 @@ export function KpiDashboard({
                 }`}
               >
                 <TabIcon size={17} />
-                {x.label}
+                {tabLabel(x, manager)}
               </button>
             );
           })}
         </div>
       </nav>
 
-      {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too). */}
-      {(
+      {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too; the Audits podium is not by month). */}
+      {tab !== "audits" && (
 
         <div className={`${card} space-y-3 p-4`}>
           <div className="flex flex-wrap items-end gap-3">
@@ -331,8 +339,9 @@ export function KpiDashboard({
               </Suspense>
             </SectionErrorBoundary>
           )}
-          {tab === "overview" && <OverviewSection {...sectionProps} />}
-          {tab === "overview" && rejected && (
+          {tab === "overview" && <OverviewSection {...sectionProps} manager={manager} />}
+          {tab === "audits" && manager && <AuditsSection data={data} scopeBranches={scopeBranches} panel={auditsPanel} />}
+          {tab === "overview" && rejected && !manager && (
             <SectionErrorBoundary onRetry={() => startTransition(() => router.refresh())}>
               <Suspense fallback={<CarLoaderCard label="Loading rejected claims…" />}>
                 <RejectedClaimsPanel rejected={rejected} from={from} to={to} diaryPath={isOfficer ? "/admin/rejected-claims" : "/audit/rejected-claims"} showBranches={isOfficer} />

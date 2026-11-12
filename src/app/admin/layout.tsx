@@ -31,8 +31,29 @@ const ADMIN_LINKS = [
   { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
 ];
 
+/** The manager (every branch, view only) sees what matters to a manager: the dashboard and a few working pages. */
+const MANAGER_LINKS = [
+  { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
+  { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", group: "Warranty" },
+  { href: "/admin/complaints", label: "Complaints" },
+  { href: "/admin/vor-parts", label: "VOR Part Query" },
+  { href: "/admin/open-wips", label: "Open WIPs" },
+  { href: "/admin/courtesy-cars", label: "Courtesy Cars" },
+  { href: "/admin/quality-control", label: "Quality Control" },
+  { href: "/admin/feedbacks", label: "Feedbacks", bottom: true },
+];
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
+  if (user.managerKind) {
+    return (
+      <div className="app-shell-bg flex min-h-screen flex-col">
+        <NavBar user={user} links={MANAGER_LINKS} />
+        <ViewOnlyBanner />
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      </div>
+    );
+  }
   const [notifications, inquiryBadge] = await Promise.all([getNotifications(user), inquiriesBadge(user)]);
   // The Technical Inquiries tab carries the number of cases waiting for the technical team.
   const links = ADMIN_LINKS.map((l) => (l.href === "/admin/technical-inquiries" ? { ...l, badge: inquiryBadge } : l));

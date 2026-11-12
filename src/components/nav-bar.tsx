@@ -60,7 +60,7 @@ function activeHrefFor(pathname: string, links: NavLink[]) {
 // Officers manage branches and users (and their own password, from their row
 // there); everyone else has just their own password.
 function settingsLinksFor(user: CurrentUser): NavLink[] {
-  return user.role === "officer"
+  return user.role === "officer" && !user.managerKind
     ? [
         { href: "/admin/branches", label: "Branches & Users" },
         { href: "/admin/emails", label: "Email settings" },
@@ -81,7 +81,7 @@ const ROLE_LABEL: Record<string, string> = {
   officer: "Warranty officer",
   branch_admin: "Warranty admin",
   service_manager: "Service manager",
-  finance: "Finance",
+  manager: "Manager",
   technical: "Technical team",
   workshop_supervisor: "Workshop supervisor",
   team_leader: "Team leader",
@@ -286,7 +286,7 @@ export function NavBar({
   const bottomLinks = links.filter((l) => l.bottom);
   const activeLabel = links.find((l) => l.href === activeHref)?.label;
   const displayName = user.full_name?.trim() || user.email;
-  const roleLabel = `${ROLE_LABEL[user.role] ?? ""}${user.viewOnly ? " · view only" : ""}`;
+  const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${user.viewOnly ? " · view only" : ""}`;
   const initials = displayName
     .split(/[\s@.]+/)
     .filter(Boolean)

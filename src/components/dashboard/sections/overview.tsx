@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Hover, TipCard } from "@/components/dashboard/hover";
 import type { DashboardData, ScorePoint } from "@/lib/dashboard/kpis";
-import { BarList, C, LineChart, Meter, Ring, SERIES_COLORS, StackedBar, type LineSeries } from "@/components/dashboard/charts";
+import { BarList, C, GroupedColumns, LineChart, Meter, Ring, SERIES_COLORS, StackedBar, type LineSeries } from "@/components/dashboard/charts";
+import { AvgClaimValueCard, CostBreakdownPanel, GrossClaimsCard } from "./financials";
+import { PendingTasksCard } from "./pending-dialog";
 import { Card, Icon, IconBadge, Label, Metric, Panel, Pill, fmtCompact, fmtDays, fmtInt, fmtMoney, fmtNum, fmtPct } from "@/components/dashboard/ui";
 
 export type SectionProps = {
@@ -14,7 +16,7 @@ export type SectionProps = {
  * One line per branch in scope. Several audits for the same branch in the
  * same month are averaged.
  */
-function toSeries(points: ScorePoint[], branches: { id: string; name: string }[]): LineSeries[] {
+export function toSeries(points: ScorePoint[], branches: { id: string; name: string }[]): LineSeries[] {
   return branches
     .map((b, i) => {
       const byMonth = new Map<string, number[]>();
@@ -28,7 +30,8 @@ function toSeries(points: ScorePoint[], branches: { id: string; name: string }[]
     .filter((s) => s.points.length > 0);
 }
 
-export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps) {
+/** `manager`: the manager's Warranty Overview - one pending task per branch and kind (details in a pop-up), five cycle-time steps, the work-week rhythm and the claim money cards; the audit scores live in the Audits tab. */
+export function OverviewSection({ data, scopeBranches, isOfficer, manager = false }: SectionProps & { manager?: boolean }) {
   // Where each pending task gets done: branch admins go straight to the
   // audit form / evidence upload, officers to the matching review page.
   const selfAuditHref = (p: (typeof data.pending)[number]) =>
@@ -44,11 +47,14 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
   const returned = t.submittedCount - t.acceptedFirstTime;
   const pendingSelfAudit = data.pending.reduce((s, p) => s + (p.selfAudit?.pending ?? 0), 0);
   const pendingEvidence = data.pending.filter((p) => p.scrapEvidence?.status === "not_submitted").length;
-  const pendingTotal = pendingSelfAudit + pendingEvidence;
+  // The manager counts tasks, not claims: a branch's self audit is ONE task however many claims are still open.
+  const pendingSelfAuditTasks = data.pending.filter((p) => (p.selfAudit?.pending ?? 0) > 0).length;
+  const pendingTotal = (manager ? pendingSelfAuditTasks : pendingSelfAudit) + pendingEvidence;
   const fullDays = data.weekdays.filter((d) => d.dow !== 4);
   const fullDayAvg =
     fullDays.reduce((s, d) => s + d.repaired, 0) / Math.max(fullDays.reduce((s, d) => s + d.days, 0), 1);
   const cycleRows = [
+    ...(manager ? [{ label: "Job card → submit", formula: "First submit − job card open", v: data.cycle.endToEnd.avg, color: C.primary }] : []),
     { label: "Repair completion", formula: "Repair end − job card open", v: t.avgRepairCompletionDays, color: C.slate },
     { label: "Claim submission", formula: "First submit − repair end", v: t.avgClaimSubmissionDays, color: C.red },
     { label: "Self audit submission", formula: "Admin completion − officer generate", v: t.avgSelfAuditDays, color: C.blueLight },
@@ -57,6 +63,91 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
   const cycleMax = Math.max(...cycleRows.map((r) => r.v ?? 0), 1);
   const topModels = data.topVehicles.slice(0, 5);
   const modelTotal = t.claimCount || 1;
+
+  // The pending-tasks table: in the page for the officer and the branch admin, in a pop-up for the manager.
+  const pendingPanel = (className?: string) => (
+    <Panel
+      className={className}
+      title="Pending tasks"
+      subtitle={`Current open self audit and warranty room cycles · click a task to ${isOfficer ? "review" : "complete"} it`}
+      action={<Pill tone={pendingTotal ? "bad" : "good"}>{pendingTotal} pending</Pill>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
+            <tr>
+              <th className="px-3 py-2.5">Branch</th>
+              <th className="px-3 py-2.5">Self audit</th>
+              <th className="px-3 py-2.5">Progress</th>
+              <th className="px-3 py-2.5">Scrap evidence</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#ececf0]">
+            {data.pending.map((p) => {
+              const sa = p.selfAudit;
+              const done = sa ? sa.total - sa.pending : 0;
+              return (
+                <tr key={p.branchId} className="hover:bg-[#f5f5f7]/50">
+                  <td className="px-3 py-2.5 font-semibold text-[#1d1d1f]">{p.name}</td>
+                  <td className="px-3 py-2.5">
+                    {sa ? (
+                      sa.pending === 0 ? (
+                        <Link href={selfAuditHref(p)} className="hover:opacity-80">
+                          <Pill tone="good">Submitted · {sa.cycleLabel} →</Pill>
+                        </Link>
+                      ) : (
+                        <Link href={selfAuditHref(p)} className="group block space-y-0.5">
+                          <Pill tone={sa.pending === sa.total ? "bad" : "warn"}>
+                            {sa.pending} of {sa.total} pending · {isOfficer ? "Review" : "Complete"} →
+                          </Pill>
+                          {sa.deadline && (
+                            <div className="text-[11px] text-[#6e6e73]">
+                              {sa.cycleLabel} · due{" "}
+                              {new Date(sa.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Riyadh" })}
+                            </div>
+                          )}
+                        </Link>
+                      )
+                    ) : (
+                      <Pill tone="muted">No open cycle</Pill>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {sa ? (
+                      <div className="w-32 space-y-1">
+                        <div className="flex justify-between text-[11px] font-semibold">
+                          <span>{done}/{sa.total}</span>
+                          <span className="text-[#6e6e73]">{Math.round((done / sa.total) * 100)}%</span>
+                        </div>
+                        <Meter pct={(done / sa.total) * 100} color={sa.pending ? C.amber : C.green} />
+                      </div>
+                    ) : (
+                      <span className="text-[#c7c7cc]">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {p.scrapEvidence ? (
+                      <Link href={evidenceHref(p)} className="hover:opacity-80">
+                        {p.scrapEvidence.status === "not_submitted" ? (
+                          <Pill tone="bad">Not submitted · {p.scrapEvidence.cycleLabel} · {isOfficer ? "View" : "Submit"} →</Pill>
+                        ) : (
+                          <Pill tone="good">
+                            {p.scrapEvidence.status === "approved" ? "Approved" : isOfficer ? "Submitted · Review" : "Submitted"} · {p.scrapEvidence.cycleLabel} →
+                          </Pill>
+                        )}
+                      </Link>
+                    ) : (
+                      <Pill tone="muted">No open cycle</Pill>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
 
   return (
     <div className="space-y-5">
@@ -149,25 +240,39 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           />
         </Card>
 
-        {/* The one place that asks for attention: open work, its number in MG red. */}
-        <Card className="flex flex-col justify-between gap-3 md:col-span-2 xl:col-span-2">
-          <div className="text-[15px] font-semibold text-[#1d1d1f]">Pending tasks</div>
-          <div className="flex items-baseline gap-1.5">
-            <span className={`font-display text-[2.25rem] leading-none font-bold ${pendingTotal ? "text-[#c4121a]" : "text-[#1d1d1f]"}`}>{fmtInt(pendingTotal)}</span>
-            <span className="text-[13px] text-[#6e6e73]">open</span>
-          </div>
-          <div className="divide-y divide-black/[0.06] text-[13px]">
-            <div className="flex justify-between py-1.5">
-              <span className="text-[#3a3a3c]">Self audit claims</span>
-              <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingSelfAudit}</span>
+        {/* The one place that asks for attention: open work, its number in MG red (the manager's opens a pop-up with the detail). */}
+        {manager ? (
+          <PendingTasksCard total={pendingTotal} selfAudit={pendingSelfAuditTasks} evidence={pendingEvidence}>
+            {pendingPanel()}
+          </PendingTasksCard>
+        ) : (
+          <Card className="flex flex-col justify-between gap-3 md:col-span-2 xl:col-span-2">
+            <div className="text-[15px] font-semibold text-[#1d1d1f]">Pending tasks</div>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`font-display text-[2.25rem] leading-none font-bold ${pendingTotal ? "text-[#c4121a]" : "text-[#1d1d1f]"}`}>{fmtInt(pendingTotal)}</span>
+              <span className="text-[13px] text-[#6e6e73]">open</span>
             </div>
-            <div className="flex justify-between py-1.5">
-              <span className="text-[#3a3a3c]">Scrap evidence</span>
-              <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingEvidence}</span>
+            <div className="divide-y divide-black/[0.06] text-[13px]">
+              <div className="flex justify-between py-1.5">
+                <span className="text-[#3a3a3c]">Self audit claims</span>
+                <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingSelfAudit}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-[#3a3a3c]">Scrap evidence</span>
+                <span className="font-semibold tabular-nums text-[#1d1d1f]">{pendingEvidence}</span>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
       </div>
+
+      {/* Manager: the claim money cards (gross claims, average claim value) */}
+      {manager && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <GrossClaimsCard data={data} />
+          <AvgClaimValueCard data={data} />
+        </div>
+      )}
 
       {/* Daily pace + cycle times */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -246,7 +351,43 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
         </Panel>
       </div>
 
-      {/* Score trends */}
+      {manager && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          <Panel
+            className="lg:col-span-7"
+            title="Work-week rhythm: repaired vs submitted"
+            subtitle="Claims finishing repair vs claims first submitted to SAIC, per day of the week"
+          >
+            <GroupedColumns
+              seriesNames={["Repairs finished", "Claims submitted"]}
+              colors={[C.slate, C.red]}
+              format={fmtInt}
+              highlight={(i) => data.weekdays[i].dow === 4}
+              groups={data.weekdays.map((d) => ({
+                label: d.dow === 4 ? "THU (½)" : d.label.toUpperCase(),
+                sub: `${d.days} days`,
+                values: [d.repaired, d.submitted],
+              }))}
+            />
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {[
+                { label: "Repairs finished", value: fmtInt(data.weekdays.reduce((sum, d) => sum + d.repaired, 0)) },
+                { label: "Claims submitted", value: fmtInt(data.weekdays.reduce((sum, d) => sum + d.submitted, 0)) },
+                { label: "Avg claims / working day", value: fmtDays(t.avgDailyClaims) },
+              ].map((x) => (
+                <div key={x.label} className="rounded-lg bg-[#f5f5f7] p-2.5">
+                  <Label>{x.label}</Label>
+                  <div className="font-display text-lg font-semibold text-[#1d1d1f]">{x.value}</div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <CostBreakdownPanel data={data} className="lg:col-span-5" />
+        </div>
+      )}
+
+      {/* Score trends (the manager finds them in the Audits tab) */}
+      {!manager && (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel eyebrow="Trend" title="Self audit score" subtitle="Monthly score, all finalized cycles">
           <LineChart series={toSeries(data.selfAuditScores, scopeBranches)} emptyText="No finalized self audits yet." />
@@ -255,92 +396,13 @@ export function OverviewSection({ data, scopeBranches, isOfficer }: SectionProps
           <LineChart series={toSeries(data.internalAuditScores, scopeBranches)} emptyText="No finalized internal audits yet." />
         </Panel>
       </div>
+      )}
 
       {/* Pending tasks + warranty room + models */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel
-          className="lg:col-span-8"
-          title="Pending tasks"
-          subtitle={`Current open self audit and warranty room cycles · click a task to ${isOfficer ? "review" : "complete"} it`}
-          action={<Pill tone={pendingTotal ? "bad" : "good"}>{pendingTotal} pending</Pill>}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#f5f5f7] text-[11px] font-bold tracking-wider text-[#6e6e73] uppercase">
-                <tr>
-                  <th className="px-3 py-2.5">Branch</th>
-                  <th className="px-3 py-2.5">Self audit</th>
-                  <th className="px-3 py-2.5">Progress</th>
-                  <th className="px-3 py-2.5">Scrap evidence</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#ececf0]">
-                {data.pending.map((p) => {
-                  const sa = p.selfAudit;
-                  const done = sa ? sa.total - sa.pending : 0;
-                  return (
-                    <tr key={p.branchId} className="hover:bg-[#f5f5f7]/50">
-                      <td className="px-3 py-2.5 font-semibold text-[#1d1d1f]">{p.name}</td>
-                      <td className="px-3 py-2.5">
-                        {sa ? (
-                          sa.pending === 0 ? (
-                            <Link href={selfAuditHref(p)} className="hover:opacity-80">
-                              <Pill tone="good">Submitted · {sa.cycleLabel} →</Pill>
-                            </Link>
-                          ) : (
-                            <Link href={selfAuditHref(p)} className="group block space-y-0.5">
-                              <Pill tone={sa.pending === sa.total ? "bad" : "warn"}>
-                                {sa.pending} of {sa.total} pending · {isOfficer ? "Review" : "Complete"} →
-                              </Pill>
-                              {sa.deadline && (
-                                <div className="text-[11px] text-[#6e6e73]">
-                                  {sa.cycleLabel} · due{" "}
-                                  {new Date(sa.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Riyadh" })}
-                                </div>
-                              )}
-                            </Link>
-                          )
-                        ) : (
-                          <Pill tone="muted">No open cycle</Pill>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {sa ? (
-                          <div className="w-32 space-y-1">
-                            <div className="flex justify-between text-[11px] font-semibold">
-                              <span>{done}/{sa.total}</span>
-                              <span className="text-[#6e6e73]">{Math.round((done / sa.total) * 100)}%</span>
-                            </div>
-                            <Meter pct={(done / sa.total) * 100} color={sa.pending ? C.amber : C.green} />
-                          </div>
-                        ) : (
-                          <span className="text-[#c7c7cc]">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {p.scrapEvidence ? (
-                          <Link href={evidenceHref(p)} className="hover:opacity-80">
-                            {p.scrapEvidence.status === "not_submitted" ? (
-                              <Pill tone="bad">Not submitted · {p.scrapEvidence.cycleLabel} · {isOfficer ? "View" : "Submit"} →</Pill>
-                            ) : (
-                              <Pill tone="good">
-                                {p.scrapEvidence.status === "approved" ? "Approved" : isOfficer ? "Submitted · Review" : "Submitted"} · {p.scrapEvidence.cycleLabel} →
-                              </Pill>
-                            )}
-                          </Link>
-                        ) : (
-                          <Pill tone="muted">No open cycle</Pill>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+        {!manager && pendingPanel("lg:col-span-8")}
 
-        <div className="flex flex-col gap-4 lg:col-span-4">
+        <div className={manager ? "grid gap-4 lg:col-span-12 lg:grid-cols-2" : "flex flex-col gap-4 lg:col-span-4"}>
           <Card>
             <div className="flex items-start justify-between">
               <div>
