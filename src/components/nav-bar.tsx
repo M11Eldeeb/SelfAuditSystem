@@ -235,11 +235,14 @@ export function NavBar({
   user,
   links,
   notifications,
+  roleDetail,
 }: {
   user: CurrentUser;
   links: NavLink[];
   /** Initial bell state from the server; omit for roles that have no notifications. */
   notifications?: NavNotifications;
+  /** Shown after the role under the name, e.g. the service manager's branch (instead of "view only"). */
+  roleDetail?: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false); // phone / tablet drawer
@@ -286,7 +289,7 @@ export function NavBar({
   const bottomLinks = links.filter((l) => l.bottom);
   const activeLabel = links.find((l) => l.href === activeHref)?.label;
   const displayName = user.full_name?.trim() || user.email;
-  const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${user.viewOnly ? " · view only" : ""}`;
+  const roleLabel = `${ROLE_LABEL[user.managerKind ?? user.role] ?? ""}${roleDetail ? ` · ${roleDetail}` : user.managerKind === "manager" ? " · all branches" : user.viewOnly ? " · view only" : ""}`;
   const initials = displayName
     .split(/[\s@.]+/)
     .filter(Boolean)
