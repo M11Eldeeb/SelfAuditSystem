@@ -142,6 +142,13 @@ export const Icon = {
       <path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </Svg>
   ),
+  quality: (p: { size?: number }) => (
+    <Svg {...p}>
+      <circle cx="12" cy="9" r="6" />
+      <path d="M9.4 9.1l1.8 1.8 3.4-3.6" />
+      <path d="M8.6 14l-1.4 6.5 4.8-2.5 4.8 2.5-1.4-6.5" />
+    </Svg>
+  ),
   alert: (p: { size?: number }) => (
     <Svg {...p}>
       <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />

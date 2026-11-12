@@ -27,7 +27,7 @@ import type { QcAnalysis } from "@/lib/qc/server";
 import { CarLoaderCard, CarProgress } from "@/components/spinner";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
-  quality: Icon.check,
+  quality: Icon.quality,
   overview: Icon.gauge,
   cycle: Icon.timer,
   financials: Icon.receipt,
