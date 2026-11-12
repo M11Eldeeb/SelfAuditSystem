@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
-import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEST_DRIVE_KIND_LABEL, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 import { emptyChecklist, sectionsFor, unanswered, type Checklist } from "@/lib/qc/checklist";
 import { ChecklistForm, flaggedItems } from "./checklist-form";
@@ -380,7 +380,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const [info, setInfo] = useState<QcWipInfo | null>(null);
   const [odometerIn, setOdometerIn] = useState("");
   const [group, setGroup] = useState<string>("");
-  const [kind, setKind] = useState<string>("");
   const [technicians, setTechnicians] = useState<QcTechnician[]>([]);
   const [teamLeader, setTeamLeader] = useState("");
   const [serviceAdvisor, setServiceAdvisor] = useState("");
@@ -395,8 +394,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const files = useUploads(() => (wip.length === 5 ? { wip } : null));
-  const testDrive = QC_PURPOSE_GROUPS.find((g) => g.key === "test_drive")!;
-  const purpose = group === "test_drive" ? kind : group;
+  const purpose = group;
 
   const [dupOpen, setDupOpen] = useState(false);
 
@@ -418,7 +416,6 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (group === "test_drive" && !kind) return setError("Choose the kind of test drive.");
     if (!result) return setError("Choose Pass, Fail or Close as Fail.");
     const left = sectionsFor(repairType).length ? unanswered({ ...checklist, repairType }) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
@@ -446,7 +443,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
           <input value={wip} onChange={(e) => void changeWip(e.target.value)} inputMode="numeric" pattern="\d{5}" maxLength={5} enterKeyHint="next" className={`${field} tracking-widest`} placeholder="12345" />
         </Field>
         {dupOpen && info && info.earlier.length > 0 && <DuplicateWipDialog info={info} onNew={() => setDupOpen(false)} />}
-        <Field title="VIN">
+        <Field title="VIN (optional)" hint={vin ? undefined : "Not in Open WIPs yet? Leave it empty - it is filled in by itself once the WIP shows in FF3 or KH9."}>
           <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="off" spellCheck={false} className={`${field} font-mono tracking-wider`} placeholder="VIN" />
         </Field>
         {info?.model && (
@@ -476,20 +473,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
       </Section>
 
       <Section n={2} title="Purpose of the QC test">
-        <Choice
-          options={QC_PURPOSE_GROUPS.map((g) => ({ key: g.key as string, label: g.label }))}
-          value={group}
-          onChange={(g) => {
-            setGroup(g);
-            if (g !== "test_drive") setKind("");
-          }}
-        />
-        {group === "test_drive" && (
-          <div className="space-y-2 rounded-xl bg-neutral-50 p-3 ring-1 ring-neutral-200">
-            <div className="text-sm font-semibold text-neutral-800">Which test drive? *</div>
-            <Choice options={testDrive.kinds.map((k) => ({ key: k as string, label: QC_TEST_DRIVE_KIND_LABEL[k] }))} value={kind} onChange={setKind} cols={3} />
-          </div>
-        )}
+        <Choice options={QC_PURPOSE_GROUPS.map((g) => ({ key: g.key as string, label: g.label }))} value={group} onChange={setGroup} />
       </Section>
 
       <Section n={3} title="People">

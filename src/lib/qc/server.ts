@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import type { QcTechnician } from "./constants";
 import { cleanChecklist, type Checklist } from "./checklist";
+import { fillMissingQcVins } from "./fill-vins";
 
 type CheckRow = Database["public"]["Tables"]["self_audit_qc_checks"]["Row"];
 type TestRow = Database["public"]["Tables"]["self_audit_qc_tests"]["Row"];
@@ -106,8 +107,10 @@ export async function countQc(user: CurrentUser): Promise<{ failed: number; clos
 export async function getQcDetail(user: CurrentUser, id: string): Promise<QcDetail | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const admin = createAdminClient();
-  const { data: c } = await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle();
+  let { data: c } = await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle();
   if (!c) return null;
+  // Saved without a VIN: look again in Open WIPs (FF3) and the invoicing labor lines (KH9).
+  if (!c.vin && (await fillMissingQcVins([c.id]))) c = (await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle()).data ?? c;
   const scope = qcBranchScope(user);
   if (scope && c.branch_id !== scope) return null;
   const [{ data: tests }, { data: files }, { data: branch }] = await Promise.all([

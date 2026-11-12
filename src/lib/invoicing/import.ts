@@ -1,4 +1,5 @@
 import "server-only";
+import { fillMissingQcVins } from "@/lib/qc/fill-vins";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchLatestReport, getInvoicingConnection, InvoicingError } from "./gmail-reader";
 import { parseInvoicingReport } from "./parse";
@@ -26,6 +27,8 @@ export async function saveParsed(parsed: Awaited<ReturnType<typeof parseInvoicin
     if (failed?.error) return failed.error.message;
   }
   // Line detail is kept for every month (it used to be cut to the newest three months to save space).
+  // QCs saved without a VIN get it from the labor lines (KH9) of their WIP.
+  await fillMissingQcVins();
   return null;
 }
 

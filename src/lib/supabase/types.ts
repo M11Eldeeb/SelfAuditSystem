@@ -42,7 +42,7 @@ export interface Database {
       self_audit_qc_checks: {
         Row: {
           id: string; qc_no: string; branch_id: string; wip_no: string; vin: string | null; model: string | null; odometer_in: number | null;
-          purpose: "quality_control" | "test_drive_customer" | "test_drive_pre_repair" | "test_drive_post_repair" | "comeback" | "diagnosis_verification";
+          purpose: "quality_control" | "back_job" | "test_drive_customer" | "test_drive_pre_repair" | "test_drive_post_repair" | "comeback" | "diagnosis_verification";
           repair_type: "periodic_maintenance" | "general_repair" | "both" | null;
           team_leader: string | null; service_advisor: string | null; replaced_parts: string | null; defect_description: string | null;
           status: "failed" | "passed" | "closed"; attempts: number; final_odometer: number | null; passed_at: string | null; closed_at: string | null; drive_folder_id: string | null;

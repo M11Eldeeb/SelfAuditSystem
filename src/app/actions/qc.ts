@@ -8,7 +8,7 @@ import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import { cleanChecklist, unanswered, type Checklist } from "@/lib/qc/checklist";
-import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSES, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -181,7 +181,7 @@ async function verifiedFiles(folderId: string, ids: string[]) {
 }
 
 /** "Closed" needs the database change (migration 0174): until then a friendly message instead of the database's. */
-const notYet = (message: string | undefined) => (message && /check constraint/i.test(message) ? "Close as Fail is not available yet - the database needs an update (ask the warranty officer)." : message);
+const notYet = (message: string | undefined) => (message && /check constraint/i.test(message) ? "This choice is not available yet - the database needs an update (ask the warranty officer)." : message);
 
 /** Pass closes the case (passed); Closed closes it without a pass (justified); Fail keeps it open for a retest. */
 const STATUS_OF = { pass: "passed", fail: "failed", close: "closed" } as const;
@@ -259,7 +259,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     if (!wip) return { error: "Enter the WIP number (5 digits)." };
     const odometerIn = num(input.odometerIn);
     if (odometerIn == null || odometerIn > 3_000_000) return { error: "Enter the odometer in." };
-    if (!QC_PURPOSES.some((p) => p.key === input.purpose)) return { error: "Choose the purpose of the QC test." };
+    if (!QC_PURPOSE_GROUPS.some((p) => p.key === input.purpose)) return { error: "Choose the purpose of the QC test." };
     if (!QC_REPAIR_TYPES.some((p) => p.key === input.repairType)) return { error: "Choose the repair type." };
     const model = input.model.trim().slice(0, 60);
     if (!model) return { error: "Choose the vehicle model." };

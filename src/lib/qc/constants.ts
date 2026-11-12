@@ -2,6 +2,7 @@
 
 export const QC_PURPOSES = [
   { key: "quality_control", label: "Quality Control" },
+  { key: "back_job", label: "Back Job" },
   { key: "test_drive_customer", label: "Test Drive - With Customer", group: "Test Drive" },
   { key: "test_drive_pre_repair", label: "Test Drive - Pre-Repair", group: "Test Drive" },
   { key: "test_drive_post_repair", label: "Test Drive - Post Repair", group: "Test Drive" },
@@ -10,12 +11,13 @@ export const QC_PURPOSES = [
 ] as const;
 export type QcPurpose = (typeof QC_PURPOSES)[number]["key"];
 
-/** The form shows "Test Drive" once; picking it opens its three kinds. */
+/**
+ * The form offers two purposes: Quality Control and Back Job. The older ones (test drives, comeback, diagnosis
+ * verification) stay in QC_PURPOSES only so records saved with them still show their name.
+ */
 export const QC_PURPOSE_GROUPS = [
   { key: "quality_control", label: "Quality Control" },
-  { key: "test_drive", label: "Test Drive", kinds: ["test_drive_customer", "test_drive_pre_repair", "test_drive_post_repair"] as QcPurpose[] },
-  { key: "comeback", label: "Comeback" },
-  { key: "diagnosis_verification", label: "Diagnosis Verification" },
+  { key: "back_job", label: "Back Job" },
 ] as const;
 export const QC_TEST_DRIVE_KIND_LABEL: Record<string, string> = {
   test_drive_customer: "With Customer",

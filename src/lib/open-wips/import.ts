@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fillMissingQcVins } from "@/lib/qc/fill-vins";
 import { readSheetNamed } from "@/lib/google-sheets";
 import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 import { parseDailyHistory, parseOpenWips, type ParsedWip } from "./parse";
@@ -63,6 +64,8 @@ export async function saveOpenWips(rows: ParsedWip[], source: "sheet" | "upload"
 
   const opened = rows.filter((r) => !prev.has(r.key)).length;
   await admin.from("self_audit_open_wip_imports").insert({ source, file_name: fileName, rows: rows.length, opened: prev.size ? opened : 0, closed: gone.length, imported_by_name: byName });
+  // QCs saved before their WIP was in this report get its VIN now.
+  await fillMissingQcVins();
   return { rows: rows.length, opened: prev.size ? opened : 0, closed: gone.length };
 }
 
