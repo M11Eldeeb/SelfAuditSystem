@@ -36,6 +36,17 @@ function findRawRowValue(rawRow: Record<string, unknown>, aliases: string[]): st
 }
 
 /**
+ * The vehicle's offline (production) date from the claims export, as YYYY-MM-DD (null when the export has none).
+ * The "Part Production Date" column of the export is empty in practice - this is the date the audit compares the part's
+ * serial-coded manufacture date with.
+ */
+export function vehicleOfflineDate(rawRow: Record<string, unknown> | null | undefined): string | null {
+  if (!rawRow) return null;
+  const v = findRawRowValue(rawRow, OFFLINE_DATE_ALIASES);
+  return v ? v.slice(0, 10) : null;
+}
+
+/**
  * Surfaces the claims-data value a question is meant to be cross-checked against
  * (e.g. the mileage question next to the claim's actual mileage), so the person
  * answering doesn't have to look it up separately.

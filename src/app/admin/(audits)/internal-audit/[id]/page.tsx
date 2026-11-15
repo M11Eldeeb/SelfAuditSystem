@@ -11,6 +11,7 @@ import {
   orderReceptionQuestions,
 } from "@/lib/internal-audit-wip";
 import { loadMainPartNames } from "@/lib/claim-main-part";
+import { vehicleOfflineDate } from "@/lib/claim-reference";
 import { CopyText } from "@/components/copy-text";
 import { PartCheckEditor } from "./claims/part-check-editor";
 
@@ -357,6 +358,10 @@ export default async function InternalAuditClaimPage({
           <dt className="text-xs text-neutral-500">Repair end date</dt>
           <dd className="text-neutral-900">{claim?.repair_end_date ?? "—"}</dd>
         </div>
+        <div>
+          <dt className="text-xs text-neutral-500">Vehicle offline date</dt>
+          <dd className="text-neutral-900">{vehicleOfflineDate(claim?.raw_row) ?? "—"}</dd>
+        </div>
       </div>
 
       {wipLead && mode === "documents" && (
@@ -382,7 +387,7 @@ export default async function InternalAuditClaimPage({
           key={current.id}
           internalClaimId={current.id}
           expectedSerial={claim?.part_serial_number ?? null}
-          expectedOffline={claim?.part_production_date ?? null}
+          expectedOffline={vehicleOfflineDate(claim?.raw_row) ?? claim?.part_production_date ?? null}
           initial={{
             method: current.check_method,
             serial: current.checked_serial,

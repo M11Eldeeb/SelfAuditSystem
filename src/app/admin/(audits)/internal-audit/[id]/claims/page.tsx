@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import { AuditClaimsList, type AuditClaimRow } from "./claims-list";
 import { modelName } from "@/lib/qc/constants";
+import { vehicleOfflineDate } from "@/lib/claim-reference";
 
 /**
  * Officers: the audit's claims as a list before the visit - the announced ones (sent to the branch) and the
@@ -39,7 +40,7 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
     claimIds.length
       ? supabase
           .from("self_audit_claims")
-          .select("id, claim_number, work_order_no, vin, vehicle_model, mileage, part_serial_number, part_production_date, repair_end_date, dealer_submit_date, labor_code, claim_amount, main_part_name")
+          .select("id, claim_number, work_order_no, vin, vehicle_model, mileage, part_serial_number, part_production_date, repair_end_date, dealer_submit_date, labor_code, claim_amount, main_part_name, raw_row")
           .in("id", claimIds)
       : Promise.resolve({ data: [] }),
     claimIds.length ? supabase.from("self_audit_claim_parts").select("claim_id, part_no, part_name, quantity").in("claim_id", claimIds) : Promise.resolve({ data: [] }),
@@ -60,7 +61,7 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
       mileage: c?.mileage == null ? null : Number(c.mileage),
       mainPart: mainParts.get(r.claim_id) ?? c?.main_part_name ?? null,
       expectedSerial: c?.part_serial_number ?? null,
-      expectedOffline: c?.part_production_date ?? null,
+      expectedOffline: vehicleOfflineDate(c?.raw_row) ?? c?.part_production_date ?? null,
       repairEnd: c?.repair_end_date ?? null,
       submitted: c?.dealer_submit_date ?? null,
       laborCode: c?.labor_code ?? null,

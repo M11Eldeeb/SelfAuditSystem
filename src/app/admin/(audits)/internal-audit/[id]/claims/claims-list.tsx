@@ -59,6 +59,7 @@ function ClaimRow({ r, auditId, locked, questions, onSaved }: { r: AuditClaimRow
         <td className="max-w-[14rem] truncate px-3 py-2" title={r.mainPart ?? ""}>
           {r.mainPart ?? "—"}
         </td>
+        <td className="px-3 py-2 whitespace-nowrap tabular-nums">{r.expectedOffline?.slice(0, 10) ?? "—"}</td>
         <td className="px-3 py-2 whitespace-nowrap">
           {done ? (
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" title={r.check.method === "serial" ? `Serial: ${r.check.serial}` : `Offline date: ${r.check.offlineDate}`}>
@@ -78,7 +79,7 @@ function ClaimRow({ r, auditId, locked, questions, onSaved }: { r: AuditClaimRow
       </tr>
       {open && (
         <tr className="bg-neutral-50">
-          <td colSpan={7} className="px-4 pb-4">
+          <td colSpan={8} className="px-4 pb-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-white p-3 text-xs ring-1 ring-neutral-200">
                 {(
@@ -90,7 +91,7 @@ function ClaimRow({ r, auditId, locked, questions, onSaved }: { r: AuditClaimRow
                     ["Labor code", r.laborCode],
                     ["Claim amount", r.amount?.toLocaleString("en-US", { maximumFractionDigits: 2 })],
                     ["Part serial (claim)", r.expectedSerial],
-                    ["Offline / production date (claim)", r.expectedOffline],
+                    ["Vehicle offline date", r.expectedOffline],
                   ] as const
                 ).map(([k, v]) => (
                   <div key={k} className="contents">
@@ -143,6 +144,7 @@ function ClaimRow({ r, auditId, locked, questions, onSaved }: { r: AuditClaimRow
 /** The two lists (announced, unannounced), each with its download. */
 export function AuditClaimsList({ auditId, rows: initial, locked, questions }: { auditId: string; rows: AuditClaimRow[]; locked: boolean; questions: PartsQuestion[] }) {
   const [rows, setRows] = useState(initial);
+  const [q, setQ] = useState("");
   const replace = (r: AuditClaimRow) => setRows((list) => list.map((x) => (x.id === r.id ? r : x)));
   const cols: ExportColumn<AuditClaimRow>[] = [
     { header: "#", value: (r) => r.index + 1 },
@@ -153,7 +155,7 @@ export function AuditClaimsList({ auditId, rows: initial, locked, questions }: {
     { header: "Main part", value: (r) => r.mainPart, width: 30 },
     { header: "Parts", value: (r) => r.parts.map((p) => `${p.partNo ?? ""} ${p.name ?? ""}${p.qty != null ? ` x${p.qty}` : ""}`).join(" | "), width: 40 },
     { header: "Part serial (claim)", value: (r) => r.expectedSerial, width: 20 },
-    { header: "Offline date (claim)", value: (r) => r.expectedOffline?.slice(0, 10) ?? "" },
+    { header: "Vehicle offline date", value: (r) => r.expectedOffline?.slice(0, 10) ?? "" },
     { header: "Verified by", value: (r) => (r.check.method === "serial" ? "Serial number" : r.check.method === "offline" ? "Offline date" : "") },
     { header: "Serial found", value: (r) => r.check.serial, width: 20 },
     { header: "Offline date found", value: (r) => r.check.offlineDate },
@@ -163,22 +165,32 @@ export function AuditClaimsList({ auditId, rows: initial, locked, questions }: {
     { header: "Mileage", value: (r) => r.mileage },
   ];
 
-  const section = (title: string, list: AuditClaimRow[], file: string, note: string) => (
+  // Search: every word must be somewhere in the claim, work order, VIN, model, serial, offline date, main part or a part number / name.
+  const words = q.toLowerCase().split(/s+/).filter(Boolean);
+  const matches = (r: AuditClaimRow) => {
+    if (!words.length) return true;
+    const hay = [r.claimNumber, r.workOrder, r.vin, r.model, r.mainPart, r.expectedSerial, r.expectedOffline?.slice(0, 10), r.laborCode, ...r.parts.flatMap((p) => [p.partNo, p.name])].filter(Boolean).join(" ").toLowerCase();
+    return words.every((w) => hay.includes(w));
+  };
+
+  const section = (title: string, all: AuditClaimRow[], file: string, note: string) => {
+    const list = all.filter(matches);
+    return (
     <section className="space-y-2 rounded-xl border border-neutral-200/70 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold text-neutral-900">
-            {title} <span className="text-sm font-normal text-neutral-500">({list.length})</span>
+            {title} <span className="text-sm font-normal text-neutral-500">({words.length ? `${list.length} of ${all.length}` : all.length})</span>
           </h2>
           <p className="text-xs text-neutral-500">{note}</p>
         </div>
-        <button type="button" disabled={!list.length} onClick={() => void downloadXlsx(file, title.slice(0, 30), cols, list)} className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 disabled:opacity-40">
+        <button type="button" disabled={!all.length} onClick={() => void downloadXlsx(file, title.slice(0, 30), cols, all)} className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 disabled:opacity-40">
           <Glyph name="download" /> Download list
         </button>
       </div>
       {list.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[840px] text-sm">
             <thead className="border-b border-neutral-200 text-left text-xs text-neutral-500">
               <tr>
                 <th className="px-3 py-2 font-medium">#</th>
@@ -186,6 +198,7 @@ export function AuditClaimsList({ auditId, rows: initial, locked, questions }: {
                 <th className="px-3 py-2 font-medium">Work order</th>
                 <th className="px-3 py-2 font-medium">VIN</th>
                 <th className="px-3 py-2 font-medium">Main part</th>
+                <th className="px-3 py-2 font-medium">Offline date</th>
                 <th className="px-3 py-2 font-medium">Part check</th>
                 <th className="px-3 py-2 font-medium">Parts audit</th>
               </tr>
@@ -198,15 +211,26 @@ export function AuditClaimsList({ auditId, rows: initial, locked, questions }: {
           </table>
         </div>
       ) : (
-        <p className="py-3 text-sm text-neutral-500">None.</p>
+        <p className="py-3 text-sm text-neutral-500">{words.length ? "No claim matches your search." : "None."}</p>
       )}
     </section>
-  );
+    );
+  };
 
   const announced = rows.filter((r) => r.announced);
   const unannounced = rows.filter((r) => !r.announced);
   return (
     <div className="space-y-5">
+      <div className="relative">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search claim, work order, VIN, model, part number or name, serial, offline date"
+          aria-label="Search the parts list"
+          className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm shadow-sm placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none"
+        />
+      </div>
       {section("Announced claims", announced, "Internal audit - announced claims.xlsx", "Sent to the branch before the visit.")}
       {section("Unannounced claims", unannounced, "Internal audit - unannounced claims.xlsx", "Officers only - not in the list sent to the branch; ask for them at the visit.")}
     </div>

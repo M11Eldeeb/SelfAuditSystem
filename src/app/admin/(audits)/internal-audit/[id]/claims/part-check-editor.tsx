@@ -57,7 +57,7 @@ export function PartCheckEditor({
           <div className="font-mono font-medium">{expectedSerial || "—"}</div>
         </div>
         <div>
-          <div className="text-neutral-500">Offline date (claim)</div>
+          <div className="text-neutral-500">Vehicle offline date</div>
           <div className="font-medium">{expectedOffline?.slice(0, 10) || "—"}</div>
         </div>
       </div>
