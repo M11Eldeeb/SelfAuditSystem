@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { InternalAuditClaimForm } from "./internal-audit-claim-form";
 import { WorkOrderSearch } from "./work-order-search";
+import { ClaimNavigator } from "./claim-navigator";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 import {
   SHARED_WIP_DEPARTMENT,
@@ -207,6 +208,10 @@ export default async function InternalAuditClaimPage({
       serial: c?.part_serial_number ?? null,
     };
   });
+  const navItems = internalClaims.map((ic, i) => {
+    const c = claimById.get(ic.claim_id);
+    return { index: i, label: c?.claim_number ?? `Claim ${i + 1}`, workOrderNo: c?.work_order_no ?? null, announced: ic.announced, documentsDone: completeness[i].documentsDone, partsDone: completeness[i].partsDone };
+  });
 
   return (
     <div className="space-y-6">
@@ -334,6 +339,8 @@ export default async function InternalAuditClaimPage({
         </div>
         <WorkOrderSearch currentIndex={currentIndex} items={searchItems} />
       </div>
+
+      <ClaimNavigator items={navItems} currentIndex={currentIndex} mode={mode} announced={current.announced} />
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>

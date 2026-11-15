@@ -166,7 +166,7 @@ export function AuditClaimsList({ auditId, rows: initial, locked, questions }: {
   ];
 
   // Search: every word must be somewhere in the claim, work order, VIN, model, serial, offline date, main part or a part number / name.
-  const words = q.toLowerCase().split(/s+/).filter(Boolean);
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const matches = (r: AuditClaimRow) => {
     if (!words.length) return true;
     const hay = [r.claimNumber, r.workOrder, r.vin, r.model, r.mainPart, r.expectedSerial, r.expectedOffline?.slice(0, 10), r.laborCode, ...r.parts.flatMap((p) => [p.partNo, p.name])].filter(Boolean).join(" ").toLowerCase();
