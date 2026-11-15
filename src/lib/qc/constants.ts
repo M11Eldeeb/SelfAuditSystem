@@ -49,6 +49,9 @@ export const QC_MODEL_BY_CODE: Record<string, string> = {
   T60: "MG T60",
 };
 
+/** A claims-batch model code as people know it ("AS22" -> "MG RX5"); an unknown code is shown as it is. */
+export const modelName = (code: string | null | undefined): string | null => (code ? (QC_MODEL_BY_CODE[code.trim().toUpperCase()] ?? code) : null);
+
 /** The model a free-text name from the Open WIPs report means ("MGRX8 2.0T 6AT 4WD" -> "MG RX8"), if one is clear. */
 export function modelFromText(text: string | null | undefined): string | null {
   const t = (text ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { baseJobCard, listMonths, runPooled, withRetry } from "@/lib/dashboard/kpis";
 import { shiftMonth } from "@/lib/month";
+import { modelName } from "@/lib/qc/constants";
 
 type Client = SupabaseClient<Database>;
 
@@ -146,7 +147,7 @@ function buildTrends(
       ratio: baseline ? currentPerMonth / baselinePerMonth : null,
       isNew: baseline === 0,
       monthly: allMonths.map((month) => ({ month, count: list.filter((c) => c.repair_end_date?.startsWith(month)).length })),
-      models: tally((c) => c.vehicle_model ?? "Unknown").slice(0, 4).map(([model, count]) => ({ model, count })),
+      models: tally((c) => modelName(c.vehicle_model) ?? "Unknown").slice(0, 4).map(([model, count]) => ({ model, count })),
       branches: tally((c) => branchName.get(c.branch_id) ?? "").slice(0, 4).map(([name, count]) => ({ name, count })),
     });
   }
@@ -207,7 +208,7 @@ export async function getTrendData(
       repeats.push({
         kind: sameCard ? "duplicate" : "repeat",
         vin: curr.vin!,
-        model: curr.vehicle_model,
+        model: modelName(curr.vehicle_model),
         laborCode: curr.labor_code!,
         partName: curr.main_part_name,
         branch: branchName.get(curr.branch_id) ?? "",

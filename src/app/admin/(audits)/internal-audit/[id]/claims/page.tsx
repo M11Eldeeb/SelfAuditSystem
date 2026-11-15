@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import { AuditClaimsList, type AuditClaimRow } from "./claims-list";
+import { modelName } from "@/lib/qc/constants";
 
 /**
  * Officers: the audit's claims as a list before the visit - the announced ones (sent to the branch) and the
@@ -55,7 +56,7 @@ export default async function InternalAuditClaimsPage({ params }: { params: Prom
       claimNumber: c?.claim_number ?? "—",
       workOrder: c?.work_order_no ?? null,
       vin: c?.vin ?? null,
-      model: c?.vehicle_model ?? null,
+      model: modelName(c?.vehicle_model),
       mileage: c?.mileage == null ? null : Number(c.mileage),
       mainPart: mainParts.get(r.claim_id) ?? c?.main_part_name ?? null,
       expectedSerial: c?.part_serial_number ?? null,

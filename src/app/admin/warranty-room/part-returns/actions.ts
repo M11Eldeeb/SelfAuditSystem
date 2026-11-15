@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { flagsFor, getPartFlags, type PartFlag } from "@/lib/part-return-flags";
 import { loadMainPartNames } from "@/lib/claim-main-part";
+import { modelName } from "@/lib/qc/constants";
 
 /** The claims sheet lists a claim's part numbers in one cell ("#10856926;10321431"); the first is the main part. */
 function firstPartNo(raw: string | null): string | null {
@@ -92,7 +93,7 @@ export async function lookupClaims(
       branchName: branchName.get(r.branch_id) ?? "",
       workOrderNo: r.work_order_no,
       vin: r.vin,
-      vehicleModel: r.vehicle_model,
+      vehicleModel: modelName(r.vehicle_model),
       laborName: r.labor_name,
       claimAmount: r.claim_amount,
       repairEndDate: r.repair_end_date,
