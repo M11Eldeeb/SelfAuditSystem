@@ -718,7 +718,9 @@ html.dark .app-glass {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------------
-   Welcome intro (components/welcome-intro.tsx) - once per session, never with Reduce Motion.
+   Welcome intro (components/welcome-intro.tsx, animated with GSAP) - once per session, never with Reduce Motion.
+   Every piece starts hidden here so nothing flashes before the script runs; if the script never runs, the sheet still
+   fades away on its own (welcome-out, after 4.5 s).
    --------------------------------------------------------------------------------------------------------------------- */
 .welcome-intro {
   position: fixed;
@@ -727,98 +729,104 @@ html.dark .app-glass {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--background);
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    radial-gradient(60% 50% at 50% 42%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 70%),
+    var(--background);
   color: var(--color-neutral-900);
-  animation: welcome-out 0.7s cubic-bezier(0.4, 0, 0.2, 1) 2.7s forwards;
+  animation: welcome-out 0.6s ease 4.5s forwards;
 }
 html.no-welcome .welcome-intro {
   display: none;
 }
-.welcome-intro__stack {
+.wi-stack {
   display: flex;
   width: min(640px, 86vw);
   flex-direction: column;
   align-items: center;
 }
-.welcome-intro__logo {
-  height: 64px;
+.wi-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 96px;
+  width: 96px;
+}
+.wi-glow {
+  position: absolute;
+  inset: -40px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 22%, transparent), transparent 65%);
+  opacity: 0;
+}
+.wi-ring {
+  position: absolute;
+  inset: 6px;
+  border-radius: 9999px;
+  border: 2px solid var(--brand);
+  opacity: 0;
+}
+.wi-logo {
+  position: relative;
+  height: 72px;
   width: auto;
   opacity: 0;
-  animation: welcome-logo 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
 }
-.welcome-intro__kicker {
-  margin-top: 28px;
+.wi-kicker {
+  display: flex;
+  margin-top: 26px;
+  overflow: hidden;
   font-size: 17px;
   font-weight: 500;
   color: var(--color-neutral-500);
-  opacity: 0;
-  animation: welcome-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.55s forwards;
 }
-.welcome-intro__word {
+.wi-letter {
+  display: inline-block;
+  opacity: 0;
+}
+.wi-word {
   width: 100%;
   height: auto;
   margin-top: -2px;
   overflow: visible;
 }
-.welcome-intro__word text {
+.wi-word text {
   font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), "Segoe UI", sans-serif;
   font-size: 84px;
   font-weight: 700;
   letter-spacing: -0.03em;
   fill: currentColor;
   fill-opacity: 0;
-  stroke: currentColor;
+  stroke: var(--brand);
   stroke-width: 1.4;
-  stroke-dasharray: 520;
-  stroke-dashoffset: 520;
-  animation:
-    welcome-draw 1.35s cubic-bezier(0.65, 0, 0.35, 1) 0.75s forwards,
-    welcome-fill 0.6s ease-out 1.75s forwards;
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
 }
-.welcome-intro__rule {
+.wi-rule {
+  position: relative;
   margin-top: 10px;
   height: 3px;
-  width: 56px;
+  width: 64px;
+  overflow: hidden;
   border-radius: 3px;
   background: var(--brand);
   transform: scaleX(0);
-  animation: welcome-rule 0.6s cubic-bezier(0.22, 1, 0.36, 1) 2.05s forwards;
 }
-@keyframes welcome-logo {
-  from {
-    opacity: 0;
-    transform: scale(0.86);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.wi-shine {
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
 }
-@keyframes welcome-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes welcome-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes welcome-fill {
-  to {
-    fill-opacity: 1;
-    stroke-opacity: 0;
-  }
-}
-@keyframes welcome-rule {
-  to {
-    transform: scaleX(1);
-  }
+.wi-sub {
+  margin-top: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+  opacity: 0;
 }
 @keyframes welcome-out {
   to {

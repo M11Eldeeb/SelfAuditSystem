@@ -4,7 +4,8 @@ import "./globals.css";
 import { ScrollActivity } from "@/components/scroll-activity";
 import { THEME_INIT_SCRIPT } from "@/components/theme";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/site";
-import { WELCOME_INIT_SCRIPT, WelcomeIntro } from "@/components/welcome-intro";
+import { WelcomeIntro } from "@/components/welcome-intro";
+import { WELCOME_INIT_SCRIPT } from "@/components/welcome-intro-script";
 
 const inter = Inter({
   variable: "--font-inter",
