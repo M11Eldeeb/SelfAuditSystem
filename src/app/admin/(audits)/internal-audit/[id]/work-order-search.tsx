@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 
-type SearchItem = { index: number; workOrderNo: string | null; claimNumber: string };
+type SearchItem = { index: number; workOrderNo: string | null; claimNumber: string; vin?: string | null; serial?: string | null };
+
+/** Letters and digits only, lower case - so "HER 12345", "her-12345" and "HER12345" all match. */
+const norm = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const keys = (it: SearchItem) => [it.workOrderNo, it.claimNumber, it.vin, it.serial].map(norm).filter(Boolean);
 
 export function WorkOrderSearch({
   currentIndex,
@@ -16,20 +20,16 @@ export function WorkOrderSearch({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const q = value.trim().toLowerCase();
+    const q = norm(value);
     if (!q) return;
 
-    const exact = items.find(
-      (it) => (it.workOrderNo ?? "").toLowerCase() === q || it.claimNumber.toLowerCase() === q
-    );
-    const partial =
-      exact ??
-      items.find(
-        (it) => (it.workOrderNo ?? "").toLowerCase().includes(q) || it.claimNumber.toLowerCase().includes(q)
-      );
+    // Work order, claim number, VIN or part serial number: an exact match first, else one that contains what was typed
+    // (the last digits of a VIN or serial are enough).
+    const exact = items.find((it) => keys(it).includes(q));
+    const partial = exact ?? items.find((it) => keys(it).some((k) => k.includes(q)));
 
     if (!partial) {
-      setError("No claim in this audit matches that work order or claim number.");
+      setError("No claim in this audit matches that work order, claim number, VIN or serial number.");
       return;
     }
     setError(null);
@@ -51,14 +51,16 @@ export function WorkOrderSearch({
         list="wo-search-list"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search work order or claim #..."
-        className="w-64 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
+        placeholder="Work order, claim #, VIN or serial…"
+        className="w-72 rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
       />
       <datalist id="wo-search-list">
         {items.map((it) => it.workOrderNo && <option key={`wo-${it.index}`} value={it.workOrderNo} />)}
         {items.map((it) => (
           <option key={`cn-${it.index}`} value={it.claimNumber} />
         ))}
+        {items.map((it) => it.vin && <option key={`vin-${it.index}`} value={it.vin} />)}
+        {items.map((it) => it.serial && <option key={`sn-${it.index}`} value={it.serial} />)}
       </datalist>
       <button
         type="submit"

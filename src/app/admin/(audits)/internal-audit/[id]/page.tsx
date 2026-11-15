@@ -202,6 +202,8 @@ export default async function InternalAuditClaimPage({
       index: i,
       workOrderNo: c?.work_order_no ?? null,
       claimNumber: c?.claim_number ?? "",
+      vin: c?.vin ?? null,
+      serial: c?.part_serial_number ?? null,
     };
   });
 
