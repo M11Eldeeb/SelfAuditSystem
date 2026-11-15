@@ -92,14 +92,11 @@ export default async function InternalAuditPage({ searchParams }: { searchParams
                         <Link href={`/admin/internal-audit/${a.id}/report`} className="text-sm text-brand hover:underline">
                           View report
                         </Link>
-                      ) : a.auditor_id === officer.id ? (
-                        <Link href={`/admin/internal-audit/${a.id}?claim=0`} className="text-sm text-brand hover:underline">
-                          Continue
-                        </Link>
                       ) : (
-                        <span className="text-xs text-neutral-400" title="Only the officer who started this audit can edit it">
-                          In progress ({officerNameById.get(a.auditor_id ?? "") ?? "another officer"})
-                        </span>
+                        // Every warranty officer can work on an audit in progress - several at the same time.
+                        <Link href={`/admin/internal-audit/${a.id}?claim=0`} className="text-sm text-brand hover:underline">
+                          {a.auditor_id === officer.id ? "Continue" : `Join (started by ${officerNameById.get(a.auditor_id ?? "") ?? "another officer"})`}
+                        </Link>
                       )}
                       {a.branch_id && <SendNoticeButton auditId={a.id} sent={noticeSent.has(`internal-audit-notice:${a.id}`)} />}
                       {a.status !== "finalized" && a.auditor_id === officer.id && (

@@ -26,7 +26,6 @@ export default async function InternalAuditFinalizePage({
   ]);
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
-  if (audit.auditor_id !== officer.id) notFound();
 
   const [{ data: questions }, { data: internalClaims }, { data: branchAnswers }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),

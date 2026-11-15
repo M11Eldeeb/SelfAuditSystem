@@ -466,13 +466,13 @@ export async function saveBranchAnswers(
   formData: FormData
 ): Promise<SaveBranchAnswersState> {
   const supabase = await createClient();
-  const [officer, { data: audit }] = await Promise.all([
+  const [, { data: audit }] = await Promise.all([
     requireRole("officer"),
     supabase.from("self_audit_internal_audits").select("status, auditor_id").eq("id", auditId).single(),
   ]);
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
-  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can edit it." };
+  // Any warranty officer may work on an audit in progress (several at the same time).
 
   const questionIds = String(formData.get("branch_question_ids") ?? "")
     .split(",")
@@ -513,7 +513,7 @@ export async function finalizeInternalAudit(
   _prev: FinalizeInternalAuditState,
   formData: FormData
 ): Promise<FinalizeInternalAuditState> {
-  const officer = await requireRole("officer");
+  await requireRole("officer");
   const supabase = await createClient();
 
   const { data: audit } = await supabase
@@ -523,7 +523,6 @@ export async function finalizeInternalAudit(
     .single();
   if (!audit) return { error: "Internal audit not found." };
   if (audit.status === "finalized") return { error: "This audit has already been finalized." };
-  if (audit.auditor_id !== officer.id) return { error: "Only the officer who started this audit can finalize it." };
 
   const [{ data: questions }, { data: internalClaims }, { data: branchAnswers }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),

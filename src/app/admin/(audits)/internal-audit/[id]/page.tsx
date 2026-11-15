@@ -27,7 +27,7 @@ export default async function InternalAuditClaimPage({
   // requireRole and these two audit-scoped queries only share the auditId
   // (already resolved above), not each other's results, so they run
   // concurrently instead of as three sequential round trips.
-  const [officer, { data: audit }, { data: internalClaims }] =
+  const [, { data: audit }, { data: internalClaims }] =
     await Promise.all([
       requireRole("officer"),
       supabase
@@ -49,7 +49,6 @@ export default async function InternalAuditClaimPage({
   // Only the officer who started this audit can resume/edit it while it's
   // still in progress - once finalized, the report above is view-only for
   // everyone anyway.
-  if (audit.auditor_id !== officer.id) notFound();
 
   if (!internalClaims || internalClaims.length === 0) notFound();
   // Step 1: the announced claims; step 2: the unannounced ones (asked for at the visit).
