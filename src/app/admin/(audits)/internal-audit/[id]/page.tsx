@@ -340,7 +340,7 @@ export default async function InternalAuditClaimPage({
         <WorkOrderSearch currentIndex={currentIndex} items={searchItems} />
       </div>
 
-      <ClaimNavigator items={navItems} currentIndex={currentIndex} mode={mode} announced={current.announced} />
+      <ClaimNavigator items={navItems} currentIndex={currentIndex} mode={mode} />
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4 text-sm sm:grid-cols-4">
         <div>
