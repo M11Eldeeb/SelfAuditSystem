@@ -398,10 +398,11 @@ export async function saveQcDraft(input: { id?: string | null; kind: "new" | "re
     if (input.kind === "retest") {
       const check = input.checkId ? await failedCheck(input.checkId, branch.id) : null;
       if (!check || check.status !== "failed") return { error: "QC not found." };
-      const { data: row, error } = await draftsTable()
-        .upsert({ branch_id: branch.id, controller_id: user.id, kind: "retest", check_id: check.id, wip: check.wip_no, data, updated_at: now } as never, { onConflict: "check_id" })
-        .select("id")
-        .single();
+      // One saved retest per QC: update it when there is one, else add it.
+      const { data: had } = await draftsTable().select("id").eq("check_id", check.id).eq("kind", "retest").maybeSingle();
+      const { data: row, error } = had
+        ? await draftsTable().update({ controller_id: user.id, data, updated_at: now } as never).eq("id", (had as { id: string }).id).select("id").single()
+        : await draftsTable().insert({ branch_id: branch.id, controller_id: user.id, kind: "retest", check_id: check.id, wip: check.wip_no, data } as never).select("id").single();
       if (error || !row) return { error: notReady(error?.message) ?? "Could not save." };
       return { id: (row as { id: string }).id, savedAt: now };
     }
