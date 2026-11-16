@@ -30,7 +30,57 @@ type Item = {
   error?: string;
   /** A video this phone could not open to stamp: the original is sent. */
   unstamped?: string; // why the stamp could not be added (shown small, for support)
+  /** A local link to the file (the stamped one once it is ready), so the technician can look at it before sending. */
+  preview?: string;
 };
+
+/** A small picture of a file in the list: the photo itself, a still of the video, or the file icon. */
+function Thumb({ url, type, onOpen, still }: { url: string | null; type: string; onOpen: () => void; still?: boolean }) {
+  const box = "relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100 ring-1 ring-neutral-200";
+  if (!url) return <span className={`${box} flex items-center justify-center`}>{icon(type)}</span>;
+  return (
+    <button type="button" onClick={onOpen} className={box} aria-label="View">
+      {still || type.startsWith("image/") ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
+          {type.startsWith("video/") && <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow">▶</span>}
+        </>
+      ) : type.startsWith("video/") ? (
+        <>
+          <video src={`${url}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+          <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow">▶</span>
+        </>
+      ) : (
+        <span className="flex h-full w-full items-center justify-center">{icon(type)}</span>
+      )}
+    </button>
+  );
+}
+
+/** Full-screen look at one file before sending: the photo, the video (to play), or the PDF. */
+function Viewer({ file, onClose }: { file: { url: string; type: string; name: string }; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" aria-label={file.name}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
+        <span className="min-w-0 truncate text-sm" dir="ltr">{file.name}</span>
+        <button type="button" onClick={onClose} className="rounded-lg bg-white/15 px-4 py-2 text-sm font-semibold">
+          ✕
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-2" onClick={onClose}>
+        {file.type.startsWith("image/") ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={file.url} alt={file.name} className="max-h-full max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+        ) : file.type.startsWith("video/") ? (
+          <video src={file.url} controls autoPlay playsInline className="max-h-full max-w-full" onClick={(e) => e.stopPropagation()} />
+        ) : (
+          <iframe src={file.url} title={file.name} className="h-full w-full rounded bg-white" onClick={(e) => e.stopPropagation()} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 const MAX_VIDEO_SECONDS = 120;
 const PARALLEL_UPLOADS = 4;
@@ -136,6 +186,13 @@ export function TechClaimForm({
   const endOfRepair = initial?.endOfRepair ? localValue(initial.endOfRepair) : "";
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [items, setItems] = useState<Item[]>([]);
+  // Local links made for previews: freed when the form goes away.
+  const previews = useRef(new Set<string>());
+  const [viewing, setViewing] = useState<{ url: string; type: string; name: string } | null>(null);
+  useEffect(() => {
+    const all = previews.current;
+    return () => all.forEach((u) => URL.revokeObjectURL(u));
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const camera = useRef<HTMLInputElement>(null);
@@ -234,11 +291,17 @@ export function TechClaimForm({
           throw new Error(prepared.error ?? "Could not start the upload.");
         stagingReady.current = true;
         const session = prepared.session;
+        let preview: string | undefined;
+        if (stamped !== original) {
+          preview = URL.createObjectURL(stamped);
+          previews.current.add(preview);
+        }
         patch(key, {
           status: "sending",
           pct: 0,
           size: stamped.size,
           name: stamped.name,
+          ...(preview ? { preview, type: stamped.type } : {}),
         });
         const driveId = await withSlot(() =>
           uploadToSession(session, stamped, (sent) =>
@@ -279,6 +342,8 @@ export function TechClaimForm({
       }
       const key = `f${++seq.current}`;
       sources.current.set(key, f);
+      const preview = URL.createObjectURL(f);
+      previews.current.add(preview);
       update((cur) => [
         ...cur,
         {
@@ -288,6 +353,7 @@ export function TechClaimForm({
           size: f.size,
           status: "waiting",
           pct: 0,
+          preview,
         },
       ]);
       process(key);
@@ -562,7 +628,13 @@ export function TechClaimForm({
           <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-100 text-sm">
             {existing.map((f) => (
               <li key={f.id} className="flex items-center gap-2 px-3 py-2">
-                <span>{icon(f.mimeType)}</span>
+                <Thumb
+                  // Files already on the claim: Drive's small preview picture (a video is not downloaded for it).
+                  url={f.mimeType.startsWith("image/") || f.mimeType.startsWith("video/") ? `/api/tech-claims/file/${f.id}?thumb=1` : null}
+                  still
+                  type={f.mimeType}
+                  onOpen={() => setViewing({ url: `/api/tech-claims/file/${f.id}`, type: f.mimeType, name: f.name })}
+                />
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
                 <span className="text-xs text-emerald-700">{t.saved}</span>
                 <span className="text-xs text-neutral-500">
@@ -581,7 +653,7 @@ export function TechClaimForm({
             {items.map((it) => (
               <li key={it.key} className="space-y-1.5 px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span>{icon(it.type)}</span>
+                  <Thumb url={it.preview ?? null} type={it.type} onOpen={() => it.preview && setViewing({ url: it.preview, type: it.type, name: it.name })} />
                   <span className="min-w-0 flex-1 truncate">{it.name}</span>
                   <span
                     className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}
@@ -630,6 +702,8 @@ export function TechClaimForm({
           </ul>
         )}
       </div>
+
+      {viewing && <Viewer file={viewing} onClose={() => setViewing(null)} />}
 
       {busy && pending.length > 0 && (
         <div className="space-y-2 rounded-xl bg-neutral-100 p-4 text-sm text-neutral-800">
