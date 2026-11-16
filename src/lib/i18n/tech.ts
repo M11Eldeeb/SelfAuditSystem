@@ -90,6 +90,7 @@ const en = {
   errType: (name: string) => `"${name}": only photos, videos and PDF files can be added.`,
   errVideoLong: (name: string, secs: number, max: number) => `"${name}" is ${secs} seconds long - videos can be up to ${max} seconds.`,
   errFailed: (n: number) => `${n} file${n === 1 ? "" : "s"} could not be sent - press Retry or remove ${n === 1 ? "it" : "them"}.`,
+  errUnreadable: (name: string) => `"${name}" cannot be read from this phone, so it was not added. Try "Upload files" instead of "Upload from gallery", or record it with "Take photo or video". (If it keeps happening: phone Settings > Apps > Chrome > Permissions - allow Photos and videos / Files.)`,
   errGeneric: "Something went wrong - please try again.",
   language: "العربية",
   server: {} as Record<string, string>,
@@ -182,6 +183,7 @@ const ar: TechDict = {
   errType: (name) => `"${name}": يمكن إضافة الصور والفيديو وملفات PDF فقط.`,
   errVideoLong: (name, secs, max) => `مدة "${name}" ${secs} ثانية - الحد الأقصى للفيديو ${max} ثانية.`,
   errFailed: (n) => (n === 1 ? "تعذّر إرسال ملف واحد - اضغط إعادة المحاولة أو احذفه." : `تعذّر إرسال ${n} ملفات - اضغط إعادة المحاولة أو احذفها.`),
+  errUnreadable: (name) => `تعذّرت قراءة "${name}" من هذا الهاتف فلم تتم إضافته. جرّب "رفع ملفات" بدل "رفع من المعرض"، أو صوّره بزر "التقاط صورة أو فيديو". (إذا تكرر ذلك: إعدادات الهاتف > التطبيقات > Chrome > الأذونات - اسمح بالصور والفيديو / الملفات.)`,
   errGeneric: "حدث خطأ - يرجى المحاولة مرة أخرى.",
   language: "English",
   // The website's own messages, shown in Arabic.

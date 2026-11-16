@@ -108,6 +108,28 @@ function localValue(iso: string | null | undefined): string {
 }
 
 /** Some phones give no type for HEIC photos or videos: take it from the file name. */
+/** Files up to this size are copied into the phone's memory as soon as they are picked. */
+const SNAPSHOT_MAX = 150 * 1024 * 1024;
+
+/**
+ * Reads a picked file into memory right away. Some phones (e.g. Android with files picked from the Gallery app) hand over
+ * a file the browser can open only for a moment or not at all; holding the bytes keeps every later step (stamp, convert,
+ * send) from failing halfway. Returns null when the file cannot be read at all.
+ */
+async function snapshot(f: File): Promise<File | null> {
+  if (f.size === 0) return null;
+  try {
+    if (f.size > SNAPSHOT_MAX) {
+      await f.slice(0, 1024).arrayBuffer();
+      return f;
+    }
+    const bytes = await f.arrayBuffer();
+    return new File([bytes], f.name, { type: f.type, lastModified: f.lastModified });
+  } catch {
+    return null;
+  }
+}
+
 function withType(f: File): File {
   if (f.type) return f;
   const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
@@ -328,7 +350,13 @@ export function TechClaimForm({
     if (!list?.length) return;
     setError(null);
     for (const raw of Array.from(list)) {
-      const f = withType(raw);
+      const typed = withType(raw);
+      const f = await snapshot(typed);
+      if (!f) {
+        setError(t.errUnreadable(typed.name));
+        void reportUploadProblem({ name: typed.name, type: typed.type, size: typed.size, message: "unreadable: the picked file could not be read (permission or the gallery app)" });
+        continue;
+      }
       if (!/^(image\/|video\/|application\/pdf$)/.test(f.type)) {
         setError(t.errType(f.name));
         continue;
@@ -529,8 +557,11 @@ export function TechClaimForm({
           capture="environment"
           hidden
           onChange={(e) => {
-            void add(e.target.files);
-            e.target.value = "";
+            // The box is emptied only after every picked file has been read (emptying it earlier can cut the phone's access to them).
+            const input = e.currentTarget;
+            void add(input.files).finally(() => {
+              input.value = "";
+            });
           }}
         />
         <input
@@ -540,8 +571,11 @@ export function TechClaimForm({
           multiple
           hidden
           onChange={(e) => {
-            void add(e.target.files);
-            e.target.value = "";
+            // The box is emptied only after every picked file has been read (emptying it earlier can cut the phone's access to them).
+            const input = e.currentTarget;
+            void add(input.files).finally(() => {
+              input.value = "";
+            });
           }}
         />
         <input
@@ -551,8 +585,11 @@ export function TechClaimForm({
           multiple
           hidden
           onChange={(e) => {
-            void add(e.target.files);
-            e.target.value = "";
+            // The box is emptied only after every picked file has been read (emptying it earlier can cut the phone's access to them).
+            const input = e.currentTarget;
+            void add(input.files).finally(() => {
+              input.value = "";
+            });
           }}
         />
         <button
