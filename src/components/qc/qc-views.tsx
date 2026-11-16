@@ -33,6 +33,8 @@ function SheetAnswers({ sheet }: { sheet: Checklist }) {
                 );
               })}
             </ul>
+            {s.extra === "wheels" && sheet.wheelsOk && <div className="mt-1 text-emerald-700">Tire pressure & torque: all good</div>}
+            {s.extra === "brakes" && sheet.brakesOk && <div className="mt-1 text-emerald-700">Brake pads & disks, tire date: all good</div>}
             {s.extra === "wheels" && Object.keys(sheet.wheels).length > 0 && (
               <div className="mt-1 text-neutral-600">{WHEELS.filter((w) => sheet.wheels[w]).map((w) => `${w}: ${sheet.wheels[w]?.pressure || "-"} psi / ${sheet.wheels[w]?.torque || "-"} Nm`).join(" · ")}</div>
             )}

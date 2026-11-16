@@ -48,6 +48,22 @@ export function flaggedItems(previous: Checklist | null | undefined): string[] {
  * `previous` (a recheck after a fail): the items marked Inspect / Repair last time and the last comments come first, to
  * be answered again; everything else keeps its last answer behind "Review all items".
  */
+/** "All good" for a group of readings: no numbers to type; tap again to enter them. */
+function ReadingsOk({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return on ? (
+    <span className="flex items-center gap-2">
+      <span className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white">✓ All good</span>
+      <button type="button" onClick={() => onChange(false)} className="text-xs font-semibold text-neutral-500 underline">
+        Enter readings
+      </button>
+    </span>
+  ) : (
+    <button type="button" onClick={() => onChange(true)} className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 active:bg-emerald-50">
+      ✓ All good
+    </button>
+  );
+}
+
 export function ChecklistForm({ value, onChange, previous }: { value: Checklist; onChange: (c: Checklist) => void; previous?: Checklist | null }) {
   const sections = sectionsFor(value.repairType);
   const flagged = flaggedItems(previous);
@@ -116,7 +132,13 @@ export function ChecklistForm({ value, onChange, previous }: { value: Checklist;
             <div className="text-sm font-bold text-neutral-900">{s.title}</div>
             <button
               type="button"
-              onClick={() => set({ answers: { ...value.answers, ...Object.fromEntries(s.items.filter((i) => !value.answers[i.id]).map((i) => [i.id, "G" as Mark])) } })}
+              onClick={() =>
+                set({
+                  answers: { ...value.answers, ...Object.fromEntries(s.items.filter((i) => !value.answers[i.id]).map((i) => [i.id, "G" as Mark])) },
+                  ...(s.extra === "wheels" && !Object.keys(value.wheels).length ? { wheelsOk: true } : {}),
+                  ...(s.extra === "brakes" && !Object.keys(value.brakes).length && !value.tireDate ? { brakesOk: true } : {}),
+                })
+              }
               className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 active:bg-emerald-50"
             >
               ✓ All good
@@ -134,7 +156,11 @@ export function ChecklistForm({ value, onChange, previous }: { value: Checklist;
 
           {s.extra === "wheels" && (
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-neutral-600">Tire pressure (psi) and torque (Nm)</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-neutral-600">Tire pressure (psi) and torque (Nm)</div>
+                <ReadingsOk on={!!value.wheelsOk} onChange={(on) => set({ wheelsOk: on })} />
+              </div>
+              {!value.wheelsOk && (
               <div className="grid grid-cols-2 gap-2">
                 {WHEELS.map((w) => (
                   <div key={w} className="space-y-1 rounded-lg bg-white p-2 ring-1 ring-neutral-200">
@@ -156,12 +182,18 @@ export function ChecklistForm({ value, onChange, previous }: { value: Checklist;
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
           {s.extra === "brakes" && (
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-neutral-600">Brake pads & disks (mm)</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-neutral-600">Brake pads & disks (mm), tire date</div>
+                <ReadingsOk on={!!value.brakesOk} onChange={(on) => set({ brakesOk: on })} />
+              </div>
+              {!value.brakesOk && (
+              <>
               <div className="grid grid-cols-2 gap-2">
                 {BRAKE_MEASURES.map((b) => (
                   <label key={b.id} className="space-y-1">
@@ -174,6 +206,8 @@ export function ChecklistForm({ value, onChange, previous }: { value: Checklist;
                 <span className="text-xs text-neutral-600">Tire production date (week + year, e.g. 2324)</span>
                 <input value={value.tireDate ?? ""} onChange={(e) => set({ tireDate: e.target.value.replace(/[^\d/]/g, "").slice(0, 7) })} inputMode="numeric" placeholder="WWYY" className={input} />
               </label>
+              </>
+              )}
             </div>
           )}
 

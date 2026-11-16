@@ -158,7 +158,9 @@ function sheetPage(qc: QcDetail, t: QcTest) {
         View,
         { style: { paddingHorizontal: 6, paddingVertical: 3 } },
         ...sec.items.map((i) => itemRow(i.label, i.marks, sheet.answers[i.id], sheet.clarify[i.id])),
-        sec.extra === "wheels"
+        sec.extra === "wheels" && sheet.wheelsOk
+          ? h(Text, { style: { fontSize: 8, color: "#047857", marginTop: 4 } }, "Tire pressure & torque: all good")
+          : sec.extra === "wheels"
           ? h(
               View,
               { style: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 } },
@@ -167,7 +169,9 @@ function sheetPage(qc: QcDetail, t: QcTest) {
               )
             )
           : null,
-        sec.extra === "brakes"
+        sec.extra === "brakes" && sheet.brakesOk
+          ? h(Text, { style: { fontSize: 8, color: "#047857", marginTop: 4 } }, "Brake pads & disks, tire production date: all good")
+          : sec.extra === "brakes"
           ? h(
               View,
               { style: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 } },

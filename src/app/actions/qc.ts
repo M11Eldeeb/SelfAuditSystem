@@ -186,7 +186,7 @@ const notYet = (message: string | undefined) => (message && /check constraint/i.
 /** Pass closes the case (passed); Closed closes it without a pass (justified); Fail keeps it open for a retest. */
 const STATUS_OF = { pass: "passed", fail: "failed", close: "closed" } as const;
 
-export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[]; checklist?: unknown };
+export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[]; checklist?: unknown; draftId?: string };
 
 /** The inspection sheet of the repair type, every item answered (null when the repair type has no sheet). */
 function checkedSheet(raw: unknown, repairType: string | null): { sheet: Checklist | null } | { error: string } {
@@ -327,6 +327,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     if (testError || !test) return { id: check.id, error: testError?.message ?? "Could not save the test." };
     if (files.length) await admin.from("self_audit_qc_files").insert(files.map((f) => ({ check_id: check.id, test_id: test.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: user.id })));
     revalidateAll();
+    if (input.draftId) await dropDraft({ id: input.draftId, branchId: branch.id });
     return { id: check.id };
   } catch (e) {
     return { error: driveError(e) };
@@ -358,9 +359,70 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     const folder = check.drive_folder_id ?? (await qcFolder(branch, check.wip_no));
     const files = await verifiedFiles(folder, input.driveFileIds);
     if (files.length) await admin.from("self_audit_qc_files").insert(files.map((f) => ({ check_id: check.id, test_id: test.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: user.id })));
+    await dropDraft({ checkId: check.id });
     revalidateAll();
     return {};
   } catch (e) {
     return { error: driveError(e) };
   }
+}
+
+
+// ---------------------------------------------------------------- drafts (save part-way, complete later)
+
+type DraftDb = { from: (t: string) => ReturnType<ReturnType<typeof createAdminClient>["from"]> };
+const draftsTable = () => (createAdminClient() as unknown as DraftDb).from("self_audit_qc_drafts");
+const notReady = (m: string | undefined) => (m && /qc_drafts/i.test(m) ? "Save is not available yet - the database needs an update (ask the warranty officer)." : m);
+
+async function dropDraft(where: { id?: string; branchId?: string; checkId?: string }) {
+  try {
+    if (where.id && where.branchId) await draftsTable().delete().eq("id", where.id).eq("branch_id", where.branchId);
+    else if (where.checkId) await draftsTable().delete().eq("check_id", where.checkId).eq("kind", "retest");
+  } catch {
+    // a draft left behind is harmless
+  }
+}
+
+/**
+ * Quality controller: keeps the form as it is (answers, sheet, the files already uploaded) to finish later. A new QC's
+ * draft has its own id; a retest's draft is one per QC. Nothing is checked - it is not submitted.
+ */
+export async function saveQcDraft(input: { id?: string | null; kind: "new" | "retest"; checkId?: string | null; data: unknown }): Promise<{ id?: string; savedAt?: string; error?: string }> {
+  try {
+    const { user, branch } = await controller();
+    const json = JSON.stringify(input.data ?? {});
+    if (json.length > 300_000) return { error: "This draft is too large to save." };
+    const data = JSON.parse(json) as Record<string, unknown>;
+    const wip = typeof data.wip === "string" ? data.wip.replace(/\D/g, "").slice(0, 5) || null : null;
+    const now = new Date().toISOString();
+    if (input.kind === "retest") {
+      const check = input.checkId ? await failedCheck(input.checkId, branch.id) : null;
+      if (!check || check.status !== "failed") return { error: "QC not found." };
+      const { data: row, error } = await draftsTable()
+        .upsert({ branch_id: branch.id, controller_id: user.id, kind: "retest", check_id: check.id, wip: check.wip_no, data, updated_at: now } as never, { onConflict: "check_id" })
+        .select("id")
+        .single();
+      if (error || !row) return { error: notReady(error?.message) ?? "Could not save." };
+      return { id: (row as { id: string }).id, savedAt: now };
+    }
+    if (input.id) {
+      const { data: row, error } = await draftsTable().update({ data, wip, controller_id: user.id, updated_at: now } as never).eq("id", input.id).eq("branch_id", branch.id).select("id").maybeSingle();
+      if (error) return { error: notReady(error.message) };
+      if (row) return { id: (row as { id: string }).id, savedAt: now };
+    }
+    const { data: row, error } = await draftsTable().insert({ branch_id: branch.id, controller_id: user.id, kind: "new", wip, data } as never).select("id").single();
+    if (error || !row) return { error: notReady(error?.message) ?? "Could not save." };
+    revalidatePath("/qc");
+    return { id: (row as { id: string }).id, savedAt: now };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not save." };
+  }
+}
+
+/** Quality controller: throws a saved draft away (its uploaded files stay in the WIP's Drive folder). */
+export async function deleteQcDraft(id: string): Promise<{ error?: string }> {
+  const { branch } = await controller();
+  await dropDraft({ id, branchId: branch.id });
+  revalidatePath("/qc");
+  return {};
 }

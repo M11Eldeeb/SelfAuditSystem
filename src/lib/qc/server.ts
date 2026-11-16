@@ -333,3 +333,31 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
     topFailReasons: [...reasons.entries()].map(([text, count]) => ({ text, count })).sort((a, b) => b.count - a.count).slice(0, 10),
   };
 }
+
+
+// ---------------------------------------------------------------- drafts
+
+export type QcDraft = { id: string; kind: "new" | "retest"; checkId: string | null; wip: string | null; data: Record<string, unknown>; updatedAt: string; controllerId: string };
+type DraftRow = { id: string; kind: "new" | "retest"; check_id: string | null; wip: string | null; data: Record<string, unknown>; updated_at: string; controller_id: string; branch_id: string };
+const drafts = () => (createAdminClient() as unknown as { from: (t: string) => ReturnType<ReturnType<typeof createAdminClient>["from"]> }).from("self_audit_qc_drafts");
+const toDraft = (r: DraftRow): QcDraft => ({ id: r.id, kind: r.kind, checkId: r.check_id, wip: r.wip, data: r.data ?? {}, updatedAt: r.updated_at, controllerId: r.controller_id });
+
+/** New-QC drafts of the controller's branch (newest first). Empty until the drafts table exists. */
+export async function listQcDrafts(user: CurrentUser): Promise<QcDraft[]> {
+  if (!user.branch_id) return [];
+  const { data, error } = await drafts().select("*").eq("branch_id", user.branch_id).eq("kind", "new").order("updated_at", { ascending: false }).limit(50);
+  return error ? [] : ((data ?? []) as unknown as DraftRow[]).map(toDraft);
+}
+
+export async function getQcDraft(user: CurrentUser, id: string): Promise<QcDraft | null> {
+  if (!user.branch_id || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await drafts().select("*").eq("id", id).eq("branch_id", user.branch_id).maybeSingle();
+  return error || !data ? null : toDraft(data as unknown as DraftRow);
+}
+
+/** The saved retest of a failed QC, if any. */
+export async function getRetestDraft(user: CurrentUser, checkId: string): Promise<QcDraft | null> {
+  if (!user.branch_id) return null;
+  const { data, error } = await drafts().select("*").eq("check_id", checkId).eq("kind", "retest").eq("branch_id", user.branch_id).maybeSingle();
+  return error || !data ? null : toDraft(data as unknown as DraftRow);
+}

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
+import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, saveQcDraft, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
 import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 import { emptyChecklist, sectionsFor, unanswered, type Checklist } from "@/lib/qc/checklist";
@@ -196,8 +196,11 @@ function ResultFields({
 }
 
 /** Files go to Google Drive the moment they are added (into the WIP's QC folder). */
-function useUploads(target: () => { wip?: string; checkId?: string } | null) {
-  const [uploads, setUploads] = useState<Upload[]>([]);
+/** A file already uploaded, as a draft keeps it. */
+export type SavedFile = { driveId: string; name: string; size: number; wip?: string };
+
+function useUploads(target: () => { wip?: string; checkId?: string } | null, initial: SavedFile[] = []) {
+  const [uploads, setUploads] = useState<Upload[]>(() => initial.map((f, i) => ({ key: `s${i}`, name: f.name, size: f.size, sent: f.size, driveId: f.driveId, wip: f.wip })));
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
   const patch = (key: string, p: Partial<Upload>) => setUploads((u) => u.map((x) => (x.key === key ? { ...x, ...p } : x)));
@@ -240,7 +243,8 @@ function useUploads(target: () => { wip?: string; checkId?: string } | null) {
   const ids = uploads.filter((u) => u.driveId).map((u) => u.driveId!);
   // The WIP numbers the files were uploaded under (the WIP can still be changed afterwards: the server moves them).
   const wips = [...new Set(uploads.filter((u) => u.driveId && u.wip).map((u) => u.wip!))];
-  return { uploads, add, remove, busy, ids, wips, error };
+  const saved = uploads.filter((u) => u.driveId).map((u) => ({ driveId: u.driveId!, name: u.name, size: u.size, wip: u.wip }));
+  return { uploads, add, remove, busy, ids, wips, saved, error };
 }
 
 /** Take a photo / video with the camera, or pick files (photos, videos, PDF). */
@@ -294,7 +298,7 @@ function FilesField({ files, onBeforeAdd }: { files: ReturnType<typeof useUpload
 
 /** A name from the list, or "Other" - which opens a box to type the name. */
 function PersonChoice({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
-  const [other, setOther] = useState(false);
+  const [other, setOther] = useState(() => !!value && !options.includes(value));
   const OTHER = "__other";
   return (
     <div className="space-y-2">
@@ -360,40 +364,99 @@ function DuplicateWipDialog({ info, onNew }: { info: QcWipInfo; onNew: () => voi
   );
 }
 
-/** The Submit button, kept at the bottom of the screen on a phone. */
-function SubmitBar({ label, busy, saving, error }: { label: string; busy: boolean; saving: boolean; error: string | null }) {
+/** Save (keep it to finish later) and Submit, kept at the bottom of the screen on a phone. */
+function SubmitBar({
+  label,
+  busy,
+  saving,
+  error,
+  onSave,
+  draftSaving,
+  savedAt,
+}: {
+  label: string;
+  busy: boolean;
+  saving: boolean;
+  error: string | null;
+  onSave: () => void;
+  draftSaving: boolean;
+  savedAt: string | null;
+}) {
   return (
     <div className="sticky bottom-0 z-10 -mx-4 space-y-2 border-t border-neutral-200 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0">
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
-      <button disabled={saving || busy} className="min-h-13 w-full rounded-2xl bg-brand px-4 py-3.5 text-base font-bold text-white shadow-sm active:scale-[0.99] disabled:opacity-50">
-        {busy ? "Uploading files…" : saving ? "Saving…" : label}
-      </button>
+      {savedAt && !error && (
+        <p className="text-center text-xs text-emerald-700">
+          ✓ Saved at {new Date(savedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })} - open it again from QC records to finish.
+        </p>
+      )}
+      <div className="grid grid-cols-[1fr_2fr] gap-2">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={draftSaving || saving || busy}
+          className="min-h-13 rounded-2xl border-2 border-neutral-300 bg-white px-3 py-3 text-base font-bold text-neutral-800 active:scale-[0.99] disabled:opacity-50"
+        >
+          {draftSaving ? "Saving…" : "Save"}
+        </button>
+        <button disabled={saving || busy || draftSaving} className="min-h-13 rounded-2xl bg-brand px-4 py-3.5 text-base font-bold text-white shadow-sm active:scale-[0.99] disabled:opacity-50">
+          {busy ? "Uploading files…" : saving ? "Submitting…" : label}
+        </button>
+      </div>
     </div>
   );
 }
 
+/** What a draft of the new-QC form keeps. */
+export type NewQcDraftData = {
+  wip?: string; vin?: string; odometerIn?: string; group?: string; technicians?: QcTechnician[]; teamLeader?: string; serviceAdvisor?: string;
+  model?: string; repairType?: string; checklist?: Checklist; replacedParts?: string; defectDescription?: string;
+  result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[];
+};
+/** What a draft of the retest form keeps. */
+export type RetestDraftData = { technicians?: QcTechnician[]; checklist?: Checklist; result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[] };
+
 /** Quality controller: a new QC for one vehicle (WIP). */
-export function QcNewForm({ options }: { options: QcFormOptions }) {
+export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: { id: string; data: NewQcDraftData; savedAt: string } | null }) {
   const router = useRouter();
-  const [wip, setWip] = useState("");
-  const [vin, setVin] = useState("");
+  const d = draft?.data ?? {};
+  const [wip, setWip] = useState(d.wip ?? "");
+  const [vin, setVin] = useState(d.vin ?? "");
   const [info, setInfo] = useState<QcWipInfo | null>(null);
-  const [odometerIn, setOdometerIn] = useState("");
-  const [group, setGroup] = useState<string>("");
-  const [technicians, setTechnicians] = useState<QcTechnician[]>([]);
-  const [teamLeader, setTeamLeader] = useState("");
-  const [serviceAdvisor, setServiceAdvisor] = useState("");
-  const [model, setModel] = useState("");
-  const [repairType, setRepairType] = useState("");
-  const [checklist, setChecklist] = useState<Checklist>(emptyChecklist(""));
-  const [replacedParts, setReplacedParts] = useState("");
-  const [defectDescription, setDefectDescription] = useState("");
-  const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
-  const [comment, setComment] = useState("");
-  const [finalOdometer, setFinalOdometer] = useState("");
+  const [odometerIn, setOdometerIn] = useState(d.odometerIn ?? "");
+  const [group, setGroup] = useState<string>(d.group ?? "");
+  const [technicians, setTechnicians] = useState<QcTechnician[]>(d.technicians ?? []);
+  const [teamLeader, setTeamLeader] = useState(d.teamLeader ?? "");
+  const [serviceAdvisor, setServiceAdvisor] = useState(d.serviceAdvisor ?? "");
+  const [model, setModel] = useState(d.model ?? "");
+  const [repairType, setRepairType] = useState(d.repairType ?? "");
+  const [checklist, setChecklist] = useState<Checklist>(d.checklist ?? emptyChecklist(""));
+  const [replacedParts, setReplacedParts] = useState(d.replacedParts ?? "");
+  const [defectDescription, setDefectDescription] = useState(d.defectDescription ?? "");
+  const [result, setResult] = useState<"pass" | "fail" | "close" | "">(d.result ?? "");
+  const [comment, setComment] = useState(d.comment ?? "");
+  const [finalOdometer, setFinalOdometer] = useState(d.finalOdometer ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const files = useUploads(() => (wip.length === 5 ? { wip } : null));
+  const [draftId, setDraftId] = useState<string | null>(draft?.id ?? null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt ?? null);
+  const files = useUploads(() => (wip.length === 5 ? { wip } : null), d.files ?? []);
+
+  /** Save: keep everything as it is to finish later (nothing is checked). */
+  async function saveDraft() {
+    setError(null);
+    setDraftSaving(true);
+    const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, serviceAdvisor, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, files: files.saved };
+    const r = await saveQcDraft({ id: draftId, kind: "new", data });
+    setDraftSaving(false);
+    if (r.error || !r.id) return setError(r.error ?? "Could not save.");
+    setSavedAt(r.savedAt ?? new Date().toISOString());
+    if (r.id !== draftId) {
+      setDraftId(r.id);
+      router.replace(`/qc/new?draft=${r.id}`, { scroll: false });
+    }
+  }
   const purpose = group;
 
   const [dupOpen, setDupOpen] = useState(false);
@@ -420,7 +483,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
     const left = sectionsFor(repairType).length ? unanswered({ ...checklist, repairType }) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
     setSaving(true);
-    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType } });
+    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType }, draftId: draftId ?? undefined });
     setSaving(false);
     if (r.error) return setError(r.error);
     // Saved: back to the QC records (a pass or close closes the case; a fail waits for its retest).
@@ -514,7 +577,7 @@ export function QcNewForm({ options }: { options: QcFormOptions }) {
         <FilesField files={files} />
       </Section>
 
-      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} />
+      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} onSave={saveDraft} draftSaving={draftSaving} savedAt={savedAt} />
     </form>
   );
 }
@@ -526,6 +589,7 @@ export function QcRetestForm({
   lastTechnicians,
   repairType,
   lastChecklist,
+  draft,
 }: {
   checkId: string;
   options: QcFormOptions;
@@ -533,22 +597,38 @@ export function QcRetestForm({
   repairType: string | null;
   /** The previous test's sheet: its answers are the starting point (only what changed needs a tap). */
   lastChecklist: Checklist | null;
+  /** This retest saved part-way earlier. */
+  draft?: { data: RetestDraftData; savedAt: string } | null;
 }) {
+  const d = draft?.data ?? {};
   // The last answers are kept, except the items marked Inspect / Repair: those start empty and must be checked again.
   const [checklist, setChecklist] = useState<Checklist>(() => {
+    if (d.checklist) return { ...d.checklist, repairType: repairType ?? "" };
     if (!lastChecklist) return emptyChecklist(repairType ?? "");
     const recheck = new Set(flaggedItems(lastChecklist));
     return { ...lastChecklist, repairType: repairType ?? "", answers: Object.fromEntries(Object.entries(lastChecklist.answers).filter(([id]) => !recheck.has(id))), comments: {} };
   });
   const hasSheet = sectionsFor(repairType).length > 0;
   const router = useRouter();
-  const [technicians, setTechnicians] = useState<QcTechnician[]>(lastTechnicians);
-  const [result, setResult] = useState<"pass" | "fail" | "close" | "">("");
-  const [comment, setComment] = useState("");
-  const [finalOdometer, setFinalOdometer] = useState("");
+  const [technicians, setTechnicians] = useState<QcTechnician[]>(d.technicians ?? lastTechnicians);
+  const [result, setResult] = useState<"pass" | "fail" | "close" | "">(d.result ?? "");
+  const [comment, setComment] = useState(d.comment ?? "");
+  const [finalOdometer, setFinalOdometer] = useState(d.finalOdometer ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const files = useUploads(() => ({ checkId }));
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt ?? null);
+  const files = useUploads(() => ({ checkId }), d.files ?? []);
+
+  async function saveDraft() {
+    setError(null);
+    setDraftSaving(true);
+    const data: RetestDraftData = { technicians, checklist, result, comment, finalOdometer, files: files.saved };
+    const r = await saveQcDraft({ kind: "retest", checkId, data });
+    setDraftSaving(false);
+    if (r.error) return setError(r.error);
+    setSavedAt(r.savedAt ?? new Date().toISOString());
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -582,7 +662,7 @@ export function QcRetestForm({
       <Section n={hasSheet ? 4 : 3} title="Files">
         <FilesField files={files} />
       </Section>
-      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} />
+      <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} onSave={saveDraft} draftSaving={draftSaving} savedAt={savedAt} />
     </form>
   );
 }

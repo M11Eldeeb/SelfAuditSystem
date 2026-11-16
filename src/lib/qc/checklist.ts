@@ -159,6 +159,10 @@ export type Checklist = {
   wheels: Partial<Record<(typeof WHEELS)[number], { pressure?: string; torque?: string }>>;
   brakes: Partial<Record<(typeof BRAKE_MEASURES)[number]["id"], string>>;
   tireDate?: string;
+  /** "All good" instead of typing the tire pressures / torques. */
+  wheelsOk?: boolean;
+  /** "All good" instead of typing the brake pad / disk thickness and the tire date. */
+  brakesOk?: boolean;
   comments: Record<string, string>;
 };
 
@@ -191,6 +195,8 @@ export function cleanChecklist(raw: unknown, repairType: string): Checklist | nu
         const v = c.wheels?.[w];
         if (v && (v.pressure || v.torque)) out.wheels[w] = { pressure: numberText(v.pressure), torque: numberText(v.torque) };
       }
+    if (s.extra === "wheels" && c.wheelsOk === true) out.wheelsOk = true;
+    if (s.extra === "brakes" && c.brakesOk === true) out.brakesOk = true;
     if (s.extra === "brakes") {
       for (const b of BRAKE_MEASURES) if (c.brakes?.[b.id]) out.brakes[b.id] = numberText(c.brakes[b.id]);
       if (c.tireDate) out.tireDate = short(c.tireDate, 8).replace(/[^\d/]/g, "");
