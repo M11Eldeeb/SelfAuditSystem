@@ -1,7 +1,7 @@
 "use server";
 
-// Customer queue admin (warranty officers): each branch's queue code, Arabic name and status; who has queue access;
-// creating the accounts of the queue people from the old app; the team list.
+// Customer queue admin (warranty officers): each branch's queue code, Arabic name and status; who has queue access
+// (the portal's own accounts); creating the accounts of the old queue app's people who have none yet.
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -47,8 +47,8 @@ export async function setQueueRole(userId: string, role: string | null, jobTitle
 export type ImportResult = { employeeId: string; name: string; email: string; outcome: "created" | "linked" | "error"; message?: string };
 
 /**
- * The queue people from the old app (the team list rows with a queue role): someone who already has a portal account
- * (same e-mail) gets queue access on it; anyone else gets a queue-only account with the password the officer typed,
+ * The queue people of the old queue app (self_audit_queue_import): someone who already has a portal account (same
+ * e-mail) keeps it as it is and gets queue access on it (if not set already); anyone else gets a queue-only account with the password the officer typed,
  * changed at the first sign-in. At most 25 per call.
  */
 export async function importQueueAccounts(employeeIds: string[], password: string): Promise<{ results: ImportResult[]; error?: string }> {
@@ -57,7 +57,7 @@ export async function importQueueAccounts(employeeIds: string[], password: strin
   if (password && password.length < 8) return { results: [], error: "The password must have at least 8 characters." };
   const admin = createAdminClient();
   const [{ data: people }, { data: users }] = await Promise.all([
-    admin.from("self_audit_queue_employees").select("id, name, title, email, branch_id, queue_role").in("id", employeeIds),
+    admin.from("self_audit_queue_import").select("id, name, title, email, branch_id, queue_role").in("id", employeeIds),
     admin.from("self_audit_users").select("id, email"),
   ]);
   const byEmail = new Map((users ?? []).map((u) => [u.email.trim().toLowerCase(), u.id]));
@@ -68,7 +68,7 @@ export async function importQueueAccounts(employeeIds: string[], password: strin
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ...base, outcome: "error", message: "No valid e-mail." };
     const existing = byEmail.get(email);
     if (existing) {
-      const { error } = await admin.from("self_audit_users").update({ queue_role: p.queue_role, job_title: p.title }).eq("id", existing);
+      const { error } = await admin.from("self_audit_users").update({ queue_role: p.queue_role, job_title: p.title }).eq("id", existing).is("queue_role", null);
       return error ? { ...base, outcome: "error", message: error.message } : { ...base, outcome: "linked" };
     }
     if (!password) return { ...base, outcome: "error", message: "Type the first password to create new accounts." };
@@ -97,34 +97,4 @@ export async function importQueueAccounts(employeeIds: string[], password: strin
   revalidatePath("/queue/admin");
   revalidatePath("/admin/branches");
   return { results };
-}
-
-export async function updateEmployee(
-  id: string,
-  input: { name: string; title: string; city: string; branchId: string; phone: string; email: string }
-): Promise<{ error?: string }> {
-  await officer();
-  const name = input.name.trim().slice(0, 120);
-  if (!name) return { error: "Name is required." };
-  const admin = createAdminClient();
-  let branchName: string | null = null;
-  if (input.branchId) {
-    const { data: b } = await admin.from("self_audit_branches").select("name").eq("id", input.branchId).maybeSingle();
-    branchName = b?.name ?? null;
-  }
-  const { error } = await admin
-    .from("self_audit_queue_employees")
-    .update({
-      name,
-      title: input.title.trim().slice(0, 120) || null,
-      city: input.city.trim().slice(0, 60) || null,
-      branch_id: input.branchId || null,
-      ...(input.branchId ? { branch_name: branchName } : {}),
-      phone: input.phone.trim().slice(0, 30) || null,
-      email: input.email.trim().slice(0, 120) || null,
-    })
-    .eq("id", id);
-  if (error) return { error: error.message };
-  revalidatePath("/queue/team");
-  return {};
 }

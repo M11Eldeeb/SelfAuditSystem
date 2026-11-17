@@ -4,8 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import { importQueueAccounts, setQueueRole, updateBranchQueue, type ImportResult } from "@/app/actions/queue-admin";
 
 export type AdminBranch = { id: string; name: string; queue_code: string | null; name_ar: string | null; queue_status: string; qrSvg: string | null; joinUrl: string | null };
-export type AdminUser = { id: string; name: string; email: string; role: string; branch: string | null; queue_role: string | null; job_title: string | null };
 export type AdminPerson = { id: string; name: string; title: string | null; branch: string | null; email: string | null; queue_role: string; account: "none" | "no_access" | "linked" };
+export type AdminUser = { id: string; name: string; email: string; role: string; branch: string | null; queue_role: string | null; fromRole: string | null; job_title: string | null };
 
 const QUEUE_ROLES = [
   { value: "advisor", label: "Service advisor" },
@@ -20,7 +20,7 @@ export function QueueAdmin({ branches, users, people }: { branches: AdminBranch[
   return (
     <div className="space-y-6">
       <Branches branches={branches} />
-      <Import people={people} />
+      {people.length > 0 && <Import people={people} />}
       <Access users={users} />
     </div>
   );
@@ -133,9 +133,9 @@ function Import({ people }: { people: AdminPerson[] }) {
 
   return (
     <section className={card}>
-      <h2 className="font-semibold text-neutral-900">Queue people from the old app</h2>
+      <h2 className="font-semibold text-neutral-900">People from the old queue app</h2>
       <p className="mb-3 text-sm text-neutral-500">
-        Someone with a portal account (same e-mail) gets queue access on it. Anyone else gets a queue-only account with the first password you type here; they choose their own at the first sign-in. {todo} still to do.
+        Someone who already has a portal account (same e-mail) keeps it and gets queue access on it. Anyone else gets a queue-only account with the first password you type here; they choose their own at the first sign-in. {todo} still to do.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <select value={filter} onChange={(e) => setFilter(e.target.value as "todo" | "all")} className={input}>
@@ -239,13 +239,13 @@ function Access({ users }: { users: AdminUser[] }) {
   const [onlyQueue, setOnlyQueue] = useState(true);
   const shown = useMemo(() => {
     const n = q.trim().toLowerCase();
-    return users.filter((u) => (!onlyQueue || u.queue_role) && (!n || `${u.name} ${u.email} ${u.branch ?? ""}`.toLowerCase().includes(n)));
+    return users.filter((u) => (!onlyQueue || u.queue_role || u.fromRole) && (!n || `${u.name} ${u.email} ${u.branch ?? ""}`.toLowerCase().includes(n)));
   }, [users, q, onlyQueue]);
   return (
     <section className={card}>
       <h2 className="font-semibold text-neutral-900">Queue access</h2>
       <p className="mb-3 text-sm text-neutral-500">
-        What each account does in the queue, beside its portal role. Warranty officers, national managers and managers see every branch already. A queue manager without a branch sees every branch.
+        What each portal account does in the queue. Service advisors and service managers have it from their role; warranty officers, national managers and managers see every branch. New people (e.g. spare parts advisors) are created on the Users page, with role Customer queue only.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, e-mail, branch" className={`${input} w-64`} />
@@ -293,7 +293,7 @@ function AccessRow({ u }: { u: AdminUser }) {
       <td className="px-2 py-1.5 text-neutral-600">{u.branch ?? "—"}</td>
       <td className="px-2 py-1.5">
         <select value={role} onChange={(e) => setRole(e.target.value)} className={input}>
-          <option value="">No queue access</option>
+          <option value="">{u.fromRole ? `${roleLabel(u.fromRole)} (from the role)` : "No queue access"}</option>
           {QUEUE_ROLES.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}

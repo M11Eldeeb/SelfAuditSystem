@@ -103,7 +103,7 @@ export function NavBar({
   const pathname = usePathname();
   const search = useSearchParams();
   // The customer queue (its own area): a link in every menu for the people who work in it.
-  const queueAccess = !!user.queue_role || user.role === "officer" || user.role === "national_manager" || user.role === "manager";
+  const queueAccess = !!user.queue_role || user.role === "service_advisor" || user.role === "service_manager" || user.role === "officer" || user.role === "national_manager" || user.role === "manager";
   const links = queueAccess && !pathname.startsWith("/queue") && !areaLinks.some((l) => l.href.startsWith("/queue"))
     ? [...areaLinks.filter((l) => !l.bottom), { href: "/queue", label: "Customer queue" }, ...areaLinks.filter((l) => l.bottom)]
     : areaLinks;

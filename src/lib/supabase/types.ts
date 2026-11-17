@@ -63,16 +63,16 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_settings"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_queue_import: {
+        Row: { id: string; name: string; title: string | null; branch_id: string | null; email: string; queue_role: QueueRole; created_at: string };
+        Insert: { id?: string; name: string; title?: string | null; branch_id?: string | null; email: string; queue_role: QueueRole; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_import"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_queue_push: {
         Row: { id: string; ticket_id: string; endpoint: string; p256dh: string; auth: string; created_at: string };
         Insert: { id?: string; ticket_id: string; endpoint: string; p256dh: string; auth: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_push"]["Insert"]>;
-        Relationships: [];
-      };
-      self_audit_queue_employees: {
-        Row: { id: string; name: string; title: string | null; city: string | null; branch_id: string | null; branch_name: string | null; phone: string | null; email: string | null; queue_role: QueueRole | null; created_at: string };
-        Insert: { id?: string; name: string; title?: string | null; city?: string | null; branch_id?: string | null; branch_name?: string | null; phone?: string | null; email?: string | null; queue_role?: QueueRole | null; created_at?: string };
-        Update: Partial<Database["public"]["Tables"]["self_audit_queue_employees"]["Insert"]>;
         Relationships: [];
       };
       self_audit_login_failures: {

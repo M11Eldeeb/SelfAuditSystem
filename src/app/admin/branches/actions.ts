@@ -98,9 +98,11 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const fullName = String(formData.get("full_name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
   const branchId = String(formData.get("branch_id") ?? "");
+  const queueRole = (["advisor", "parts_advisor", "manager"] as const).find((r) => r === formData.get("queue_role")) ?? null;
+  if (role === "queue_user" && !queueRole) return { error: "Choose what this person does in the customer queue." };
 
   const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor", "quality_controller"];
-  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "data_analyst" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
+  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "data_analyst" && role !== "technical" && role !== "queue_user" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
   if (WORKSHOP_ROLES.includes(role) && !branchId) {
@@ -125,8 +127,10 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role: role as "officer" | "manager" | "national_manager" | "data_analyst" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller",
-    branch_id: WORKSHOP_ROLES.includes(role) ? branchId : null,
+    role: role as "officer" | "manager" | "national_manager" | "data_analyst" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "queue_user",
+    // A queue-only account may have no branch (head office queue manager / parts staff).
+    branch_id: WORKSHOP_ROLES.includes(role) || (role === "queue_user" && branchId) ? branchId : null,
+    queue_role: queueRole,
   });
 
   if (profileError) {

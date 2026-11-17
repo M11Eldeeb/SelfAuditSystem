@@ -60,9 +60,26 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           <option value="claims_reviewer">Technician claims reviewer</option>
           <option value="service_advisor">Service advisor</option>
           <option value="quality_controller">Quality controller</option>
+          <option value="queue_user">Customer queue only (e.g. parts advisor)</option>
         </select>
       </div>
-      {(role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader" || role === "service_manager" || role === "technician" || role === "claims_reviewer" || role === "service_advisor" || role === "quality_controller") && (
+      <div className="space-y-1">
+        <label htmlFor="user-queue" className="text-xs font-medium text-neutral-700">
+          Customer queue
+        </label>
+        <select
+          id="user-queue"
+          name="queue_role"
+          required={role === "queue_user"}
+          className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
+        >
+          <option value="">{role === "service_advisor" ? "Service advisor (from the role)" : role === "service_manager" ? "Queue manager (from the role)" : role === "queue_user" ? "Select" : "No queue access"}</option>
+          <option value="advisor">Service advisor</option>
+          <option value="parts_advisor">Spare parts advisor</option>
+          <option value="manager">Queue manager</option>
+        </select>
+      </div>
+      {(role === "queue_user" || role === "branch_admin" || role === "workshop_supervisor" || role === "team_leader" || role === "service_manager" || role === "technician" || role === "claims_reviewer" || role === "service_advisor" || role === "quality_controller") && (
         <div className="space-y-1">
           <label htmlFor="user-branch" className="text-xs font-medium text-neutral-700">
             Branch

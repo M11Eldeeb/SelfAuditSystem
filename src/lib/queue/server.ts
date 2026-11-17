@@ -19,14 +19,23 @@ export type QueueAccess = {
   admin: boolean;
 };
 
+/** The person's part in the queue: set on the account, or else from the portal role (service advisor, service manager). */
+export function effectiveQueueRole(u: { role: string; queue_role: QueueAccess["role"] | null }): QueueAccess["role"] | null {
+  if (u.queue_role) return u.queue_role;
+  if (u.role === "service_advisor") return "advisor";
+  if (u.role === "service_manager") return "manager";
+  return null;
+}
+
 export async function getQueueAccess(): Promise<QueueAccess | null> {
   const user = await getCurrentUser();
   if (!user || user.must_change_password) return null;
   const hq = user.role === "officer" || user.role === "national_manager" || user.role === "manager";
   if (hq) return { user, role: "manager", allBranches: true, branchId: user.branch_id, admin: user.role === "officer" };
-  if (!user.queue_role) return null;
-  const allBranches = user.queue_role === "manager" && !user.branch_id;
-  return { user, role: user.queue_role, allBranches, branchId: user.branch_id, admin: false };
+  const role = effectiveQueueRole(user);
+  if (!role) return null;
+  const allBranches = role === "manager" && !user.branch_id;
+  return { user, role, allBranches, branchId: user.branch_id, admin: false };
 }
 
 export type QueueBranch = { id: string; name: string; name_ar: string | null; queue_code: string; queue_status: "open" | "paused" | "closed" };

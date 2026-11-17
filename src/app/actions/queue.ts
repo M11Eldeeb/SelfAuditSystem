@@ -5,7 +5,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getQueueAccess, canUseBranch, branchSettings, pushTurnAlert, type QueueAccess } from "@/lib/queue/server";
+import { getQueueAccess, canUseBranch, branchSettings, pushTurnAlert, effectiveQueueRole, type QueueAccess } from "@/lib/queue/server";
 import { ALL_TIERS, fullOrder, pickNext, startOfSaudiDay, type QueueTicket, type QueueSettings, type Tier, type TicketStatus } from "@/lib/queue/core";
 import type { Database } from "@/lib/supabase/types";
 
@@ -63,9 +63,8 @@ export async function getDeskBoard(branchId: string, kind: Kind): Promise<DeskBo
     branchSettings(branchId),
     admin
       .from("self_audit_users")
-      .select("id, full_name, email")
+      .select("id, full_name, email, role, queue_role")
       .eq("branch_id", branchId)
-      .eq("queue_role", kind === "parts" ? "parts_advisor" : "advisor")
       .order("full_name"),
   ]);
   const rows = (open.data ?? []) as QueueTicket[];
@@ -76,7 +75,9 @@ export async function getDeskBoard(branchId: string, kind: Kind): Promise<DeskBo
     active: a.role === "manager" ? active : active.filter((tk) => tk.advisor_id === a.user.id),
     noShows: (noShows.data ?? []) as QueueTicket[],
     held: (held.data ?? []) as QueueTicket[],
-    advisors: (advisors.data ?? []).map((u) => ({ id: u.id, name: u.full_name || u.email })),
+    advisors: (advisors.data ?? [])
+      .filter((u) => effectiveQueueRole(u) === (kind === "parts" ? "parts_advisor" : "advisor"))
+      .map((u) => ({ id: u.id, name: u.full_name || u.email })),
     settings,
     servedToday: served.count ?? 0,
   };
@@ -199,8 +200,8 @@ export async function assignTicket(ticketId: string, advisorId: string | null, u
   const tk = await ticketFor(a, ticketId);
   if (!tk) return { error: "Ticket not found." };
   if (!advisorId) return update(a, ticketId, ["waiting"], { preassigned_advisor_id: null, preassigned_advisor_name: null, preassign_urgent: false });
-  const { data: adv } = await createAdminClient().from("self_audit_users").select("id, full_name, email, branch_id, queue_role").eq("id", advisorId).maybeSingle();
-  if (!adv || adv.branch_id !== tk.branch_id || !adv.queue_role) return { error: "That advisor is not in this branch's queue." };
+  const { data: adv } = await createAdminClient().from("self_audit_users").select("id, full_name, email, branch_id, queue_role, role").eq("id", advisorId).maybeSingle();
+  if (!adv || adv.branch_id !== tk.branch_id || !effectiveQueueRole(adv)) return { error: "That advisor is not in this branch's queue." };
   return update(a, ticketId, ["waiting"], { preassigned_advisor_id: adv.id, preassigned_advisor_name: adv.full_name || adv.email, preassign_urgent: !!urgent });
 }
 

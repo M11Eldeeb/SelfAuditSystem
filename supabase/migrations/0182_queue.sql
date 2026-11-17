@@ -1,5 +1,6 @@
 -- Customer queue system, moved from the separate MG Queue app: branch registration (kiosk / QR), the service advisor
--- and spare parts queues, the TV display, the customer's ticket page, queue settings, analytics, HQ and the team list.
+-- and spare parts queues, the TV display, the customer's ticket page, queue settings, analytics and HQ. The people are
+-- the portal's own accounts: queue_role on the account (a service advisor / service manager gets it from the role).
 -- Every table is read and written by the server only (service role), so RLS is on with no policies: the public pages
 -- (registration, ticket, TV) go through server actions that check what they may see and change.
 
@@ -96,19 +97,28 @@ create table if not exists self_audit_queue_push (
 create index if not exists self_audit_queue_push_ticket_idx on self_audit_queue_push (ticket_id);
 alter table self_audit_queue_push enable row level security;
 
--- Team directory (the after-sales employee list from the old app), kept by the warranty team.
-create table if not exists self_audit_queue_employees (
+-- The branches' queue codes as in the old queue app, so the QR codes already printed still mean the same branch.
+update self_audit_branches set queue_code = 'RUH-01', name_ar = 'الرياض – الشمال' where code = 'RNQ' and queue_code is null;
+update self_audit_branches set queue_code = 'DMM-01', name_ar = 'الدمام' where code = 'DMM' and queue_code is null;
+update self_audit_branches set queue_code = 'JED-01', name_ar = 'جدة – حراء' where code = 'HER' and queue_code is null;
+update self_audit_branches set queue_code = 'JED-NAKHEEL', name_ar = 'جدة – النخيل' where code = 'NKH' and queue_code is null;
+update self_audit_branches set queue_code = 'JED-MADINAHRD', name_ar = 'جدة – طريق المدينة' where code = 'MRB' and queue_code is null;
+update self_audit_branches set queue_code = 'RUH-ALSALIH', name_ar = 'الرياض – الصالح' where code = 'RSS' and queue_code is null;
+update self_audit_branches set queue_code = 'RUH-KHURAIS', name_ar = 'الرياض – الخريص' where code = 'RKR' and queue_code is null;
+update self_audit_branches set queue_code = 'ABHA-KINGFAHAD', name_ar = 'أبها – الملك فهد' where code = 'ABH' and queue_code is null;
+update self_audit_branches set queue_code = 'MED-AIRPORTRD', name_ar = 'المدينة المنورة – طريق المطار' where code = 'MAD' and queue_code is null;
+update self_audit_branches set queue_code = 'QASSIM-BURAIDAH', name_ar = 'القصيم – بريدة' where code = 'QSM' and queue_code is null;
+update self_audit_branches set queue_code = 'JIZAN-ALSAFA', name_ar = 'جازان – الصفا' where code = 'JZN' and queue_code is null;
+
+-- The queue people of the old queue app (advisors, parts advisors, queue managers), to create their portal accounts
+-- from Queue admin: someone who already has an account (same e-mail) keeps it and gets queue access on it.
+create table if not exists self_audit_queue_import (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   title text,
-  city text,
-  branch_id uuid references self_audit_branches (id) on delete set null,
-  branch_name text, -- as in the list (e.g. "Head Office")
-  phone text,
-  email text,
-  -- their part in the queue in the old app (advisor / parts_advisor / manager): used by the account import
-  queue_role text check (queue_role in ('advisor', 'parts_advisor', 'manager')),
+  branch_id uuid references self_audit_branches (id) on delete set null, -- null = head office
+  email text not null unique,
+  queue_role text not null check (queue_role in ('advisor', 'parts_advisor', 'manager')),
   created_at timestamptz not null default now()
 );
-create index if not exists self_audit_queue_employees_branch_idx on self_audit_queue_employees (branch_id);
-alter table self_audit_queue_employees enable row level security;
+alter table self_audit_queue_import enable row level security;
