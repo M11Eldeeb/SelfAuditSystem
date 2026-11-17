@@ -1182,6 +1182,36 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["self_audit_invoicing_connection"]["Insert"]>;
         Relationships: [];
       };
+      self_audit_msi_reports: {
+        Row: {
+          report_date: string;
+          gmail_message_id: string;
+          subject: string | null;
+          file_name: string | null;
+          received_at: string | null;
+          imported_at: string;
+          meta: unknown;
+          sales: unknown;
+          advisors: unknown;
+          wholesale: unknown;
+          extra: unknown | null;
+        };
+        Insert: {
+          report_date: string;
+          gmail_message_id: string;
+          subject?: string | null;
+          file_name?: string | null;
+          received_at?: string | null;
+          imported_at?: string;
+          meta: unknown;
+          sales: unknown;
+          advisors: unknown;
+          wholesale: unknown;
+          extra?: unknown | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_msi_reports"]["Insert"]>;
+        Relationships: [];
+      };
       self_audit_invoicing_imports: {
         Row: {
           id: string;

@@ -9,6 +9,7 @@ import { feedbackLink } from "@/lib/feedback-server";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
+  { href: "/admin/msi", label: "Major Service Indicators" },
   { href: "/admin/query", label: "Query", group: "Warranty" },
   {
     // Overview, Self Audit, Internal Audit and their results are one tab.
@@ -36,6 +37,7 @@ const ADMIN_LINKS = [
 /** The manager (every branch, view only) sees what matters to a manager: the dashboard and a few working pages. */
 const MANAGER_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/msi", label: "Major Service Indicators" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/vor-parts", label: "VOR Part Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
@@ -47,6 +49,7 @@ const NATIONAL_LINKS = [
   { href: "/admin/dashboard", label: "Warranty", title: "Warranty Dashboard", group: "Dashboards" },
   { href: "/admin/dashboard?tab=quality", label: "Quality", title: "Quality Dashboard", group: "Dashboards" },
   { href: "/admin/sub-dealer", label: "Sub-Dealer", title: "Sub-Dealer Dashboard", group: "Dashboards" },
+  { href: "/admin/msi", label: "Major Service Indicators" },
   { href: "/admin/query", label: "Query" },
   { href: "/admin/open-wips", label: "Open WIPs" },
   { href: "/admin/complaints", label: "Complaints" },
