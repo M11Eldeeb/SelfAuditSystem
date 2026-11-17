@@ -363,6 +363,8 @@ export function TechClaimForm({
       }
       if (f.type.startsWith("video/")) {
         const secs = await videoDuration(f);
+        // Logged so a phone that cannot open videos shows up in the upload problems.
+        if (secs == null) void reportUploadProblem({ name: f.name, type: f.type, size: f.size, message: "duration: the phone did not give the video's length (sent anyway)" });
         if (secs != null && secs > MAX_VIDEO_SECONDS + 0.5) {
           setError(t.errVideoLong(f.name, Math.round(secs), MAX_VIDEO_SECONDS));
           continue;

@@ -198,9 +198,22 @@ export function videoDuration(file: File): Promise<number | null> {
       URL.revokeObjectURL(url);
       resolve(d);
     };
-    v.onloadedmetadata = () => done(Number.isFinite(v.duration) ? v.duration : null);
-    v.onerror = () => done(null);
+    let over = false;
+    // Some iPhones (Low Power Mode, a video still in iCloud) never load the video's details: give up after a few
+    // seconds instead of waiting forever, and send the video without the length check.
+    const timer = setTimeout(() => !over && ((over = true), done(null)), 6000);
+    const finish = (d: number | null) => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      done(d);
+    };
+    v.onloadedmetadata = () => finish(Number.isFinite(v.duration) ? v.duration : null);
+    v.onerror = () => finish(null);
+    v.muted = true;
+    v.playsInline = true;
     v.src = url;
+    v.load();
   });
 }
 
@@ -398,8 +411,10 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
   video.muted = false;
   try {
     await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error(`"${file.name}" cannot be played on this phone - record it with the "Record video" button.`));
+      const timer = setTimeout(() => reject(new Error("the video did not open within 20 s (Low Power Mode or iCloud video?)")), 20_000);
+      video.onloadedmetadata = () => (clearTimeout(timer), resolve());
+      video.onerror = () => (clearTimeout(timer), reject(new Error(`"${file.name}" cannot be played on this phone - record it with the "Record video" button.`)));
+      video.load();
     });
     const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
     const canvas = document.createElement("canvas");
