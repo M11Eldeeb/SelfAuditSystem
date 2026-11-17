@@ -1,13 +1,12 @@
 import "server-only";
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { branchByCode, canUseBranch, getQueueAccess, type QueueAccess, type QueueBranch } from "@/lib/queue/server";
+import { branchByCode, canUseBranch, requireQueueAccess, type QueueAccess, type QueueBranch } from "@/lib/queue/server";
 import { startOfSaudiDay } from "@/lib/queue/core";
 
 /** A branch queue page: the branch from the address and the person's access (sent away if it is not theirs). */
 export async function queuePage(code: string, need?: "manager" | "service" | "parts"): Promise<{ a: QueueAccess; branch: QueueBranch }> {
-  const a = await getQueueAccess();
-  if (!a) redirect("/");
+  const a = await requireQueueAccess();
   const branch = await branchByCode(code);
   if (!branch) notFound();
   if (!canUseBranch(a, branch.id)) redirect("/queue");

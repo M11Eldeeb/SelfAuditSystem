@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { effectiveQueueRole, getQueueAccess } from "@/lib/queue/server";
+import { effectiveQueueRole, requireQueueAccess } from "@/lib/queue/server";
 import { siteOrigin } from "@/lib/site-origin";
 import { QueueAdmin, type AdminBranch, type AdminPerson, type AdminUser } from "@/components/queue/queue-admin";
 
 /** Queue admin (warranty officers): branch codes and QR, the old queue app's people (accounts to create), and queue access on the portal's accounts. */
 export default async function QueueAdminPage() {
-  const a = await getQueueAccess();
-  if (!a?.admin) redirect("/queue");
+  const a = await requireQueueAccess();
+  if (!a.admin) redirect("/queue");
   const admin = createAdminClient();
   const [{ data: branches }, { data: users }, { data: people }, origin] = await Promise.all([
     admin.from("self_audit_branches").select("id, name, queue_code, name_ar, queue_status").eq("active", true).order("name"),

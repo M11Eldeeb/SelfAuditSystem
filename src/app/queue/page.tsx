@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getQueueAccess, queueBranches } from "@/lib/queue/server";
+import { requireQueueAccess, queueBranches } from "@/lib/queue/server";
 import { ticketsSince } from "@/lib/queue/pages";
 import { busyLevel, minutesSince, startOfSaudiDay } from "@/lib/queue/core";
 import { AnalyticsView, daysParam } from "@/components/queue/analytics-view";
@@ -9,8 +9,7 @@ const BUSY = { busy: "bg-red-500", moderate: "bg-amber-400", quiet: "bg-emerald-
 
 /** Head office: every branch's queue today (waiting, with advisors, served, average wait), then the analytics of all branches. Branch people go to their desk. */
 export default async function QueueOverviewPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
-  const a = await getQueueAccess();
-  if (!a) redirect("/");
+  const a = await requireQueueAccess();
   const branches = await queueBranches();
   if (!a.allBranches) {
     const mine = branches.find((b) => b.id === a.branchId);

@@ -1,13 +1,11 @@
-import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { effectiveQueueRole, getQueueAccess } from "@/lib/queue/server";
+import { effectiveQueueRole, requireQueueAccess } from "@/lib/queue/server";
 
 const LABEL = { advisor: "Service advisor", parts_advisor: "Spare parts advisor", manager: "Queue manager" } as const;
 
 /** Who works in the customer queue (the portal's own accounts), by branch. Branch people see their branch. */
 export default async function QueueTeamPage() {
-  const a = await getQueueAccess();
-  if (!a) redirect("/");
+  const a = await requireQueueAccess();
   const admin = createAdminClient();
   const [{ data: users }, { data: branches }] = await Promise.all([
     admin.from("self_audit_users").select("id, full_name, email, role, branch_id, queue_role, job_title").order("full_name"),

@@ -1,20 +1,15 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
-import { getCurrentUser, homePathFor } from "@/lib/auth";
+import { homePathFor } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
 import type { NavLink } from "@/components/nav-menu";
-import { getQueueAccess, queueBranches } from "@/lib/queue/server";
+import { requireQueueAccess, queueBranches } from "@/lib/queue/server";
 
 /**
  * The customer queue's staff area (moved from the MG Queue app). Branch people see their branch's desks; head office
  * (warranty officers, national managers, managers, queue managers without a branch) see every branch.
  */
 export default async function QueueLayout({ children }: { children: ReactNode }) {
-  const a = await getQueueAccess();
-  if (!a) {
-    const user = await getCurrentUser();
-    redirect(user ? homePathFor(user.role) : "/login");
-  }
+  const a = await requireQueueAccess();
   const links: NavLink[] = [];
   if (a.allBranches) {
     links.push({ href: "/queue", label: "Queue overview" });

@@ -1,6 +1,7 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import webpush from "web-push";
-import { getCurrentUser, type CurrentUser } from "@/lib/auth";
+import { getCurrentUser, homePathFor, type CurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_SETTINGS, fullOrder, type QueueSettings } from "@/lib/queue/core";
 
@@ -36,6 +37,20 @@ export async function getQueueAccess(): Promise<QueueAccess | null> {
   if (!role) return null;
   const allBranches = role === "manager" && !user.branch_id;
   return { user, role, allBranches, branchId: user.branch_id, admin: false };
+}
+
+/**
+ * For the queue pages: the person's access, or sent where they belong - the sign-in page, the first-password page (a
+ * new account), or their own home when they have no queue access. Never back to /queue (that would loop).
+ */
+export async function requireQueueAccess(): Promise<QueueAccess> {
+  const a = await getQueueAccess();
+  if (a) return a;
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.must_change_password) redirect("/account/password?first=1");
+  const home = homePathFor(user.role);
+  redirect(home.startsWith("/queue") ? "/account/password" : home);
 }
 
 export type QueueBranch = { id: string; name: string; name_ar: string | null; queue_code: string; queue_status: "open" | "paused" | "closed" };
