@@ -29,6 +29,10 @@ export type SdClaim = {
   partsGot: number;
   partsTotal: number;
   parts: { name: string; qty: number }[];
+  /** The part numbers on the claim (without the "/01" suffix) - they tell the invoiced parts lines of one work order apart. */
+  partNos: string[];
+  /** The dealer's claim number on the batch (WSA...), as the dealer typed it when closing the claim; empty before. */
+  gws: string;
   laborApproved: number | null;
   /** When the sub-dealer opened the claim (with the time), milliseconds - null when the sheet has no usable date. */
   createdAt: number | null;
@@ -78,6 +82,11 @@ export type SubDealerDashboard =
       claims: SdClaim[];
       free: SdFree[];
       batch: Record<string, SdBatch>;
+      /**
+       * Closed claims whose work order is not on the batch yet: the parts the dealer invoiced on that work order and VIN
+       * (account W40, SAR) - the same estimate the Sub-Dealer Warranty Desk makes. Keyed by sheet claim id; missing = no parts lines found.
+       */
+      offBatchParts: Record<string, number>;
       branches: string[];
       months: string[];
     }
@@ -122,6 +131,11 @@ function isoDay(v: unknown): string | null {
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const ms = Date.parse(`${fixMonth(t)} UTC`);
   return Number.isNaN(ms) ? null : new Date(ms).toISOString().slice(0, 10);
+}
+
+/** "SEAL (10710877) x2 [..]; MOUNT (10560908/01) x1" -> ["10710877", "10560908"]. */
+function parsePartNos(v: unknown): string[] {
+  return [...new Set([...text(v).matchAll(/\(([^()]*)\)\s*x\d+/g)].map((m) => m[1].trim().toUpperCase().replace(/\/.*$/, "")).filter(Boolean))];
 }
 
 /** "SEAL (10710877) x2 [Supplied to Sub-Dealer]; MOUNT-ENG(RH) (10673927) x1 [ICT]" -> [{ name, qty }]. */
@@ -175,7 +189,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
       closed: stageCol(["closed at", "closed date", "close date", "closed on"]),
     };
     hasStageTimes = Object.values(stageCols).some((c) => c !== -1);
-    const [id, status, arrived, branch, vin, subWo, dealerWo, created, reception, parts] = [
+    const [id, status, arrived, branch, vin, subWo, dealerWo, created, reception, parts, gws] = [
       "warranty claim id",
       "status",
       "defected parts arrived",
@@ -186,6 +200,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
       "creation date",
       "reception date",
       "parts",
+      "gws claim id",
     ].map(col);
     for (const r of claimRows.slice(1)) {
       if (!text(r[id])) continue;
@@ -206,6 +221,8 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
         partsGot: got ? Number(got[1]) : 0,
         partsTotal: got ? Number(got[2]) : 0,
         parts: parseParts(r[parts]),
+        partNos: parsePartNos(r[parts]),
+        gws: gws === -1 ? "" : text(r[gws]).toUpperCase(),
         laborApproved: approvedCol === -1 ? null : money(r[approvedCol]),
         createdAt: timeMs(r[created]),
         stages: {
@@ -252,12 +269,12 @@ const readSheet = unstable_cache(
     if (!claimRows) throw new Error('The sub-dealer sheet has no "Claims" tab.');
     return parseSheet(claimRows, freeRows);
   },
-  ["sub-dealer-sheet-v3"],
+  ["sub-dealer-sheet-v4"],
   { revalidate: 120 }
 );
 
 /** The batch side: the dealer's claims whose work order + VIN are on the sub-dealer's list, grouped by that key. */
-async function loadBatch(): Promise<Record<string, SdBatch>> {
+async function loadBatch(claimNumbersByKey: Map<string, Set<string>>): Promise<Record<string, SdBatch>> {
   const admin = createAdminClient();
   const { data: ids, error } = await admin.rpc("get_sub_dealer_claim_ids");
   if (error) throw new Error(error.message);
@@ -275,6 +292,10 @@ async function loadBatch(): Promise<Record<string, SdBatch>> {
     for (const s of settle ?? []) {
       const key = keyOf(s.work_order_no ?? "", vinOf.get(s.claim_id) ?? "");
       if (!key) continue;
+      // When the sub-dealer's claims on this work order all name their batch claim (GWS claim ID), only those count: the
+      // batch can hold another claim of the dealer's own on the same work order and VIN, which is not the sub-dealer's work.
+      const named = claimNumbersByKey.get(key);
+      if (named && !named.has((s.claim_number ?? "").toUpperCase())) continue;
       keyOfClaim.set(s.claim_id, key);
       const b = (batch[key] ??= { claimNumbers: [], statuses: [], adjusted: 0, settled: 0, adjustedUsd: 0, settledUsd: 0, parts: [] });
       if (s.claim_number) b.claimNumbers.push(s.claim_number);
@@ -339,10 +360,58 @@ async function addInvoicing(free: SdFree[]): Promise<string | null> {
   return through;
 }
 
+/** work order + VIN -> the batch claim numbers the sub-dealer's claims on it name; only for keys where every claim names one. */
+function namedBatchClaims(claims: SdClaim[]): Map<string, Set<string>> {
+  const byKey = new Map<string, SdClaim[]>();
+  for (const c of claims) if (c.key) byKey.set(c.key, [...(byKey.get(c.key) ?? []), c]);
+  const out = new Map<string, Set<string>>();
+  for (const [key, list] of byKey) if (list.every((c) => c.gws)) out.set(key, new Set(list.map((c) => c.gws)));
+  return out;
+}
+
+/**
+ * Closed claims that are not on the batch yet: the parts the dealer already invoiced under account W40 on the same work order
+ * and VIN (labor and parts of the claim are then known from the invoices, not from the batch). The same question the Sub-Dealer
+ * Warranty Desk asks (sub_dealer_warranty_parts), so both screens give the same figure. Empty when it cannot be asked.
+ */
+async function loadOffBatchParts(claims: SdClaim[], batch: Record<string, SdBatch>): Promise<Record<string, number>> {
+  const closed = claims.filter((c) => c.status.trim().toLowerCase() === "closed" && c.workOrder && c.vin && c.key);
+  const wipOf = (c: SdClaim) => `${c.workOrder.match(/^[A-Z]+-(\d+)/)?.[1] ?? c.workOrder}|${c.vin}`;
+  const twins = new Map<string, number>();
+  for (const c of closed) twins.set(wipOf(c), (twins.get(wipOf(c)) ?? 0) + 1);
+  const off = closed.filter((c) => !batch[c.key!]);
+  if (!off.length) return {};
+  const admin = createAdminClient();
+  const { data: link } = await admin.from("portal_link_secret" as never).select("secret").eq("id", 1).maybeSingle();
+  const secret = (link as { secret?: string } | null)?.secret;
+  if (!secret) return {};
+  const items = off.map((c) => ({
+    key: c.id,
+    gws_claim_id: c.gws,
+    work_order_no: c.workOrder,
+    vin: c.vin,
+    part_nos: c.partNos,
+    twins: twins.get(wipOf(c)) ?? 1,
+    labor_amount: c.laborApproved,
+  }));
+  const rpc = admin.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: { key: string; batch_found: boolean; batch_parts: number | null; invoiced_parts: number | null }[] | null; error: unknown }>;
+  const { data, error } = await rpc.call(admin, "sub_dealer_warranty_parts", { p_secret: secret, p_items: items });
+  if (error || !data) return {};
+  const out: Record<string, number> = {};
+  // The batch claim named by its GWS claim ID wins; otherwise the parts invoiced on the work order and VIN.
+  for (const r of data) {
+    const parts = r.batch_found ? r.batch_parts : r.invoiced_parts;
+    if (parts != null) out[r.key] = Number(parts);
+  }
+  return out;
+}
+
 export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
   if (!(await getSheetsStatus())) return { status: "not_connected" };
   try {
-    const [parsed, batch] = await Promise.all([readSheet(), loadBatch()]);
+    const parsed = await readSheet();
+    const batch = await loadBatch(namedBatchClaims(parsed.claims));
+    const offBatchParts = await loadOffBatchParts(parsed.claims, batch).catch(() => ({}) as Record<string, number>);
     // The cached sheet rows are shared: the invoicing amounts go on copies.
     const free = parsed.free.map((f) => ({ ...f }));
     const invoicingThrough = await addInvoicing(free).catch(() => null);
@@ -356,6 +425,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
       claims: parsed.claims,
       free,
       batch,
+      offBatchParts,
       branches: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.branch))].sort(),
       months: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.month).filter((m): m is string => !!m))].sort(),
     };

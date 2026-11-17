@@ -18,6 +18,10 @@ const isClosed = (s: string) => s.trim().toLowerCase() === "closed";
 const isRejected = (s: string) => /^(rejected|cancel+ed)$/i.test(s.trim());
 const isOpen = (s: string) => !isClosed(s) && !isRejected(s);
 const NO_WIP = "No work order";
+/** The manufacturer pays the dealer 180 SAR an hour of labor and the sub-dealer gets 110: the dealer keeps 70 of every 110 the sub-dealer is paid. */
+const LABOR_MARGIN = 70 / 110;
+/** The sub-dealer's approved amounts include 15% VAT; the dealer's invoices do not. */
+const VAT = 1.15;
 
 /** The claim's journey from A to Z; each step is timed from the one before it. */
 const STAGES = [
@@ -124,11 +128,18 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
   const approvedOnBatch = onBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
   const leftWithDealer = adjusted - approvedOnBatch;
   const approvedNotOnBatch = notOnBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
+  // Closed claims whose work order is not on the batch yet: the labor margin (hours x 70 SAR) plus the parts the dealer already
+  // invoiced on that work order and VIN (account W40) - the same estimate the Sub-Dealer Warranty Desk makes.
+  const expectedClaims = claims.filter((c) => isClosed(c.status) && c.key && !data.batch[c.key]);
+  const expectedLabor = expectedClaims.reduce((s, c) => s + (c.laborApproved ?? 0) * LABOR_MARGIN, 0);
+  const expectedParts = expectedClaims.reduce((s, c) => s + (data.offBatchParts[c.id] ?? 0), 0);
+  const warrantyRevenue = leftWithDealer + expectedLabor + expectedParts;
   const freeApproved = free.reduce((s, f) => s + (f.approved ?? 0), 0);
   // Free service: what was invoiced to I660 on the work order minus what was invoiced to I1855 (paid to the sub-dealer).
   const freeInvoiced = free.filter((f) => f.invoiced != null);
   const freeInvoicedTotal = freeInvoiced.reduce((s, f) => s + (f.invoiced ?? 0), 0);
-  const freePaidTotal = freeInvoiced.reduce((s, f) => s + (f.paid ?? 0), 0);
+  // What is paid to the sub-dealer: the I1855 invoice; until it is in, the approved amount without its VAT.
+  const freePaidTotal = freeInvoiced.reduce((s, f) => s + (f.paid ?? (f.approved != null ? f.approved / VAT : 0)), 0);
   const freeSettled = freeInvoicedTotal - freePaidTotal;
   const freeNotInvoiced = free.length - freeInvoiced.length;
 
@@ -286,8 +297,11 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
           </Card>
           <Card className="space-y-1">
             <Label>Revenue to the dealer</Label>
-            <Metric value={data.hasLaborApproved ? money(leftWithDealer) : "—"} unit="SAR" tone={data.hasLaborApproved && leftWithDealer < 0 ? "red" : "green"} />
-            <div className="text-xs text-[#6e6e73]">Paid on the batch minus the {money(approvedOnBatch)} settled with the sub-dealer on the same work orders</div>
+            <Metric value={data.hasLaborApproved ? money(warrantyRevenue) : "—"} unit="SAR" tone={data.hasLaborApproved && warrantyRevenue < 0 ? "red" : "green"} />
+            <div className="text-xs text-[#6e6e73]">
+              Paid on the batch minus the {money(approvedOnBatch)} settled with the sub-dealer on the same work orders ({money(leftWithDealer)})
+              {expectedClaims.length > 0 ? ` + ${money(expectedLabor + expectedParts)} expected on ${fmtInt(expectedClaims.length)} closed claim${expectedClaims.length === 1 ? "" : "s"} not on the batch yet (labor margin ${money(expectedLabor)} + parts invoiced ${money(expectedParts)})` : ""}
+            </div>
           </Card>
         </div>
         {notOnBatch.length > 0 && (
@@ -322,8 +336,13 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
         <p className="mt-3 text-xs text-[#6e6e73]">
           {freeNotInvoiced > 0 ? `${fmtInt(freeNotInvoiced)} request${freeNotInvoiced === 1 ? " is" : "s are"} not invoiced yet and join the totals once invoiced. ` : ""}
           Amounts are SAR from the Warranty Invoicing report{data.invoicingThrough ? ` (invoices up to ${fmtDate(data.invoicingThrough)})` : ""}; a line belongs to a request when its work order and VIN both match.
-          {free.some((f) => f.approved != null) ? ` The sub-dealer's own approved amount (sheet): ${money(freeApproved)} SAR.` : ""}
+          {free.some((f) => f.approved != null) ? ` The sub-dealer's own approved amount (sheet, VAT included): ${money(freeApproved)} SAR; until a request's I1855 invoice is in, its approved amount without VAT is used as the paid amount.` : ""}
         </p>
+        {data.hasLaborApproved && (
+          <p className="mt-2 text-sm font-semibold text-[#1d1d1f]">
+            Total dealer revenue: {money(warrantyRevenue + freeSettled)} SAR <span className="font-normal text-[#6e6e73]">(warranty {money(warrantyRevenue)} + free service {money(freeSettled)}) - the same figure as the Revenue window of the Sub-Dealer Warranty Desk when every sub-dealer and month is picked.</span>
+          </p>
+        )}
       </Panel>
 
         {data.hasLaborApproved && (
