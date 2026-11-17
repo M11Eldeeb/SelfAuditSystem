@@ -31,6 +31,7 @@ const BRANCH_ADMIN_LINKS = [
 /** The service manager (his own branch, view only) sees what matters to a manager: the dashboard and a few working pages. */
 const SERVICE_MANAGER_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard" },
+  { href: "/audit/msi", label: "Major Service Indicators" },
   { href: "/audit/query", label: "Query" },
   { href: "/audit/complaints", label: "Complaints" },
   { href: "/audit/vor-parts", label: "VOR Part Query" },

@@ -6,6 +6,7 @@ import { feedbackLink } from "@/lib/feedback-server";
 /** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. */
 const LINKS = [
   { href: "/advisor/dashboard", label: "Dashboard" },
+  { href: "/advisor/msi", label: "Major Service Indicators" },
   { href: "/advisor/complaints", label: "Complaints" },
   { href: "/advisor/vor-parts", label: "VOR Part Query" },
   { href: "/advisor/open-wips", label: "Open WIPs" },

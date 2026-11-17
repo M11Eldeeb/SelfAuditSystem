@@ -24,9 +24,28 @@ const TABS: { id: Tab; label: string; needsExtra: boolean }[] = [
 type ExtraState = { status: "idle" | "loading" | "ready" | "missing" | "failed"; data: MsiExtra | null };
 
 /** The page: the report's date and the tabs. The big sheets (daily, monthly closing, KPIs, advisor targets) load when first needed. */
-export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { report: MsiReport | null; dates: string[]; isLatest: boolean; canRefresh: boolean; importNote: string | null }) {
+export function MsiView({
+  report,
+  dates,
+  isLatest,
+  canRefresh,
+  importNote,
+  basePath,
+  branchName,
+}: {
+  report: MsiReport | null;
+  dates: string[];
+  isLatest: boolean;
+  canRefresh: boolean;
+  importNote: string | null;
+  /** Where this page lives (the date list links to it). */
+  basePath: string;
+  /** Set for a service manager or advisor: the page shows this one branch only. */
+  branchName: string | null;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("branches");
+  const tabs = branchName ? TABS.filter((t) => t.id !== "wholesale") : TABS;
   const [extra, setExtra] = useState<ExtraState>({ status: "idle", data: null });
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const [busy, startRefresh] = useTransition();
@@ -61,7 +80,7 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
   if (!report)
     return (
       <div className="space-y-5">
-        <Header title="Major Service Indicators" />
+        <Header title="Major Service Indicators" sub={branchName ?? undefined} />
         <Panel title="No report yet" subtitle="The data analyst's daily Major Service Indicators e-mail has not been read yet.">
           <p className="text-sm text-[#6e6e73]">{importNote ?? "It is read every morning from the mailbox the Warranty Invoicing report comes in."}</p>
           {canRefresh && (
@@ -79,13 +98,13 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
     <div className="space-y-5">
       <Header
         title="Major Service Indicators"
-        sub={`Report of ${fmtDay(report.reportDate)} · ${m.workingDays ?? "?"} working days in the month, ${m.daysPassed ?? "?"} passed, ${m.daysRemaining ?? "?"} left · amounts in SAR`}
+        sub={`${branchName ? `${branchName} · ` : ""}Report of ${fmtDay(report.reportDate)} · ${m.workingDays ?? "?"} working days in the month, ${m.daysPassed ?? "?"} passed, ${m.daysRemaining ?? "?"} left · amounts in SAR`}
         right={
           <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Report date"
               value={report.reportDate}
-              onChange={(e) => router.push(`/admin/msi?date=${e.target.value}`)}
+              onChange={(e) => router.push(`${basePath}?date=${e.target.value}`)}
               className="h-9 rounded-lg border border-[#d4d4d4] bg-white px-2.5 text-[13px] font-medium text-[#1d1d1f] shadow-sm"
             >
               {dates.map((d) => (
@@ -111,7 +130,7 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
 
       <nav aria-label="Major Service Indicators sections" className="sticky top-[72px] z-10 -mx-1 px-1 py-1">
         <div className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -128,7 +147,7 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
       </nav>
 
       <div className="min-w-0 space-y-5">
-        {tab === "branches" && <BranchesTab report={report} />}
+        {tab === "branches" && <BranchesTab report={report} single={!!branchName} />}
         {tab === "advisors" && <AdvisorsTab report={report} extra={extra.data} />}
         {tab === "wholesale" && <WholesaleTab report={report} />}
         {(tab === "daily" || tab === "monthly" || tab === "kpis") &&
@@ -167,9 +186,10 @@ function Header({ title, sub, right }: { title: string; sub?: string; right?: Re
 
 const isClosed = (r: SalesRow | undefined) => !r || (r.actual == null && r.mtdTarget == null && !r.forecast);
 
-function BranchesTab({ report }: { report: MsiReport }) {
+function BranchesTab({ report, single }: { report: MsiReport; single: boolean }) {
   const m = report.meta;
-  const ksa = report.sales.find((r) => r.scope === "KSA" && r.type === "Aftersales Total") ?? report.sales.find((r) => r.scope === "KSA");
+  // The headline: the KSA aftersales total - or, on a branch's own page, that branch's total.
+  const ksa = single ? report.sales.find((r) => r.type === "Branch total") : (report.sales.find((r) => r.scope === "KSA" && r.type === "Aftersales Total") ?? report.sales.find((r) => r.scope === "KSA"));
   const branches = useMemo(() => {
     const seen = new Map<string, { scope: string; name: string; total: SalesRow | undefined }>();
     for (const r of report.sales) {
@@ -182,7 +202,7 @@ function BranchesTab({ report }: { report: MsiReport }) {
     return list.sort((a, b) => Number(isClosed(a.total)) - Number(isClosed(b.total)) || (b.total?.actual ?? 0) - (a.total?.actual ?? 0));
   }, [report.sales]);
   const open = branches.filter((b) => !isClosed(b.total));
-  const [scope, setScope] = useState("KSA");
+  const [scope, setScope] = useState(single ? (report.sales[0]?.scope ?? "KSA") : "KSA");
   const detail = report.sales.filter((r) => r.scope === scope);
   const forecastVs = (r: SalesRow | undefined) => (r?.forecast != null && r.monthTarget ? r.forecast / r.monthTarget : null);
 
@@ -228,6 +248,7 @@ function BranchesTab({ report }: { report: MsiReport }) {
         </div>
       )}
 
+      {!single && (
       <Panel title="Branches" subtitle="Aftersales total of each branch (workshop and parts counter). Click a branch to see its lines below." eyebrow="Actual · MTD target · month target · closing forecast">
         <TableWrap>
           <table className="w-full min-w-[980px] text-sm">
@@ -303,8 +324,9 @@ function BranchesTab({ report }: { report: MsiReport }) {
           </table>
         </TableWrap>
       </Panel>
+      )}
 
-      {open.length > 0 && (
+      {!single && open.length > 0 && (
         <Panel title="Actual against the month-to-date target" subtitle="Each branch: what it has sold so far and what it should have sold by now">
           <GroupedColumns
             groups={open.map((b) => ({ label: b.name, values: [b.total?.actual ?? 0, b.total?.mtdTarget ?? 0] as [number, number] }))}
@@ -319,12 +341,14 @@ function BranchesTab({ report }: { report: MsiReport }) {
         title="Every line of the report"
         subtitle="Workshop (service, labor, consumables, sublet), parts (workshop, lubes, counter) by internal, retail and warranty"
         action={
+          single ? undefined : (
           <Chips
             label="Branch"
             value={scope}
             onChange={setScope}
             items={[{ id: "KSA", label: "KSA" }, ...branches.filter((b) => !isClosed(b.total)).map((b) => ({ id: b.scope, label: b.name }))]}
           />
+          )
         }
       >
         {(["Totals", "Breakdown"] as const).map((part) => {
