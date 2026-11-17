@@ -347,9 +347,16 @@ export function TechClaimForm({
   }
 
   async function add(list: FileList | null) {
-    if (!list?.length) return;
+    // Diagnostics: the phone came back from the picker with no file (an iPhone that could not prepare the video).
+    if (!list?.length) {
+      void reportUploadProblem({ name: "(none)", type: "", size: 0, message: "picked: the picker returned no file" });
+      return;
+    }
     setError(null);
     for (const raw of Array.from(list)) {
+      // Diagnostics: every video (or file without a type) as the phone handed it over.
+      if (!raw.type || raw.type.startsWith("video/"))
+        void reportUploadProblem({ name: raw.name, type: raw.type || "(no type)", size: raw.size, message: "picked: video handed over by the phone" });
       const typed = withType(raw);
       const f = await snapshot(typed);
       if (!f) {
@@ -359,6 +366,7 @@ export function TechClaimForm({
       }
       if (!/^(image\/|video\/|application\/pdf$)/.test(f.type)) {
         setError(t.errType(f.name));
+        void reportUploadProblem({ name: f.name, type: f.type || "(no type)", size: f.size, message: "type: not a photo, video or PDF" });
         continue;
       }
       if (f.type.startsWith("video/")) {
