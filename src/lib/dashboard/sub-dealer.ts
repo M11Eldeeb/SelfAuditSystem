@@ -301,10 +301,12 @@ async function loadBatch(claimNumbersByKey: Map<string, Set<string>>): Promise<R
       if (s.claim_number) b.claimNumbers.push(s.claim_number);
       if (s.status && !b.statuses.includes(s.status)) b.statuses.push(s.status);
       // The batch amounts are in US dollars: kept as they are and converted to riyals at the fixed rate.
+      // Each claim is converted and rounded to the cent on its own (as the Sub-Dealer Warranty Desk does), then added up: converting
+      // the sum instead can differ by a cent or two from the Desk's total.
       b.adjustedUsd += Number(s.adjusted ?? 0);
       b.settledUsd += Number(s.settle_vat ?? 0);
-      b.adjusted = b.adjustedUsd * SAR_PER_USD;
-      b.settled = b.settledUsd * SAR_PER_USD;
+      b.adjusted += Math.round(Number(s.adjusted ?? 0) * SAR_PER_USD * 100) / 100;
+      b.settled += Math.round(Number(s.settle_vat ?? 0) * SAR_PER_USD * 100) / 100;
     }
     // The parts of those claims, with the batch's own part names.
     for (const l of partLines ?? []) {
