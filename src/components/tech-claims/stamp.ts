@@ -257,6 +257,9 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
       return null;
     }
     const seconds = await input.computeDuration().catch(() => null);
+    // The sound is copied as it is (an iPhone records AAC, which an MP4 holds as it is). Asking for a new AAC encode instead
+    // needs an audio encoder that Safari / iPhone browsers do not have - the sound was then silently left out.
+    const audioTrack = await input.getPrimaryAudioTrack().catch(() => null);
     const scale = Math.min(1, VIDEO_LONG_SIDE / Math.max(track.displayWidth, track.displayHeight));
     const outW = Math.round((track.displayWidth * scale) / 2) * 2;
     const outH = Math.round((track.displayHeight * scale) / 2) * 2;
@@ -286,11 +289,18 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
           return canvas;
         },
       },
-      audio: { codec: "aac", bitrate: AUDIO_BITRATE },
     });
     if (!conversion.isValid) {
       fastProblem = `cannot convert (${conversion.discardedTracks.map((d) => `${d.track.type}: ${d.reason}`).join(", ") || "?"})`;
       return null;
+    }
+    // A video that has sound must keep it: never hand back a silent copy (the replay method records the sound again).
+    if (audioTrack) {
+      const lost = conversion.discardedTracks.find((d: { track: { id: number } }) => d.track.id === audioTrack.id);
+      if (lost) {
+        fastProblem = `sound could not be kept (${(lost as { reason?: string }).reason ?? "?"})`;
+        return null;
+      }
     }
     conversion.onProgress = (p) => onProgress(Math.min(99, Math.round(p * 100)));
     await conversion.execute();
