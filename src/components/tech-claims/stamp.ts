@@ -340,6 +340,13 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
   } catch (replayError) {
     why.push(`replay: ${replayError instanceof Error ? replayError.message : replayError}`);
     console.warn("Phone cannot open the video, converting it in software:", replayError);
+    // One software pass that converts and stamps (works where the phone has no WebCodecs and its replay is black).
+    try {
+      return await stampVideoSoftware(file, who, onProgress);
+    } catch (softError) {
+      console.warn("Software stamp failed, trying convert + stamp:", softError);
+      why.push(`software stamp: ${softError instanceof Error ? softError.message : softError}`);
+    }
     const start = await takenAt(file, "video");
     const h264 = await toH264(file, (p) => onProgress(Math.round(p * 0.7))).catch((e) => {
       console.warn("Software conversion failed:", e);
@@ -369,7 +376,84 @@ const FFMPEG_CORE = "/ffmpeg";
  */
 const SOFT_LONG_SIDE = 960;
 
-async function toH264(file: File, onProgress: (pct: number) => void): Promise<File> {
+/** The stamp as a small transparent-backed PNG (drawn by the browser, same look as on photos) that ffmpeg lays over the video. */
+async function stampBadge(minSide: number, lines: string[]): Promise<{ png: Uint8Array; pad: number }> {
+  const size = Math.max(14, Math.round(minSide / 26));
+  const pad = Math.round(size * 0.45);
+  const lineH = Math.round(size * 1.25);
+  const font = `600 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas for the stamp");
+  ctx.font = font;
+  const even = (n: number) => Math.ceil(n / 2) * 2;
+  const boxW = even(Math.max(...lines.map((l) => ctx.measureText(l).width)) + pad * 2);
+  const boxH = even(lineH * lines.length + pad * 2 - (lineH - size));
+  canvas.width = boxW; // resizing resets the drawing state
+  canvas.height = boxH;
+  ctx.font = font;
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(0, 0, boxW, boxH);
+  ctx.fillStyle = "#ffd400";
+  lines.forEach((l, i) => ctx.fillText(l, pad, pad + i * lineH));
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  if (!blob) throw new Error("could not draw the stamp");
+  return { png: new Uint8Array(await blob.arrayBuffer()), pad };
+}
+
+/** Width, height (as shown, turned the right way up) and length of a video, from its header - no decoder needed. */
+async function videoMeta(file: File): Promise<{ w: number; h: number; seconds: number | null }> {
+  try {
+    const mb = await import("mediabunny");
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    try {
+      const track = await input.getPrimaryVideoTrack();
+      if (track && track.displayWidth > 0 && track.displayHeight > 0) {
+        return { w: track.displayWidth, h: track.displayHeight, seconds: await input.computeDuration().catch(() => null) };
+      }
+    } finally {
+      input.dispose?.();
+    }
+  } catch {
+    // fall through to the video element
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    let over = false;
+    const finish = (r: { w: number; h: number; seconds: number | null }) => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(r);
+    };
+    const timer = setTimeout(() => finish({ w: 1280, h: 720, seconds: null }), 6000);
+    v.onloadedmetadata = () => finish({ w: v.videoWidth || 1280, h: v.videoHeight || 720, seconds: Number.isFinite(v.duration) ? v.duration : null });
+    v.onerror = () => finish({ w: 1280, h: 720, seconds: null });
+    v.muted = true;
+    v.src = url;
+    v.load();
+  });
+}
+
+/**
+ * Last-resort stamp for phones that have neither a hardware video encoder (WebCodecs) nor a working replay (the picture
+ * comes out black, e.g. Firefox on Android): ffmpeg.wasm converts the video to 720p H.264 and lays the stamp over it in
+ * ONE pass - no phone video decoder or canvas capture is involved. The result is kept under 20 MB.
+ */
+async function stampVideoSoftware(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
+  const start = await takenAt(file, "video");
+  const meta = await videoMeta(file);
+  const scale = Math.min(1, SOFT_LONG_SIDE / Math.max(meta.w, meta.h));
+  const badge = await stampBadge(Math.min(meta.w, meta.h) * scale, [fmt(start), who]);
+  const out = await toH264(file, onProgress, { badge, bitrate: videoBitrate(meta.seconds) });
+  return new File([out], `${baseName(file.name)}_stamped.mp4`, { type: "video/mp4", lastModified: start.getTime() });
+}
+
+async function toH264(file: File, onProgress: (pct: number) => void, opts?: { badge: { png: Uint8Array; pad: number }; bitrate: number }): Promise<File> {
   const [{ FFmpeg }, { fetchFile, toBlobURL }] = await Promise.all([import("@ffmpeg/ffmpeg"), import("@ffmpeg/util")]);
   const ffmpeg = new FFmpeg();
   const log: string[] = [];
@@ -391,14 +475,32 @@ async function toH264(file: File, onProgress: (pct: number) => void): Promise<Fi
     const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4";
     const inName = `in.${ext}`;
     await ffmpeg.writeFile(inName, await fetchFile(file));
-    const code = await ffmpeg.exec([
-      "-i", inName,
-      "-vf", `scale=w='min(${SOFT_LONG_SIDE},iw)':h='min(${SOFT_LONG_SIDE},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
-      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
-      "-c:a", "aac", "-b:a", "96k",
-      "-movflags", "+faststart",
-      "out.mp4",
-    ]);
+    const scaleFilter = `scale=w='min(${SOFT_LONG_SIDE},iw)':h='min(${SOFT_LONG_SIDE},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`;
+    let code: number;
+    if (opts) {
+      // Convert and stamp in one pass; the bit-rate cap keeps a long video under the size limit.
+      await ffmpeg.writeFile("stamp.png", opts.badge.png);
+      const graph = `[0:v]${scaleFilter}[v];[v][1:v]overlay=x=W-w-${opts.badge.pad}:y=H-h-${opts.badge.pad}:format=auto,format=yuv420p[out]`;
+      code = await ffmpeg.exec([
+        "-i", inName,
+        "-i", "stamp.png",
+        "-filter_complex", graph,
+        "-map", "[out]", "-map", "0:a:0?",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "27", "-maxrate", String(opts.bitrate), "-bufsize", String(opts.bitrate * 2), "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart",
+        "out.mp4",
+      ]);
+    } else {
+      code = await ffmpeg.exec([
+        "-i", inName,
+        "-vf", scaleFilter,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart",
+        "out.mp4",
+      ]);
+    }
     if (code !== 0) throw new Error(`ffmpeg exit ${code}: ${log.join(" | ")}`);
     const data = await ffmpeg.readFile("out.mp4");
     if (typeof data === "string" || !data.byteLength) throw new Error("ffmpeg produced no video");
