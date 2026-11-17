@@ -54,6 +54,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           <option value="team_leader">Team leader</option>
           <option value="national_manager">National Manager (all branches, view only)</option>
           <option value="manager">Manager (all branches, view only)</option>
+          <option value="data_analyst">Data Analyst (Sub-Dealer Analytics only)</option>
           <option value="service_manager">Service manager (own branch, view only)</option>
           <option value="technician">Technician</option>
           <option value="claims_reviewer">Technician claims reviewer</option>

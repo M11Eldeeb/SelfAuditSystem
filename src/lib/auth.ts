@@ -43,6 +43,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 /** Each role's landing page: the dashboard. */
 export function homePathFor(role: UserRole | null | undefined): string {
   if (role === "officer" || role === "manager" || role === "national_manager") return "/admin/dashboard";
+  if (role === "data_analyst") return "/analyst/sub-dealer";
   if (role === "technical") return "/technical/technical-inquiries";
   if (role === "technician") return "/technician";
   if (role === "claims_reviewer") return "/reviewer/technician-claims";

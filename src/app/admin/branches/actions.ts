@@ -100,7 +100,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   const branchId = String(formData.get("branch_id") ?? "");
 
   const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor", "quality_controller"];
-  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
+  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "data_analyst" && role !== "technical" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
   if (WORKSHOP_ROLES.includes(role) && !branchId) {
@@ -125,7 +125,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role: role as "officer" | "manager" | "national_manager" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller",
+    role: role as "officer" | "manager" | "national_manager" | "data_analyst" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller",
     branch_id: WORKSHOP_ROLES.includes(role) ? branchId : null,
   });
 
@@ -293,6 +293,7 @@ const ROLE_NAMES: Record<string, string> = {
   branch_admin: "Warranty admin (branch)",
   national_manager: "National Manager (view only, all branches)",
   manager: "Manager (view only, all branches)",
+  data_analyst: "Data Analyst (Sub-Dealer Analytics only)",
   service_manager: "Service manager (view only, own branch)",
   claims_reviewer: "Technician claims reviewer",
   technical: "Technical team",

@@ -76,6 +76,7 @@ const ROLE_LABEL: Record<string, string> = {
   service_manager: "Service manager",
   manager: "Manager",
   national_manager: "National Manager",
+  data_analyst: "Data Analyst",
   technical: "Technical team",
   workshop_supervisor: "Workshop supervisor",
   team_leader: "Team leader",
