@@ -562,10 +562,12 @@ export async function finalizeInternalAudit(
   }
   const closingStatement = String(formData.get("closing_statement") ?? "").trim() || null;
 
+  // Every department is written (an empty remark as null), so a remark cleared while re-finalizing a reopened
+  // audit does not stay on the report.
   const remarkRows = DEPARTMENT_ORDER.map((dept) => {
     const text = String(formData.get(`remark_${dept}`) ?? "").trim();
     return { internal_audit_id: auditId, department_id: dept as DepartmentId, remark_text: text || null };
-  }).filter((r) => r.remark_text !== null);
+  });
 
   if (remarkRows.length > 0) {
     const { error: remarksError } = await supabase
@@ -616,6 +618,29 @@ export async function finalizeInternalAudit(
   revalidatePath("/admin/results/internal-audit");
   if (audit.branch_id) revalidatePath(`/admin/results/internal-audit/${audit.branch_id}`);
   redirect(`/admin/internal-audit/${auditId}/report`);
+}
+
+// "Review & edit" on a finalized audit: back to in progress, so any officer can change the answers, the files
+// and the finalize page (names, remarks, recommendations, closing statement - all kept and shown again), then
+// finalize it again: the score and the report are worked out again and the Drive report file is replaced.
+// While reopened the branch does not see the result (it sees finalized audits only).
+export async function reopenInternalAudit(auditId: string): Promise<{ error?: string }> {
+  const officer = await requireRole("officer");
+  if (officer.viewOnly) return { error: "View only - you cannot change this audit." };
+  const supabase = await createClient();
+  const { data: audit } = await supabase.from("self_audit_internal_audits").select("status, branch_id").eq("id", auditId).single();
+  if (!audit) return { error: "Internal audit not found." };
+  if (audit.status !== "finalized") return {};
+  const { error } = await supabase
+    .from("self_audit_internal_audits")
+    .update({ status: "in_progress", finalized_at: null })
+    .eq("id", auditId)
+    .eq("status", "finalized");
+  if (error) return { error: error.message };
+  revalidatePath("/admin/internal-audit");
+  revalidatePath("/admin/results/internal-audit");
+  if (audit.branch_id) revalidatePath(`/admin/results/internal-audit/${audit.branch_id}`);
+  return {};
 }
 
 // Deletes an internal audit regardless of progress, same safety posture as

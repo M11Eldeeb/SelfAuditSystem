@@ -20,17 +20,18 @@ export default async function InternalAuditFinalizePage({
     requireRole("officer"),
     supabase
       .from("self_audit_internal_audits")
-      .select("status, auditor_name, manager_name, auditor_id")
+      .select("status, auditor_name, manager_name, auditor_id, closing_statement, recommendations")
       .eq("id", auditId)
       .single(),
   ]);
   if (!audit) notFound();
   if (audit.status === "finalized") redirect(`/admin/internal-audit/${auditId}/report`);
 
-  const [{ data: questions }, { data: internalClaims }, { data: branchAnswers }] = await Promise.all([
+  const [{ data: questions }, { data: internalClaims }, { data: branchAnswers }, { data: remarks }] = await Promise.all([
     supabase.from("self_audit_audit_questions").select("*").in("scope", ["claim", "parts", "branch"]),
     supabase.from("self_audit_internal_audit_claims").select("id").eq("internal_audit_id", auditId),
     supabase.from("self_audit_internal_audit_branch_answers").select("question_id, answer_value").eq("internal_audit_id", auditId),
+    supabase.from("self_audit_internal_audit_department_remarks").select("department_id, remark_text").eq("internal_audit_id", auditId),
   ]);
 
   const internalClaimIds = (internalClaims ?? []).map((c) => c.id);
@@ -59,16 +60,28 @@ export default async function InternalAuditFinalizePage({
   );
 
   const questionById = new Map((questions ?? []).map((q) => [q.id, q]));
+  // Reopened with "Review & edit": what was finalized before is shown again (kept wording, removed ones still removed).
+  const savedRecs = Array.isArray(audit.recommendations)
+    ? (audit.recommendations as { dept?: string; checkpoint?: string; text?: string }[])
+    : null;
+  const defaultRemarks: Record<string, string> = Object.fromEntries(
+    (remarks ?? []).filter((r) => r.remark_text).map((r) => [r.department_id, r.remark_text as string])
+  );
   const candidateRecommendations = checkpointScores
     .filter((c) => c.pct != null && c.pct < 80)
     .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
-    .map((c) => ({
-      questionId: c.questionId,
-      dept: DEPARTMENT_LABELS[(c.departmentId as DepartmentId) ?? "reception"] ?? c.departmentId,
-      checkpoint: c.label,
-      pct: c.pct ?? 0,
-      text: questionById.get(c.questionId)?.remediation_suggestion ?? "No specific recommendation on file.",
-    }));
+    .map((c) => {
+      const dept = DEPARTMENT_LABELS[(c.departmentId as DepartmentId) ?? "reception"] ?? c.departmentId;
+      const saved = savedRecs?.find((r) => r.dept === dept && r.checkpoint === c.label);
+      return {
+        questionId: c.questionId,
+        dept,
+        checkpoint: c.label,
+        pct: c.pct ?? 0,
+        text: saved?.text ?? questionById.get(c.questionId)?.remediation_suggestion ?? "No specific recommendation on file.",
+        removed: savedRecs != null && !saved,
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -77,7 +90,10 @@ export default async function InternalAuditFinalizePage({
           &larr; Back to Branch Operation
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Finalize internal audit</h1>
-        <p className="text-sm text-neutral-500">Current score: {overallScore}%. Finalizing locks all answers.</p>
+        <p className="text-sm text-neutral-500">
+          Current score: {overallScore}%. Finalizing locks all answers.
+          {audit.closing_statement != null && " Reopened for review - finalizing again replaces the earlier result and report."}
+        </p>
       </div>
 
       {/* The audit's files on Google Drive - added once, at the end (not on every claim). */}
@@ -87,7 +103,8 @@ export default async function InternalAuditFinalizePage({
         auditId={auditId}
         defaultAuditorName={audit.auditor_name || officer.full_name || ""}
         defaultManagerName={audit.manager_name ?? ""}
-        defaultClosingStatement={defaultClosingStatement(overallScore)}
+        defaultClosingStatement={audit.closing_statement ?? defaultClosingStatement(overallScore)}
+        defaultRemarks={defaultRemarks}
         candidateRecommendations={candidateRecommendations}
       />
     </div>

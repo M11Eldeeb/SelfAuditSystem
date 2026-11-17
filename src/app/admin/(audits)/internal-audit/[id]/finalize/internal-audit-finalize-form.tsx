@@ -4,19 +4,22 @@ import { useActionState } from "react";
 import { finalizeInternalAudit } from "../../actions";
 import { DEPARTMENT_ORDER, DEPARTMENT_LABELS } from "@/lib/departments";
 
-type CandidateRecommendation = { questionId: string; dept: string; checkpoint: string; pct: number; text: string };
+type CandidateRecommendation = { questionId: string; dept: string; checkpoint: string; pct: number; text: string; removed?: boolean };
 
 export function InternalAuditFinalizeForm({
   auditId,
   defaultAuditorName,
   defaultManagerName,
   defaultClosingStatement,
+  defaultRemarks = {},
   candidateRecommendations,
 }: {
   auditId: string;
   defaultAuditorName: string;
   defaultManagerName: string;
   defaultClosingStatement: string;
+  /** A reopened audit: the remarks it was finalized with. */
+  defaultRemarks?: Record<string, string>;
   candidateRecommendations: CandidateRecommendation[];
 }) {
   const boundFinalize = finalizeInternalAudit.bind(null, auditId);
@@ -64,6 +67,7 @@ export function InternalAuditFinalizeForm({
               id={`remark_${dept}`}
               name={`remark_${dept}`}
               rows={2}
+              defaultValue={defaultRemarks[dept] ?? ""}
               placeholder={`Observations for ${DEPARTMENT_LABELS[dept]}...`}
               className="w-full rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-2 text-sm"
             />
@@ -95,7 +99,7 @@ export function InternalAuditFinalizeForm({
                   {r.dept} &middot; {r.checkpoint} ({r.pct}%)
                 </label>
                 <label className="flex items-center gap-1.5 text-xs text-neutral-600">
-                  <input type="checkbox" name={`rec_remove_${r.questionId}`} value="1" className="accent-brand" />
+                  <input type="checkbox" name={`rec_remove_${r.questionId}`} value="1" defaultChecked={r.removed} className="accent-brand" />
                   Remove
                 </label>
               </div>
