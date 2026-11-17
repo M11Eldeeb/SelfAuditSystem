@@ -3,7 +3,6 @@ import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSheetsStatus, readSheetNamed } from "@/lib/google-sheets";
 import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
-import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 import { SUB_DEALER_SHEET_ID, normalizeVin, normalizeWorkOrder } from "@/lib/sub-dealer-wips";
 
 /**
@@ -83,10 +82,11 @@ export type SubDealerDashboard =
       free: SdFree[];
       batch: Record<string, SdBatch>;
       /**
-       * Closed claims whose work order is not on the batch yet: the parts the dealer invoiced on that work order and VIN
-       * (account W40, SAR) - the same estimate the Sub-Dealer Warranty Desk makes. Keyed by sheet claim id; missing = no parts lines found.
+       * What the dealer got for the PARTS of each closed claim (SAR): the batch claim named by its GWS claim ID, else the parts it
+       * invoiced on that work order and VIN (account W40) - asked from the same database function as the Sub-Dealer Warranty
+       * Desk's Revenue window, so both give the same figure. Keyed by sheet claim id; missing = nothing found.
        */
-      offBatchParts: Record<string, number>;
+      closedParts: Record<string, number>;
       branches: string[];
       months: string[];
     }
@@ -323,8 +323,6 @@ async function loadBatch(claimNumbersByKey: Map<string, Set<string>>): Promise<R
   return batch;
 }
 
-const accountNo = (code: string) => code.trim().toUpperCase().replace(/^[A-Z]+/, "").replace(/^0+/, "");
-
 /**
  * What the Warranty Invoicing report holds for each free service work order: the lines invoiced to account I660 (free service
  * for the customer) and to I1855 (goodwill - what is paid to the sub-dealer), labor (KH9) and parts (MG5) together. A line
@@ -334,30 +332,19 @@ async function addInvoicing(free: SdFree[]): Promise<string | null> {
   const admin = createAdminClient();
   const { data: last } = await admin.from("self_audit_invoicing_detail").select("invoice_date").order("invoice_date", { ascending: false, nullsFirst: false }).limit(1);
   const through = last?.[0]?.invoice_date ?? null;
-  // dealer code of the request's branch (HER -> A7) and its WIP number
-  const wanted = free.flatMap((f) => {
-    const m = f.workOrder.match(/^([A-Z]{2,4})-(\d+)/);
-    const dealer = m ? Object.entries(JIAD_DEALER_CODE_SUFFIX_MAP).find(([, code]) => code === m[1])?.[0] : undefined;
-    return m && dealer && f.vin ? [{ f, dealer, wip: m[2] }] : [];
-  });
-  if (!wanted.length) return through;
-  const numbers = [...new Set(wanted.map((w) => w.wip))];
-  const { data } = await admin
-    .from("self_audit_invoicing_detail")
-    .select("branch, wip, vin, account_code, amount")
-    .or(numbers.map((n) => `wip.like.${n}*`).join(","))
-    .in("account_code", ["I0000660", "I0001855", "I660", "I1855"]);
-  for (const w of wanted) {
-    let i660: number | null = null;
-    let i1855: number | null = null;
-    for (const r of data ?? []) {
-      if (r.branch !== w.dealer || normalizeVin(r.vin) !== w.f.vin || r.wip.trim().replace(/-\d+$/, "") !== w.wip) continue;
-      const acc = accountNo(r.account_code);
-      if (acc === "660") i660 = (i660 ?? 0) + Number(r.amount);
-      else if (acc === "1855") i1855 = (i1855 ?? 0) + Number(r.amount);
-    }
-    w.f.invoiced = i660;
-    w.f.paid = i1855;
+  // The same database function the Sub-Dealer Warranty Desk asks (I660 = invoiced, I1855 = paid to the sub-dealer), so both
+  // screens match: a line belongs to a request when its branch, work order number and VIN all match.
+  const asked = free.filter((f) => f.workOrder && f.vin);
+  const data = await askRevenueFunction<{ key: string; invoiced: number | null; paid: number | null }>(
+    "sub_dealer_free_service_invoiced",
+    asked.map((f) => ({ key: f.id, work_order_no: f.workOrder, vin: f.vin }))
+  );
+  if (!data) return through;
+  const byKey = new Map(data.map((r) => [r.key, r]));
+  for (const f of asked) {
+    const r = byKey.get(f.id);
+    f.invoiced = r?.invoiced != null ? Number(r.invoiced) : null;
+    f.paid = r?.paid != null ? Number(r.paid) : null;
   }
   return through;
 }
@@ -372,33 +359,40 @@ function namedBatchClaims(claims: SdClaim[]): Map<string, Set<string>> {
 }
 
 /**
- * Closed claims that are not on the batch yet: the parts the dealer already invoiced under account W40 on the same work order
- * and VIN (labor and parts of the claim are then known from the invoices, not from the batch). The same question the Sub-Dealer
- * Warranty Desk asks (sub_dealer_warranty_parts), so both screens give the same figure. Empty when it cannot be asked.
+ * Asks the database one of the two functions the Sub-Dealer Warranty Desk's Revenue window asks (sub_dealer_warranty_parts,
+ * sub_dealer_free_service_invoiced): the same functions on the same inputs give the same figures on both screens. They need the
+ * secret in portal_link_secret. Null when it cannot be asked.
  */
-async function loadOffBatchParts(claims: SdClaim[], batch: Record<string, SdBatch>): Promise<Record<string, number>> {
+async function askRevenueFunction<T>(fn: "sub_dealer_warranty_parts" | "sub_dealer_free_service_invoiced", items: Record<string, unknown>[]): Promise<T[] | null> {
+  if (!items.length) return [];
+  const admin = createAdminClient();
+  const { data: link } = await admin.from("portal_link_secret" as never).select("secret").eq("id", 1).maybeSingle();
+  const secret = (link as { secret?: string } | null)?.secret;
+  if (!secret) return null;
+  const rpc = admin.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: T[] | null; error: unknown }>;
+  const out: T[] = [];
+  for (let i = 0; i < items.length; i += 250) {
+    const { data, error } = await rpc.call(admin, fn, { p_secret: secret, p_items: items.slice(i, i + 250) });
+    if (error || !data) return null;
+    out.push(...data);
+  }
+  return out;
+}
+
+/**
+ * The parts revenue of every closed claim - exactly the question the Sub-Dealer Warranty Desk asks: the claim's GWS claim ID,
+ * work order, VIN and part numbers (twins = how many closed claims share the work order and VIN). Empty when it cannot be asked.
+ */
+async function loadClosedClaimParts(claims: SdClaim[]): Promise<Record<string, number>> {
   const closed = claims.filter((c) => c.status.trim().toLowerCase() === "closed" && c.workOrder && c.vin && c.key);
   const wipOf = (c: SdClaim) => `${c.workOrder.match(/^[A-Z]+-(\d+)/)?.[1] ?? c.workOrder}|${c.vin}`;
   const twins = new Map<string, number>();
   for (const c of closed) twins.set(wipOf(c), (twins.get(wipOf(c)) ?? 0) + 1);
-  const off = closed.filter((c) => !batch[c.key!]);
-  if (!off.length) return {};
-  const admin = createAdminClient();
-  const { data: link } = await admin.from("portal_link_secret" as never).select("secret").eq("id", 1).maybeSingle();
-  const secret = (link as { secret?: string } | null)?.secret;
-  if (!secret) return {};
-  const items = off.map((c) => ({
-    key: c.id,
-    gws_claim_id: c.gws,
-    work_order_no: c.workOrder,
-    vin: c.vin,
-    part_nos: c.partNos,
-    twins: twins.get(wipOf(c)) ?? 1,
-    labor_amount: c.laborApproved,
-  }));
-  const rpc = admin.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: { key: string; batch_found: boolean; batch_parts: number | null; invoiced_parts: number | null }[] | null; error: unknown }>;
-  const { data, error } = await rpc.call(admin, "sub_dealer_warranty_parts", { p_secret: secret, p_items: items });
-  if (error || !data) return {};
+  const data = await askRevenueFunction<{ key: string; batch_found: boolean; batch_parts: number | null; invoiced_parts: number | null }>(
+    "sub_dealer_warranty_parts",
+    closed.map((c) => ({ key: c.id, gws_claim_id: c.gws, work_order_no: c.workOrder, vin: c.vin, part_nos: c.partNos, twins: twins.get(wipOf(c)) ?? 1, labor_amount: c.laborApproved }))
+  );
+  if (!data) return {};
   const out: Record<string, number> = {};
   // The batch claim named by its GWS claim ID wins; otherwise the parts invoiced on the work order and VIN.
   for (const r of data) {
@@ -413,7 +407,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
   try {
     const parsed = await readSheet();
     const batch = await loadBatch(namedBatchClaims(parsed.claims));
-    const offBatchParts = await loadOffBatchParts(parsed.claims, batch).catch(() => ({}) as Record<string, number>);
+    const closedParts = await loadClosedClaimParts(parsed.claims).catch(() => ({}) as Record<string, number>);
     // The cached sheet rows are shared: the invoicing amounts go on copies.
     const free = parsed.free.map((f) => ({ ...f }));
     const invoicingThrough = await addInvoicing(free).catch(() => null);
@@ -427,7 +421,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
       claims: parsed.claims,
       free,
       batch,
-      offBatchParts,
+      closedParts,
       branches: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.branch))].sort(),
       months: [...new Set([...parsed.claims, ...parsed.free].map((c) => c.month).filter((m): m is string => !!m))].sort(),
     };

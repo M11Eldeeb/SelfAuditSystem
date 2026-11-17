@@ -126,17 +126,18 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
   const adjustedUsd = onBatch.reduce((s, g) => s + (g.batch?.adjustedUsd ?? 0), 0);
   const settled = onBatch.reduce((s, g) => s + (g.batch?.settled ?? 0), 0);
   const approvedOnBatch = onBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
-  const leftWithDealer = adjusted - approvedOnBatch;
   const approvedNotOnBatch = notOnBatch.reduce((s, g) => s + (g.approved ?? 0), 0);
-  // Closed claims whose work order is not on the batch yet: the labor margin (hours x 70 SAR) plus the parts the dealer already
-  // invoiced on that work order and VIN (account W40) - the same estimate the Sub-Dealer Warranty Desk makes.
-  const expectedClaims = claims.filter((c) => isClosed(c.status) && c.key && !data.batch[c.key]);
-  const expectedLabor = expectedClaims.reduce((s, c) => s + (c.laborApproved ?? 0) * LABOR_MARGIN, 0);
-  const expectedParts = expectedClaims.reduce((s, c) => s + (data.offBatchParts[c.id] ?? 0), 0);
-  const warrantyRevenue = leftWithDealer + expectedLabor + expectedParts;
+  // The dealer's warranty revenue, on CLOSED claims only and worked out exactly as the Sub-Dealer Warranty Desk's Revenue window does:
+  // the labor margin (the sub-dealer's approved labor x 70/110: the manufacturer pays 180 SAR an hour, the sub-dealer gets 110) plus the
+  // parts (the batch claim named by its GWS claim ID, else the parts invoiced on the work order and VIN) - one figure per claim.
+  const revenueClaims = claims.filter((c) => isClosed(c.status));
+  const revenueLabor = revenueClaims.reduce((s, c) => s + (c.laborApproved ?? 0) * LABOR_MARGIN, 0);
+  const revenueParts = revenueClaims.reduce((s, c) => s + (data.closedParts[c.id] ?? 0), 0);
+  const warrantyRevenue = revenueLabor + revenueParts;
   const freeApproved = free.reduce((s, f) => s + (f.approved ?? 0), 0);
   // Free service: what was invoiced to I660 on the work order minus what was invoiced to I1855 (paid to the sub-dealer).
-  const freeInvoiced = free.filter((f) => f.invoiced != null);
+  // Closed requests only, as on the Sub-Dealer Warranty Desk.
+  const freeInvoiced = free.filter((f) => isClosed(f.status) && f.invoiced != null);
   const freeInvoicedTotal = freeInvoiced.reduce((s, f) => s + (f.invoiced ?? 0), 0);
   // What is paid to the sub-dealer: the I1855 invoice; until it is in, the approved amount without its VAT.
   const freePaidTotal = freeInvoiced.reduce((s, f) => s + (f.paid ?? (f.approved != null ? f.approved / VAT : 0)), 0);
@@ -299,8 +300,7 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
             <Label>Revenue to the dealer</Label>
             <Metric value={data.hasLaborApproved ? money(warrantyRevenue) : "—"} unit="SAR" tone={data.hasLaborApproved && warrantyRevenue < 0 ? "red" : "green"} />
             <div className="text-xs text-[#6e6e73]">
-              Paid on the batch minus the {money(approvedOnBatch)} settled with the sub-dealer on the same work orders ({money(leftWithDealer)})
-              {expectedClaims.length > 0 ? ` + ${money(expectedLabor + expectedParts)} expected on ${fmtInt(expectedClaims.length)} closed claim${expectedClaims.length === 1 ? "" : "s"} not on the batch yet (labor margin ${money(expectedLabor)} + parts invoiced ${money(expectedParts)})` : ""}
+              {fmtInt(revenueClaims.length)} closed claim{revenueClaims.length === 1 ? "" : "s"}: labor margin {money(revenueLabor)} (the approved labor x 70/110) + parts {money(revenueParts)} (from the batch claim named by its GWS claim ID, else the parts invoiced on the work order)
             </div>
           </Card>
         </div>
