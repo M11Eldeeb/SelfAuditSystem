@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { checkExistingTicket, joinQueue, rejoinHeldTicket } from "@/app/actions/queue-public";
+import { checkExistingTicket, joinQueue, lookupAppointment, rejoinHeldTicket, type AppointmentMatch } from "@/app/actions/queue-public";
 import { MODE_LABEL, WIP_LABEL, type ServiceMode, type WipServiceType } from "@/lib/queue/core";
 import { PublicShell, Spinner } from "./public-shell";
 import { useQueueLang } from "./alerts";
@@ -35,11 +35,45 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<{ type: "active" | "held"; id: string; ticketNumber: string } | null>(null);
+  // "Appointment": the DMS sheet is checked by mobile, then by the WIP number typed. Another day / not found = walk-in.
+  const [appt, setAppt] = useState<AppointmentMatch | "checking" | null>(null);
+  const [apptByWip, setApptByWip] = useState(false);
+  const [walkInNotice, setWalkInNotice] = useState<string | null>(null);
 
   const branchName = lang === "ar" && branch.name_ar ? branch.name_ar : branch.name;
   const needsWip = mode === "appointment" || mode === "walk_in";
   const validMobile = /^0?5\d{8}$/.test(mobile);
-  const step2Done = !!mode && (!needsWip || !!wip) && (mode !== "appointment" || !!wipNumber.trim());
+  const apptToday = appt && appt !== "checking" && appt.status === "today" ? appt : null;
+  const step2Done = !!mode && (!needsWip || !!wip) && (mode !== "appointment" || !!apptToday);
+  const locale = lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB";
+  const day = (d: string) => new Date(`${d}T12:00:00+03:00`).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Riyadh" });
+  const clock = (hm: string | null) => (hm ? new Date(`2000-01-01T${hm}:00`).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" }) : null);
+
+  async function checkAppointment(byWip: boolean) {
+    setAppt("checking");
+    setWalkInNotice(null);
+    const m = await lookupAppointment(branch.id, mobile, byWip ? wipNumber : undefined);
+    if (m.status === "today") return setAppt(m);
+    if (m.status === "other_day") {
+      setAppt(null);
+      setMode("walk_in");
+      setWalkInNotice(
+        t(
+          `Your appointment is on ${day(m.date)}${m.time ? ` at ${clock(m.time)}` : ""} (WIP ${m.wip}). Today you will be served as a walk-in.`,
+          `موعدك يوم ${day(m.date)}${m.time ? ` الساعة ${clock(m.time)}` : ""} (WIP ${m.wip}). سيتم خدمتك اليوم بدون موعد.`
+        )
+      );
+      return;
+    }
+    if (!byWip) {
+      setAppt(m); // not found by mobile: ask for the WIP number
+      setApptByWip(true);
+      return;
+    }
+    setAppt(null);
+    setMode("walk_in");
+    setWalkInNotice(t("We could not find an appointment for this mobile or WIP number. You will be served as a walk-in.", "لم نجد موعداً بهذا الجوال أو رقم WIP. سيتم خدمتك بدون موعد."));
+  }
 
   if (branch.status !== "open") {
     return (
@@ -142,7 +176,12 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                   type="button"
                   onClick={() => {
                     setMode(m.value);
+                    setWalkInNotice(null);
                     if (m.value === "inquiry" || m.value === "spare_parts") setWip(null);
+                    if (m.value === "appointment") {
+                      setApptByWip(false);
+                      void checkAppointment(false);
+                    } else setAppt(null);
                   }}
                   className={`${choice(mode === m.value)} flex flex-col items-center gap-2 p-4`}
                 >
@@ -162,11 +201,31 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 ))}
               </div>
             )}
-            {mode === "appointment" && (
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">{t("WIP number", "رقم WIP")}</span>
-                <input value={wipNumber} onChange={(e) => setWipNumber(e.target.value.slice(0, 30))} dir="ltr" inputMode="numeric" className={field} />
-              </label>
+            {walkInNotice && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ℹ️ {walkInNotice}</p>}
+            {mode === "appointment" && appt === "checking" && (
+              <p className="flex items-center gap-2 text-sm text-neutral-500">
+                <Spinner /> {t("Looking for your appointment…", "جارِ البحث عن موعدك…")}
+              </p>
+            )}
+            {mode === "appointment" && apptToday && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                <p className="font-semibold">✓ {t("Your appointment is today", "موعدك اليوم")}</p>
+                <p className="text-sm">
+                  {day(apptToday.date)}
+                  {apptToday.time && ` · ${clock(apptToday.time)}`} · <span dir="ltr">WIP {apptToday.wip}</span>
+                </p>
+              </div>
+            )}
+            {mode === "appointment" && apptByWip && appt !== "checking" && !apptToday && (
+              <div className="space-y-2">
+                <p className="text-sm text-neutral-600">{t("We could not find an appointment for this mobile. Enter the WIP number of your appointment.", "لم نجد موعداً لهذا الجوال. أدخل رقم WIP الخاص بموعدك.")}</p>
+                <div className="flex gap-2">
+                  <input value={wipNumber} onChange={(e) => setWipNumber(e.target.value.slice(0, 30))} dir="ltr" inputMode="numeric" placeholder="WIP" className={field} />
+                  <button type="button" disabled={!wipNumber.trim()} onClick={() => checkAppointment(true)} className="shrink-0 rounded-xl bg-neutral-900 px-5 font-semibold text-white disabled:opacity-40">
+                    {t("Find", "بحث")}
+                  </button>
+                </div>
+              </div>
             )}
             <div className="mt-auto flex gap-3">
               <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-black/15 bg-white px-5 py-4 font-semibold text-neutral-800">
@@ -187,7 +246,12 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               <Row label={t("Mobile", "الجوال")} value={`+966 ${mobile.replace(/^0/, "")}`} ltr />
               <Row label={t("Service", "الخدمة")} value={t(MODE_LABEL[mode][0], MODE_LABEL[mode][1])} />
               {wip && <Row label={t("For", "الخدمة المطلوبة")} value={t(WIP_LABEL[wip][0], WIP_LABEL[wip][1])} />}
-              {mode === "appointment" && <Row label={t("WIP number", "رقم WIP")} value={wipNumber} ltr />}
+              {mode === "appointment" && apptToday && (
+                <>
+                  <Row label={t("Appointment", "الموعد")} value={`${day(apptToday.date)}${apptToday.time ? ` · ${clock(apptToday.time)}` : ""}`} />
+                  <Row label={t("WIP number", "رقم WIP")} value={apptToday.wip} ltr />
+                </>
+              )}
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="mt-auto flex gap-3">

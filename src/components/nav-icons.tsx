@@ -48,6 +48,7 @@ function keyFor(href: string, label: string): string {
     if (h.endsWith("/parts")) return "box";
     if (h.endsWith("/team") || h.endsWith("/customers")) return "people";
     if (h.endsWith("/analytics")) return "results";
+    if (h.endsWith("/appointments")) return "schedule";
     return "queue";
   }
   if (h === "/technician" || l === "my claims") return "list";

@@ -28,6 +28,8 @@ export type QueueTicket = {
   queue_entry_at: string;
   served_at: string | null;
   closed_at: string | null;
+  /** Came for an appointment of the DMS sheet: its time (shown at the desk). */
+  appointment_at?: string | null;
 };
 
 export type QueueSettings = { priority_order: Tier[]; fairness_enabled: boolean; fairness_override_minutes: number };

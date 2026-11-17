@@ -5,7 +5,7 @@
 // gets customer names or mobiles.
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeMobile, startOfSaudiDay, type ServiceMode, type WipServiceType, type QueueTicket } from "@/lib/queue/core";
+import { normalizeMobile, saudiDate, startOfSaudiDay, type ServiceMode, type WipServiceType, type QueueTicket } from "@/lib/queue/core";
 
 const MODES: ServiceMode[] = ["appointment", "walk_in", "inquiry", "spare_parts"];
 const WIPS: WipServiceType[] = ["general_repair", "quick_service", "vehicle_delivery"];
@@ -52,6 +52,42 @@ export async function checkExistingTicket(branchId: string, mobileRaw: string): 
   return held ? { type: "held", id: held.id, ticketNumber: held.ticket_number ?? "" } : null;
 }
 
+export type AppointmentMatch =
+  | { status: "today"; date: string; time: string | null; wip: string }
+  | { status: "other_day"; date: string; time: string | null; wip: string }
+  | { status: "none" };
+
+/** WIP as typed ("HER-30142", "030142") -> "30142". */
+const wipDigits = (v: string) => String(v ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, 20);
+
+type ApptRow = { id: string; wip_no: string; appt_date: string; appt_time: string | null };
+
+/**
+ * The customer's appointment at this branch (from the daily DMS appointments sheet): by mobile, or else by the WIP
+ * number they typed. Today's wins; otherwise the nearest other day (last 30 days to next 60) is reported.
+ */
+async function findAppointment(branchId: string, mobile: string | null, wip: string): Promise<{ match: AppointmentMatch; row: ApptRow | null }> {
+  const today = saudiDate(new Date().toISOString());
+  const from = saudiDate(new Date(Date.now() - 30 * DAY_MS).toISOString());
+  const to = saudiDate(new Date(Date.now() + 60 * DAY_MS).toISOString());
+  const admin = createAdminClient();
+  const base = () => admin.from("self_audit_queue_appointments").select("id, wip_no, appt_date, appt_time").eq("branch_id", branchId).gte("appt_date", from).lte("appt_date", to);
+  let rows: ApptRow[] = [];
+  if (mobile) rows = ((await base().eq("mobile", mobile)).data ?? []) as ApptRow[];
+  if (!rows.length && wip) rows = ((await base().eq("wip_no", wip)).data ?? []) as ApptRow[];
+  if (!rows.length) return { match: { status: "none" }, row: null };
+  const away = (d: string) => Math.abs(new Date(d).getTime() - new Date(today).getTime());
+  const best = rows.find((x) => x.appt_date === today) ?? [...rows].sort((a, b) => away(a.appt_date) - away(b.appt_date))[0];
+  const time = best.appt_time ? best.appt_time.slice(0, 5) : null;
+  return { match: { status: best.appt_date === today ? "today" : "other_day", date: best.appt_date, time, wip: best.wip_no }, row: best };
+}
+
+/** The kiosk, when "Appointment" is chosen: is there one today for this mobile (or this WIP number)? */
+export async function lookupAppointment(branchId: string, mobileRaw: string, wipRaw?: string): Promise<AppointmentMatch> {
+  if (!(await openBranch(branchId))) return { status: "none" };
+  return (await findAppointment(branchId, normalizeMobile(mobileRaw), wipDigits(wipRaw ?? ""))).match;
+}
+
 export async function joinQueue(input: {
   branchId: string;
   name: string;
@@ -65,17 +101,33 @@ export async function joinQueue(input: {
   if (branch.queue_status !== "open") return { error: "The queue is not taking new customers right now. · الطابور لا يستقبل عملاء جدد حالياً." };
   const name = String(input.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const mobile = normalizeMobile(input.mobile);
-  const mode = MODES.find((m) => m === input.mode);
+  let mode = MODES.find((m) => m === input.mode);
   if (!name || !mobile || !mode) return { error: "Enter your name, a Saudi mobile number (5X XXX XXXX) and the service. · أدخل الاسم ورقم الجوال والخدمة." };
   const needsWip = mode === "appointment" || mode === "walk_in";
   const wip = needsWip ? WIPS.find((w) => w === input.wip) ?? null : null;
   if (needsWip && !wip) return { error: "Choose what you need. · اختر الخدمة المطلوبة." };
-  const wipNumber = mode === "appointment" ? String(input.wipNumber ?? "").trim().slice(0, 30) : "";
-  if (mode === "appointment" && !wipNumber) return { error: "Enter the WIP number of your appointment. · أدخل رقم WIP." };
+  // An appointment counts only when the sheet has one today for this mobile / WIP; else the customer is a walk-in.
+  let appointment: { id: string; at: string | null; wip: string } | null = null;
+  if (mode === "appointment") {
+    const { match, row } = await findAppointment(branch.id, mobile, wipDigits(input.wipNumber ?? ""));
+    if (match.status === "today" && row)
+      appointment = { id: row.id, wip: row.wip_no, at: row.appt_time ? new Date(`${row.appt_date}T${row.appt_time.slice(0, 5)}:00+03:00`).toISOString() : null };
+    else mode = "walk_in";
+  }
 
   const { data, error } = await createAdminClient()
     .from("self_audit_queue_tickets")
-    .insert({ branch_id: branch.id, customer_name: name, mobile, service_mode: mode, wip_service_type: wip, wip_number: wipNumber || null, status: "waiting" })
+    .insert({
+      branch_id: branch.id,
+      customer_name: name,
+      mobile,
+      service_mode: mode,
+      wip_service_type: wip,
+      wip_number: appointment?.wip ?? null,
+      appointment_id: appointment?.id ?? null,
+      appointment_at: appointment?.at ?? null,
+      status: "waiting",
+    })
     .select("id")
     .single();
   if (error || !data) return { error: "Something went wrong. Please try again. · حدث خطأ، حاول مرة أخرى." };

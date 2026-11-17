@@ -44,6 +44,7 @@ export interface Database {
           advisor_id: string | null; advisor_name: string | null; preassigned_advisor_id: string | null; preassigned_advisor_name: string | null;
           preassign_urgent: boolean; held_at: string | null; was_held: boolean; notes: string | null;
           queue_entry_at: string; served_at: string | null; closed_at: string | null; created_at: string;
+          appointment_id: string | null; appointment_at: string | null;
         };
         Insert: {
           id?: string; branch_id: string; ticket_number?: string | null; customer_name: string; mobile: string;
@@ -53,6 +54,7 @@ export interface Database {
           advisor_id?: string | null; advisor_name?: string | null; preassigned_advisor_id?: string | null; preassigned_advisor_name?: string | null;
           preassign_urgent?: boolean; held_at?: string | null; was_held?: boolean; notes?: string | null;
           queue_entry_at?: string; served_at?: string | null; closed_at?: string | null; created_at?: string;
+          appointment_id?: string | null; appointment_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_tickets"]["Insert"]>;
         Relationships: [];
@@ -67,6 +69,26 @@ export interface Database {
         Row: { id: string; name: string; title: string | null; branch_id: string | null; email: string; queue_role: QueueRole; created_at: string };
         Insert: { id?: string; name: string; title?: string | null; branch_id?: string | null; email: string; queue_role: QueueRole; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_import"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_appointments: {
+        Row: {
+          id: string; branch_id: string; wip_no: string; appt_date: string; appt_time: string | null; customer_name: string | null; mobile: string | null;
+          vin: string | null; description: string | null; service_reception: string | null; status_text: string | null; appointment_code: string | null;
+          source: "mail" | "upload"; imported_at: string;
+        };
+        Insert: {
+          id?: string; branch_id: string; wip_no: string; appt_date: string; appt_time?: string | null; customer_name?: string | null; mobile?: string | null;
+          vin?: string | null; description?: string | null; service_reception?: string | null; status_text?: string | null; appointment_code?: string | null;
+          source?: "mail" | "upload"; imported_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_appointments"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_appointment_imports: {
+        Row: { id: string; source: "mail" | "upload"; gmail_message_id: string | null; subject: string | null; file_name: string | null; received_at: string | null; rows: number; imported_by: string | null; imported_at: string };
+        Insert: { id?: string; source: "mail" | "upload"; gmail_message_id?: string | null; subject?: string | null; file_name?: string | null; received_at?: string | null; rows?: number; imported_by?: string | null; imported_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_appointment_imports"]["Insert"]>;
         Relationships: [];
       };
       self_audit_queue_push: {

@@ -23,6 +23,9 @@ const btn = "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-
 const primary = `${btn} bg-brand text-white shadow-sm hover:bg-brand-dark`;
 const ghost = `${btn} border border-neutral-200 bg-white text-neutral-800 hover:border-brand hover:text-brand`;
 
+/** The appointment's time of day (Saudi time), e.g. 14:30. */
+const apptTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
+
 function clockSince(iso: string | null, now: number) {
   const s = iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000)) : 0;
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -138,7 +141,7 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="truncate font-semibold text-neutral-900">{tk.customer_name}</span>
-                            {tk.service_mode === "appointment" && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">Appointment</span>}
+                            {tk.service_mode === "appointment" && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">Appointment{tk.appointment_at && ` ${apptTime(tk.appointment_at)}`}</span>}
                             {tk.was_held && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">Back from hold</span>}
                             {tk.preassign_urgent && tk.preassigned_advisor_id && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] text-white">Urgent</span>}
                           </div>
@@ -355,6 +358,7 @@ function Session({
         <Info label="Customer" value={tk.customer_name} />
         <Info label="Service" value={serviceText(tk, "en")} />
         <Info label="Mobile" value={tk.mobile} ltr href={`tel:${tk.mobile}`} />
+        {tk.appointment_at && <Info label="Appointment time" value={apptTime(tk.appointment_at)} />}
         <Info
           label={tk.service_mode === "appointment" ? MODE_LABEL.appointment[0] : "Joined"}
           value={`${minutesSince(tk.queue_entry_at, now)} min ago${tk.wip_number ? ` · WIP ${tk.wip_number}` : ""}`}

@@ -27,6 +27,7 @@ export default async function QueueLayout({ children }: { children: ReactNode })
       }
     }
   }
+  links.push({ href: "/queue/appointments", label: "Appointments" });
   links.push({ href: "/queue/team", label: "Team" });
   if (a.admin) links.push({ href: "/queue/admin", label: "Queue admin" });
   if (a.user.role !== "queue_user") links.push({ href: homePathFor(a.user.role), label: "Back to portal", bottom: true });
