@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getMsiExtra, refreshMsi } from "@/app/admin/msi/actions";
 import { Card, Label, Panel, Pill } from "@/components/dashboard/ui";
@@ -33,17 +33,16 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
 
   const needsExtra = TABS.find((t) => t.id === tab)?.needsExtra || tab === "advisors";
   const reportDate = report?.reportDate;
+  // The report date the big sheets were asked for (a ref: the answer must not be dropped when the state changes while it is on its way).
+  const asked = useRef<string | null>(null);
   useEffect(() => {
-    if (!needsExtra || !reportDate || extra.status !== "idle") return;
-    let live = true;
-    queueMicrotask(() => live && setExtra({ status: "loading", data: null }));
+    if (!needsExtra || !reportDate || asked.current === reportDate) return;
+    asked.current = reportDate;
+    queueMicrotask(() => setExtra({ status: "loading", data: null }));
     getMsiExtra(reportDate).then(
-      (data) => live && setExtra(data ? { status: "ready", data } : { status: "missing", data: null }),
-      () => live && setExtra({ status: "failed", data: null })
+      (data) => asked.current === reportDate && setExtra(data ? { status: "ready", data } : { status: "missing", data: null }),
+      () => asked.current === reportDate && setExtra({ status: "failed", data: null })
     );
-    return () => {
-      live = false;
-    };
   }, [needsExtra, reportDate, extra.status]);
 
   function refresh() {
@@ -53,6 +52,7 @@ export function MsiView({ report, dates, isLatest, canRefresh, importNote }: { r
       setRefreshNote(
         r.status === "imported" ? `Updated: report of ${fmtDay(r.reportDate)}.` : r.status === "unchanged" ? "No newer report than the one shown." : r.status === "not-found" ? "No Major Service Indicators e-mail found." : r.status === "not-connected" ? "The report mailbox is not connected." : r.error
       );
+      asked.current = null; // ask again for the (possibly newer) report
       setExtra({ status: "idle", data: null });
       router.refresh();
     });
