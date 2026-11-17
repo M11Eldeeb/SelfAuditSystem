@@ -299,6 +299,7 @@ const ROLE_NAMES: Record<string, string> = {
   workshop_supervisor: "Workshop supervisor",
   team_leader: "Team leader",
   service_advisor: "Service advisor",
+  queue_user: "Queue only",
   quality_controller: "Quality controller",
   technician: "Technician",
 };

@@ -48,6 +48,7 @@ export function homePathFor(role: UserRole | null | undefined): string {
   if (role === "claims_reviewer") return "/reviewer/technician-claims";
   if (role === "service_advisor") return "/advisor/dashboard";
   if (role === "quality_controller") return "/qc";
+  if (role === "queue_user") return "/queue";
   if (role === "workshop_supervisor" || role === "team_leader") return "/workshop/technical-inquiries";
   return "/audit/dashboard"; // branch admin and service manager
 }

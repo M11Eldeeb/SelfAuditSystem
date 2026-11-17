@@ -82,12 +82,13 @@ const ROLE_LABEL: Record<string, string> = {
   technician: "Technician",
   claims_reviewer: "Technician claims reviewer",
   service_advisor: "Service advisor",
+  queue_user: "Queue",
   quality_controller: "Quality controller",
 };
 
 export function NavBar({
   user,
-  links,
+  links: areaLinks,
   notifications,
   roleDetail,
 }: {
@@ -100,6 +101,11 @@ export function NavBar({
 }) {
   const pathname = usePathname();
   const search = useSearchParams();
+  // The customer queue (its own area): a link in every menu for the people who work in it.
+  const queueAccess = !!user.queue_role || user.role === "officer" || user.role === "national_manager" || user.role === "manager";
+  const links = queueAccess && !pathname.startsWith("/queue") && !areaLinks.some((l) => l.href.startsWith("/queue"))
+    ? [...areaLinks.filter((l) => !l.bottom), { href: "/queue", label: "Customer queue" }, ...areaLinks.filter((l) => l.bottom)]
+    : areaLinks;
   // Each account arranges its own menu (kept on the account): drag entries into an order and into folders.
   const [layout, setLayout] = useState<NavLayout | null>((user.nav_layout as NavLayout | null) ?? null);
   const [organize, setOrganize] = useState(false);

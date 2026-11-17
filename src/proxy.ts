@@ -34,7 +34,9 @@ export async function proxy(request: NextRequest) {
   const user = claimsData?.claims?.sub ? claimsData.claims : (await supabase.auth.getUser()).data.user;
 
   const { pathname } = request.nextUrl;
-  const isPublicPath = PUBLIC_PATHS.includes(pathname);
+  // The customer queue's public pages (joining at the branch, the ticket page, find my ticket, the branch TV) and its
+  // alert service worker need no sign-in.
+  const isPublicPath = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/q/") || pathname === "/queue-sw.js";
 
   if (!user && !isPublicPath) {
     const loginUrl = new URL("/login", request.url);

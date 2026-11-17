@@ -26,6 +26,12 @@ const P: Record<string, string> = {
   query: "M8.5 14.5a6 6 0 100-12 6 6 0 000 12zM13 13l4.5 4.5M6 7.5h5M6 10h3.5",
   // Quality seal: a rosette with a check mark and two ribbons.
   quality: "M10 13a5 5 0 100-10 5 5 0 000 10zM7.8 8.1l1.5 1.5 2.9-3M7.2 12.2L6 17.5l4-2 4 2-1.2-5.3",
+  // Customer queue: a ticket with a number line; people; a TV; a gear; a parts box.
+  queue: "M3.5 6.5h13v2a1.5 1.5 0 000 3v2h-13v-2a1.5 1.5 0 000-3zM12.5 6.5v7M6 9h4M6 11h3",
+  people: "M7.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM3 16c0-2.5 2-4.5 4.5-4.5S12 13.5 12 16M13.5 9a2 2 0 100-4M14.5 11.6c1.6.4 2.5 2 2.5 4.4",
+  tv: "M3 4.5h14v9H3zM7 16.5h6M10 13.5v3",
+  gear: "M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4",
+  box: "M3.5 6.5L10 3l6.5 3.5v7L10 17l-6.5-3.5zM3.5 6.5L10 10l6.5-3.5M10 10v7",
 };
 
 function keyFor(href: string, label: string): string {
@@ -36,6 +42,14 @@ function keyFor(href: string, label: string): string {
   if (l.startsWith("ams")) return "submit";
   if (l.startsWith("submit")) return "plus";
   if (h.includes("tab=quality")) return "quality";
+  if (h.startsWith("/queue") || h.startsWith("/q/")) {
+    if (h.includes("/display")) return "tv";
+    if (h.endsWith("/settings") || h.endsWith("/admin")) return "gear";
+    if (h.endsWith("/parts")) return "box";
+    if (h.endsWith("/team") || h.endsWith("/customers")) return "people";
+    if (h.endsWith("/analytics")) return "results";
+    return "queue";
+  }
   if (h === "/technician" || l === "my claims") return "list";
   if (h.endsWith("/query")) return "query";
   if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || l === "qc records") return "quality";

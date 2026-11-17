@@ -2,7 +2,9 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "manager" | "national_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller";
+export type UserRole = "officer" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "manager" | "national_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "queue_user";
+/** What a person does in the customer queue, beside the portal role. */
+export type QueueRole = "advisor" | "parts_advisor" | "manager";
 export type CycleStatus = "draft" | "open" | "completed";
 export type AssignmentStatus =
   | "not_started"
@@ -28,9 +30,49 @@ export interface Database {
   public: {
     Tables: {
       self_audit_branches: {
-        Row: { id: string; name: string; code: string; active: boolean; created_at: string; keeps_parts: boolean; no_emails: boolean };
-        Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string; keeps_parts?: boolean; no_emails?: boolean };
+        Row: { id: string; name: string; code: string; active: boolean; created_at: string; keeps_parts: boolean; no_emails: boolean; queue_code: string | null; name_ar: string | null; queue_status: "open" | "paused" | "closed" };
+        Insert: { id?: string; name: string; code: string; active?: boolean; created_at?: string; keeps_parts?: boolean; no_emails?: boolean; queue_code?: string | null; name_ar?: string | null; queue_status?: "open" | "paused" | "closed" };
         Update: Partial<Database["public"]["Tables"]["self_audit_branches"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_tickets: {
+        Row: {
+          id: string; branch_id: string; ticket_number: string | null; customer_name: string; mobile: string;
+          service_mode: "appointment" | "walk_in" | "inquiry" | "spare_parts";
+          wip_service_type: "general_repair" | "quick_service" | "vehicle_delivery" | null; wip_number: string | null;
+          status: "waiting" | "called" | "in_service" | "completed" | "no_show" | "cancelled" | "held";
+          advisor_id: string | null; advisor_name: string | null; preassigned_advisor_id: string | null; preassigned_advisor_name: string | null;
+          preassign_urgent: boolean; held_at: string | null; was_held: boolean; notes: string | null;
+          queue_entry_at: string; served_at: string | null; closed_at: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; branch_id: string; ticket_number?: string | null; customer_name: string; mobile: string;
+          service_mode: Database["public"]["Tables"]["self_audit_queue_tickets"]["Row"]["service_mode"];
+          wip_service_type?: Database["public"]["Tables"]["self_audit_queue_tickets"]["Row"]["wip_service_type"]; wip_number?: string | null;
+          status?: Database["public"]["Tables"]["self_audit_queue_tickets"]["Row"]["status"];
+          advisor_id?: string | null; advisor_name?: string | null; preassigned_advisor_id?: string | null; preassigned_advisor_name?: string | null;
+          preassign_urgent?: boolean; held_at?: string | null; was_held?: boolean; notes?: string | null;
+          queue_entry_at?: string; served_at?: string | null; closed_at?: string | null; created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_tickets"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_settings: {
+        Row: { branch_id: string; priority_order: string[]; fairness_enabled: boolean; fairness_override_minutes: number; updated_by: string | null; updated_at: string };
+        Insert: { branch_id: string; priority_order?: string[]; fairness_enabled?: boolean; fairness_override_minutes?: number; updated_by?: string | null; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_settings"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_push: {
+        Row: { id: string; ticket_id: string; endpoint: string; p256dh: string; auth: string; created_at: string };
+        Insert: { id?: string; ticket_id: string; endpoint: string; p256dh: string; auth: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_push"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_queue_employees: {
+        Row: { id: string; name: string; title: string | null; city: string | null; branch_id: string | null; branch_name: string | null; phone: string | null; email: string | null; queue_role: QueueRole | null; created_at: string };
+        Insert: { id?: string; name: string; title?: string | null; city?: string | null; branch_id?: string | null; branch_name?: string | null; phone?: string | null; email?: string | null; queue_role?: QueueRole | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_queue_employees"]["Insert"]>;
         Relationships: [];
       };
       self_audit_login_failures: {
@@ -99,6 +141,9 @@ export interface Database {
           must_change_password: boolean;
           /** The menu this person arranged (order, own folders); null = the standard menu. */
           nav_layout: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
+          /** Customer queue: advisor / parts advisor / queue manager (null = no queue access). */
+          queue_role: QueueRole | null;
+          job_title: string | null;
         };
         Insert: {
           id: string;
@@ -111,6 +156,8 @@ export interface Database {
           employee_no?: string | null;
           must_change_password?: boolean;
           nav_layout?: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
+          queue_role?: QueueRole | null;
+          job_title?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];
