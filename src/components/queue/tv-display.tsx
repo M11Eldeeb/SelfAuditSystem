@@ -19,7 +19,7 @@ async function announce(c: DisplayCall) {
 }
 
 /** The branch TV: the ticket being called (big), the latest calls and how many wait; each new call is chimed and spoken. */
-export function TvDisplay({ branch }: { branch: { id: string; name: string; name_ar: string | null } }) {
+export function TvDisplay({ branch, qrSvg }: { branch: { id: string; name: string; name_ar: string | null }; qrSvg: string }) {
   const [calls, setCalls] = useState<DisplayCall[]>([]);
   const [waiting, setWaiting] = useState(0);
   const [flash, setFlash] = useState<DisplayCall | null>(null);
@@ -162,11 +162,21 @@ export function TvDisplay({ branch }: { branch: { id: string; name: string; name
               </ul>
             )}
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-[2vw] text-center">
-            <div className="text-[2.6vh] text-white/70">
-              Waiting · <span dir="rtl">في الانتظار</span>
+          <div className="flex items-center gap-[1.5vw] rounded-3xl border border-white/10 bg-white/5 p-[1.5vw]">
+            <div className="flex-1 text-center">
+              <div className="text-[2.6vh] text-white/70">
+                Waiting · <span dir="rtl">في الانتظار</span>
+              </div>
+              <div className="text-[9vh] font-black leading-tight tabular-nums">{waiting}</div>
             </div>
-            <div className="text-[9vh] font-black leading-tight tabular-nums">{waiting}</div>
+            <div className="flex flex-col items-center gap-[0.8vh]">
+              <div className="h-[24vh] w-[24vh] rounded-xl bg-white p-[0.6vh] [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+              <div className="text-center text-[2.2vh] font-semibold leading-tight text-white/85">
+                Scan to join
+                <br />
+                <span dir="rtl">امسح للانضمام</span>
+              </div>
+            </div>
           </div>
         </section>
       </div>

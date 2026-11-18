@@ -252,13 +252,19 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
             <p className={`-mt-2 text-sm ${mobile && !mobile.startsWith("5") ? "text-amber-700" : "text-neutral-400"}`}>
               {mobile && !mobile.startsWith("5") ? t("Saudi mobiles start with 5.", "أرقام الجوال السعودية تبدأ بـ 5.") : t(`${mobile.length} of 9 digits`, `${mobile.length} من 9 أرقام`)}
             </p>
+            <p className="rounded-2xl bg-white/70 p-3 text-xs leading-relaxed text-neutral-500 ring-1 ring-black/5">
+              {t(
+                "By continuing, you agree that your name, mobile number and visit details are used by MG and its authorised service partners and systems to manage your visit and send you queue notifications.",
+                "بالمتابعة، أنت توافق على استخدام اسمك ورقم جوالك وبيانات زيارتك من قبل إم جي وشركائها ومزوّدي الأنظمة المعتمدين لإدارة زيارتك وإرسال تنبيهات الدور."
+              )}
+            </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className={actions}>
               <button type="button" disabled={!validMobile || busy} onClick={afterMobile} className={primary}>
                 {busy && <Spinner />} {t("Continue", "متابعة")}
               </button>
-              <Link href="/q/find" className="block py-1 text-center text-sm font-medium text-brand">
-                {t("Already have a ticket? Find it", "لديك تذكرة؟ ابحث عنها")}
+              <Link href="/q/find" className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand/30 bg-white py-3.5 text-base font-semibold text-brand">
+                🎫 {t("I already have a ticket - find it", "لدي تذكرة بالفعل - ابحث عنها")}
               </Link>
             </div>
           </>
