@@ -27,6 +27,11 @@ export function BranchTabs({ code, name, active, manager, role }: { code: string
             TV ↗
           </a>
         )}
+        {manager && (
+          <a href={`/api/queue/poster/${code}`} target="_blank" rel="noreferrer" className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
+            Reception poster ↗
+          </a>
+        )}
       </nav>
     </div>
   );

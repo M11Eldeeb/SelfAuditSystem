@@ -84,6 +84,9 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
                 <a href={`/q/${b.queue_code}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                   Join page ↗
                 </a>
+                <a href={`/api/queue/poster/${b.queue_code}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                  Reception poster ↗
+                </a>
               </div>
             </div>
           ))}

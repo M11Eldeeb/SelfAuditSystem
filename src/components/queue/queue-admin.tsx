@@ -63,6 +63,9 @@ function BranchRow({ b }: { b: AdminBranch }) {
             <a href={`/q/display/${b.queue_code}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
               TV ↗
             </a>
+            <a href={`/api/queue/poster/${b.queue_code}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+              Reception poster (PDF) ↗
+            </a>
           </div>
         )}
       </div>
