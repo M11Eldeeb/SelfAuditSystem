@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { SdBatch, SubDealerDashboard } from "@/lib/dashboard/sub-dealer";
+import type { SdBatch, SdClaim, SubDealerDashboard } from "@/lib/dashboard/sub-dealer";
 import { SAR_PER_USD } from "@/lib/dashboard/sub-dealer-rate";
 import { BarList, C, Donut, LineChart, Meter, StackedBar, monthShort } from "@/components/dashboard/charts";
 import { Card, Label, Metric, Panel, Pill, fmtDate, fmtInt, fmtNum } from "@/components/dashboard/ui";
@@ -91,7 +91,7 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
   const [from, setFrom] = useState(firstMonth);
   const [to, setTo] = useState(lastMonth);
   const [showAll, setShowAll] = useState(false);
-  const [view, setView] = useState<"revenue" | "lead">("revenue");
+  const [view, setView] = useState<"revenue" | "kpis">("revenue");
 
   const inScope = (branch: string, month: string | null) => (picked.size === 0 || picked.has(branch)) && (month === null ? from <= firstMonth && to >= lastMonth : month >= from && month <= to);
   const claims = useMemo(() => data.claims.filter((c) => inScope(c.branch, c.month)), [data.claims, picked, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -196,6 +196,24 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
       .map(([label, value]) => ({ label, value, display: `${fmtInt(value)} pcs` }));
   }, [groups]);
 
+  // First time right and rejection. A claim is "decided" once the dealer has approved it, sent it back or rejected it; the ones still
+  // waiting for that first decision are left out. First time right: decided, never sent back (before or after the approval), never rejected.
+  const PENDING = new Set(["draft", "submitted", "technical_review", "waiting_pa"]);
+  const statusKey = (c: SdClaim) => c.status.trim().toLowerCase().replace(/[s-]+/g, "_");
+  const wasRejected = (c: SdClaim) => isRejected(c.status) || (c.timesRejected ?? 0) > 0;
+  const wasReturned = (c: SdClaim) => (c.timesReturned ?? 0) > 0 || statusKey(c) === "returned" || statusKey(c) === "repair_returned";
+  const isDecided = (c: SdClaim) => wasRejected(c) || wasReturned(c) || !PENDING.has(statusKey(c));
+  const kpiDecided = claims.filter(isDecided);
+  const kpiFtr = kpiDecided.filter((c) => !wasRejected(c) && !wasReturned(c));
+  const kpiReturned = kpiDecided.filter(wasReturned);
+  const kpiRejected = kpiDecided.filter(wasRejected);
+  const rate = (n: number, of: number) => (of ? (n / of) * 100 : 0);
+  const kpiPerMonth = monthsInRange.flatMap((month) => {
+    const inMonth = kpiDecided.filter((c) => c.month === month);
+    if (!inMonth.length) return [];
+    return [{ month, ftr: Math.round(rate(inMonth.filter((c) => !wasRejected(c) && !wasReturned(c)).length, inMonth.length) * 10) / 10, rejected: Math.round(rate(inMonth.filter(wasRejected).length, inMonth.length) * 10) / 10 }];
+  });
+
   const toggle = (b: string) =>
     setPicked((p) => {
       const n = new Set(p);
@@ -207,12 +225,12 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
 
   return (
     <div className="space-y-5">
-      {/* The menu bar of this page: revenue and lead times are separate views. */}
+      {/* The menu bar of this page: revenue and the KPIs (first time right, rejection, lead times) are separate views. */}
       <nav aria-label="Sub-Dealer Analytics sections" className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px]">
         {(
           [
             ["revenue", "Revenue"],
-            ["lead", "Lead times"],
+            ["kpis", "KPIs"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -428,8 +446,46 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
         </>
       )}
 
-      {view === "lead" && (
+      {view === "kpis" && (
         <>
+      {/* First time right and rejection: of the claims the dealer has decided on */}
+      <Panel eyebrow="Claim quality" title="First time right & rejection" subtitle="Of the claims the dealer has decided on - approved, sent back to the sub-dealer, or rejected (claims still waiting for the dealer's first decision are not counted)">
+        {!data.hasReturnHistory && (
+          <p className="mb-4 rounded-xl bg-[#c93400]/10 px-4 py-3 text-sm text-[#a52a00]">
+            The sheet has no claim history yet, so first time right cannot be worked out. It fills in once the Claims tab has the <strong>Times Returned</strong> and <strong>Times Rejected</strong> columns (the Sub-Dealer Warranty Desk adds them to its live sheet); the rejection rate below uses the claims&apos; current status until then.
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card className="space-y-1">
+            <Label>First time right rate</Label>
+            <Metric value={data.hasReturnHistory && kpiDecided.length ? fmtNum(rate(kpiFtr.length, kpiDecided.length), 1) : "—"} unit="%" tone="green" />
+            <div className="text-xs text-[#6e6e73]">
+              {data.hasReturnHistory ? `${fmtInt(kpiFtr.length)} of ${fmtInt(kpiDecided.length)} decided claim${kpiDecided.length === 1 ? "" : "s"} approved first time, with no return and no rejection` : "Needs the claim history in the sheet"}
+              {data.hasReturnHistory && kpiReturned.length > 0 ? ` · ${fmtInt(kpiReturned.length)} sent back at least once (${fmtNum(rate(kpiReturned.length, kpiDecided.length), 1)}%)` : ""}
+            </div>
+          </Card>
+          <Card className="space-y-1">
+            <Label>Rejection rate</Label>
+            <Metric value={kpiDecided.length ? fmtNum(rate(kpiRejected.length, kpiDecided.length), 1) : "—"} unit="%" tone="red" />
+            <div className="text-xs text-[#6e6e73]">{fmtInt(kpiRejected.length)} of {fmtInt(kpiDecided.length)} decided claim{kpiDecided.length === 1 ? "" : "s"} rejected</div>
+          </Card>
+        </div>
+        <div className="mt-4">
+          <LineChart
+            series={[
+              ...(data.hasReturnHistory ? [{ name: "First time right", color: C.green, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.ftr })) }] : []),
+              { name: "Rejection rate", color: C.accent, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.rejected })) },
+            ]}
+            yMax={100}
+            unit="%"
+            decimals={1}
+            compact
+            emptyText="No decided claims in this period."
+          />
+          <p className="mt-2 text-center text-xs text-[#6e6e73]">By the month the claim was opened; a month shows only when it has decided claims.</p>
+        </div>
+      </Panel>
+
       {/* Lead time, A to Z */}
       <Panel eyebrow="Lead time" title="Lead time, A to Z" subtitle="How long a sub-dealer claim takes at each step, from the sub-dealer opening it to the dealer closing it (rejected claims are not counted)">
         {!data.hasStageTimes && (

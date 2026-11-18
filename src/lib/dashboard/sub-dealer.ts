@@ -32,6 +32,9 @@ export type SdClaim = {
   partNos: string[];
   /** The dealer's claim number on the batch (WSA...), as the dealer typed it when closing the claim; empty before. */
   gws: string;
+  /** How many times the dealer sent the claim back / rejected it (from the claim's history in the sheet's "Times Returned" / "Times Rejected" columns); null when the sheet has no such column. */
+  timesReturned: number | null;
+  timesRejected: number | null;
   laborApproved: number | null;
   /** When the sub-dealer opened the claim (with the time), milliseconds - null when the sheet has no usable date. */
   createdAt: number | null;
@@ -72,6 +75,8 @@ export type SubDealerDashboard =
       updatedAt: string;
       /** The sheet has the "Labor Approved (SAR, VAT incl.)" column. */
       hasLaborApproved: boolean;
+      /** The Claims tab has the "Times Returned" and "Times Rejected" columns - first time right needs them. */
+      hasReturnHistory: boolean;
       /** The Claims tab has at least one stage time column (Dealer Received At ... Closed At) - the lead-time chain needs them. */
       hasStageTimes: boolean;
       /** What the first step ends at: the dealer's approve / reject click ("Dealer Decision At"), or only the time the system logged the claim as received (set automatically, about a minute after it is opened). */
@@ -157,11 +162,12 @@ const keyOf = (workOrder: string, vin: string) => {
   return wo && v ? `${wo}|${v}` : null;
 };
 
-type Parsed = { hasLaborApproved: boolean; hasStageTimes: boolean; dealerStep: "decision" | "received" | null; claims: SdClaim[]; free: SdFree[] };
+type Parsed = { hasReturnHistory: boolean; hasLaborApproved: boolean; hasStageTimes: boolean; dealerStep: "decision" | "received" | null; claims: SdClaim[]; free: SdFree[] };
 
 function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null): Parsed {
   const claims: SdClaim[] = [];
   let hasLaborApproved = false;
+  let hasReturnHistory = false;
   let hasStageTimes = false;
   let dealerStep: "decision" | "received" | null = null;
   if (claimRows && claimRows.length) {
@@ -169,6 +175,13 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
     const col = (name: string) => h.indexOf(name);
     const approvedCol = h.findIndex((x) => x.startsWith("labor approved"));
     hasLaborApproved = approvedCol !== -1;
+    const returnedCol = h.indexOf("times returned");
+    const rejectedCol = h.indexOf("times rejected");
+    hasReturnHistory = returnedCol !== -1 && rejectedCol !== -1;
+    const count = (v: unknown): number | null => {
+      const n = money(v);
+      return n == null ? null : Math.max(0, Math.round(n));
+    };
     // Stage time columns (each is a date and time); the first header that matches one of its names is used.
     const stageCol = (names: string[]) => h.findIndex((x) => names.includes(x));
     const stageCols = {
@@ -223,6 +236,8 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
         parts: parseParts(r[parts]),
         partNos: parsePartNos(r[parts]),
         gws: gws === -1 ? "" : text(r[gws]).toUpperCase(),
+        timesReturned: hasReturnHistory ? count(r[returnedCol]) : null,
+        timesRejected: hasReturnHistory ? count(r[rejectedCol]) : null,
         laborApproved: approvedCol === -1 ? null : money(r[approvedCol]),
         createdAt: timeMs(r[created]),
         stages: {
@@ -259,7 +274,7 @@ function parseSheet(claimRows: unknown[][] | null, freeRows: unknown[][] | null)
       });
     }
   }
-  return { hasLaborApproved, hasStageTimes, dealerStep, claims, free };
+  return { hasReturnHistory, hasLaborApproved, hasStageTimes, dealerStep, claims, free };
 }
 
 /** The sheet is read at most every two minutes; a failed read is never cached. */
@@ -269,7 +284,7 @@ const readSheet = unstable_cache(
     if (!claimRows) throw new Error('The sub-dealer sheet has no "Claims" tab.');
     return parseSheet(claimRows, freeRows);
   },
-  ["sub-dealer-sheet-v4"],
+  ["sub-dealer-sheet-v5"],
   { revalidate: 120 }
 );
 
@@ -415,6 +430,7 @@ export async function loadSubDealerDashboard(): Promise<SubDealerDashboard> {
       status: "ok",
       updatedAt: new Date().toISOString(),
       hasLaborApproved: parsed.hasLaborApproved,
+      hasReturnHistory: parsed.hasReturnHistory,
       hasStageTimes: parsed.hasStageTimes,
       dealerStep: parsed.dealerStep,
       invoicingThrough,
