@@ -49,8 +49,8 @@ const STEPS: { en: [string, string]; ar: [string, string] }[] = [
     ar: ["أكّد وانضم", "إذا كان لديك موعد اليوم تظهر بياناتك فقط أكّدها، وإلا اختر الخدمة."],
   },
   {
-    en: ["Wait comfortably", "Keep the page open or turn on alerts. We call your ticket number on the screen and on your phone."],
-    ar: ["انتظر براحتك", "أبقِ الصفحة مفتوحة أو فعّل التنبيهات، وسننادي رقم تذكرتك على الشاشة وعلى جوالك."],
+    en: ["Wait", "Keep the page open. We call your ticket number on the screen."],
+    ar: ["انتظر", "أبقِ الصفحة مفتوحة، وسننادي رقم تذكرتك على الشاشة."],
   },
 ];
 
