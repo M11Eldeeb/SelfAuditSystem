@@ -77,12 +77,12 @@ export interface Database {
         Row: {
           id: string; branch_id: string; wip_no: string; appt_date: string; appt_time: string | null; customer_name: string | null; mobile: string | null;
           vin: string | null; description: string | null; service_reception: string | null; status_text: string | null; appointment_code: string | null;
-          source: "mail" | "upload"; imported_at: string;
+          source: "mail" | "upload" | "manual"; imported_at: string; created_by: string | null; created_by_name: string | null;
         };
         Insert: {
           id?: string; branch_id: string; wip_no: string; appt_date: string; appt_time?: string | null; customer_name?: string | null; mobile?: string | null;
           vin?: string | null; description?: string | null; service_reception?: string | null; status_text?: string | null; appointment_code?: string | null;
-          source?: "mail" | "upload"; imported_at?: string;
+          source?: "mail" | "upload" | "manual"; imported_at?: string; created_by?: string | null; created_by_name?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_appointments"]["Insert"]>;
         Relationships: [];

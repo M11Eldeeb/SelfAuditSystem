@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { queueBranches, requireQueueAccess } from "@/lib/queue/server";
 import { saudiDate } from "@/lib/queue/core";
 import { AppointmentsImport } from "@/components/queue/appointments-import";
+import { AddAppointment, DeleteAppointment } from "@/components/queue/add-appointment";
 
 const DAY = 24 * 3600_000;
 
@@ -20,6 +21,8 @@ export default async function QueueAppointmentsPage({ searchParams }: { searchPa
   const branches = await queueBranches();
   const mine = a.allBranches ? branches : branches.filter((b) => b.id === a.branchId);
   const ids = mine.map((b) => b.id);
+  // Service advisors and queue (reception) managers add appointments made by hand.
+  const canAdd = !a.user.viewOnly && a.role !== "parts_advisor";
   const [{ data: appts }, { data: imports }] = await Promise.all([
     ids.length
       ? admin.from("self_audit_queue_appointments").select("*").in("branch_id", ids).eq("appt_date", date).order("appt_time", { nullsFirst: false })
@@ -43,7 +46,10 @@ export default async function QueueAppointmentsPage({ searchParams }: { searchPa
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Appointments</h1>
           <p className="text-sm text-neutral-500">From the DMS appointments sheet. A customer who joins as Appointment is matched by mobile, or by WIP number; another day or not found joins as a walk-in.</p>
         </div>
-        {a.admin && !a.user.viewOnly && <AppointmentsImport />}
+        <div className="flex flex-wrap items-center gap-2">
+          {canAdd && mine.length > 0 && <AddAppointment branches={mine.map((b) => ({ id: b.id, name: b.name }))} defaultBranchId={mine[0].id} defaultDate={today} />}
+          {a.admin && !a.user.viewOnly && <AppointmentsImport />}
+        </div>
       </div>
 
       {a.admin && (imports ?? []).length > 0 && (
@@ -87,7 +93,7 @@ export default async function QueueAppointmentsPage({ searchParams }: { searchPa
             <table className="mt-2 w-full min-w-[760px] text-sm">
               <thead className="bg-neutral-50 text-xs text-neutral-500">
                 <tr>
-                  {["Time", "WIP", "Customer", "Mobile", "VIN", "Description", "Advisor", "Arrived"].map((h) => (
+                  {["Time", "WIP", "Customer", "Mobile", "VIN", "Description", "Advisor", "Arrived", ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-start font-medium">
                       {h}
                     </th>
@@ -108,7 +114,15 @@ export default async function QueueAppointmentsPage({ searchParams }: { searchPa
                       <td className="px-3 py-2 font-mono text-xs">{x.vin ?? "—"}</td>
                       <td className="px-3 py-2 text-neutral-600">{x.description ?? "—"}</td>
                       <td className="px-3 py-2 text-neutral-600">{x.service_reception ?? "—"}</td>
-                      <td className="px-3 py-2">{t ? <span className="text-emerald-700">✓ {t.ticket_number}</span> : <span className="text-neutral-400">Not yet</span>}</td>
+                      <td className="px-3 py-2">{t ? <span className="text-emerald-700">✓ {t.ticket_number}</span> : <span className="text-neutral-500">Not yet</span>}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {x.source === "manual" && (
+                          <span className="flex flex-col gap-0.5">
+                            <span className="text-neutral-500">Added by {x.created_by_name ?? "—"}</span>
+                            {!t && (x.created_by === a.user.id || a.role === "manager") && !a.user.viewOnly && <DeleteAppointment id={x.id} />}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

@@ -74,7 +74,7 @@ type ApptRow = { id: string; wip_no: string; appt_date: string; appt_time: strin
 
 /** The sheet's free-text description to a service: "q.s 60 k", "Quick" -> Quick Service; "repair", "Repair+ Quick" -> General Repair. */
 function servicesOf(description: string | null): WipServiceType[] {
-  const d = ` ${(description ?? "").toLowerCase()} `;
+  const d = ` ${(description ?? "").split(" - ")[0].toLowerCase()} `;
   // "q.s 60 k", "QS", "q s", "Quick", "service", "Examination 1000K" = Quick Service; "repair" / "repier" = General Repair.
   const quick = /(^|[^a-z])q\s*\.?\s*s([^a-z]|$)|quick|service|صيانة|سريع|examination|\d+\s*k([^a-z]|$)/.test(d);
   const repair = /rep(a|ie)i?r|اصلاح|إصلاح|تصليح/.test(d);
