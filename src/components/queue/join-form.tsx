@@ -302,7 +302,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               <dl className="divide-y divide-black/5 px-5">
                 <Line label={t("Name", "الاسم")} value={name.trim()} />
                 <Line label={t("Mobile", "الجوال")} value={`+966 ${mobile}`} ltr />
-                {sheet && <Line label={t("Vehicle", "المركبة")} value={`${sheet.model ?? t("Your MG", "سيارتك MG")}${sheet.vinTail ? ` · …${sheet.vinTail}` : ""}`} />}
+                {sheet && <Line label={t("Vehicle", "المركبة")} value={`${sheet.model ?? "MG"}${sheet.vinTail ? ` · …${sheet.vinTail}` : ""}`} ltr />}
                 <Line label={t("Visit", "الزيارة")} value={label(MODE_LABEL[mode])} />
                 {needsWip && services.length > 0 && <Line label={t("Service", "الخدمة")} value={servicesText(services)} />}
                 {appt && <Line label={t("WIP number", "رقم WIP")} value={appt.wip} ltr />}
