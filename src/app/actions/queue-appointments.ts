@@ -77,9 +77,8 @@ export async function addManualAppointment(input: {
   if (!services.length) return { error: "Choose Quick Service, Repair or both." };
   const vin = String(input.vin ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 17) || null;
   if (vin && vin.length !== 17) return { error: "The VIN has 17 characters (or leave it empty)." };
-  const typedWip = String(input.wip ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, 12);
-  // No WIP yet: a number of its own (M + time), so the appointment is still unique; the customer is found by mobile.
-  const wip = typedWip || `M${Date.now().toString().slice(-8)}`;
+  const wip = String(input.wip ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, 12);
+  if (!wip) return { error: "Enter the WIP number." };
   const note = String(input.note ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   const description = `${services.map((s) => SERVICE_TEXT[s]).join(" + ")}${note ? ` - ${note}` : ""}`;
 

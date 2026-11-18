@@ -57,7 +57,7 @@ export function AddAppointment({ branches, defaultBranchId, defaultDate }: { bra
           >
             <div>
               <h2 className="text-lg font-semibold text-neutral-900">Add appointment</h2>
-              <p className="text-sm text-neutral-500">For an appointment made by hand. The customer is found at the kiosk by mobile (or WIP), like the DMS sheet.</p>
+              <p className="text-sm text-neutral-500">For an appointment made by hand. The customer is found at the kiosk by mobile or WIP, like the DMS sheet.</p>
             </div>
             {branches.length > 1 && (
               <label className="block text-sm">
@@ -102,10 +102,8 @@ export function AddAppointment({ branches, defaultBranchId, defaultDate }: { bra
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-neutral-700">
-                  WIP <span className="font-normal text-neutral-500">(optional)</span>
-                </span>
-                <input value={wip} onChange={(e) => setWip(e.target.value.replace(/\D/g, "").slice(0, 12))} inputMode="numeric" dir="ltr" className={input} />
+                <span className="mb-1 block font-medium text-neutral-700">WIP</span>
+                <input required value={wip} onChange={(e) => setWip(e.target.value.replace(/\D/g, "").slice(0, 12))} inputMode="numeric" dir="ltr" className={input} />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-neutral-700">
