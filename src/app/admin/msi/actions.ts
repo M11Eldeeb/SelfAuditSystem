@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAnyViewer, requireRole } from "@/lib/auth";
+import { refuseNonReception } from "@/lib/reception";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importLatestMsiReport, type MsiImportResult } from "@/lib/msi/import";
 import { msiScopeFor, scopeExtra } from "@/lib/msi/scope";
@@ -12,7 +13,8 @@ import type { MsiExtra } from "@/lib/msi/types";
  * A service manager or service advisor gets his own branch's part only.
  */
 export async function getMsiExtra(reportDate: string): Promise<MsiExtra | null> {
-  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor", "queue_user"]);
+  refuseNonReception(user);
   const scope = await msiScopeFor(user);
   if (!scope) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return null;

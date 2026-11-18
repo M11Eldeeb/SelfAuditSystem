@@ -12,7 +12,10 @@ const NO_BRANCH = "00000000-0000-0000-0000-000000000000";
 /** The report's branch code (A7, B7 ...) of the user's own branch. null: no access (a plain branch admin, or a branch the report does not know). */
 export async function msiScopeFor(user: CurrentUser): Promise<MsiScope> {
   if (user.role === "officer") return { all: true };
-  const branchRole = (user.role === "branch_admin" && user.managerKind === "service_manager") || user.role === "service_advisor";
+  const branchRole =
+    (user.role === "branch_admin" && user.managerKind === "service_manager") ||
+    user.role === "service_advisor" ||
+    (user.role === "queue_user" && (user.queue_role === "advisor" || user.queue_role === "manager"));
   if (!branchRole) return null;
   const { data: branch } = await createAdminClient().from("self_audit_branches").select("code, name").eq("id", user.branch_id ?? NO_BRANCH).maybeSingle();
   if (!branch) return null;

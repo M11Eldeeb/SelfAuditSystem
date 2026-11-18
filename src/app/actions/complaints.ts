@@ -1,5 +1,6 @@
 "use server";
 
+import { refuseNonReception, sameAdvisor } from "@/lib/reception";
 import { requireAnyViewer, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importLatestComplaintsReport, type ComplaintsImportResult } from "@/lib/complaints/import";
@@ -46,7 +47,10 @@ async function branchNames() {
 
 /** MOC / SAIC / CRM complaints from the monthly e-mail. */
 export async function getComplaintsData(): Promise<ComplaintsData> {
-  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor", "queue_user"]);
+  refuseNonReception(user);
+  // A reception advisor (customer queue): only the complaints in his own name; the reception manager: the branch.
+  const onlyMine = user.role === "queue_user" && user.queue_role === "advisor";
   const admin = createAdminClient();
   const names = await branchNames();
   const rows: Complaint[] = [];
@@ -61,6 +65,7 @@ export async function getComplaintsData(): Promise<ComplaintsData> {
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     for (const r of data ?? []) {
+      if (onlyMine && !sameAdvisor(r.service_advisor, user)) continue;
       const v = (r.validity ?? "").trim().toLowerCase();
       rows.push({
         source: r.source,
@@ -82,7 +87,7 @@ export async function getComplaintsData(): Promise<ComplaintsData> {
   return {
     complaints: rows,
     lastImport: last ? { fileName: last.file_name, subject: last.subject, receivedAt: last.received_at, importedAt: last.imported_at, rows: last.rows } : null,
-    scope: user.role === "officer" ? "all" : (names.own(user.branch_id) ?? "Your branch"),
+    scope: user.role === "officer" ? "all" : onlyMine ? "Your complaints" : (names.own(user.branch_id) ?? "Your branch"),
     canRefresh: user.role === "officer" && !user.viewOnly,
     today: today(),
   };
@@ -99,7 +104,8 @@ export type InternalData = { rows: InternalComplaint[]; columns: { date: string 
 
 /** Internal complaints from their Google Sheet: counted per branch and date. */
 export async function getInternalComplaints(): Promise<InternalData> {
-  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor"]);
+  const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor", "queue_user"]);
+  refuseNonReception(user);
   const names = await branchNames();
   const own = user.role === "officer" ? null : names.own(user.branch_id);
   const scope = user.role === "officer" ? "all" : (own ?? "Your branch");

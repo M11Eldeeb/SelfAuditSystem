@@ -1,7 +1,7 @@
-import { requireRole } from "@/lib/auth";
+import { requireAdvisorArea } from "@/lib/reception";
 import { VorQuery } from "@/components/vor/vor-query";
 
 export default async function AdvisorVorPartsPage() {
-  await requireRole("service_advisor");
+  await requireAdvisorArea();
   return <VorQuery />;
 }

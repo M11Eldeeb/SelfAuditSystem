@@ -94,7 +94,7 @@ async function claimsOfWip(admin: Db, digits: string, branchId: string | null): 
 }
 
 /** Everything known about `input` (for `branchId` when the WIP number exists in several branches). */
-export async function runVehicleQuery(user: CurrentUser, input: string, branchId: string | null, base: string): Promise<QueryResult> {
+export async function runVehicleQuery(user: CurrentUser, input: string, branchId: string | null, base: string | null): Promise<QueryResult> {
   const query = input.trim().slice(0, 40);
   const p = parse(query);
   if (!p) return { query, sections: [], error: "Enter a WIP number, a VIN, a plate or a claim number (WSA…, TC-…, QC-…, TI-…)." };
@@ -358,7 +358,7 @@ export async function runVehicleQuery(user: CurrentUser, input: string, branchId
     noun: ["rejected claim", "rejected claims"],
     columns: ["Work order", "Claim", "Rejected on", "Reason"],
     rows: rj.map((r) => [r.work_order_no, r.claim_no, day(r.rejection_date), r.reason]),
-    links: rj.map((r) => `${base}/rejected-claims/${r.id}`),
+    links: rj.map((r) => (base ? `${base}/rejected-claims/${r.id}` : null)),
   });
 
   const TC_STATUS: Record<string, string> = { uploading: "Draft", submitted: "Waiting for review", returned: "Returned to technician", approved: "Approved", rejected: "Rejected" };
@@ -370,7 +370,7 @@ export async function runVehicleQuery(user: CurrentUser, input: string, branchId
     noun: ["technician claim", "technician claims"],
     columns: ["Claim", "Work order", "Technician", "Status", "Sent"],
     rows: tc.map((t) => [t.claim_no, t.work_order, t.technician_name, TC_STATUS[t.status] ?? t.status, day(t.submitted_at ?? t.created_at)]),
-    links: tc.map((t) => `${base}/technician-claims/${t.id}`),
+    links: tc.map((t) => (base ? `${base}/technician-claims/${t.id}` : null)),
   });
 
   type Ti = { id: string; inquiry_no: number; work_order_no: string; status: string; system: string | null; created_at: string };
@@ -386,7 +386,7 @@ export async function runVehicleQuery(user: CurrentUser, input: string, branchId
       ...ti.map((t) => [inquiryLabel(t.inquiry_no), t.work_order_no, INQUIRY_STATUS[t.status as InquiryStatus] ?? t.status, day(t.created_at)]),
       ...vc.map((c) => [`Code request #${c.request_no}`, c.module_name, c.status, day(c.created_at)]),
     ],
-    links: [...ti.map((t) => `${base}/technical-inquiries/${t.id}`), ...vc.map(() => null)],
+    links: [...ti.map((t) => (base ? `${base}/technical-inquiries/${t.id}` : null)), ...vc.map(() => null)],
   });
 
   type Qc = { id: string; qc_no: string; wip_no: string; purpose: string; status: string; attempts: number; created_at: string };

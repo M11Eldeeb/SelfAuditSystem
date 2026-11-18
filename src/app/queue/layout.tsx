@@ -3,6 +3,7 @@ import { homePathFor } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
 import type { NavLink } from "@/components/nav-menu";
 import { requireQueueAccess, queueBranches } from "@/lib/queue/server";
+import { isReception } from "@/lib/reception";
 
 /**
  * The customer queue's staff area (moved from the MG Queue app). Branch people see their branch's desks; head office
@@ -28,6 +29,16 @@ export default async function QueueLayout({ children }: { children: ReactNode })
     }
   }
   links.push({ href: "/queue/appointments", label: "Appointments" });
+  // The reception team (queue-only service advisors and reception managers) also use the service advisor's pages.
+  if (isReception(a.user))
+    links.push(
+      { href: "/advisor/msi", label: "Major Service Indicators" },
+      { href: "/advisor/complaints", label: "Complaints" },
+      { href: "/advisor/open-wips", label: "Open WIPs" },
+      { href: "/advisor/vor-parts", label: "VOR Part Query" },
+      { href: "/advisor/courtesy-cars", label: "Courtesy Cars" },
+      { href: "/advisor/query", label: "Query" }
+    );
   links.push({ href: "/queue/team", label: "Team" });
   if (a.admin) links.push({ href: "/queue/admin", label: "Queue admin" });
   if (a.user.role !== "queue_user") links.push({ href: homePathFor(a.user.role), label: "Back to portal", bottom: true });

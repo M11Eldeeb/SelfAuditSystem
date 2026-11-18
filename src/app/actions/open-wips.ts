@@ -1,6 +1,7 @@
 "use server";
 
 import ExcelJS from "exceljs";
+import { refuseNonReception } from "@/lib/reception";
 import { requireAnyViewer, requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importOpenWipsFromSheet, saveOpenWips, type OpenWipsImportResult } from "@/lib/open-wips/import";
@@ -11,7 +12,7 @@ import { vorByWip, type VorLine } from "@/lib/vor/sheet";
 import { loadSubDealerList, wipWorkOrder } from "@/lib/sub-dealer-wips";
 import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 
-const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor"] as const;
+const VIEWERS = ["officer", "branch_admin", "workshop_supervisor", "team_leader", "service_advisor", "queue_user"] as const;
 
 export type OpenWip = {
   key: string;
@@ -70,6 +71,7 @@ const NO_BRANCH = "00000000-0000-0000-0000-000000000000";
 /** Officers: every branch. Warranty admins, workshop supervisors and team leaders: their own branch only. */
 export async function getOpenWips(): Promise<OpenWipsData> {
   const user = await requireAnyViewer([...VIEWERS]);
+  refuseNonReception(user);
   const admin = createAdminClient();
   const own = user.role === "officer" ? null : (user.branch_id ?? NO_BRANCH);
   // Everything that does not depend on the WIP rows is read at the same time (the pages used to wait on each other).
@@ -225,6 +227,7 @@ export async function getOpenWips(): Promise<OpenWipsData> {
 /** The WIP (and its branch) the user may comment on: officers any; branch users their own branch's. */
 async function commentableWip(key: string) {
   const user = await requireAnyViewer([...VIEWERS]);
+  refuseNonReception(user);
   if (user.role === "officer") return { user };
   const { data } = await createAdminClient().from("self_audit_open_wips").select("branch_id").eq("key", key).maybeSingle();
   if (!data || data.branch_id !== user.branch_id) return { error: "This WIP is not in your branch." as const };
@@ -246,6 +249,7 @@ export async function addWipComment(key: string, text: string): Promise<{ commen
 /** The author (or an officer) removes a comment. */
 export async function deleteWipComment(id: string): Promise<{ error?: string }> {
   const user = await requireAnyViewer([...VIEWERS]);
+  refuseNonReception(user);
   const admin = createAdminClient();
   const { data: c } = await admin.from("self_audit_open_wip_comments").select("author_id").eq("id", id).maybeSingle();
   if (!c) return { error: "Comment not found." };

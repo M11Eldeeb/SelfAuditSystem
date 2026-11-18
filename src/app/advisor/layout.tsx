@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { requireRole } from "@/lib/auth";
+import { requireAdvisorArea, isReception } from "@/lib/reception";
 import { NavBar } from "@/components/nav-bar";
 import { feedbackLink } from "@/lib/feedback-server";
 
-/** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. */
+/** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. The reception team of
+ * the customer queue uses the same pages (and Query) - see lib/reception. */
 const LINKS = [
   { href: "/advisor/dashboard", label: "Dashboard" },
   { href: "/advisor/msi", label: "Major Service Indicators" },
@@ -14,11 +15,13 @@ const LINKS = [
 ];
 
 export default async function AdvisorLayout({ children }: { children: ReactNode }) {
-  const user = await requireRole("service_advisor");
+  const user = await requireAdvisorArea();
   const feedback = await feedbackLink(user.id, "/advisor/feedback");
+  // The reception team (customer queue): the same pages without the branch dashboard, plus Query.
+  const links = isReception(user) ? [...LINKS.filter((l) => l.href !== "/advisor/dashboard"), { href: "/advisor/query", label: "Query" }] : LINKS;
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[...LINKS, feedback]} />
+      <NavBar user={user} links={[...links, feedback]} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
     </div>
   );
