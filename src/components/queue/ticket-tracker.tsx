@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getTicketView, type TicketView } from "@/app/actions/queue-public";
 import { MODE_LABEL, serviceText } from "@/lib/queue/core";
+import { QIcon } from "./icons";
 import { PublicShell } from "./public-shell";
 import {
   announceTurn,
@@ -153,7 +154,6 @@ export function TicketTracker({ initial, vapidKey }: { initial: TicketView; vapi
   const done = tk.status === "completed" || tk.status === "no_show" || tk.status === "cancelled";
   const held = tk.status === "held";
   const position = view.position;
-  const C = 2 * Math.PI * 70;
   const progress = position != null ? Math.max(0, 1 - Math.min(position - 1, 8) / 8) : 1;
   const advisorLine = tk.advisor_name ? t(`${tk.advisor_name} is ready for you.`, `${tk.advisor_name} بانتظارك.`) : t("An advisor is ready for you.", "أحد المستشارين بانتظارك.");
 
@@ -171,7 +171,9 @@ export function TicketTracker({ initial, vapidKey }: { initial: TicketView; vapi
     >
       {!soundOn && !done && (
         <button type="button" onClick={turnOnAlerts} className="w-full border-b border-brand/20 bg-brand/10 px-5 py-3 text-sm font-semibold text-brand">
-          🔔 {t("Tap to turn on sound and alerts for your turn", "اضغط لتفعيل الصوت والتنبيه عند حلول دورك")}
+          <span className="inline-flex items-center gap-2">
+            <QIcon name="bell" className="h-4 w-4" /> {t("Tap to turn on sound and alerts for your turn", "اضغط لتفعيل الصوت والتنبيه عند حلول دورك")}
+          </span>
         </button>
       )}
       {soundOn && !done && needsHomeScreen() && (
@@ -206,68 +208,78 @@ export function TicketTracker({ initial, vapidKey }: { initial: TicketView; vapi
       )}
 
       <div className="flex flex-1 flex-col gap-6 p-5">
-        <div className="flex items-center justify-between px-1">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">{t("Ticket", "رقم التذكرة")}</p>
-            <p className="text-3xl font-bold text-neutral-900">{tk.ticket_number}</p>
-          </div>
-          <div className="text-end">
-            <p className="text-xs uppercase tracking-wide text-neutral-500">{t("Service", "الخدمة")}</p>
-            <p className="font-medium text-neutral-900">{tk.service_mode === "appointment" ? t(MODE_LABEL.appointment[0], MODE_LABEL.appointment[1]) : serviceText(tk, lang)}</p>
-          </div>
-        </div>
-
-        {!done && !held && (
-          <section className="flex flex-col items-center py-4">
-            <div className="relative h-56 w-56">
-              <svg viewBox="0 0 160 160" className="h-full w-full -rotate-90">
-                <circle cx="80" cy="80" r="70" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="10" />
-                <circle cx="80" cy="80" r="70" fill="none" stroke="var(--brand)" strokeWidth="10" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - progress)} style={{ transition: "stroke-dashoffset 1s ease" }} />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-5xl font-bold text-neutral-900">{called || inService ? "•" : position != null ? position - 1 : "—"}</span>
-                <span className="mt-1 text-sm text-neutral-500">{called ? t("being called", "يتم استدعاؤك") : inService ? t("being served", "قيد الخدمة") : t("people ahead of you", "عملاء قبلك")}</span>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {called && (
-          <div className="animate-pulse rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-6 text-center">
-            <p className="mb-2 text-xs uppercase tracking-widest text-white/80">{t("You're being called", "حان دورك الآن")}</p>
-            <p className="mb-1 text-2xl font-bold text-white">{t("Please proceed now", "يرجى التوجه الآن")}</p>
-            <p className="text-sm text-white/85">{advisorLine}</p>
-          </div>
-        )}
-        {inService && <div className="rounded-2xl bg-white p-6 text-center font-semibold text-neutral-900 shadow-sm">{t("You're being served", "جاري خدمتك الآن")}</div>}
-        {held && (
-          <div className="rounded-2xl bg-white p-6 text-center shadow-sm">
-            <p className="font-semibold text-neutral-900">{t("Your ticket is on hold", "تذكرتك معلّقة")}</p>
-            <p className="mt-1 text-sm text-neutral-500">
-              {t("When you are ready, open Find my ticket to rejoin ahead of new arrivals (within 24 hours).", "عندما تكون جاهزاً، افتح البحث عن تذكرتي لإعادة الانضمام قبل الوافدين الجدد (خلال 24 ساعة).")}
+        {/* The ticket: a paper ticket stub - the number on top, the tear line, then where the customer stands. */}
+        <section className="relative overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_-20px_rgba(0,0,0,0.35)] ring-1 ring-black/5">
+          <div className="px-6 pb-6 pt-7 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{t("Your ticket", "تذكرتك")}</p>
+            <p className="mt-1 text-[64px] font-black leading-none tracking-tight text-neutral-900 tabular-nums" dir="ltr">
+              {tk.ticket_number}
+            </p>
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700">
+              {tk.service_mode === "appointment" && <QIcon name="calendar" className="h-4 w-4" />}
+              {tk.service_mode === "appointment" ? `${t(MODE_LABEL.appointment[0], MODE_LABEL.appointment[1])} · ${serviceText(tk, lang)}` : serviceText(tk, lang)}
             </p>
           </div>
-        )}
-        {done && (
-          <div className="flex flex-col items-center gap-2 rounded-2xl bg-white p-8 text-center shadow-sm">
-            <span className="text-3xl">{tk.status === "completed" ? "✅" : "ℹ️"}</span>
-            <p className="font-semibold text-neutral-900">{tk.status === "completed" ? t("Service complete", "اكتملت الخدمة") : t("This ticket is closed", "هذه التذكرة مغلقة")}</p>
-            <p className="text-sm text-neutral-500">{t("Thank you for visiting MG.", "شكراً لزيارتكم إم جي.")}</p>
+          <div className="relative" aria-hidden="true">
+            <span className="absolute -start-3 -top-3 h-6 w-6 rounded-full bg-neutral-100" />
+            <span className="absolute -end-3 -top-3 h-6 w-6 rounded-full bg-neutral-100" />
+            <div className="mx-6 border-t-2 border-dashed border-neutral-200" />
           </div>
-        )}
-        {tk.status === "waiting" && position != null && (
-          <div className="mx-auto flex items-center gap-3 rounded-full border border-black/5 bg-white px-5 py-3 shadow-sm">
-            <span className="text-brand">⏱</span>
-            <div>
-              <p className="text-xs text-neutral-500">{t("Estimated wait", "الانتظار المتوقع")}</p>
-              <p className="font-semibold text-neutral-900">
-                ~{(position - 1) * 6 || 1} {t("minutes", "دقيقة")}
-              </p>
-            </div>
+          <div className="px-6 pb-6 pt-5">
+            {tk.status === "waiting" && position != null && (
+              <div className="flex items-end justify-between gap-4">
+                {position - 1 === 0 ? (
+                  <div>
+                    <p className="text-sm text-neutral-500">{t("Almost there", "اقترب دورك")}</p>
+                    <p className="text-3xl font-bold leading-tight text-neutral-900">{t("You're next", "أنت التالي")}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-neutral-500">{t("People ahead of you", "عملاء قبلك")}</p>
+                    <p className="text-5xl font-bold leading-tight text-neutral-900 tabular-nums">{position - 1}</p>
+                  </div>
+                )}
+                <div className="text-end">
+                  <p className="text-sm text-neutral-500">{t("About", "حوالي")}</p>
+                  <p className="text-2xl font-semibold text-neutral-900 tabular-nums">
+                    {(position - 1) * 6 || 1} <span className="text-base font-medium text-neutral-500">{t("min", "دقيقة")}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+            {tk.status === "waiting" && position != null && (
+              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                <div className="h-full rounded-full bg-brand transition-[width] duration-1000" style={{ width: `${Math.max(6, progress * 100)}%` }} />
+              </div>
+            )}
+            {called && (
+              <div className="text-center">
+                <p className="text-2xl font-bold text-brand">{t("Please proceed now", "يرجى التوجه الآن")}</p>
+                <p className="mt-1 text-neutral-700">{advisorLine}</p>
+              </div>
+            )}
+            {inService && <p className="text-center text-lg font-semibold text-neutral-900">{t("You're being served", "جاري خدمتك الآن")}</p>}
+            {held && (
+              <div className="text-center">
+                <p className="text-lg font-semibold text-neutral-900">{t("Your ticket is on hold", "تذكرتك معلّقة")}</p>
+                <p className="mt-1 text-sm text-neutral-600">
+                  {t("When you are ready, open Find my ticket to rejoin ahead of new arrivals (within 24 hours).", "عندما تكون جاهزاً، افتح البحث عن تذكرتي لإعادة الانضمام قبل الوافدين الجدد (خلال 24 ساعة).")}
+                </p>
+              </div>
+            )}
+            {done && (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tk.status === "completed" ? "bg-emerald-50 text-emerald-600" : "bg-neutral-100 text-neutral-600"}`}>
+                  <QIcon name={tk.status === "completed" ? "check" : "info"} className="h-6 w-6" />
+                </span>
+                <p className="text-lg font-semibold text-neutral-900">{tk.status === "completed" ? t("Service complete", "اكتملت الخدمة") : t("This ticket is closed", "هذه التذكرة مغلقة")}</p>
+                <p className="text-sm text-neutral-600">{t("Thank you for visiting MG.", "شكراً لزيارتكم إم جي.")}</p>
+              </div>
+            )}
           </div>
-        )}
+        </section>
 
-        <p className="mt-auto pt-4 text-center text-xs text-neutral-400">
+        <p className="mt-auto pt-4 text-center text-xs text-neutral-500">
           {t("Closed this page? Find it again with your mobile number:", "أغلقت الصفحة؟ ابحث عنها برقم جوالك:")}{" "}
           <Link href="/q/find" className="font-medium text-brand underline">
             {t("Find my ticket", "البحث عن تذكرتي")}

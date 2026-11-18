@@ -7,26 +7,27 @@ import { checkExistingTicket, joinQueue, knownCustomerName, lookupAppointment, r
 import { MODE_LABEL, WIP_LABEL, saudiDate, type ServiceMode, type WipServiceType } from "@/lib/queue/core";
 import { PublicShell, Spinner } from "./public-shell";
 import { useQueueLang } from "./alerts";
+import { QIcon, type QIconName } from "./icons";
 
-const WIPS: { value: WipServiceType; icon: string }[] = [
-  { value: "quick_service", icon: "⚡" },
-  { value: "general_repair", icon: "🔧" },
-  { value: "vehicle_delivery", icon: "🚗" },
+const WIPS: { value: WipServiceType; icon: QIconName }[] = [
+  { value: "quick_service", icon: "quick" },
+  { value: "general_repair", icon: "repair" },
+  { value: "vehicle_delivery", icon: "car" },
 ];
-const MODES: { value: ServiceMode; icon: string }[] = [
-  { value: "walk_in", icon: "🎫" },
-  { value: "appointment", icon: "📅" },
-  { value: "inquiry", icon: "❓" },
-  { value: "spare_parts", icon: "🧰" },
+const MODES: { value: ServiceMode; icon: QIconName }[] = [
+  { value: "walk_in", icon: "walkin" },
+  { value: "appointment", icon: "calendar" },
+  { value: "inquiry", icon: "question" },
+  { value: "spare_parts", icon: "parts" },
 ];
 
 type Step = "mobile" | "name" | "service" | "review" | "edit";
 
-const field = "h-14 w-full rounded-2xl border-2 border-black/10 bg-white px-4 text-lg text-neutral-900 outline-none focus:border-brand";
-const primary = "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-lg font-bold text-white shadow-[0_6px_20px_rgba(196,18,26,0.25)] disabled:opacity-40";
+const field = "h-14 w-full rounded-2xl bg-white px-4 text-lg text-neutral-900 outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand";
+const primary = "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-lg font-semibold text-white shadow-[0_8px_24px_-8px_rgba(196,18,26,0.55)] transition active:scale-[0.99] disabled:bg-neutral-300 disabled:shadow-none";
 // The step's buttons: a bar kept at the bottom of the screen (no scrolling to reach Continue / Join / Back).
 const actions = "sticky bottom-0 z-10 -mx-5 mt-auto space-y-2 border-t border-black/5 bg-neutral-100/95 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur";
-const secondary = "w-full rounded-2xl border-2 border-black/10 bg-white py-3.5 text-base font-semibold text-neutral-800";
+const secondary = "w-full rounded-2xl bg-white py-3.5 text-base font-semibold text-neutral-800 ring-1 ring-black/10 transition active:scale-[0.99]";
 
 /** Quick Service and General Repair can go together; vehicle delivery is on its own. */
 function toggleService(list: WipServiceType[], s: WipServiceType): WipServiceType[] {
@@ -176,7 +177,8 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
     }
   }
 
-  const choice = (on: boolean) => `rounded-2xl border-2 bg-white text-neutral-900 transition-colors ${on ? "border-brand bg-brand/5" : "border-black/10"}`;
+  const choice = (on: boolean) =>
+    `rounded-2xl bg-white text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ring-1 transition active:scale-[0.99] ${on ? "ring-2 ring-brand" : "ring-black/[0.08]"}`;
   const back = (to: Step) => (
     <button type="button" onClick={() => setStep(to)} className="w-full py-1 text-sm font-semibold text-neutral-500">
       {lang === "ar" ? "→" : "←"} {t("Back", "رجوع")}
@@ -191,10 +193,12 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
       {WIPS.map((w) => {
         const on = services.includes(w.value);
         return (
-          <button key={w.value} type="button" onClick={() => setServices((l) => toggleService(l, w.value))} className={`${choice(on)} flex min-h-14 items-center gap-3 px-4 py-2.5 text-start text-lg`}>
-            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm ${on ? "border-brand bg-brand text-white" : "border-black/20"}`}>{on && "✓"}</span>
-            <span className="text-2xl">{w.icon}</span>
-            <span>{label(WIP_LABEL[w.value])}</span>
+          <button key={w.value} type="button" onClick={() => setServices((l) => toggleService(l, w.value))} className={`${choice(on)} flex min-h-16 items-center gap-3 px-3 py-2.5 text-start text-base font-medium`}>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${on ? "bg-brand text-white" : "bg-neutral-100 text-neutral-700"}`}>
+              <QIcon name={w.icon} className="h-5 w-5" />
+            </span>
+            <span className="flex-1">{label(WIP_LABEL[w.value])}</span>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${on ? "border-brand bg-brand text-white" : "border-black/15"}`}>{on && <QIcon name="check" className="h-3.5 w-3.5" />}</span>
           </button>
         );
       })}
@@ -213,9 +217,11 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
             if (m.value === "inquiry" || m.value === "spare_parts") setServices([]);
             setAskWip(m.value === "appointment");
           }}
-          className={`${choice(mode === m.value)} flex flex-col items-center gap-1.5 p-4`}
+          className={`${choice(mode === m.value)} flex flex-col items-start gap-3 p-4 text-start`}
         >
-          <span className="text-3xl">{m.icon}</span>
+          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${mode === m.value ? "bg-brand text-white" : "bg-neutral-100 text-neutral-700"}`}>
+            <QIcon name={m.icon} className="h-5 w-5" />
+          </span>
           <span className="font-semibold">{label(MODE_LABEL[m.value])}</span>
         </button>
       ))}
@@ -234,7 +240,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
         {step === "mobile" && (
           <>
             <Title sub={t("We use it to find your appointment and tell you when it's your turn.", "نستخدمه لإيجاد موعدك وتنبيهك عند حلول دورك.")}>{t("Your mobile number", "رقم جوالك")}</Title>
-            <div className="flex h-20 items-center rounded-2xl border-2 border-black/10 bg-white px-5 focus-within:border-brand" dir="ltr">
+            <div className="flex h-20 items-center rounded-2xl bg-white px-5 ring-1 ring-black/10 transition focus-within:ring-2 focus-within:ring-brand" dir="ltr">
               <span className="text-xl text-neutral-500">+966</span>
               <span className="mx-4 h-8 w-px bg-black/10" />
               <input
@@ -249,7 +255,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-[0.15em] text-neutral-900 outline-none placeholder:text-neutral-300"
               />
             </div>
-            <p className={`-mt-2 text-sm ${mobile && !mobile.startsWith("5") ? "text-amber-700" : "text-neutral-400"}`}>
+            <p className={`-mt-2 text-sm ${mobile && !mobile.startsWith("5") ? "text-amber-700" : "text-neutral-500"}`}>
               {mobile && !mobile.startsWith("5") ? t("Saudi mobiles start with 5.", "أرقام الجوال السعودية تبدأ بـ 5.") : t(`${mobile.length} of 9 digits`, `${mobile.length} من 9 أرقام`)}
             </p>
             <p className="rounded-2xl bg-white/70 p-3 text-xs leading-relaxed text-neutral-500 ring-1 ring-black/5">
@@ -263,8 +269,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               <button type="button" disabled={!validMobile || busy} onClick={afterMobile} className={primary}>
                 {busy && <Spinner />} {t("Continue", "متابعة")}
               </button>
-              <Link href="/q/find" className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand/30 bg-white py-3.5 text-base font-semibold text-brand">
-                🎫 {t("I already have a ticket - find it", "لدي تذكرة بالفعل - ابحث عنها")}
+              <Link href="/q/find" className="mx-auto flex w-fit items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5">
+                <QIcon name="ticket" className="h-4 w-4 text-brand" />
+                {t("Already have a ticket?", "لديك تذكرة؟")} <span className="text-brand underline underline-offset-2">{t("Find it", "ابحث عنها")}</span>
               </Link>
             </div>
           </>
@@ -339,7 +346,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Confirm and join", "تأكيد والانضمام")}
               </button>
               <button type="button" onClick={() => setStep("edit")} className={secondary}>
-                ✏️ {t("Edit or add a note", "تعديل أو إضافة ملاحظة")}
+                <span className="inline-flex items-center justify-center gap-2">
+                  <QIcon name="edit" className="h-4 w-4" /> {t("Edit or add a note", "تعديل أو إضافة ملاحظة")}
+                </span>
               </button>
               <button type="button" onClick={restart} className="w-full py-1 text-sm font-semibold text-neutral-500">
                 {lang === "ar" ? "→" : "←"} {t("Change mobile number", "تغيير رقم الجوال")}
@@ -364,7 +373,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 onChange={(e) => setNote(e.target.value.slice(0, 500))}
                 rows={3}
                 placeholder={t("e.g. a noise from the front, also check the AC", "مثال: صوت من الأمام، فحص المكيف أيضاً")}
-                className="w-full rounded-2xl border-2 border-black/10 bg-white p-4 text-base text-neutral-900 outline-none focus:border-brand"
+                className="w-full rounded-2xl bg-white p-4 text-base text-neutral-900 outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand"
               />
             </label>
             {appt && (
@@ -392,7 +401,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
       {existing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" role="dialog" aria-modal="true">
           <div className="flex w-full max-w-sm flex-col items-center gap-2 rounded-3xl bg-white p-6 text-center" dir={dir}>
-            <span className="text-4xl">{existing.type === "held" ? "👋" : "🎫"}</span>
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+              <QIcon name="ticket" className="h-7 w-7" />
+            </span>
             <p className="text-lg font-semibold text-neutral-900">
               {existing.type === "held" ? t("You have a ticket on hold", "لديك تذكرة معلّقة") : t("You already have a ticket", "لديك تذكرة بالفعل")}
             </p>
@@ -444,5 +455,10 @@ function Line({ label, value, ltr }: { label: string; value: string; ltr?: boole
 }
 
 function Notice({ text }: { text: string }) {
-  return <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">ℹ️ {text}</p>;
+  return (
+    <p className="flex gap-3 rounded-2xl bg-amber-50 p-4 text-amber-900 ring-1 ring-amber-200">
+      <QIcon name="info" className="mt-0.5 h-5 w-5 shrink-0" />
+      <span>{text}</span>
+    </p>
+  );
 }

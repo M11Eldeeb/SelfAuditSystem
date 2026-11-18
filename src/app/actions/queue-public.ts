@@ -226,7 +226,7 @@ export async function rejoinHeldTicket(ticketId: string): Promise<{ ok?: boolean
 }
 
 export type TicketView = {
-  ticket: Pick<QueueTicket, "id" | "ticket_number" | "status" | "service_mode" | "wip_service_type" | "advisor_name" | "served_at" | "queue_entry_at">;
+  ticket: Pick<QueueTicket, "id" | "ticket_number" | "status" | "service_mode" | "wip_service_type" | "services" | "advisor_name" | "served_at" | "queue_entry_at">;
   branch: { name: string; name_ar: string | null; queue_code: string | null };
   position: number | null; // people ahead + 1 while waiting
 };
@@ -237,7 +237,7 @@ export async function getTicketView(ticketId: string): Promise<TicketView | null
   const admin = createAdminClient();
   const { data: tk } = await admin
     .from("self_audit_queue_tickets")
-    .select("id, branch_id, ticket_number, status, service_mode, wip_service_type, advisor_name, served_at, queue_entry_at")
+    .select("id, branch_id, ticket_number, status, service_mode, wip_service_type, services, advisor_name, served_at, queue_entry_at")
     .eq("id", ticketId)
     .maybeSingle();
   if (!tk) return null;
