@@ -92,6 +92,8 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
   const [to, setTo] = useState(lastMonth);
   const [showAll, setShowAll] = useState(false);
   const [view, setView] = useState<"revenue" | "kpis">("revenue");
+  // The month-by-month chart of a KPI opens when its card is clicked (and closes when clicked again).
+  const [kpiChart, setKpiChart] = useState<"ftr" | "rejection" | null>(null);
 
   const inScope = (branch: string, month: string | null) => (picked.size === 0 || picked.has(branch)) && (month === null ? from <= firstMonth && to >= lastMonth : month >= from && month <= to);
   const claims = useMemo(() => data.claims.filter((c) => inScope(c.branch, c.month)), [data.claims, picked, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -456,34 +458,44 @@ function SubDealerView({ data, managerView }: { data: Ok; managerView: boolean }
           </p>
         )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card className="space-y-1">
+          <button type="button" onClick={() => setKpiChart((k) => (k === "ftr" ? null : "ftr"))} aria-pressed={kpiChart === "ftr"} className="block rounded-2xl text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#248a3d]/50">
+          <Card className={`h-full space-y-1 ${kpiChart === "ftr" ? "ring-2! ring-[#248a3d]/60!" : "hover:ring-1 hover:ring-black/10"}`}>
             <Label>First time right rate</Label>
             <Metric value={data.hasReturnHistory && kpiDecided.length ? fmtNum(rate(kpiFtr.length, kpiDecided.length), 1) : "—"} unit="%" tone="green" />
             <div className="text-xs text-[#6e6e73]">
               {data.hasReturnHistory ? `${fmtInt(kpiFtr.length)} of ${fmtInt(kpiDecided.length)} decided claim${kpiDecided.length === 1 ? "" : "s"} approved first time, with no return and no rejection` : "Needs the claim history in the sheet"}
               {data.hasReturnHistory && kpiReturned.length > 0 ? ` · ${fmtInt(kpiReturned.length)} sent back at least once (${fmtNum(rate(kpiReturned.length, kpiDecided.length), 1)}%)` : ""}
             </div>
+            <div className="pt-1 text-[11px] font-semibold text-[#6e6e73]">{kpiChart === "ftr" ? "Click to hide the chart" : "Click to see it by month"}</div>
           </Card>
-          <Card className="space-y-1">
+          </button>
+          <button type="button" onClick={() => setKpiChart((k) => (k === "rejection" ? null : "rejection"))} aria-pressed={kpiChart === "rejection"} className="block rounded-2xl text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c4121a]/50">
+          <Card className={`h-full space-y-1 ${kpiChart === "rejection" ? "ring-2! ring-[#c4121a]/60!" : "hover:ring-1 hover:ring-black/10"}`}>
             <Label>Rejection rate</Label>
             <Metric value={kpiDecided.length ? fmtNum(rate(kpiRejected.length, kpiDecided.length), 1) : "—"} unit="%" tone="red" />
             <div className="text-xs text-[#6e6e73]">{fmtInt(kpiRejected.length)} of {fmtInt(kpiDecided.length)} decided claim{kpiDecided.length === 1 ? "" : "s"} rejected</div>
+            <div className="pt-1 text-[11px] font-semibold text-[#6e6e73]">{kpiChart === "rejection" ? "Click to hide the chart" : "Click to see it by month"}</div>
           </Card>
+          </button>
         </div>
-        <div className="mt-4">
-          <LineChart
-            series={[
-              ...(data.hasReturnHistory ? [{ name: "First time right", color: C.green, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.ftr })) }] : []),
-              { name: "Rejection rate", color: C.accent, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.rejected })) },
-            ]}
-            yMax={100}
-            unit="%"
-            decimals={1}
-            compact
-            emptyText="No decided claims in this period."
-          />
-          <p className="mt-2 text-center text-xs text-[#6e6e73]">By the month the claim was opened; a month shows only when it has decided claims.</p>
-        </div>
+        {kpiChart && (
+          <div className="mt-4">
+            <LineChart
+              key={kpiChart}
+              series={
+                kpiChart === "ftr"
+                  ? [{ name: "First time right", color: C.green, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.ftr })) }]
+                  : [{ name: "Rejection rate", color: C.accent, points: kpiPerMonth.map((m) => ({ month: m.month, value: m.rejected })) }]
+              }
+              yMax={100}
+              unit="%"
+              decimals={1}
+              compact
+              emptyText="No decided claims in this period."
+            />
+            <p className="mt-2 text-center text-xs text-[#6e6e73]">By the month the claim was opened; a month shows only when it has decided claims.</p>
+          </div>
+        )}
       </Panel>
 
       {/* Lead time, A to Z */}
