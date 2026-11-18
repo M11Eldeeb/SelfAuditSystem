@@ -254,8 +254,8 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
             </p>
             <p className="rounded-2xl bg-white/70 p-3 text-xs leading-relaxed text-neutral-500 ring-1 ring-black/5">
               {t(
-                "By continuing, you agree that your name, mobile number and visit details are used by MG and its authorised service partners and systems to manage your visit and send you queue notifications.",
-                "بالمتابعة، أنت توافق على استخدام اسمك ورقم جوالك وبيانات زيارتك من قبل إم جي وشركائها ومزوّدي الأنظمة المعتمدين لإدارة زيارتك وإرسال تنبيهات الدور."
+                "By continuing, you agree that your name, mobile number and visit details are used by MG and its service partners and systems to manage your visit and send you queue notifications.",
+                "بالمتابعة، أنت توافق على استخدام اسمك ورقم جوالك وبيانات زيارتك من قبل إم جي وشركائها ومزوّدي الأنظمة لإدارة زيارتك وإرسال تنبيهات الدور."
               )}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
