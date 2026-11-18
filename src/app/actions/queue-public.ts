@@ -5,6 +5,7 @@
 // gets customer names or mobiles.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { modelFromText, modelName } from "@/lib/qc/constants";
 import { normalizeMobile, saudiDate, startOfSaudiDay, type ServiceMode, type WipServiceType, type QueueTicket } from "@/lib/queue/core";
 
 const MODES: ServiceMode[] = ["appointment", "walk_in", "inquiry", "spare_parts"];
@@ -52,15 +53,45 @@ export async function checkExistingTicket(branchId: string, mobileRaw: string): 
   return held ? { type: "held", id: held.id, ticketNumber: held.ticket_number ?? "" } : null;
 }
 
-export type AppointmentMatch =
-  | { status: "today"; date: string; time: string | null; wip: string }
-  | { status: "other_day"; date: string; time: string | null; wip: string }
-  | { status: "none" };
+/** What the kiosk shows the customer to confirm: the vehicle (model when known, the VIN's last 6) and the service. */
+export type AppointmentInfo = {
+  date: string;
+  time: string | null;
+  wip: string;
+  name: string | null;
+  model: string | null;
+  vinTail: string | null;
+  service: WipServiceType;
+  description: string | null;
+};
+export type AppointmentMatch = ({ status: "today" } & AppointmentInfo) | ({ status: "other_day" } & AppointmentInfo) | { status: "none" };
 
 /** WIP as typed ("HER-30142", "030142") -> "30142". */
 const wipDigits = (v: string) => String(v ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, 20);
 
-type ApptRow = { id: string; wip_no: string; appt_date: string; appt_time: string | null };
+type ApptRow = { id: string; wip_no: string; appt_date: string; appt_time: string | null; customer_name: string | null; vin: string | null; description: string | null };
+
+/** The sheet's free-text description to a service: "q.s 60 k", "Quick" -> Quick Service; "repair", "Repair+ Quick" -> General Repair. */
+function serviceOf(description: string | null): WipServiceType {
+  const d = (description ?? "").toLowerCase();
+  if (/rep(a|ie)r|اصلاح|إصلاح/.test(d)) return "general_repair";
+  if (/q\.?\s*s\b|quick|service|صيانة|سريع|examination|\d+\s*k\b/.test(d)) return "quick_service";
+  return "general_repair";
+}
+
+/** "Mr. Nawaf  Talal" -> "Nawaf Talal" (the sheet's title is dropped). */
+const cleanName = (n: string | null) => (n ?? "").replace(/^(mr|mrs|miss|ms|messrs|dr)\.?\s+/i, "").replace(/\s+/g, " ").trim() || null;
+
+/** The vehicle's model from the portal's own data (Open WIPs, then warranty claims), when the VIN is there. */
+async function modelOfVin(vin: string | null): Promise<string | null> {
+  if (!vin || vin.length < 11) return null;
+  const admin = createAdminClient();
+  const [{ data: w }, { data: c }] = await Promise.all([
+    admin.from("self_audit_open_wips").select("model").eq("vin", vin).not("model", "is", null).limit(1).maybeSingle(),
+    admin.from("self_audit_claims").select("vehicle_model").eq("vin", vin).not("vehicle_model", "is", null).limit(1).maybeSingle(),
+  ]);
+  return modelFromText(w?.model) ?? (c?.vehicle_model ? modelName(c.vehicle_model) : null);
+}
 
 /**
  * The customer's appointment at this branch (from the daily DMS appointments sheet): by mobile, or else by the WIP
@@ -71,7 +102,7 @@ async function findAppointment(branchId: string, mobile: string | null, wip: str
   const from = saudiDate(new Date(Date.now() - 30 * DAY_MS).toISOString());
   const to = saudiDate(new Date(Date.now() + 60 * DAY_MS).toISOString());
   const admin = createAdminClient();
-  const base = () => admin.from("self_audit_queue_appointments").select("id, wip_no, appt_date, appt_time").eq("branch_id", branchId).gte("appt_date", from).lte("appt_date", to);
+  const base = () => admin.from("self_audit_queue_appointments").select("id, wip_no, appt_date, appt_time, customer_name, vin, description").eq("branch_id", branchId).gte("appt_date", from).lte("appt_date", to);
   let rows: ApptRow[] = [];
   if (mobile) rows = ((await base().eq("mobile", mobile)).data ?? []) as ApptRow[];
   if (!rows.length && wip) rows = ((await base().eq("wip_no", wip)).data ?? []) as ApptRow[];
@@ -79,7 +110,17 @@ async function findAppointment(branchId: string, mobile: string | null, wip: str
   const away = (d: string) => Math.abs(new Date(d).getTime() - new Date(today).getTime());
   const best = rows.find((x) => x.appt_date === today) ?? [...rows].sort((a, b) => away(a.appt_date) - away(b.appt_date))[0];
   const time = best.appt_time ? best.appt_time.slice(0, 5) : null;
-  return { match: { status: best.appt_date === today ? "today" : "other_day", date: best.appt_date, time, wip: best.wip_no }, row: best };
+  const info: AppointmentInfo = {
+    date: best.appt_date,
+    time,
+    wip: best.wip_no,
+    name: cleanName(best.customer_name),
+    model: await modelOfVin(best.vin),
+    vinTail: best.vin ? best.vin.slice(-6) : null,
+    service: serviceOf(best.description),
+    description: best.description,
+  };
+  return { match: { status: best.appt_date === today ? "today" : "other_day", ...info }, row: best };
 }
 
 /** The kiosk, when "Appointment" is chosen: is there one today for this mobile (or this WIP number)? */
