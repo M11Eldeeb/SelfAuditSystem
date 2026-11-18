@@ -24,6 +24,8 @@ type Step = "mobile" | "confirm" | "name" | "service" | "review";
 
 const field = "h-16 w-full rounded-2xl border-2 border-black/10 bg-white px-4 text-xl text-neutral-900 outline-none focus:border-brand";
 const primary = "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-5 text-lg font-bold text-white shadow-[0_6px_20px_rgba(196,18,26,0.25)] disabled:opacity-40";
+// The step's buttons: a bar kept at the bottom of the screen (no scrolling to reach Continue / Join / Back).
+const actions = "sticky bottom-0 z-10 -mx-5 mt-auto space-y-2 border-t border-black/5 bg-neutral-100/95 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur";
 const secondary = "w-full rounded-2xl border-2 border-black/10 bg-white py-4 text-base font-semibold text-neutral-800";
 
 /**
@@ -147,7 +149,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
         ))}
       </div>
 
-      <form className="flex flex-1 flex-col gap-6 p-5" onSubmit={(e) => e.preventDefault()}>
+      <form className="flex flex-1 flex-col gap-6 px-5 pt-5" onSubmit={(e) => e.preventDefault()}>
         {step === "mobile" && (
           <>
             <Title sub={t("We use it to find your appointment and tell you when it's your turn.", "نستخدمه لإيجاد موعدك وتنبيهك عند حلول دورك.")}>{t("Your mobile number", "رقم جوالك")}</Title>
@@ -170,7 +172,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               {mobile && !mobile.startsWith("5") ? t("Saudi mobiles start with 5.", "أرقام الجوال السعودية تبدأ بـ 5.") : t(`${mobile.length} of 9 digits`, `${mobile.length} من 9 أرقام`)}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="mt-auto space-y-3">
+            <div className={actions}>
               <button type="button" disabled={!validMobile || busy} onClick={afterMobile} className={primary}>
                 {busy && <Spinner />} {t("Continue", "متابعة")}
               </button>
@@ -200,7 +202,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
             </div>
             <p className="-mt-2 text-center text-sm text-neutral-500">{t("Is this your car? Tap Join and you're in the line.", "هل هذه سيارتك؟ اضغط انضم وستكون في الطابور.")}</p>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="mt-auto space-y-3">
+            <div className={actions}>
               <button type="button" disabled={busy} onClick={submit} className={primary}>
                 {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Join the queue", "انضم إلى الطابور")}
               </button>
@@ -224,7 +226,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
             <Title>{t("Your name", "اسمك")}</Title>
             {notice && <Notice text={notice} />}
             <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && setStep("service")} autoComplete="name" autoFocus maxLength={80} className={field} />
-            <div className="mt-auto space-y-3">
+            <div className={actions}>
               <button type="button" disabled={!name.trim()} onClick={() => setStep("service")} className={primary}>
                 {t("Continue", "متابعة")}
               </button>
@@ -248,7 +250,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                     if (m.value === "inquiry" || m.value === "spare_parts") setWip(null);
                     setAskWip(m.value === "appointment");
                   }}
-                  className={`${choice(mode === m.value)} flex flex-col items-center gap-2 p-5`}
+                  className={`${choice(mode === m.value)} flex flex-col items-center gap-1.5 p-4`}
                 >
                   <span className="text-3xl">{m.icon}</span>
                   <span className="font-semibold">{label(MODE_LABEL[m.value])}</span>
@@ -270,14 +272,14 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               <div className="flex flex-col gap-3">
                 <span className="font-semibold text-neutral-700">{t("What do you need?", "ما الخدمة المطلوبة؟")}</span>
                 {WIPS.map((w) => (
-                  <button key={w.value} type="button" onClick={() => setWip(w.value)} className={`${choice(wip === w.value)} flex min-h-16 items-center gap-3 px-5 py-3 text-start text-lg`}>
+                  <button key={w.value} type="button" onClick={() => setWip(w.value)} className={`${choice(wip === w.value)} flex min-h-14 items-center gap-3 px-5 py-2.5 text-start text-lg`}>
                     <span className="text-2xl">{w.icon}</span>
                     <span>{label(WIP_LABEL[w.value])}</span>
                   </button>
                 ))}
               </div>
             )}
-            <div className="mt-auto space-y-3">
+            <div className={actions}>
               <button type="button" disabled={!mode || (needsWip && !wip) || (mode === "appointment" && askWip)} onClick={() => setStep("review")} className={primary}>
                 {t("Continue", "متابعة")}
               </button>
@@ -298,7 +300,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               </dl>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="mt-auto space-y-3">
+            <div className={actions}>
               <button type="button" disabled={busy} onClick={submit} className={primary}>
                 {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Join the queue", "انضم إلى الطابور")}
               </button>

@@ -20,8 +20,8 @@ export function PublicShell({
   children: ReactNode;
 }) {
   return (
-    <main dir={dir} lang={lang} className="flex min-h-screen flex-col items-center bg-neutral-100">
-      <div className="flex min-h-screen w-full max-w-md flex-col">
+    <main dir={dir} lang={lang} className="flex min-h-dvh flex-col items-center bg-neutral-100">
+      <div className="flex min-h-dvh w-full max-w-md flex-col">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-black/5 bg-white/85 px-4 backdrop-blur-xl">
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/mg-logo.png" alt="MG" width={36} height={36} className="h-9 w-9 shrink-0 rounded object-contain" />
