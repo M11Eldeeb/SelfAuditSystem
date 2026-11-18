@@ -117,7 +117,9 @@ export function pickNext(
   const reactivated = eligible.find((tk) => tk.was_held);
   if (reactivated) return reactivated;
   for (const tier of fullOrder(settings.priority_order)) {
-    const oldest = eligible.find((tk) => tierOf(tk) === tier);
+    // Appointments: the earliest appointment time first, not the earliest arrival - a customer who came at 08:30 for
+    // 09:00 goes before one who came at 08:00 for 12:00.
+    const oldest = tier === "appointment" ? byAppointmentTime(eligible.filter((tk) => tierOf(tk) === tier))[0] : eligible.find((tk) => tierOf(tk) === tier);
     if (!oldest) continue;
     if (tier === "quick_service" && settings.fairness_enabled) {
       const waitedMin = (now - new Date(oldest.queue_entry_at).getTime()) / 60000;
@@ -131,6 +133,12 @@ export function pickNext(
   }
   // Nothing in a tier (e.g. a walk-in without a service): the oldest one left.
   return eligible.find((tk) => tierOf(tk) == null) ?? null;
+}
+
+/** Appointment tickets by appointment time (one without a time by when it joined), earliest first. */
+export function byAppointmentTime<T extends Pick<QueueTicket, "queue_entry_at" | "appointment_at">>(list: T[]): T[] {
+  const at = (tk: T) => new Date(tk.appointment_at ?? tk.queue_entry_at).getTime();
+  return [...list].sort((a, b) => at(a) - at(b) || new Date(a.queue_entry_at).getTime() - new Date(b.queue_entry_at).getTime());
 }
 
 /** Saudi mobile as typed (5X XXX XXXX, with or without 0 / +966) to +9665XXXXXXXX; null if it is not one. */

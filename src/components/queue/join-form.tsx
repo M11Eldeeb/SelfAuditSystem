@@ -85,6 +85,22 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
     );
   }
 
+  /** Back to the first screen with everything cleared (another mobile number). */
+  function restart() {
+    setMobile("");
+    setName("");
+    setMode(null);
+    setServices([]);
+    setNote("");
+    setWipNumber("");
+    setAppt(null);
+    setSheet(null);
+    setAskWip(false);
+    setNotice(null);
+    setError(null);
+    setStep("mobile");
+  }
+
   /** Fills in what the sheet says and goes to the last step. */
   function fromSheet(a: AppointmentInfo, today: boolean) {
     setSheet(a);
@@ -257,7 +273,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               <button type="button" disabled={!name.trim()} onClick={() => setStep(sheet ? "review" : "service")} className={primary}>
                 {t("Continue", "متابعة")}
               </button>
-              {back("mobile")}
+              <button type="button" onClick={restart} className="w-full py-1 text-sm font-semibold text-neutral-500">
+                {lang === "ar" ? "→" : "←"} {t("Change mobile number", "تغيير رقم الجوال")}
+              </button>
             </div>
           </>
         )}
@@ -316,6 +334,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
               </button>
               <button type="button" onClick={() => setStep("edit")} className={secondary}>
                 ✏️ {t("Edit or add a note", "تعديل أو إضافة ملاحظة")}
+              </button>
+              <button type="button" onClick={restart} className="w-full py-1 text-sm font-semibold text-neutral-500">
+                {lang === "ar" ? "→" : "←"} {t("Change mobile number", "تغيير رقم الجوال")}
               </button>
             </div>
           </>
