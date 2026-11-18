@@ -30,6 +30,11 @@ export type QueueTicket = {
   closed_at: string | null;
   /** Came for an appointment of the DMS sheet: its time (shown at the desk). */
   appointment_at?: string | null;
+  /** All the services asked for (Quick Service and General Repair may go together). */
+  services?: string[] | null;
+  /** What the customer added at the kiosk, and what they changed from the appointment sheet. */
+  customer_note?: string | null;
+  customer_changes?: Record<string, { from: unknown; to: unknown }> | null;
 };
 
 export type QueueSettings = { priority_order: Tier[]; fairness_enabled: boolean; fairness_override_minutes: number };
@@ -70,8 +75,10 @@ export const tr = (lang: Lang) => (en: string, ar: string) => (lang === "ar" ? a
 export const label = (pair: [string, string], lang: Lang) => (lang === "ar" ? pair[1] : pair[0]);
 
 /** What the ticket is for, in a few words. */
-export function serviceText(tk: Pick<QueueTicket, "service_mode" | "wip_service_type">, lang: Lang) {
+export function serviceText(tk: Pick<QueueTicket, "service_mode" | "wip_service_type"> & { services?: string[] | null }, lang: Lang) {
   if (tk.service_mode === "inquiry" || tk.service_mode === "spare_parts") return label(MODE_LABEL[tk.service_mode], lang);
+  const many = (tk.services ?? []).filter((s): s is WipServiceType => s in WIP_LABEL);
+  if (many.length > 1) return many.map((s) => label(WIP_LABEL[s], lang)).join(" + ");
   return tk.wip_service_type ? label(WIP_LABEL[tk.wip_service_type], lang) : label(MODE_LABEL[tk.service_mode], lang);
 }
 

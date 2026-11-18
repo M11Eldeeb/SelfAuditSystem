@@ -150,6 +150,7 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
                             {tk.wip_number && <span dir="ltr"> · WIP {tk.wip_number}</span>}
                           </div>
                           {tk.preassigned_advisor_name && <div className="mt-0.5 text-xs font-medium text-brand">→ {tk.preassigned_advisor_name}</div>}
+                          <CustomerAdded tk={tk} compact />
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
                           <button type="button" onClick={() => run(tk.id, () => serveTicket(tk.id), "Customer called.")} disabled={!!busy} className={`${primary} px-2.5 py-1.5 text-xs`}>
@@ -364,6 +365,7 @@ function Session({
           value={`${minutesSince(tk.queue_entry_at, now)} min ago${tk.wip_number ? ` · WIP ${tk.wip_number}` : ""}`}
         />
       </div>
+      <CustomerAdded tk={tk} />
       <label className="mb-5 block">
         <span className="mb-1 flex items-center justify-between text-sm font-semibold text-neutral-800">
           Notes {!saved && <span className="text-xs font-normal text-neutral-400">saving…</span>}
@@ -405,6 +407,43 @@ function Session({
           ↩ Back to queue
         </button>
       </div>
+    </div>
+  );
+}
+
+const SERVICE_NAMES: Record<string, string> = { quick_service: "Quick Service", general_repair: "General Repair", vehicle_delivery: "Vehicle delivery" };
+const listText = (v: unknown) => (Array.isArray(v) ? v.map((s) => SERVICE_NAMES[String(s)] ?? String(s)).join(" + ") : String(v ?? "—"));
+
+/** What the customer changed at the kiosk from the appointment sheet, and their note for the advisor. */
+function CustomerAdded({ tk, compact }: { tk: QueueTicket; compact?: boolean }) {
+  const changes = tk.customer_changes ?? {};
+  const keys = Object.keys(changes);
+  if (!tk.customer_note && !keys.length) return null;
+  if (compact)
+    return (
+      <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+        {keys.length > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">✏️ Changed by customer</span>}
+        {tk.customer_note && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800">📝 Has a note</span>}
+      </div>
+    );
+  return (
+    <div className="mb-5 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+      <p className="font-semibold">From the customer at the kiosk</p>
+      {changes.services && (
+        <p>
+          Service changed: <s className="opacity-70">{listText(changes.services.from)}</s> → <strong>{listText(changes.services.to)}</strong>
+        </p>
+      )}
+      {changes.name && (
+        <p>
+          Name changed: <s className="opacity-70">{String(changes.name.from)}</s> → <strong>{String(changes.name.to)}</strong>
+        </p>
+      )}
+      {tk.customer_note && (
+        <p>
+          📝 <strong>Note:</strong> {tk.customer_note}
+        </p>
+      )}
     </div>
   );
 }

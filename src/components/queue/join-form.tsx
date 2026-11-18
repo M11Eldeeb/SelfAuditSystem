@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { checkExistingTicket, joinQueue, lookupAppointment, rejoinHeldTicket, type AppointmentInfo } from "@/app/actions/queue-public";
-import { MODE_LABEL, WIP_LABEL, type ServiceMode, type WipServiceType } from "@/lib/queue/core";
+import { checkExistingTicket, joinQueue, knownCustomerName, lookupAppointment, rejoinHeldTicket, type AppointmentInfo } from "@/app/actions/queue-public";
+import { MODE_LABEL, WIP_LABEL, saudiDate, type ServiceMode, type WipServiceType } from "@/lib/queue/core";
 import { PublicShell, Spinner } from "./public-shell";
 import { useQueueLang } from "./alerts";
 
@@ -20,18 +20,26 @@ const MODES: { value: ServiceMode; icon: string }[] = [
   { value: "spare_parts", icon: "🧰" },
 ];
 
-type Step = "mobile" | "confirm" | "name" | "service" | "review";
+type Step = "mobile" | "name" | "service" | "review" | "edit";
 
-const field = "h-16 w-full rounded-2xl border-2 border-black/10 bg-white px-4 text-xl text-neutral-900 outline-none focus:border-brand";
-const primary = "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-5 text-lg font-bold text-white shadow-[0_6px_20px_rgba(196,18,26,0.25)] disabled:opacity-40";
+const field = "h-14 w-full rounded-2xl border-2 border-black/10 bg-white px-4 text-lg text-neutral-900 outline-none focus:border-brand";
+const primary = "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-lg font-bold text-white shadow-[0_6px_20px_rgba(196,18,26,0.25)] disabled:opacity-40";
 // The step's buttons: a bar kept at the bottom of the screen (no scrolling to reach Continue / Join / Back).
 const actions = "sticky bottom-0 z-10 -mx-5 mt-auto space-y-2 border-t border-black/5 bg-neutral-100/95 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur";
-const secondary = "w-full rounded-2xl border-2 border-black/10 bg-white py-4 text-base font-semibold text-neutral-800";
+const secondary = "w-full rounded-2xl border-2 border-black/10 bg-white py-3.5 text-base font-semibold text-neutral-800";
+
+/** Quick Service and General Repair can go together; vehicle delivery is on its own. */
+function toggleService(list: WipServiceType[], s: WipServiceType): WipServiceType[] {
+  if (s === "vehicle_delivery") return list.includes(s) ? [] : [s];
+  const rest = list.filter((x) => x !== "vehicle_delivery");
+  return rest.includes(s) ? rest.filter((x) => x !== s) : [...rest, s];
+}
 
 /**
- * Joining the queue at the branch, made for a phone or a kiosk: the mobile first (9 digits, 5XXXXXXXX). With an
- * appointment today in the DMS sheet the customer only confirms (name, time, vehicle, service) and joins; otherwise the
- * name and the service are asked. An appointment on another day is shown, and the customer joins as a walk-in.
+ * Joining the queue at the branch, made for a phone or a kiosk: the mobile first (9 digits, 5XXXXXXXX). A known
+ * customer (appointment today, an appointment another day, or a ticket before) goes straight to the details to
+ * confirm - Join, or Edit to change the name / service or add a note (the advisor sees what was changed or added).
+ * A new customer answers the name and the service, one per screen.
  */
 export function JoinForm({ branch }: { branch: { id: string; name: string; name_ar: string | null; status: "open" | "paused" | "closed" } }) {
   const router = useRouter();
@@ -40,14 +48,16 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
   const [mobile, setMobile] = useState("");
   const [name, setName] = useState("");
   const [mode, setMode] = useState<ServiceMode | null>(null);
-  const [wip, setWip] = useState<WipServiceType | null>(null);
+  const [services, setServices] = useState<WipServiceType[]>([]);
+  const [note, setNote] = useState("");
   const [wipNumber, setWipNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<{ type: "active" | "held"; id: string; ticketNumber: string } | null>(null);
   const [appt, setAppt] = useState<AppointmentInfo | null>(null); // today's appointment
-  const [askWip, setAskWip] = useState(false); // chose Appointment but none found by mobile
-  const [notice, setNotice] = useState<string | null>(null); // another day / not found: joins as a walk-in
+  const [sheet, setSheet] = useState<AppointmentInfo | null>(null); // what the sheet said (today or another day)
+  const [askWip, setAskWip] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const branchName = lang === "ar" && branch.name_ar ? branch.name_ar : branch.name;
   const validMobile = /^5\d{8}$/.test(mobile);
@@ -56,6 +66,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
   const day = (d: string) => new Date(`${d}T12:00:00+03:00`).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Riyadh" });
   const clock = (hm: string | null) => (hm ? new Date(`2000-01-01T${hm}:00`).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" }) : null);
   const label = (pair: [string, string]) => t(pair[0], pair[1]);
+  const servicesText = (list: WipServiceType[]) => list.map((s) => label(WIP_LABEL[s])).join(" + ");
   const otherDayNotice = (a: AppointmentInfo) =>
     t(
       `Your appointment is on ${day(a.date)}${a.time ? ` at ${clock(a.time)}` : ""}. Today you will be served as a walk-in.`,
@@ -74,30 +85,42 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
     );
   }
 
-  function toConfirm(a: AppointmentInfo) {
-    setAppt(a);
-    setMode("appointment");
-    setWip(a.service);
-    if (a.name && !name) setName(a.name);
-    setStep("confirm");
+  /** Fills in what the sheet says and goes to the last step. */
+  function fromSheet(a: AppointmentInfo, today: boolean) {
+    setSheet(a);
+    if (a.name) setName((n) => n || a.name!);
+    setServices(a.services);
+    if (today) {
+      setAppt(a);
+      setMode("appointment");
+      setNotice(null);
+    } else {
+      setAppt(null);
+      setMode("walk_in");
+      setNotice(otherDayNotice(a));
+    }
+    setStep(a.name ? "review" : "name");
   }
 
-  /** After the mobile: an active / held ticket? an appointment today? */
   async function afterMobile() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    const [found, match] = await Promise.all([checkExistingTicket(branch.id, mobile), lookupAppointment(branch.id, mobile)]);
+    const [found, match, known] = await Promise.all([checkExistingTicket(branch.id, mobile), lookupAppointment(branch.id, mobile), knownCustomerName(mobile)]);
     setBusy(false);
-    if (match.status !== "none" && match.name && !name) setName(match.name);
+    if (known) setName((n) => n || known);
+    if (match.status !== "none") setSheet(match);
     if (found) {
       setExisting(found);
-      if (match.status === "today") setAppt(match);
       return;
     }
-    if (match.status === "today") return toConfirm(match);
-    if (match.status === "other_day") setNotice(otherDayNotice(match));
-    setStep("name");
+    proceed(match, known);
+  }
+
+  function proceed(match: Awaited<ReturnType<typeof lookupAppointment>>, known: string | null) {
+    if (match.status === "today") return fromSheet(match, true);
+    if (match.status === "other_day") return fromSheet(match, false);
+    setStep(known ? "service" : "name");
   }
 
   async function findByWip() {
@@ -105,16 +128,20 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
     const m = await lookupAppointment(branch.id, mobile, wipNumber);
     setBusy(false);
     setAskWip(false);
-    if (m.status === "today") return toConfirm(m);
+    if (m.status === "today") return fromSheet(m, true);
     setMode("walk_in");
-    setNotice(m.status === "other_day" ? otherDayNotice(m) : t("We could not find an appointment for this mobile or WIP number. You will be served as a walk-in.", "لم نجد موعداً بهذا الجوال أو رقم WIP. سيتم خدمتك بدون موعد."));
+    if (m.status === "other_day") {
+      setSheet(m);
+      setServices(m.services);
+      setNotice(otherDayNotice(m));
+    } else setNotice(t("We could not find an appointment for this mobile or WIP number. You will be served as a walk-in.", "لم نجد موعداً بهذا الجوال أو رقم WIP. سيتم خدمتك بدون موعد."));
   }
 
   async function submit() {
     if (!mode) return;
     setBusy(true);
     setError(null);
-    const r = await joinQueue({ branchId: branch.id, name, mobile, mode, wip, wipNumber: appt?.wip ?? wipNumber });
+    const r = await joinQueue({ branchId: branch.id, name, mobile, mode, services: needsWip ? services : [], wipNumber: appt?.wip ?? wipNumber, note });
     if (r.id) router.push(`/q/t/${r.id}`);
     else {
       setBusy(false);
@@ -134,22 +161,60 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
   }
 
   const choice = (on: boolean) => `rounded-2xl border-2 bg-white text-neutral-900 transition-colors ${on ? "border-brand bg-brand/5" : "border-black/10"}`;
-  const steps: Step[] = appt ? ["mobile", "confirm"] : ["mobile", "name", "service", "review"];
   const back = (to: Step) => (
     <button type="button" onClick={() => setStep(to)} className="w-full py-1 text-sm font-semibold text-neutral-500">
       {lang === "ar" ? "→" : "←"} {t("Back", "رجوع")}
     </button>
+  );
+  const steps: Step[] = sheet && sheet.name ? ["mobile", "review"] : ["mobile", "name", "service", "review"];
+  const dot = step === "edit" ? "review" : step;
+
+  const serviceButtons = (
+    <div className="flex flex-col gap-2.5">
+      <span className="font-semibold text-neutral-700">{t("What do you need? (one or more)", "ما الخدمة المطلوبة؟ (واحدة أو أكثر)")}</span>
+      {WIPS.map((w) => {
+        const on = services.includes(w.value);
+        return (
+          <button key={w.value} type="button" onClick={() => setServices((l) => toggleService(l, w.value))} className={`${choice(on)} flex min-h-14 items-center gap-3 px-4 py-2.5 text-start text-lg`}>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm ${on ? "border-brand bg-brand text-white" : "border-black/20"}`}>{on && "✓"}</span>
+            <span className="text-2xl">{w.icon}</span>
+            <span>{label(WIP_LABEL[w.value])}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const modeButtons = (allowAppointment: boolean) => (
+    <div className="grid grid-cols-2 gap-3">
+      {MODES.filter((m) => allowAppointment || m.value !== "appointment").map((m) => (
+        <button
+          key={m.value}
+          type="button"
+          onClick={() => {
+            setNotice(null);
+            setMode(m.value);
+            if (m.value === "inquiry" || m.value === "spare_parts") setServices([]);
+            setAskWip(m.value === "appointment");
+          }}
+          className={`${choice(mode === m.value)} flex flex-col items-center gap-1.5 p-4`}
+        >
+          <span className="text-3xl">{m.icon}</span>
+          <span className="font-semibold">{label(MODE_LABEL[m.value])}</span>
+        </button>
+      ))}
+    </div>
   );
 
   return (
     <PublicShell title={branchName} subtitle={t("After-Sales Service Center", "مركز خدمة ما بعد البيع")} lang={lang} dir={dir} onToggle={toggle}>
       <div className="flex items-center gap-2 px-5 pt-5">
         {steps.map((s) => (
-          <span key={s} className={`h-2 rounded-full transition-all ${s === step ? "w-8 bg-brand" : "w-2 bg-black/15"}`} />
+          <span key={s} className={`h-2 rounded-full transition-all ${s === dot ? "w-8 bg-brand" : "w-2 bg-black/15"}`} />
         ))}
       </div>
 
-      <form className="flex flex-1 flex-col gap-6 px-5 pt-5" onSubmit={(e) => e.preventDefault()}>
+      <form className="flex flex-1 flex-col gap-5 px-5 pt-5" onSubmit={(e) => e.preventDefault()}>
         {step === "mobile" && (
           <>
             <Title sub={t("We use it to find your appointment and tell you when it's your turn.", "نستخدمه لإيجاد موعدك وتنبيهك عند حلول دورك.")}>{t("Your mobile number", "رقم جوالك")}</Title>
@@ -168,7 +233,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-[0.15em] text-neutral-900 outline-none placeholder:text-neutral-300"
               />
             </div>
-            <p className={`-mt-3 text-sm ${mobile && !mobile.startsWith("5") ? "text-amber-700" : "text-neutral-400"}`}>
+            <p className={`-mt-2 text-sm ${mobile && !mobile.startsWith("5") ? "text-amber-700" : "text-neutral-400"}`}>
               {mobile && !mobile.startsWith("5") ? t("Saudi mobiles start with 5.", "أرقام الجوال السعودية تبدأ بـ 5.") : t(`${mobile.length} of 9 digits`, `${mobile.length} من 9 أرقام`)}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -183,51 +248,13 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
           </>
         )}
 
-        {step === "confirm" && appt && (
-          <>
-            <Title>{name ? t(`Welcome, ${name}`, `أهلاً ${name}`) : t("Welcome", "أهلاً بك")}</Title>
-            <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
-              <div className="bg-emerald-600 px-5 py-4 text-white">
-                <p className="text-sm font-medium opacity-90">✓ {t("Your appointment today", "موعدك اليوم")}</p>
-                <p className="text-3xl font-bold">{clock(appt.time) ?? day(appt.date)}</p>
-              </div>
-              <dl className="divide-y divide-black/5 px-5">
-                <Line label={t("Vehicle", "المركبة")} value={appt.model ?? t("Your MG", "سيارتك MG")} />
-                {appt.vinTail && <Line label={t("Chassis (VIN) ends with", "رقم الهيكل ينتهي بـ")} value={`…${appt.vinTail}`} ltr />}
-                <Line label={t("Service", "الخدمة")} value={label(WIP_LABEL[wip ?? appt.service])} />
-                {appt.description && <Line label={t("Booked for", "سبب الموعد")} value={appt.description} />}
-                <Line label={t("WIP number", "رقم WIP")} value={appt.wip} ltr />
-                <Line label={t("Mobile", "الجوال")} value={`+966 ${mobile}`} ltr />
-              </dl>
-            </div>
-            <p className="-mt-2 text-center text-sm text-neutral-500">{t("Is this your car? Tap Join and you're in the line.", "هل هذه سيارتك؟ اضغط انضم وستكون في الطابور.")}</p>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className={actions}>
-              <button type="button" disabled={busy} onClick={submit} className={primary}>
-                {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Join the queue", "انضم إلى الطابور")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAppt(null);
-                  setMode("walk_in");
-                  setStep("name");
-                }}
-                className={secondary}
-              >
-                {t("Not my car / change", "ليست سيارتي / تعديل")}
-              </button>
-            </div>
-          </>
-        )}
-
         {step === "name" && (
           <>
             <Title>{t("Your name", "اسمك")}</Title>
             {notice && <Notice text={notice} />}
-            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && setStep("service")} autoComplete="name" autoFocus maxLength={80} className={field} />
+            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && setStep(sheet ? "review" : "service")} autoComplete="name" autoFocus maxLength={80} className={field} />
             <div className={actions}>
-              <button type="button" disabled={!name.trim()} onClick={() => setStep("service")} className={primary}>
+              <button type="button" disabled={!name.trim()} onClick={() => setStep(sheet ? "review" : "service")} className={primary}>
                 {t("Continue", "متابعة")}
               </button>
               {back("mobile")}
@@ -239,24 +266,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
           <>
             <Title>{t("How can we help?", "كيف نخدمك؟")}</Title>
             {notice && <Notice text={notice} />}
-            <div className="grid grid-cols-2 gap-3">
-              {MODES.map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => {
-                    setNotice(null);
-                    setMode(m.value);
-                    if (m.value === "inquiry" || m.value === "spare_parts") setWip(null);
-                    setAskWip(m.value === "appointment");
-                  }}
-                  className={`${choice(mode === m.value)} flex flex-col items-center gap-1.5 p-4`}
-                >
-                  <span className="text-3xl">{m.icon}</span>
-                  <span className="font-semibold">{label(MODE_LABEL[m.value])}</span>
-                </button>
-              ))}
-            </div>
+            {modeButtons(true)}
             {mode === "appointment" && askWip && (
               <div className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-black/5">
                 <p className="text-sm text-neutral-600">{t("We could not find an appointment for your mobile. Type the WIP number of your appointment.", "لم نجد موعداً لجوالك. اكتب رقم WIP الخاص بموعدك.")}</p>
@@ -268,19 +278,9 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 </div>
               </div>
             )}
-            {needsWip && !askWip && (
-              <div className="flex flex-col gap-3">
-                <span className="font-semibold text-neutral-700">{t("What do you need?", "ما الخدمة المطلوبة؟")}</span>
-                {WIPS.map((w) => (
-                  <button key={w.value} type="button" onClick={() => setWip(w.value)} className={`${choice(wip === w.value)} flex min-h-14 items-center gap-3 px-5 py-2.5 text-start text-lg`}>
-                    <span className="text-2xl">{w.icon}</span>
-                    <span>{label(WIP_LABEL[w.value])}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {needsWip && !askWip && serviceButtons}
             <div className={actions}>
-              <button type="button" disabled={!mode || (needsWip && !wip) || (mode === "appointment" && askWip)} onClick={() => setStep("review")} className={primary}>
+              <button type="button" disabled={!mode || (needsWip && !services.length) || (mode === "appointment" && askWip)} onClick={() => setStep("review")} className={primary}>
                 {t("Continue", "متابعة")}
               </button>
               {back("name")}
@@ -290,21 +290,73 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
 
         {step === "review" && mode && (
           <>
-            <Title>{t("All correct?", "هل البيانات صحيحة؟")}</Title>
-            <div className="rounded-3xl bg-white px-5 shadow-sm ring-1 ring-black/5">
-              <dl className="divide-y divide-black/5">
+            <Title>{name ? t(`Welcome, ${name}`, `أهلاً ${name}`) : t("All correct?", "هل البيانات صحيحة؟")}</Title>
+            {notice && <Notice text={notice} />}
+            <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
+              {appt && (
+                <div className="bg-emerald-600 px-5 py-3.5 text-white">
+                  <p className="text-sm font-medium opacity-90">✓ {t("Your appointment today", "موعدك اليوم")}</p>
+                  <p className="text-3xl font-bold">{clock(appt.time) ?? day(appt.date)}</p>
+                </div>
+              )}
+              <dl className="divide-y divide-black/5 px-5">
                 <Line label={t("Name", "الاسم")} value={name.trim()} />
                 <Line label={t("Mobile", "الجوال")} value={`+966 ${mobile}`} ltr />
+                {sheet && <Line label={t("Vehicle", "المركبة")} value={`${sheet.model ?? t("Your MG", "سيارتك MG")}${sheet.vinTail ? ` · …${sheet.vinTail}` : ""}`} />}
                 <Line label={t("Visit", "الزيارة")} value={label(MODE_LABEL[mode])} />
-                {wip && needsWip && <Line label={t("Service", "الخدمة")} value={label(WIP_LABEL[wip])} />}
+                {needsWip && services.length > 0 && <Line label={t("Service", "الخدمة")} value={servicesText(services)} />}
+                {appt && <Line label={t("WIP number", "رقم WIP")} value={appt.wip} ltr />}
+                {note.trim() && <Line label={t("Your note", "ملاحظتك")} value={note.trim()} />}
               </dl>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className={actions}>
-              <button type="button" disabled={busy} onClick={submit} className={primary}>
-                {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Join the queue", "انضم إلى الطابور")}
+              <button type="button" disabled={busy || !name.trim() || (needsWip && !services.length)} onClick={submit} className={primary}>
+                {busy && <Spinner />} {busy ? t("Joining…", "جارِ الانضمام…") : t("Confirm and join", "تأكيد والانضمام")}
               </button>
-              {back("service")}
+              <button type="button" onClick={() => setStep("edit")} className={secondary}>
+                ✏️ {t("Edit or add a note", "تعديل أو إضافة ملاحظة")}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "edit" && mode && (
+          <>
+            <Title sub={t("Your advisor will see what you change or add.", "سيرى المستشار ما تغيّره أو تضيفه.")}>{t("Edit", "تعديل")}</Title>
+            <label className="block">
+              <span className="mb-1 block font-semibold text-neutral-700">{t("Name", "الاسم")}</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} className={field} />
+            </label>
+            {!appt && modeButtons(false)}
+            {needsWip && serviceButtons}
+            <label className="block">
+              <span className="mb-1 block font-semibold text-neutral-700">{t("Anything to add for your advisor? (optional)", "هل تريد إضافة شيء للمستشار؟ (اختياري)")}</span>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value.slice(0, 500))}
+                rows={3}
+                placeholder={t("e.g. a noise from the front, also check the AC", "مثال: صوت من الأمام، فحص المكيف أيضاً")}
+                className="w-full rounded-2xl border-2 border-black/10 bg-white p-4 text-base text-neutral-900 outline-none focus:border-brand"
+              />
+            </label>
+            {appt && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAppt(null);
+                  setMode("walk_in");
+                  setNotice(null);
+                }}
+                className="text-start text-sm font-semibold text-neutral-500 underline"
+              >
+                {t("Not my car - continue without the appointment", "ليست سيارتي - المتابعة بدون الموعد")}
+              </button>
+            )}
+            <div className={actions}>
+              <button type="button" disabled={!name.trim() || (needsWip && !services.length)} onClick={() => setStep("review")} className={primary}>
+                {t("Done", "تم")}
+              </button>
             </div>
           </>
         )}
@@ -330,8 +382,7 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
                 type="button"
                 onClick={() => {
                   setExisting(null);
-                  if (appt) toConfirm(appt);
-                  else setStep("name");
+                  proceed(sheet ? { status: sheet.date === saudiDate(new Date().toISOString()) ? "today" : "other_day", ...sheet } : { status: "none" }, name || null);
                 }}
                 className={secondary}
               >
@@ -356,8 +407,8 @@ function Title({ children, sub }: { children: React.ReactNode; sub?: string }) {
 
 function Line({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3.5">
-      <dt className="text-neutral-500">{label}</dt>
+    <div className="flex items-center justify-between gap-4 py-3">
+      <dt className="shrink-0 text-neutral-500">{label}</dt>
       <dd className="text-end font-semibold text-neutral-900" dir={ltr ? "ltr" : undefined}>
         {value}
       </dd>

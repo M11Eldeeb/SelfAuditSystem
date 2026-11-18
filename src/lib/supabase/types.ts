@@ -45,6 +45,7 @@ export interface Database {
           preassign_urgent: boolean; held_at: string | null; was_held: boolean; notes: string | null;
           queue_entry_at: string; served_at: string | null; closed_at: string | null; created_at: string;
           appointment_id: string | null; appointment_at: string | null;
+          services: string[] | null; customer_note: string | null; customer_changes: Record<string, { from: unknown; to: unknown }> | null;
         };
         Insert: {
           id?: string; branch_id: string; ticket_number?: string | null; customer_name: string; mobile: string;
@@ -55,6 +56,7 @@ export interface Database {
           preassign_urgent?: boolean; held_at?: string | null; was_held?: boolean; notes?: string | null;
           queue_entry_at?: string; served_at?: string | null; closed_at?: string | null; created_at?: string;
           appointment_id?: string | null; appointment_at?: string | null;
+          services?: string[] | null; customer_note?: string | null; customer_changes?: Record<string, { from: unknown; to: unknown }> | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_tickets"]["Insert"]>;
         Relationships: [];

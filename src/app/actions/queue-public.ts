@@ -61,7 +61,8 @@ export type AppointmentInfo = {
   name: string | null;
   model: string | null;
   vinTail: string | null;
-  service: WipServiceType;
+  /** From the sheet's description: Quick Service, General Repair, or both. */
+  services: WipServiceType[];
   description: string | null;
 };
 export type AppointmentMatch = ({ status: "today" } & AppointmentInfo) | ({ status: "other_day" } & AppointmentInfo) | { status: "none" };
@@ -72,11 +73,15 @@ const wipDigits = (v: string) => String(v ?? "").replace(/\D/g, "").replace(/^0+
 type ApptRow = { id: string; wip_no: string; appt_date: string; appt_time: string | null; customer_name: string | null; vin: string | null; description: string | null };
 
 /** The sheet's free-text description to a service: "q.s 60 k", "Quick" -> Quick Service; "repair", "Repair+ Quick" -> General Repair. */
-function serviceOf(description: string | null): WipServiceType {
-  const d = (description ?? "").toLowerCase();
-  if (/rep(a|ie)r|اصلاح|إصلاح/.test(d)) return "general_repair";
-  if (/q\.?\s*s\b|quick|service|صيانة|سريع|examination|\d+\s*k\b/.test(d)) return "quick_service";
-  return "general_repair";
+function servicesOf(description: string | null): WipServiceType[] {
+  const d = ` ${(description ?? "").toLowerCase()} `;
+  // "q.s 60 k", "QS", "q s", "Quick", "service", "Examination 1000K" = Quick Service; "repair" / "repier" = General Repair.
+  const quick = /(^|[^a-z])q\s*\.?\s*s([^a-z]|$)|quick|service|صيانة|سريع|examination|\d+\s*k([^a-z]|$)/.test(d);
+  const repair = /rep(a|ie)i?r|اصلاح|إصلاح|تصليح/.test(d);
+  const out: WipServiceType[] = [];
+  if (quick) out.push("quick_service");
+  if (repair) out.push("general_repair");
+  return out.length ? out : ["general_repair"];
 }
 
 /** "Mr. Nawaf  Talal" -> "Nawaf Talal" (the sheet's title is dropped). */
@@ -117,10 +122,25 @@ async function findAppointment(branchId: string, mobile: string | null, wip: str
     name: cleanName(best.customer_name),
     model: await modelOfVin(best.vin),
     vinTail: best.vin ? best.vin.slice(-6) : null,
-    service: serviceOf(best.description),
+    services: servicesOf(best.description),
     description: best.description,
   };
   return { match: { status: best.appt_date === today ? "today" : "other_day", ...info }, row: best };
+}
+
+/** A returning customer: the name on their latest ticket (any branch, last year), to fill in at the kiosk. */
+export async function knownCustomerName(mobileRaw: string): Promise<string | null> {
+  const mobile = normalizeMobile(mobileRaw);
+  if (!mobile) return null;
+  const { data } = await createAdminClient()
+    .from("self_audit_queue_tickets")
+    .select("customer_name")
+    .eq("mobile", mobile)
+    .gte("queue_entry_at", new Date(Date.now() - 365 * DAY_MS).toISOString())
+    .order("queue_entry_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.customer_name ?? null;
 }
 
 /** The kiosk, when "Appointment" is chosen: is there one today for this mobile (or this WIP number)? */
@@ -134,8 +154,11 @@ export async function joinQueue(input: {
   name: string;
   mobile: string;
   mode: string;
-  wip?: string | null;
+  /** One or more: Quick Service and General Repair may go together; vehicle delivery is on its own. */
+  services?: string[];
   wipNumber?: string | null;
+  /** Anything the customer added for the advisor. */
+  note?: string | null;
 }): Promise<{ id?: string; error?: string }> {
   const branch = await openBranch(input.branchId);
   if (!branch) return { error: "Branch not found. · الفرع غير موجود." };
@@ -145,15 +168,25 @@ export async function joinQueue(input: {
   let mode = MODES.find((m) => m === input.mode);
   if (!name || !mobile || !mode) return { error: "Enter your name, a Saudi mobile number (5X XXX XXXX) and the service. · أدخل الاسم ورقم الجوال والخدمة." };
   const needsWip = mode === "appointment" || mode === "walk_in";
-  const wip = needsWip ? WIPS.find((w) => w === input.wip) ?? null : null;
-  if (needsWip && !wip) return { error: "Choose what you need. · اختر الخدمة المطلوبة." };
+  const services = needsWip ? WIPS.filter((w) => (input.services ?? []).includes(w)) : [];
+  if (needsWip && !services.length) return { error: "Choose what you need. · اختر الخدمة المطلوبة." };
+  // The queue order uses one service: General Repair when it is there, else the one chosen.
+  const wip: WipServiceType | null = services.includes("general_repair") ? "general_repair" : services[0] ?? null;
+  const note = String(input.note ?? "").replace(/\s+/g, " ").trim().slice(0, 500) || null;
   // An appointment counts only when the sheet has one today for this mobile / WIP; else the customer is a walk-in.
   let appointment: { id: string; at: string | null; wip: string } | null = null;
+  const { match, row } = await findAppointment(branch.id, mobile, wipDigits(input.wipNumber ?? ""));
   if (mode === "appointment") {
-    const { match, row } = await findAppointment(branch.id, mobile, wipDigits(input.wipNumber ?? ""));
     if (match.status === "today" && row)
       appointment = { id: row.id, wip: row.wip_no, at: row.appt_time ? new Date(`${row.appt_date}T${row.appt_time.slice(0, 5)}:00+03:00`).toISOString() : null };
     else mode = "walk_in";
+  }
+  // What the customer changed from the appointment sheet (the advisor sees it).
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  if (match.status !== "none") {
+    if (match.name && match.name.toLowerCase() !== name.toLowerCase()) changes.name = { from: match.name, to: name };
+    const same = match.services.length === services.length && match.services.every((s) => services.includes(s));
+    if (needsWip && !same) changes.services = { from: match.services, to: services };
   }
 
   const { data, error } = await createAdminClient()
@@ -164,6 +197,9 @@ export async function joinQueue(input: {
       mobile,
       service_mode: mode,
       wip_service_type: wip,
+      services: services.length ? services : null,
+      customer_note: note,
+      customer_changes: Object.keys(changes).length ? changes : null,
       wip_number: appointment?.wip ?? null,
       appointment_id: appointment?.id ?? null,
       appointment_at: appointment?.at ?? null,
