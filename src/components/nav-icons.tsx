@@ -82,3 +82,12 @@ export function NavIcon({ href, label, size = 18 }: { href: string; label: strin
     </svg>
   );
 }
+
+/** An icon picked by its key (the rail's department buttons), same line style as NavIcon. */
+export function KeyIcon({ name, size = 20 }: { name: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d={P[name] ?? P.list} />
+    </svg>
+  );
+}

@@ -7,8 +7,9 @@ import { useEffect, useState, useTransition } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
-import { SIDEBAR_KEY } from "@/lib/site";
 import { NavList, type NavLink } from "@/components/nav-menu";
+import { Rail } from "@/components/rail/rail";
+import type { RailKpi } from "@/lib/rail";
 import { saveNavLayout } from "@/app/actions/nav-layout";
 import type { NavLayout } from "@/lib/nav-layout";
 
@@ -25,13 +26,6 @@ type NavNotifications = {
     urgent?: boolean;
   }[];
 };
-
-/**
- * Desktop sidebar: docked on the left and shown by default; people can hide it (the choice is kept in this browser).
- * The <html data-sidebar="closed"> attribute drives the layout (globals.css) and is set before first paint by
- * SIDEBAR_INIT_SCRIPT (root layout), so the page never jumps.
- */
-const DESKTOP = "(min-width: 1280px)"; // keep in sync with globals.css (docked sidebar)
 
 // Longest matching href wins, so a parent index route (e.g. "/admin") does
 // not stay highlighted once you're on a more specific nested route (e.g.
@@ -61,15 +55,6 @@ function settingsLinksFor(user: CurrentUser): NavLink[] {
     : [{ href: "/account/password", label: "Change password" }];
 }
 
-function SidebarIcon() {
-  return (
-    <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M7.75 4v12" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 const ROLE_LABEL: Record<string, string> = {
   officer: "Warranty officer",
   branch_admin: "Warranty admin",
@@ -92,9 +77,12 @@ export function NavBar({
   links: areaLinks,
   notifications,
   roleDetail,
+  kpis,
 }: {
   user: CurrentUser;
   links: NavLink[];
+  /** The dashboards this role can open, for the desktop rail's KPIs menu (each opens as its own page). */
+  kpis?: RailKpi[];
   /** Initial bell state from the server; omit for roles that have no notifications. */
   notifications?: NavNotifications;
   /** Shown after the role under the name, e.g. the service manager's branch (instead of "view only"). */
@@ -105,7 +93,7 @@ export function NavBar({
   // The customer queue (its own area): a link in every menu for the people who work in it.
   const queueAccess = !!user.queue_role || user.role === "service_advisor" || user.role === "service_manager" || user.role === "officer" || user.role === "national_manager" || user.role === "manager";
   const links = queueAccess && !pathname.startsWith("/queue") && !areaLinks.some((l) => l.href.startsWith("/queue"))
-    ? [...areaLinks.filter((l) => !l.bottom), { href: "/queue", label: "Customer queue" }, ...areaLinks.filter((l) => l.bottom)]
+    ? [...areaLinks.filter((l) => !l.bottom), { href: "/queue", label: "Customer Queue" }, ...areaLinks.filter((l) => l.bottom)]
     : areaLinks;
   // Each account arranges its own menu (kept on the account): drag entries into an order and into folders.
   const [layout, setLayout] = useState<NavLayout | null>((user.nav_layout as NavLayout | null) ?? null);
@@ -141,20 +129,6 @@ export function NavBar({
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
-
-  /** Desktop: hide / show the docked sidebar. Phone: open the drawer. */
-  function toggleMenu() {
-    if (!window.matchMedia(DESKTOP).matches) return setOpen(true);
-    const root = document.documentElement;
-    const closed = root.dataset.sidebar !== "closed";
-    if (closed) root.dataset.sidebar = "closed";
-    else delete root.dataset.sidebar;
-    try {
-      localStorage.setItem(SIDEBAR_KEY, closed ? "closed" : "open");
-    } catch {
-      // private window: the choice lasts for this page only
-    }
-  }
 
   const activeHref = activeHrefFor(pathname, links, search);
   const mainLinks = links.filter((l) => !l.bottom);
@@ -217,34 +191,8 @@ export function NavBar({
 
   return (
     <>
-      {/* Docked sidebar (wide screens): a floating glass panel, as on iPad and Mac. Hidden with its own button or the top bar's. */}
-      <aside
-        aria-label="Main menu"
-        className="app-sidebar fixed top-3 bottom-3 left-3 z-30 hidden w-72 flex-col rounded-[22px] bg-[var(--surface)] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_48px_-16px_rgba(0,0,0,0.22)] ring-1 ring-neutral-900/[0.07] print:hidden xl:flex"
-      >
-        <div className="flex items-center justify-between gap-2 px-5 pt-5 pb-4">
-          {brand}
-          <button
-            type="button"
-            onClick={toggleMenu}
-            aria-label="Hide sidebar"
-            title="Hide sidebar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900"
-          >
-            <SidebarIcon />
-          </button>
-        </div>
-        {organizeBar}
-        <nav className="flex-1 overflow-y-auto px-3 pb-3">
-          <NavList links={mainLinks} activeHref={activeHref} layout={layout} organize={organize} onLayoutChange={changeLayout} />
-        </nav>
-        {bottomLinks.length > 0 && (
-          <div className="px-3 pb-1.5">
-            <NavList links={bottomLinks} activeHref={activeHref} />
-          </div>
-        )}
-        <div className="mx-3 mb-3 rounded-2xl bg-neutral-900/[0.035] p-1">{account}</div>
-      </aside>
+      {/* Desktop (1280 px and up): the department rail. Below that the drawer further down is the menu. */}
+      <Rail links={links} kpis={kpis ?? []} activeHref={activeHref} />
 
       {/* Top bar: a floating glass toolbar lined up with the sidebar panel - the page title on the left, the account
           controls grouped in one capsule on the right (Apple toolbars: few items, grouped, quiet). */}
@@ -253,21 +201,16 @@ export function NavBar({
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              onClick={toggleMenu}
-              aria-label="Show or hide the menu"
+              onClick={() => setOpen(true)}
+              aria-label="Open the menu"
               aria-expanded={open}
               aria-controls="app-drawer"
-              title="Show / hide menu"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900"
+              title="Menu"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-neutral-900/[0.05] hover:text-neutral-900 xl:hidden"
             >
-              <span className="xl:hidden">
-                <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span className="hidden xl:block">
-                <SidebarIcon />
-              </span>
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
             </button>
             {/* The brand shows here only while the sidebar (which carries it) is not on screen. */}
             <span className="app-topbar-brand flex min-w-0 items-center pr-1">{brand}</span>
