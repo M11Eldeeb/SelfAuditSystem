@@ -101,6 +101,13 @@ export function JoinForm({ branch, receiving }: { branch: { id: string; name: st
     );
   }
 
+  /** Minutes the customer is late for today's appointment (more than 15), else null. */
+  const lateBy = (a: AppointmentInfo) => {
+    if (!a.time) return null;
+    const mins = Math.round((Date.now() - new Date(`${a.date}T${a.time}:00+03:00`).getTime()) / 60000);
+    return mins > 15 ? mins : null;
+  };
+
   /** Back to the first screen with everything cleared (another mobile number). */
   function restart() {
     setMobile("");
@@ -347,6 +354,16 @@ export function JoinForm({ branch, receiving }: { branch: { id: string; name: st
             <Title>{name ? t(`Welcome, ${name}`, `أهلاً ${name}`) : t("All correct?", "هل البيانات صحيحة؟")}</Title>
             {notice && <Notice text={notice} />}
             <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
+              {appt && lateBy(appt) && (
+                <div className="bg-amber-500 px-5 py-3 text-white">
+                  <p className="font-semibold">
+                    {t(`You're ${lateBy(appt)} minutes late`, `أنت متأخر ${lateBy(appt)} دقيقة`)}
+                  </p>
+                  <p className="text-sm opacity-95">
+                    {t(`Your appointment was at ${clock(appt.time)}. You can still join - the wait may be longer.`, `كان موعدك الساعة ${clock(appt.time)}. يمكنك الانضمام - قد يطول الانتظار.`)}
+                  </p>
+                </div>
+              )}
               {appt && (
                 <div className="bg-emerald-600 px-5 py-3.5 text-white">
                   <p className="text-sm font-medium opacity-90">✓ {t("Your appointment today", "موعدك اليوم")}</p>

@@ -35,6 +35,8 @@ export type QueueTicket = {
   /** What the customer added at the kiosk, and what they changed from the appointment sheet. */
   customer_note?: string | null;
   customer_changes?: Record<string, { from: unknown; to: unknown }> | null;
+  /** Moved to the front by the reception manager (called first, in this order). */
+  pinned_at?: string | null;
 };
 
 export type QueueSettings = { priority_order: Tier[]; fairness_enabled: boolean; fairness_override_minutes: number };
@@ -114,6 +116,9 @@ export function pickNext(
   const urgent = waiting.find((tk) => tk.preassigned_advisor_id === advisorId && tk.preassign_urgent);
   if (urgent) return urgent;
   const eligible = waiting.filter((tk) => !tk.preassigned_advisor_id || tk.preassigned_advisor_id === advisorId);
+  // Moved to the front by the reception manager: first moved, first called.
+  const pinned = eligible.filter((tk) => tk.pinned_at).sort((a, b) => +new Date(a.pinned_at!) - +new Date(b.pinned_at!))[0];
+  if (pinned) return pinned;
   const reactivated = eligible.find((tk) => tk.was_held);
   if (reactivated) return reactivated;
   for (const tier of fullOrder(settings.priority_order)) {
@@ -133,6 +138,32 @@ export function pickNext(
   }
   // Nothing in a tier (e.g. a walk-in without a service): the oldest one left.
   return eligible.find((tk) => tierOf(tk) == null) ?? null;
+}
+
+/**
+ * The waiting list in the order it will be called (for the desk): moved to the front first, then back from hold, then
+ * the branch's tier order (appointments by appointment time). Reservations and the Quick Service sharing, which depend
+ * on the advisor calling, are not applied here.
+ */
+export function callOrder(waiting: QueueTicket[], settings: QueueSettings): QueueTicket[] {
+  const at = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : 0);
+  const pinned = waiting.filter((tk) => tk.pinned_at).sort((a, b) => at(a.pinned_at) - at(b.pinned_at));
+  const rest = waiting.filter((tk) => !tk.pinned_at);
+  const held = rest.filter((tk) => tk.was_held);
+  const others = rest.filter((tk) => !tk.was_held);
+  const tiers = fullOrder(settings.priority_order).flatMap((tier) => {
+    const list = others.filter((tk) => tierOf(tk) === tier);
+    return tier === "appointment" ? byAppointmentTime(list) : list;
+  });
+  const none = others.filter((tk) => tierOf(tk) == null);
+  return [...pinned, ...held, ...tiers, ...none];
+}
+
+/** How late an appointment customer came (minutes after the appointment time), when more than 15. */
+export function lateMinutes(tk: Pick<QueueTicket, "service_mode" | "queue_entry_at" | "appointment_at">): number | null {
+  if (tk.service_mode !== "appointment" || !tk.appointment_at) return null;
+  const late = Math.round((new Date(tk.queue_entry_at).getTime() - new Date(tk.appointment_at).getTime()) / 60000);
+  return late > 15 ? late : null;
 }
 
 /** Appointment tickets by appointment time (one without a time by when it joined), earliest first. */

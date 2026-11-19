@@ -8,6 +8,7 @@ import {
   getDeskBoard,
   holdTicket,
   markNoShow,
+  pinTicket,
   reactivateTicket,
   returnToQueue,
   saveTicketNotes,
@@ -15,7 +16,7 @@ import {
   transferToManager,
   type DeskBoard,
 } from "@/app/actions/queue";
-import { MODE_LABEL, minutesSince, serviceText, type QueueTicket } from "@/lib/queue/core";
+import { MODE_LABEL, callOrder, lateMinutes, minutesSince, serviceText, type QueueTicket } from "@/lib/queue/core";
 import { usePolling } from "./alerts";
 import { receivingText } from "@/lib/queue/hours";
 import { Spinner } from "./public-shell";
@@ -76,7 +77,9 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
 
   const mine = board.active.filter((tk) => tk.advisor_id === board.me.id);
   const others = board.active.filter((tk) => tk.advisor_id !== board.me.id);
-  const nextUp = board.waiting[0];
+  // The waiting list in the order it will be called (moved to the front first).
+  const ordered = callOrder(board.waiting, board.settings);
+  const nextUp = ordered[0];
 
   return (
     <div className="space-y-5">
@@ -141,7 +144,7 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
                 <p className="py-8 text-center text-sm text-neutral-400">No one waiting.</p>
               ) : (
                 <ul className="max-h-[60vh] space-y-2 overflow-y-auto pe-1">
-                  {board.waiting.map((tk) => (
+                  {ordered.map((tk) => (
                     <li key={tk.id} className={`rounded-xl border p-3 ${tk.service_mode === "appointment" ? "border-s-4 border-s-brand border-neutral-200" : "border-neutral-200"}`}>
                       <div className="flex items-start gap-3">
                         <div className="w-14 shrink-0 text-center">
@@ -153,6 +156,8 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
                             <span className="truncate font-semibold text-neutral-900">{tk.customer_name}</span>
                             {tk.service_mode === "appointment" && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">Appointment{tk.appointment_at && ` ${apptTime(tk.appointment_at)}`}</span>}
                             {tk.was_held && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">Back from hold</span>}
+                            {lateMinutes(tk) && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 ring-1 ring-red-200">Late {lateMinutes(tk)} min</span>}
+                            {tk.pinned_at && <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[11px] font-medium text-white">Moved to front</span>}
                             {tk.preassign_urgent && tk.preassigned_advisor_id && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] text-white">Urgent</span>}
                           </div>
                           <div className="mt-0.5 text-xs text-neutral-500">
@@ -166,6 +171,16 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
                           <button type="button" onClick={() => run(tk.id, () => serveTicket(tk.id), "Customer called.")} disabled={!!busy} className={`${primary} px-2.5 py-1.5 text-xs`}>
                             {busy === tk.id && <Spinner size={12} />} Serve now
                           </button>
+                          {manager && (
+                            <button
+                              type="button"
+                              disabled={!!busy}
+                              onClick={() => run(tk.id, () => pinTicket(tk.id, !tk.pinned_at), tk.pinned_at ? "Back in the normal order." : "Moved to the front - called next.")}
+                              className="text-[11px] font-semibold text-neutral-600 hover:text-brand hover:underline disabled:opacity-50"
+                            >
+                              {tk.pinned_at ? "Undo move" : "⤒ Move to front"}
+                            </button>
+                          )}
                           {manager && board.advisors.length > 0 && (
                             <select
                               value={tk.preassigned_advisor_id ?? ""}
@@ -369,7 +384,7 @@ function Session({
         <Info label="Customer" value={tk.customer_name} />
         <Info label="Service" value={serviceText(tk, "en")} />
         <Info label="Mobile" value={tk.mobile} ltr href={`tel:${tk.mobile}`} />
-        {tk.appointment_at && <Info label="Appointment time" value={apptTime(tk.appointment_at)} />}
+        {tk.appointment_at && <Info label="Appointment time" value={`${apptTime(tk.appointment_at)}${lateMinutes(tk) ? ` · came ${lateMinutes(tk)} min late` : ""}`} />}
         <Info
           label={tk.service_mode === "appointment" ? MODE_LABEL.appointment[0] : "Joined"}
           value={`${minutesSince(tk.queue_entry_at, now)} min ago${tk.wip_number ? ` · WIP ${tk.wip_number}` : ""}`}

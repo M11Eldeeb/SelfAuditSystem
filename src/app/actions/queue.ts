@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanSchedule, saudiNow, type Receiving } from "@/lib/queue/hours";
 import { branchReceiving, getQueueAccess, canUseBranch, branchSettings, pushTurnAlert, effectiveQueueRole, type QueueAccess } from "@/lib/queue/server";
-import { ALL_TIERS, fullOrder, pickNext, startOfSaudiDay, type QueueTicket, type QueueSettings, type Tier, type TicketStatus } from "@/lib/queue/core";
+import { ALL_TIERS, callOrder, fullOrder, pickNext, startOfSaudiDay, type QueueTicket, type QueueSettings, type Tier, type TicketStatus } from "@/lib/queue/core";
 import type { Database } from "@/lib/supabase/types";
 
 type Kind = "service" | "parts";
@@ -111,6 +111,7 @@ async function claim(a: QueueAccess, ticketId: string): Promise<boolean> {
       preassigned_advisor_name: null,
       preassign_urgent: false,
       was_held: false,
+      pinned_at: null,
     })
     .eq("id", ticketId)
     .eq("status", "waiting")
@@ -131,7 +132,11 @@ export async function callNextCustomer(branchId: string, kind: Kind): Promise<{ 
     q = kind === "parts" ? q.eq("service_mode", "spare_parts") : q.neq("service_mode", "spare_parts");
     const { data } = await q.order("queue_entry_at", { ascending: true });
     const waiting = (data ?? []) as QueueTicket[];
-    const next = kind === "parts" ? waiting.find((tk) => tk.preassigned_advisor_id === a.user.id && tk.preassign_urgent) ?? waiting.find((tk) => !tk.preassigned_advisor_id || tk.preassigned_advisor_id === a.user.id) ?? null : pickNext(waiting, a.user.id, counts, settings);
+    const mine = waiting.filter((tk) => !tk.preassigned_advisor_id || tk.preassigned_advisor_id === a.user.id);
+    const next =
+      kind === "parts"
+        ? waiting.find((tk) => tk.preassigned_advisor_id === a.user.id && tk.preassign_urgent) ?? callOrder(mine, settings)[0] ?? null
+        : pickNext(waiting, a.user.id, counts, settings);
     if (!next) return { error: "No customer for you right now. · لا يوجد عميل متاح لك الآن." };
     if (await claim(a, next.id)) return { ticketId: next.id };
   }
@@ -206,6 +211,13 @@ export async function assignTicket(ticketId: string, advisorId: string | null, u
   const { data: adv } = await createAdminClient().from("self_audit_users").select("id, full_name, email, branch_id, queue_role, role").eq("id", advisorId).maybeSingle();
   if (!adv || adv.branch_id !== tk.branch_id || !effectiveQueueRole(adv)) return { error: "That advisor is not in this branch's queue." };
   return update(a, ticketId, ["waiting"], { preassigned_advisor_id: adv.id, preassigned_advisor_name: adv.full_name || adv.email, preassign_urgent: !!urgent });
+}
+
+/** The reception manager moves a waiting customer to the front (on), or back to the normal order (off). */
+export async function pinTicket(ticketId: string, on: boolean): Promise<{ error?: string }> {
+  const a = await access();
+  if (a.role !== "manager" || a.user.viewOnly) return { error: "Only the queue manager changes the order." };
+  return update(a, ticketId, ["waiting"], { pinned_at: on ? new Date().toISOString() : null });
 }
 
 /** The customer is handed to the branch's queue manager (or else its service manager). */
