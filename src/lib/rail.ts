@@ -30,9 +30,10 @@ const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shie
 const ORDER: RailDept[] = ["service", "warranty", "technical", "quality", "parts"];
 
 /** Which department(s) a link belongs to, "query" / "complaints" / "dashboard" for the special ones, null when it fits none. */
-export function departmentsOf(link: RailLink): RailDept[] | "query" | "complaints" | "dashboard" | null {
+export function departmentsOf(link: RailLink): RailDept[] | "home" | "query" | "complaints" | "dashboard" | null {
   if (link.external) return link.href.includes("portal.smil.com") ? ["warranty", "technical"] : null;
   const path = link.href.split("?")[0].toLowerCase().replace(/\/+$/, "");
+  if (/^\/[a-z]+\/home$/.test(path)) return "home";
   if (/\/dashboard$/.test(path)) return "dashboard";
   if (/\/query$/.test(path)) return "query";
   if (/\/complaints$/.test(path)) return "complaints";
@@ -52,6 +53,7 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
   const bottom: RailLink[] = [];
   const dashLinks: RailLink[] = [];
   const others: RailLink[] = [];
+  let home: RailLink | undefined;
   let query: RailLink | undefined;
   let complaints: RailLink | undefined;
 
@@ -61,7 +63,8 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
       continue;
     }
     const d = departmentsOf(link);
-    if (d === "query") query = link;
+    if (d === "home") home = link;
+    else if (d === "query") query = link;
     else if (d === "complaints") complaints = link;
     else if (d === "dashboard") dashLinks.push(link);
     else if (Array.isArray(d)) {
@@ -73,6 +76,7 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
   const entries: RailKpi[] = kpis.length ? kpis : dashLinks.map((l) => ({ ...l, dept: "warranty" as const }));
 
   const top: RailEntry[] = [];
+  if (home) top.push({ kind: "link", key: "home", label: home.label, icon: "home", link: home });
   if (query) top.push({ kind: "link", key: "query", label: query.title ?? query.label, icon: "query", link: query });
   if (entries.length) top.push({ kind: "menu", key: "kpis", label: "KPIs", icon: "dashboard", pages: [], dashboards: entries });
   for (const dept of ORDER) {

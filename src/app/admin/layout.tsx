@@ -64,6 +64,7 @@ const NATIONAL_LINKS = [
 const AUDITS_KPI = { href: "/admin/audits", label: "Audits", dept: "warranty" as const };
 const SUB_DEALER_KPI = { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", dept: "warranty" as const };
 const MSI_KPI = { href: "/admin/msi", label: "Major Service Indicators", dept: "service" as const };
+const INQUIRY_REPORTS_KPI = { href: "/admin/technical-inquiries/reports", label: "Technical Inquiries & Verification Codes", dept: "technical" as const };
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
@@ -92,7 +93,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={links} notifications={notifications} kpis={kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), quality: true, extra: [AUDITS_KPI, SUB_DEALER_KPI, MSI_KPI] })} />
+      <NavBar user={user} links={links} notifications={notifications} kpis={kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), quality: true, extra: [AUDITS_KPI, SUB_DEALER_KPI, MSI_KPI, INQUIRY_REPORTS_KPI] })} />
       {user.viewOnly && <ViewOnlyBanner />}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>

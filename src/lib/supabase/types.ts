@@ -173,6 +173,8 @@ export interface Database {
           must_change_password: boolean;
           /** The menu this person arranged (order, own folders); null = the standard menu. */
           nav_layout: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
+          /** The widgets on this person's Home page (lib/home/layout.ts); null = the standard three. */
+          home_layout: import("@/lib/home/layout").HomeLayout | null;
           /** Customer queue: advisor / parts advisor / queue manager (null = no queue access). */
           queue_role: QueueRole | null;
           job_title: string | null;
@@ -188,6 +190,7 @@ export interface Database {
           employee_no?: string | null;
           must_change_password?: boolean;
           nav_layout?: { folders: { id: string; name: string }[]; top: string[]; inside: Record<string, string[]> } | null;
+          home_layout?: import("@/lib/home/layout").HomeLayout | null;
           queue_role?: QueueRole | null;
           job_title?: string | null;
         };

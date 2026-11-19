@@ -40,18 +40,18 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return profile ?? null;
 });
 
-/** Each role's landing page: the dashboard. */
+/** Each role's landing page: its Home (widgets and the figures of its own work, components/home). */
 export function homePathFor(role: UserRole | null | undefined): string {
-  if (role === "officer" || role === "manager" || role === "national_manager") return "/admin/dashboard";
-  if (role === "data_analyst") return "/analyst/sub-dealer";
-  if (role === "technical") return "/technical/technical-inquiries";
-  if (role === "technician") return "/technician";
-  if (role === "claims_reviewer") return "/reviewer/technician-claims";
-  if (role === "service_advisor") return "/advisor/dashboard";
-  if (role === "quality_controller") return "/qc";
-  if (role === "queue_user") return "/queue";
-  if (role === "workshop_supervisor" || role === "team_leader") return "/workshop/technical-inquiries";
-  return "/audit/dashboard"; // branch admin and service manager
+  if (role === "officer" || role === "manager" || role === "national_manager") return "/admin/home";
+  if (role === "data_analyst") return "/analyst/home";
+  if (role === "technical") return "/technical/home";
+  if (role === "technician") return "/technician/home";
+  if (role === "claims_reviewer") return "/reviewer/home";
+  if (role === "service_advisor") return "/advisor/home";
+  if (role === "quality_controller") return "/qc/home";
+  if (role === "queue_user") return "/queue/home";
+  if (role === "workshop_supervisor" || role === "team_leader") return "/workshop/home";
+  return "/audit/home"; // branch admin and service manager
 }
 
 /** The user as a view-only copy of `role`, when they may look at that role's pages (else null). */
