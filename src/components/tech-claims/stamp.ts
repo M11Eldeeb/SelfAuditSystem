@@ -150,8 +150,8 @@ function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number, lines: s
 const baseName = (n: string) => n.replace(/\.[^.]+$/, "");
 
 /** A photo with the stamp, as JPEG (longest side up to 1600 px, as WhatsApp sends - about 300 KB, quick to send). */
-export async function stampPhoto(file: File, who: string): Promise<File> {
-  const when = await takenAt(file, "photo");
+export async function stampPhoto(file: File, who: string, at?: Date): Promise<File> {
+  const when = at ?? (await takenAt(file, "photo"));
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -236,6 +236,22 @@ function videoBitrate(seconds: number | null | undefined, squeeze = 1): number {
 /** Why the last fast stamp could not run (kept for the problem report). */
 let fastProblem = "";
 
+/** How the last video was stamped (fast / replay / software / convert) - for the timing report. */
+export let lastStampMethod = "";
+
+/** A small copy of the frame: true once any pixel is not (nearly) black. */
+function pictureProbe() {
+  const probe = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(32, 18) : null;
+  const pctx = probe?.getContext("2d", { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D | null | undefined;
+  return (src: CanvasImageSource): boolean => {
+    if (!pctx) return true;
+    pctx.drawImage(src, 0, 0, 32, 18);
+    const px = pctx.getImageData(0, 0, 32, 18).data;
+    for (let i = 0; i < px.length; i += 4) if (px[i] > 16 || px[i + 1] > 16 || px[i + 2] > 16) return true;
+    return false;
+  };
+}
+
 /**
  * Fast path: the phone's hardware video decoder and encoder (WebCodecs, via Mediabunny) - every frame is drawn with
  * the stamp and re-encoded to 720p H.264, typically several times faster than the video lasts. Null when this phone's
@@ -267,6 +283,11 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
     const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D | null;
     if (!ctx) return null;
     const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }), target: new mb.BufferTarget() });
+    // Some phones' video decoders hand back black frames for some videos (HDR / 10-bit): the result had sound and a black
+    // picture. Look at the first 2 seconds; no picture at all -> stop and use the next method.
+    const hasPicture = pictureProbe();
+    let sawPicture = false;
+    let frames = 0;
     const conversion = await mb.Conversion.init({
       input,
       output,
@@ -285,6 +306,10 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
         processedHeight: outH,
         process: (sample) => {
           sample.draw(ctx, 0, 0, outW, outH);
+          if (!sawPicture && frames++ % 5 === 0) {
+            sawPicture = hasPicture(canvas);
+            if (!sawPicture && sample.timestamp > 2) throw new Error("black picture");
+          }
           drawStamp(ctx, outW, outH, [fmt(new Date(start.getTime() + sample.timestamp * 1000)), who]);
           return canvas;
         },
@@ -304,6 +329,10 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
     }
     conversion.onProgress = (p) => onProgress(Math.min(99, Math.round(p * 100)));
     await conversion.execute();
+    if (!sawPicture) {
+      fastProblem = "black picture";
+      return null;
+    }
     const buffer = output.target.buffer;
     if (!buffer?.byteLength) return null;
     onProgress(100);
@@ -322,7 +351,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
  * phone cannot open the video at all (e.g. HEVC / HDR from the gallery), it is first converted to 720p H.264 in
  * software (ffmpeg.wasm) and that copy is stamped, still with the original recording date.
  */
-export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
+export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void, at?: Date): Promise<File> {
   // A result over 20 MB is made again with fewer bits (from the same source - never a stamp on a stamp).
   const fit = async (run: (squeeze: number) => Promise<File | null>): Promise<File | null> => {
     let out = await run(1);
@@ -332,22 +361,29 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
     }
     return out;
   };
-  const fast = await fit((sq) => stampVideoFast(file, who, onProgress, undefined, sq).catch(() => null));
-  if (fast) return fast;
+  const fast = await fit((sq) => stampVideoFast(file, who, onProgress, at, sq).catch(() => null));
+  if (fast) {
+    lastStampMethod = "fast";
+    return fast;
+  }
   const why = [`fast: ${fastProblem || "?"}`];
   try {
-    return (await fit((sq) => stampVideoReplay(file, who, onProgress, undefined, sq)))!;
+    const out = (await fit((sq) => stampVideoReplay(file, who, onProgress, at, sq)))!;
+    lastStampMethod = "replay";
+    return out;
   } catch (replayError) {
     why.push(`replay: ${replayError instanceof Error ? replayError.message : replayError}`);
     console.warn("Phone cannot open the video, converting it in software:", replayError);
     // One software pass that converts and stamps (works where the phone has no WebCodecs and its replay is black).
     try {
-      return await stampVideoSoftware(file, who, onProgress);
+      const out = await stampVideoSoftware(file, who, onProgress, at);
+      lastStampMethod = "software";
+      return out;
     } catch (softError) {
       console.warn("Software stamp failed, trying convert + stamp:", softError);
       why.push(`software stamp: ${softError instanceof Error ? softError.message : softError}`);
     }
-    const start = await takenAt(file, "video");
+    const start = at ?? (await takenAt(file, "video"));
     const h264 = await toH264(file, (p) => onProgress(Math.round(p * 0.7))).catch((e) => {
       console.warn("Software conversion failed:", e);
       throw new Error([...why, `convert: ${e instanceof Error ? e.message : e}`].join(" / "));
@@ -359,6 +395,7 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
       throw new Error([...why, `fast after convert: ${fastProblem || "?"}`, `replay after convert: ${e instanceof Error ? e.message : e}`].join(" / "));
     });
     if (!out) throw new Error(why.join(" / "));
+    lastStampMethod = "convert";
     return new File([out], `${baseName(file.name)}_stamped.${out.name.split(".").pop()}`, { type: out.type, lastModified: start.getTime() });
   }
 }
@@ -444,8 +481,8 @@ async function videoMeta(file: File): Promise<{ w: number; h: number; seconds: n
  * comes out black, e.g. Firefox on Android): ffmpeg.wasm converts the video to 720p H.264 and lays the stamp over it in
  * ONE pass - no phone video decoder or canvas capture is involved. The result is kept under 20 MB.
  */
-async function stampVideoSoftware(file: File, who: string, onProgress: (pct: number) => void): Promise<File> {
-  const start = await takenAt(file, "video");
+async function stampVideoSoftware(file: File, who: string, onProgress: (pct: number) => void, at?: Date): Promise<File> {
+  const start = at ?? (await takenAt(file, "video"));
   const meta = await videoMeta(file);
   const scale = Math.min(1, SOFT_LONG_SIDE / Math.max(meta.w, meta.h));
   const badge = await stampBadge(Math.min(meta.w, meta.h) * scale, [fmt(start), who]);

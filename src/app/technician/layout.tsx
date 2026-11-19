@@ -4,6 +4,7 @@ import { NavBar } from "@/components/nav-bar";
 import { getTechLang } from "@/lib/i18n/tech-server";
 import { techT } from "@/lib/i18n/tech";
 import { LangSwitch } from "@/components/tech-claims/lang-switch";
+import { ClaimOutbox } from "@/components/tech-claims/claim-outbox";
 import { getNotifications } from "@/lib/notifications";
 import { feedbackLink } from "@/lib/feedback-server";
 
@@ -19,6 +20,7 @@ export default async function TechnicianLayout({ children }: { children: ReactNo
         <div className="flex justify-end">
           <LangSwitch lang={lang} />
         </div>
+        <ClaimOutbox lang={lang} who={user.full_name ?? user.email} />
         {children}
       </main>
     </div>

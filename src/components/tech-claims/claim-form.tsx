@@ -11,8 +11,24 @@ import {
   submitTechClaim,
   type ClaimFields,
 } from "@/app/actions/tech-claims";
-import { fmtBytes, uploadToSession } from "./upload";
-import { stampPhoto, stampVideo, videoDuration } from "./stamp";
+import { SessionExpired, fmtBytes, uploadToSession } from "./upload";
+import { lastStampMethod, stampPhoto, stampVideo, videoDuration } from "./stamp";
+import {
+  TAB,
+  deleteBlob,
+  deleteEntry,
+  getBlob,
+  getEntry,
+  moveEntry,
+  patchEntry,
+  patchItem,
+  putBlob,
+  putEntry,
+  newUid,
+  nowMs,
+  scopeId,
+  type OutItem,
+} from "./outbox";
 import { Glyph } from "@/components/ui/glyph";
 import { techT, trServer, type Lang } from "@/lib/i18n/tech";
 
@@ -234,6 +250,61 @@ export function TechClaimForm({
   const sessionChain = useRef<Promise<unknown>>(Promise.resolve());
   const stagingReady = useRef(false);
 
+  // The outbox (kept on the phone): files and their progress survive the page being closed (see outbox.ts).
+  const scope = scopeId(claimId, evidenceOnly);
+  const entryId = useRef(scope);
+  const uid = useRef("");
+  const owner = useRef("");
+  const submitting = useRef<Promise<unknown>>(Promise.resolve());
+  const persisted = useRef(new Map<string, OutItem>());
+  const [kept, setKept] = useState(false);
+  const outboxChain = useRef<Promise<unknown>>(Promise.resolve());
+  /** Outbox writes one after another (each reads and writes the entry). Never throws. */
+  const ob = (fn: () => Promise<unknown>) => {
+    outboxChain.current = outboxChain.current.then(fn).catch(() => undefined);
+    return outboxChain.current;
+  };
+  const fieldsNow = useRef({ workOrder: "", notes: "" });
+  const ensureEntry = async () => {
+    if (uid.current) return true;
+    const id = newUid();
+    const ok = await putEntry({
+      id: entryId.current,
+      uid: id,
+      who,
+      claimId,
+      evidenceOnly,
+      href: location.pathname + location.search,
+      fields: { vin, workOrder: fieldsNow.current.workOrder, endOfRepair: "", notes: fieldsNow.current.notes },
+      submit: null,
+      items: [],
+      owner: owner.current,
+      beat: nowMs(),
+    });
+    if (ok) {
+      uid.current = id;
+      setKept(true);
+    }
+    return ok;
+  };
+  const keepItem = (key: string, file: File) =>
+    ob(async () => {
+      if (!(await ensureEntry())) return;
+      const it: OutItem = { key, name: file.name, type: file.type, size: file.size, stamped: !/^(image|video)\//.test(file.type) };
+      persisted.current.set(key, it);
+      if (!(await putBlob(uid.current, key, file))) return;
+      await patchEntry(entryId.current, (e) => ({ ...e, items: [...e.items.filter((x) => x.key !== key), it] }));
+    });
+  const keepPatch = (key: string, p: Partial<OutItem>, blob?: Blob) =>
+    ob(async () => {
+      if (!uid.current) return;
+      const cur = persisted.current.get(key);
+      if (cur) persisted.current.set(key, { ...cur, ...p });
+      if (blob) await putBlob(uid.current, key, blob);
+      await patchItem(entryId.current, key, p);
+      if (p.driveId) await deleteBlob(uid.current, key);
+    });
+
   // Load the stamping tools as soon as the form opens, so the first file does not wait for them.
   useEffect(() => {
     void import("exifr");
@@ -279,7 +350,9 @@ export function TechClaimForm({
       try {
         // 1. Date stamp (one file at a time - it uses the phone's video hardware).
         const isVideo = original.type.startsWith("video/");
-        const stamped = await inOrder(
+        const before = persisted.current.get(key);
+        const t0 = Date.now();
+        const stamped = before?.stamped ? original : await inOrder(
           isVideo ? videoChain : photoChain,
           async () => {
             if (removed.current.has(key)) return null;
@@ -292,6 +365,7 @@ export function TechClaimForm({
               return stampVideo(original, who, (pct) => patch(key, { pct })).catch((e) => {
                 const why = (e instanceof Error ? e.message : String(e)) || "?";
                 patch(key, { unstamped: why.slice(0, 300) });
+                void keepPatch(key, { unstamped: why.slice(0, 300) });
                 void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: `stamp: ${why}` });
                 return original;
               });
@@ -299,6 +373,9 @@ export function TechClaimForm({
           },
         );
         if (!stamped || removed.current.has(key)) return;
+        const stampSecs = Math.round((Date.now() - t0) / 1000);
+        if (!before?.stamped)
+          void keepPatch(key, { stamped: true, name: stamped.name, type: stamped.type, size: stamped.size, session: undefined }, stamped !== original ? stamped : undefined);
         // 2. An upload session in the staging folder, then the bytes straight to Google Drive (three at a time).
         const ask = () =>
           prepareStagedUpload({
@@ -306,13 +383,19 @@ export function TechClaimForm({
             type: stamped.type,
             size: stamped.size,
           });
-        const prepared = stagingReady.current
-          ? await ask()
-          : await inOrder(sessionChain, ask);
-        if (prepared.error || !prepared.session)
-          throw new Error(prepared.error ?? "Could not start the upload.");
-        stagingReady.current = true;
-        const session = prepared.session;
+        const newSession = async () => {
+          const prepared = stagingReady.current
+            ? await ask()
+            : await inOrder(sessionChain, ask);
+          if (prepared.error || !prepared.session)
+            throw new Error(prepared.error ?? "Could not start the upload.");
+          stagingReady.current = true;
+          void keepPatch(key, { session: prepared.session });
+          return prepared.session;
+        };
+        // A file restored from the outbox carries on in its old upload session (Google keeps what already arrived).
+        const oldSession = before?.stamped ? before.session : undefined;
+        const session = oldSession ?? (await newSession());
         let preview: string | undefined;
         if (stamped !== original) {
           preview = URL.createObjectURL(stamped);
@@ -325,11 +408,26 @@ export function TechClaimForm({
           name: stamped.name,
           ...(preview ? { preview, type: stamped.type } : {}),
         });
-        const driveId = await withSlot(() =>
-          uploadToSession(session, stamped, (sent) =>
-            patch(key, { pct: Math.round((sent / stamped.size) * 100) }),
-          ),
-        );
+        const t1 = Date.now();
+        const onSent = (sent: number) =>
+          patch(key, { pct: Math.round((sent / stamped.size) * 100) });
+        const driveId = await withSlot(async () => {
+          try {
+            return await uploadToSession(session, stamped, onSent, !!oldSession);
+          } catch (e) {
+            if (!(e instanceof SessionExpired) || !oldSession) throw e;
+            return uploadToSession(await newSession(), stamped, onSent);
+          }
+        });
+        void keepPatch(key, { driveId });
+        // How long a video took (to see what makes the sending slow): stamp method and seconds, upload seconds, sizes.
+        if (isVideo && !before?.stamped)
+          void reportUploadProblem({
+            name: original.name,
+            type: stamped.type,
+            size: stamped.size,
+            message: `timing: ${stamped === original ? "unstamped" : lastStampMethod} stamp ${stampSecs}s, upload ${Math.round((Date.now() - t1) / 1000)}s, ${fmtBytes(original.size)} -> ${fmtBytes(stamped.size)}`,
+          });
         if (removed.current.has(key)) {
           void discardStagedFile(driveId);
           return;
@@ -380,6 +478,7 @@ export function TechClaimForm({
       }
       const key = `f${++seq.current}`;
       sources.current.set(key, f);
+      void keepItem(key, f);
       const preview = URL.createObjectURL(f);
       previews.current.add(preview);
       update((cur) => [
@@ -401,6 +500,12 @@ export function TechClaimForm({
   function remove(it: Item) {
     removed.current.add(it.key);
     if (it.driveId) void discardStagedFile(it.driveId);
+    persisted.current.delete(it.key);
+    void ob(async () => {
+      if (!uid.current) return;
+      await deleteBlob(uid.current, it.key);
+      await patchEntry(entryId.current, (e) => ({ ...e, items: e.items.filter((x) => x.key !== it.key) }));
+    });
     update((cur) => cur.filter((x) => x.key !== it.key));
   }
 
@@ -419,13 +524,72 @@ export function TechClaimForm({
   }
 
   // Leaving the page while files are on their way (or sent but not submitted) asks first.
-  const unsent = items.length > 0;
+  const unsent = items.length > 0 && !kept;
   useEffect(() => {
     if (!unsent) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [unsent]);
+
+  // Restore an unsent claim of this page kept on the phone: its fields, the files Drive has, and the rest carries on.
+  useEffect(() => {
+    let gone = false;
+    if (!owner.current) owner.current = `${TAB}:form:${newUid()}`;
+    void ob(async () => {
+      const e = await getEntry(scope);
+      if (gone || !e || e.who !== who || e.submit) return;
+      uid.current = e.uid;
+      setKept(true);
+      await putEntry({ ...e, owner: owner.current, beat: Date.now() });
+      if (e.fields.workOrder) setWorkOrder(e.fields.workOrder);
+      if (e.fields.notes) setNotes(e.fields.notes);
+      for (const it of e.items) {
+        const n = Number(it.key.replace(/\D/g, ""));
+        if (n > seq.current) seq.current = n;
+        if (it.driveId) {
+          persisted.current.set(it.key, it);
+          update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "ready", pct: 100, driveId: it.driveId, unstamped: it.unstamped }]);
+          continue;
+        }
+        const blob = await getBlob(e.uid, it.key);
+        if (!blob) {
+          await patchEntry(scope, (x) => ({ ...x, items: x.items.filter((y) => y.key !== it.key) }));
+          continue;
+        }
+        persisted.current.set(it.key, it);
+        const f = new File([blob], it.name, { type: it.type });
+        sources.current.set(it.key, f);
+        const preview = URL.createObjectURL(f);
+        previews.current.add(preview);
+        update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "waiting", pct: 0, preview, unstamped: it.unstamped }]);
+        process(it.key);
+      }
+    });
+    return () => {
+      gone = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // While this page works on the claim it says so; the background sender leaves the claim alone meanwhile. The beat
+  // goes on after the page is left in the app until the work started here has settled.
+  useEffect(() => {
+    const beat = () => void ob(() => (uid.current ? patchEntry(entryId.current, (e) => ({ ...e, owner: owner.current, beat: Date.now() })) : Promise.resolve()));
+    const timer = setInterval(beat, 10_000);
+    const jobsRef = jobs.current;
+    return () => {
+      void Promise.allSettled([...jobsRef.values(), submitting.current]).then(() => clearInterval(timer));
+    };
+  }, []);
+
+  // The fields are kept too.
+  useEffect(() => {
+    fieldsNow.current = { workOrder, notes };
+    if (!uid.current) return;
+    const timer = setTimeout(() => void ob(() => patchEntry(entryId.current, (e) => ({ ...e, fields: { ...e.fields, workOrder, notes } }))), 600);
+    return () => clearTimeout(timer);
+  }, [workOrder, notes]);
 
   const pending = items.filter(
     (i) =>
@@ -467,7 +631,28 @@ export function TechClaimForm({
     const plural = t.errFailed;
     if (failed.length) return setError(plural(failed.length));
     setBusy(true);
+    let done: () => void = () => undefined;
+    submitting.current = new Promise<void>((r) => (done = r));
+    // Files still on their way: the claim is handed to the outbox, so closing the page now does not lose it - the
+    // sending carries on the next time the portal is opened.
+    const stillGoing = latest.current.some((i) => i.status === "waiting" || i.status === "stamping" || i.status === "sending");
+    const handOver = async () => {
+      if (!stillGoing || !uid.current) return;
+      const to = `sub:${uid.current}`;
+      if (await moveEntry(entryId.current, to, { submit: send ? "send" : "save", fields, owner: owner.current, beat: Date.now() })) entryId.current = to;
+    };
+    const takeBack = async () => {
+      if (entryId.current === scope) return;
+      if (await moveEntry(entryId.current, scope, { submit: null })) entryId.current = scope;
+    };
+    const forget = async () => {
+      const e = uid.current ? await getEntry(entryId.current) : undefined;
+      if (e) await deleteEntry(e);
+      uid.current = "";
+      entryId.current = scope;
+    };
     try {
+      await ob(handOver);
       // Wait for what is still being stamped or sent, then read the final state.
       await Promise.allSettled([...jobs.current.values()]);
       const final = latest.current;
@@ -480,6 +665,7 @@ export function TechClaimForm({
         if (!ids.length) throw new Error(t.errAddOne);
         const added = await addTechClaimEvidence(claimId!, ids);
         if (added.error) throw new Error(trServer(t, added.error));
+        await ob(forget);
         update(() => []);
         router.push(`/technician/${claimId}?added=1`);
         router.refresh();
@@ -488,13 +674,16 @@ export function TechClaimForm({
       const r = await submitTechClaim(fields, ids, claimId, send);
       if (r.error || !r.claimId)
         throw new Error(r.error ? trServer(t, r.error) : t.errGeneric);
+      await ob(forget);
       update(() => []);
       router.push(`/technician/${r.claimId}?${send ? "sent" : "saved"}=1`);
       router.refresh();
     } catch (e) {
+      await ob(takeBack);
       setError(e instanceof Error ? e.message : t.errGeneric);
     } finally {
       setBusy(false);
+      done();
     }
   }
 
@@ -809,6 +998,9 @@ export function TechClaimForm({
               : t.submitToAdmin}
           </button>
         </div>
+      )}
+      {busy && kept && pending.length > 0 && (
+        <p className="rounded-lg bg-blue-50 px-3 py-2 text-center text-sm text-blue-900">{t.canLeave}</p>
       )}
       {!evidenceOnly && (
         <p className="text-center text-xs text-neutral-500">{t.saveHint}</p>

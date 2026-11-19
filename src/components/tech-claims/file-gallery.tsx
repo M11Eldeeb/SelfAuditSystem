@@ -67,7 +67,7 @@ function Preview({ files, index, onIndex, onClose, base }: { files: GalleryFile[
               <img key={f.id} src={fileUrl(f.id)} alt={f.name} className="max-h-full max-w-full object-contain" />
             </div>
           )}
-          {k === "video" && <video key={f.id} src={fileUrl(f.id)} controls preload="metadata" playsInline className="h-full w-full bg-black" />}
+          {k === "video" && <VideoView key={f.id} src={fileUrl(f.id)} download={fileUrl(f.id, true)} />}
           {k === "none" && (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-neutral-600">
               This file type cannot be shown in the browser.
@@ -78,6 +78,35 @@ function Preview({ files, index, onIndex, onClose, base }: { files: GalleryFile[
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A video in the preview. A video this browser can play only as sound (no picture - e.g. an iPhone HEVC video on a
+ * computer without the HEVC codec) says so, instead of a black screen.
+ */
+function VideoView({ src, download }: { src: string; download: string }) {
+  const [noPicture, setNoPicture] = useState(false);
+  return (
+    <div className="relative h-full w-full">
+      <video
+        src={src}
+        controls
+        preload="metadata"
+        playsInline
+        onLoadedMetadata={(e) => setNoPicture(e.currentTarget.videoWidth === 0)}
+        className="h-full w-full bg-black"
+      />
+      {noPicture && (
+        <div className="absolute inset-x-0 top-0 m-3 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow">
+          This browser can play only the sound of this video (its picture format, usually iPhone HEVC, is not supported here).{" "}
+          <a href={download} className="font-semibold underline">
+            Download it
+          </a>{" "}
+          and open it with VLC, or open it on a phone.
+        </div>
+      )}
     </div>
   );
 }

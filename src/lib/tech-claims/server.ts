@@ -26,8 +26,13 @@ export type TechClaimSummary = {
 
 export type TechClaimFile = { id: string; driveId: string; name: string; mimeType: string; size: number; createdAt: string };
 export type TechClaimEvent = { id: string; kind: string; body: string | null; author: string | null; at: string };
+export { PART_REQUIRED_BRANCHES } from "./part-rule";
+
 export type TechClaimDetail = TechClaimSummary & {
   branchId: string;
+  branchCode: string;
+  /** Marked by the warranty admin (optional; required before approval in PART_REQUIRED_BRANCHES). */
+  partReceived: { on: boolean; at: string | null; by: string | null };
   technicianId: string | null;
   notes: string | null;
   reviewComment: string | null;
@@ -121,13 +126,15 @@ export async function getTechClaim(user: CurrentUser, id: string): Promise<TechC
   const [{ data: files }, { data: events }, { data: branch }] = await Promise.all([
     admin.from("self_audit_tech_claim_files").select("id, drive_file_id, file_name, mime_type, size_bytes, created_at").eq("claim_id", id).order("created_at"),
     admin.from("self_audit_tech_claim_events").select("id, kind, body, author_name, created_at").eq("claim_id", id).order("created_at"),
-    admin.from("self_audit_branches").select("name").eq("id", c.branch_id).maybeSingle(),
+    admin.from("self_audit_branches").select("name, code").eq("id", c.branch_id).maybeSingle(),
   ]);
   return {
     id: c.id,
     claimNo: c.claim_no,
     branch: branch?.name ?? "",
     branchId: c.branch_id,
+    branchCode: branch?.code ?? "",
+    partReceived: { on: !!c.defective_part_received, at: c.defective_part_received_at ?? null, by: c.defective_part_received_by_name ?? null },
     technician: c.technician_name,
     technicianId: c.technician_id,
     vin: c.vin ?? "",

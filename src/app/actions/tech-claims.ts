@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { cleanStagingFolder, driveFileInfo, ensureStagingFolder, ensureTechnicianFolder, ensureWipSubFolder, knownStagingFolder, moveDriveFile, relocateClaimFolder, renameDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import type { Database } from "@/lib/supabase/types";
+import { PART_REQUIRED_BRANCHES } from "@/lib/tech-claims/part-rule";
 
 const PATHS = ["/technician", "/audit/technician-claims", "/admin/technician-claims", "/reviewer/technician-claims"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p));
@@ -175,6 +176,11 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
     const clean = cleanFields(fields, !send, ctx.branchCode);
     if ("error" in clean) return clean;
     const ids = [...new Set(stagedIds)].slice(0, MAX_FILES);
+    // Only files that really are in this technician's staging folder (checked first: a claim sent again by the phone's
+    // background sender after it already arrived finds its files gone and must not make an empty copy).
+    const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
+    const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
+    if (!claimId && ids.length && !staged.length) return { error: "No file reached Google Drive - please add the files again." };
 
     // The claim: a new one, or the technician's own one he may still change.
     let claim: Database["public"]["Tables"]["self_audit_tech_claims"]["Row"];
@@ -208,8 +214,6 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
 
     // Move the staged files in (only files that really are in this technician's staging folder), each renamed after the
     // work order plus a counter that carries on after the files the claim already has.
-    const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
-    const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
     let counter = await lastFileCounter(claim.id, clean.workOrder);
     const named = staged.map((f) => ({ ...f, newName: evidenceName(clean.workOrder, ++counter, f.name, f.mimeType) }));
     await Promise.all(named.map((f) => moveDriveFile(f.id, ctx.staging, folder, f.newName)));
@@ -298,9 +302,14 @@ export async function reviewTechClaim(claimId: string, decision: ReviewDecision,
   const text = comment.trim().slice(0, 2000);
   if (decision !== "approve" && !text) return { error: decision === "return" ? "Write what the technician must correct." : "Write the reason for the rejection." };
   const admin = createAdminClient();
-  const { data: claim } = await admin.from("self_audit_tech_claims").select("id, branch_id, status").eq("id", claimId).maybeSingle();
+  const { data: claim } = await admin.from("self_audit_tech_claims").select("id, branch_id, status, defective_part_received").eq("id", claimId).maybeSingle();
   if (!claim || (user.role !== "officer" && claim.branch_id !== user.branch_id)) return { error: "Claim not found." };
   if (claim.status !== "submitted") return { error: "This claim is not waiting for review." };
+  if (decision === "approve" && !claim.defective_part_received) {
+    const { data: b } = await admin.from("self_audit_branches").select("code").eq("id", claim.branch_id).maybeSingle();
+    if (PART_REQUIRED_BRANCHES.includes((b?.code ?? "").toUpperCase()))
+      return { error: "Mark \"Defective part received\" first - it is required for E7 (Riyadh North) before approval." };
+  }
   const status = decision === "approve" ? "approved" : decision === "return" ? "returned" : "rejected";
   const now = new Date().toISOString();
   const name = user.full_name ?? user.email;
@@ -487,6 +496,24 @@ export async function setTechClaimPriorApproval(claimId: string, on: boolean): P
   const admin = createAdminClient();
   const { error } = await admin.from("self_audit_tech_claims").update({ prior_approval: on, updated_at: new Date().toISOString() }).eq("id", claimId);
   if (error) return { error: error.message };
+  revalidateAll();
+  return {};
+}
+
+/** Warranty admin / claims reviewer / officer: "Defective part received?" Yes / No (who and when are kept, and the history says so). */
+export async function setTechClaimPartReceived(claimId: string, on: boolean): Promise<{ error?: string }> {
+  const r = await reviewableClaim(claimId);
+  if ("error" in r) return { error: r.error };
+  if (!!r.claim.defective_part_received === on) return {};
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const name = r.user.full_name ?? r.user.email;
+  const { error } = await admin
+    .from("self_audit_tech_claims")
+    .update({ defective_part_received: on, defective_part_received_at: on ? now : null, defective_part_received_by_name: on ? name : null, updated_at: now })
+    .eq("id", claimId);
+  if (error) return { error: error.message.includes("defective_part") ? "Not available yet - the database update (0191) is not applied." : error.message };
+  await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: on ? "part_received" : "part_not_received", body: null, author_id: r.user.id, author_name: name });
   revalidateAll();
   return {};
 }

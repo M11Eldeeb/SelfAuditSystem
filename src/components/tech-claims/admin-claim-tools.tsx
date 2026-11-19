@@ -2,21 +2,40 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { branchTechnicians, prepareAdminClaimUploads, reassignTechClaim, registerAdminClaimFiles, setTechClaimPriorApproval } from "@/app/actions/tech-claims";
+import { branchTechnicians, prepareAdminClaimUploads, reassignTechClaim, registerAdminClaimFiles, setTechClaimPartReceived, setTechClaimPriorApproval } from "@/app/actions/tech-claims";
 import { uploadToSession } from "./upload";
+import { stampPhoto, stampVideo } from "./stamp";
 import { Glyph } from "@/components/ui/glyph";
 
-/** Warranty admin: add photos / videos / PDFs to a claim the technician already sent (straight into its Drive folder). */
-export function AdminAddFiles({ claimId }: { claimId: string }) {
+/**
+ * Warranty admin: add photos / videos / PDFs to a claim the technician already sent (straight into its Drive folder).
+ * Photos and videos get the same stamp as the technician's evidence: his name and the claim's evidence date.
+ */
+export function AdminAddFiles({ claimId, who, at }: { claimId: string; who: string; at: string }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function add(list: FileList | null) {
-    const files = Array.from(list ?? []);
-    if (!files.length) return;
+    const picked = Array.from(list ?? []);
+    if (!picked.length) return;
     setMsg(null);
+    const when = new Date(at);
+    const files: File[] = [];
+    const notStamped: string[] = [];
+    for (const [i, f] of picked.entries()) {
+      const step = picked.length > 1 ? ` ${i + 1}/${picked.length}` : "";
+      setBusy(`Stamping${step}…`);
+      try {
+        if (f.type.startsWith("image/")) files.push(await stampPhoto(f, who, when));
+        else if (f.type.startsWith("video/")) files.push(await stampVideo(f, who, (p) => setBusy(`Stamping${step} ${p}%…`), when));
+        else files.push(f);
+      } catch {
+        notStamped.push(f.name);
+        files.push(f);
+      }
+    }
     setBusy("Preparing…");
     const prep = await prepareAdminClaimUploads(claimId, files.map((f) => ({ name: f.name, type: f.type, size: f.size })));
     if (prep.error || !prep.sessions) {
@@ -43,7 +62,7 @@ export function AdminAddFiles({ claimId }: { claimId: string }) {
       setBusy("Saving…");
       const reg = await registerAdminClaimFiles(claimId, ids);
       if (reg.error) throw new Error(reg.error);
-      setMsg({ ok: true, text: `${reg.added} file${reg.added === 1 ? "" : "s"} added.` });
+      setMsg({ ok: true, text: `${reg.added} file${reg.added === 1 ? "" : "s"} added.${notStamped.length ? ` Not stamped (could not be opened): ${notStamped.join(", ")}.` : ""}` });
       router.refresh();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "The upload failed." });
@@ -158,5 +177,53 @@ export function PriorApprovalToggle({ claimId, on }: { claimId: string; on: bool
       </button>
       {error && <span className="text-xs text-red-700">{error}</span>}
     </span>
+  );
+}
+
+/**
+ * Warranty admin: "Defective part received?" Yes / No. Optional for every branch; for E7 (Riyadh North) the claim cannot be
+ * approved before it is Yes. Others see the answer only.
+ */
+export function PartReceived({ claimId, on, by, at, required, canSet }: { claimId: string; on: boolean; by: string | null; at: string | null; required: boolean; canSet: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const when = at ? new Date(at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" }) : "";
+  const pick = async (v: boolean) => {
+    if (v === on) return;
+    setBusy(true);
+    setError(null);
+    const r = await setTechClaimPartReceived(claimId, v);
+    setBusy(false);
+    if (r.error) setError(r.error);
+    else router.refresh();
+  };
+  const btn = (active: boolean, tone: string) =>
+    `rounded-md px-3 py-1 text-sm font-semibold disabled:opacity-50 ${active ? tone : "bg-white text-neutral-600 hover:bg-neutral-50"}`;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 text-sm shadow-sm ring-1 ${on ? "bg-emerald-50 ring-emerald-200" : required ? "bg-amber-50 ring-amber-200" : "bg-white ring-neutral-200/70"}`}>
+      <span className="font-semibold text-neutral-900">
+        Defective part received?
+        {required && <span className="ml-1.5 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-900">Required for E7 before approval</span>}
+      </span>
+      {canSet ? (
+        <span className="inline-flex gap-1 rounded-lg bg-neutral-100 p-1">
+          <button type="button" disabled={busy} aria-pressed={on} onClick={() => void pick(true)} className={btn(on, "bg-emerald-600 text-white")}>
+            Yes
+          </button>
+          <button type="button" disabled={busy} aria-pressed={!on} onClick={() => void pick(false)} className={btn(!on, "bg-neutral-700 text-white")}>
+            No
+          </button>
+        </span>
+      ) : (
+        <span className={`font-semibold ${on ? "text-emerald-700" : "text-neutral-600"}`}>{on ? "Yes" : "No"}</span>
+      )}
+      {on && by && (
+        <span className="text-xs text-neutral-500">
+          {by} · {when}
+        </span>
+      )}
+      {error && <span className="w-full text-xs text-red-700">{error}</span>}
+    </div>
   );
 }

@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { TechClaimDetail } from "@/lib/tech-claims/server";
 import { StatusPill, fmtDateTime } from "./status";
 import { ReviewPanel } from "./review-panel";
-import { AdminAddFiles, PriorApprovalToggle, ReturnToAnotherTechnician } from "./admin-claim-tools";
+import { AdminAddFiles, PartReceived, PriorApprovalToggle, ReturnToAnotherTechnician } from "./admin-claim-tools";
+import { PART_REQUIRED_BRANCHES } from "@/lib/tech-claims/part-rule";
 import { TechClaimForm } from "./claim-form";
 import { DownloadAllButton } from "./download-all";
 import { TechClaimFileGallery } from "./file-gallery";
@@ -103,6 +104,16 @@ export function TechClaimDetailView({
         )}
       </dl>
 
+      {!lang && claim.status !== "uploading" && (
+        <PartReceived
+          claimId={claim.id}
+          on={claim.partReceived.on}
+          by={claim.partReceived.by}
+          at={claim.partReceived.at}
+          required={PART_REQUIRED_BRANCHES.includes(claim.branchCode.toUpperCase())}
+          canSet={canManage}
+        />
+      )}
       {canReview && <ReviewPanel claimId={claim.id} />}
       {canManage && (claim.status === "submitted" || claim.status === "returned") && <ReturnToAnotherTechnician claimId={claim.id} />}
 
@@ -121,7 +132,7 @@ export function TechClaimDetailView({
             <h2 className="font-semibold text-neutral-900">{t.files(claim.fileList.length)}</h2>
             {showDrive && (
               <span className="flex flex-wrap items-center gap-3">
-                {canManage && claim.status !== "uploading" && <AdminAddFiles claimId={claim.id} />}
+                {canManage && claim.status !== "uploading" && <AdminAddFiles claimId={claim.id} who={claim.technician} at={claim.createdAt} />}
                 {claim.driveFolderId && (
                   <a href={`https://drive.google.com/drive/folders/${claim.driveFolderId}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand hover:underline">
                     Open in Google Drive
