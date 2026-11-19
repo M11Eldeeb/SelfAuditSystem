@@ -6,6 +6,8 @@ import { getNotifications } from "@/lib/notifications";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
 import { AMS_LINK } from "@/lib/site";
 import { feedbackLink } from "@/lib/feedback-server";
+import { kpiLinks } from "@/lib/rail-kpis";
+import { tabsFor } from "@/components/dashboard/tabs";
 
 const ADMIN_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard", group: "Warranty" },
@@ -58,13 +60,26 @@ const NATIONAL_LINKS = [
   { ...AMS_LINK },
 ];
 
+// The desktop rail's KPIs menu: each dashboard tab is its own page; Audits, Sub-Dealer Analytics and Major Service Indicators are pages too.
+const AUDITS_KPI = { href: "/admin/audits", label: "Audits", dept: "warranty" as const };
+const SUB_DEALER_KPI = { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", dept: "warranty" as const };
+const MSI_KPI = { href: "/admin/msi", label: "Major Service Indicators", dept: "service" as const };
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("officer");
   if (user.managerKind) {
     const feedback = await feedbackLink(user.id, "/admin/my-feedback");
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
-        <NavBar user={user} links={[...(user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS), feedback]} />
+        <NavBar
+          user={user}
+          links={[...(user.managerKind === "national_manager" ? NATIONAL_LINKS : MANAGER_LINKS), feedback]}
+          kpis={
+            user.managerKind === "national_manager"
+              ? kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false, true), quality: true, extra: [SUB_DEALER_KPI, MSI_KPI] })
+              : kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, true), subDealer: true, extra: [MSI_KPI] })
+          }
+        />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       </div>
     );
@@ -77,7 +92,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={links} notifications={notifications} />
+      <NavBar user={user} links={links} notifications={notifications} kpis={kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), quality: true, extra: [AUDITS_KPI, SUB_DEALER_KPI, MSI_KPI] })} />
       {user.viewOnly && <ViewOnlyBanner />}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>

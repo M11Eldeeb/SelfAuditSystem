@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { requireAdvisorArea, isReception } from "@/lib/reception";
 import { NavBar } from "@/components/nav-bar";
 import { feedbackLink } from "@/lib/feedback-server";
+import { kpiLinks } from "@/lib/rail-kpis";
+import { tabsFor } from "@/components/dashboard/tabs";
 
 /** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. The reception team of
  * the customer queue uses the same pages (and Query) - see lib/reception. */
@@ -21,7 +23,7 @@ export default async function AdvisorLayout({ children }: { children: ReactNode 
   const links = isReception(user) ? [...LINKS.filter((l) => l.href !== "/advisor/dashboard"), { href: "/advisor/query", label: "Query" }] : LINKS;
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[...links, feedback]} />
+      <NavBar user={user} links={[...links, feedback]} kpis={isReception(user) ? [] : kpiLinks({ base: "/advisor/dashboard", tabs: tabsFor(false, false), extra: [{ href: "/advisor/msi", label: "Major Service Indicators", dept: "service" }] })} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
     </div>
   );

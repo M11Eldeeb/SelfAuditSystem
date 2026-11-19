@@ -9,6 +9,10 @@ import { AMS_LINK } from "@/lib/site";
 import { techClaimsWaiting } from "@/lib/tech-claims/server";
 import { createClient } from "@/lib/supabase/server";
 import { MyAuditsTabs } from "./my-audits-tabs";
+import { branchHasSubDealer } from "@/lib/dashboard/sub-dealer-access";
+import { kpiLinks } from "@/lib/rail-kpis";
+import { tabsFor } from "@/components/dashboard/tabs";
+
 
 const BRANCH_ADMIN_LINKS = [
   { href: "/audit/dashboard", label: "Dashboard", group: "Warranty" },
@@ -43,10 +47,21 @@ const SERVICE_MANAGER_LINKS = [
 export default async function AuditLayout({ children }: { children: ReactNode }) {
   const user = await requireRole("branch_admin");
   if (user.managerKind === "service_manager") {
-    const [notifications, { data: branch }] = await Promise.all([getNotifications(user), (await createClient()).from("self_audit_branches").select("name").eq("id", user.branch_id!).maybeSingle()]);
+    const supabase = await createClient();
+    const [notifications, { data: branch }, subDealer] = await Promise.all([
+      getNotifications(user),
+      supabase.from("self_audit_branches").select("name").eq("id", user.branch_id!).maybeSingle(),
+      branchHasSubDealer(supabase, user.branch_id),
+    ]);
     return (
       <div className="app-shell-bg flex min-h-screen flex-col">
-        <NavBar user={user} links={SERVICE_MANAGER_LINKS} notifications={notifications} roleDetail={branch?.name} />
+        <NavBar
+          user={user}
+          links={SERVICE_MANAGER_LINKS}
+          notifications={notifications}
+          roleDetail={branch?.name}
+          kpis={kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, true), subDealer, extra: [{ href: "/audit/msi", label: "Major Service Indicators", dept: "service" }] })}
+        />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
       </div>
     );
@@ -65,7 +80,7 @@ export default async function AuditLayout({ children }: { children: ReactNode })
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={links} notifications={notifications} />
+      <NavBar user={user} links={links} notifications={notifications} kpis={kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, false), quality: true })} />
       {user.viewOnly && <ViewOnlyBanner />}
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <MyAuditsTabs />

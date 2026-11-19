@@ -3,6 +3,8 @@ import { requireAnyRole } from "@/lib/auth";
 import { NavBar } from "@/components/nav-bar";
 import { inquiriesBadge } from "@/lib/technical-inquiries-server";
 import { feedbackLink } from "@/lib/feedback-server";
+import { kpiLinks } from "@/lib/rail-kpis";
+import { tabsFor } from "@/components/dashboard/tabs";
 
 /** The workshop supervisor and the team leader: their only tab is Technical Inquiries (which holds verification codes too). */
 export default async function WorkshopLayout({ children }: { children: ReactNode }) {
@@ -11,7 +13,7 @@ export default async function WorkshopLayout({ children }: { children: ReactNode
 
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">
-      <NavBar user={user} links={[...(user.role === "workshop_supervisor" ? [{ href: "/workshop/dashboard", label: "Dashboard" }] : []), { href: "/workshop/technical-inquiries", label: "Technical Inquiries & Verification Codes", badge }, { href: "/workshop/documents", label: "Warranty and Technical Documents" }, { href: "/workshop/audit-schedule", label: "Audit Schedule" }, { href: "/workshop/open-wips", label: "Open WIPs" }, ...(user.role === "workshop_supervisor" ? [{ href: "/workshop/quality-control", label: "Quality Control" }] : []), feedback]} />
+      <NavBar user={user} kpis={user.role === "workshop_supervisor" ? kpiLinks({ base: "/workshop/dashboard", tabs: tabsFor(false, false), quality: true }) : []} links={[...(user.role === "workshop_supervisor" ? [{ href: "/workshop/dashboard", label: "Dashboard" }] : []), { href: "/workshop/technical-inquiries", label: "Technical Inquiries & Verification Codes", badge }, { href: "/workshop/documents", label: "Warranty and Technical Documents" }, { href: "/workshop/audit-schedule", label: "Audit Schedule" }, { href: "/workshop/open-wips", label: "Open WIPs" }, ...(user.role === "workshop_supervisor" ? [{ href: "/workshop/quality-control", label: "Quality Control" }] : []), feedback]} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
     </div>
   );
