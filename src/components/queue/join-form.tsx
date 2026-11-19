@@ -8,7 +8,7 @@ import { MODE_LABEL, WIP_LABEL, saudiDate, type ServiceMode, type WipServiceType
 import { PublicShell, Spinner } from "./public-shell";
 import { useQueueLang } from "./alerts";
 import { QIcon, type QIconName } from "./icons";
-import { receivingText, type Receiving } from "@/lib/queue/hours";
+import { breakEndsAt, canJoin, clockText, receivingText, type Receiving } from "@/lib/queue/hours";
 
 const WIPS: { value: WipServiceType; icon: QIconName }[] = [
   { value: "quick_service", icon: "quick" },
@@ -64,10 +64,10 @@ export function JoinForm({ branch, receiving }: { branch: { id: string; name: st
   const branchName = lang === "ar" && branch.name_ar ? branch.name_ar : branch.name;
   // Closed now: look again every minute, so the page opens by itself when receiving starts.
   useEffect(() => {
-    if (receiving.open) return;
+    if (canJoin(receiving)) return;
     const id = setInterval(() => router.refresh(), 60_000);
     return () => clearInterval(id);
-  }, [receiving.open, router]);
+  }, [receiving, router]);
   const validMobile = /^5\d{8}$/.test(mobile);
   const needsWip = mode === "appointment" || mode === "walk_in";
   const locale = lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB";
@@ -81,7 +81,7 @@ export function JoinForm({ branch, receiving }: { branch: { id: string; name: st
       `موعدك يوم ${day(a.date)}${a.time ? ` الساعة ${clock(a.time)}` : ""}. سيتم خدمتك اليوم بدون موعد.`
     );
 
-  if (branch.status !== "open" || !receiving.open) {
+  if (branch.status !== "open" || !canJoin(receiving)) {
     return (
       <PublicShell title={branchName} subtitle={t("After-Sales Service Center", "مركز خدمة ما بعد البيع")} lang={lang} dir={dir} onToggle={toggle}>
         <div className="m-5 flex flex-col items-center gap-3 rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-black/5">
@@ -255,6 +255,14 @@ export function JoinForm({ branch, receiving }: { branch: { id: string; name: st
         {step === "mobile" && (
           <>
             <Title sub={t("We use it to find your appointment and tell you when it's your turn.", "نستخدمه لإيجاد موعدك وتنبيهك عند حلول دورك.")}>{t("Your mobile number", "رقم جوالك")}</Title>
+            {breakEndsAt(receiving) && (
+              <Notice
+                text={t(
+                  `It's break time. You can join the queue now - we start serving again at ${clockText(breakEndsAt(receiving)!, lang)}.`,
+                  `وقت الاستراحة الآن. يمكنك الانضمام للطابور الآن - نستأنف الخدمة الساعة ${clockText(breakEndsAt(receiving)!, lang)}.`
+                )}
+              />
+            )}
             <div className="flex h-20 items-center rounded-2xl bg-white px-5 ring-1 ring-black/10 transition focus-within:ring-2 focus-within:ring-brand" dir="ltr">
               <span className="text-xl text-neutral-500">+966</span>
               <span className="mx-4 h-8 w-px bg-black/10" />

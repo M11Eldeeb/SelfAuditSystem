@@ -80,6 +80,31 @@ export function receivingNow(schedule: Schedule, override: Override, overrideDat
   return { open: true, why: "hours", until: today.breakStart && n.time < today.breakStart ? today.breakStart : today.last };
 }
 
+/** May a customer join now? While receiving, and also during the break (they wait until it ends). */
+export const canJoin = (r: Receiving) => r.open || r.why === "break";
+
+/** The break's end today ("13:00") when the branch is on its break now, else null. */
+export const breakEndsAt = (r: Receiving) => (!r.open && r.why === "break" && r.next?.today ? r.next.time : null);
+
+const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/**
+ * Estimated minutes until a customer with `ahead` people before them is called, at `perCustomer` minutes each: the rest
+ * of the break first when the branch is on it, and the break added when the wait runs into it.
+ */
+export function estimateWait(schedule: Schedule, ahead: number, now = new Date(), perCustomer = 6): number {
+  const n = saudiNow(now);
+  const today = schedule[n.day];
+  const nowMin = minutesOf(n.time);
+  let start = nowMin;
+  const bs = today.open && today.breakStart ? minutesOf(today.breakStart) : null;
+  const be = today.open && today.breakEnd ? minutesOf(today.breakEnd) : null;
+  if (bs != null && be != null && nowMin >= bs && nowMin < be) start = be; // on the break now
+  let finish = start + Math.max(1, ahead * perCustomer);
+  if (bs != null && be != null && start < bs && finish > bs) finish += be - bs; // the wait runs into the break
+  return Math.max(1, finish - nowMin);
+}
+
 /** "8:00 AM" / "1:30 PM" (or Arabic). */
 export function clockText(t: string, lang: "en" | "ar") {
   const [h, m] = t.split(":").map(Number);

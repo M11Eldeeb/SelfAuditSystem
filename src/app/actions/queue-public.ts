@@ -7,7 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modelFromText, modelName } from "@/lib/qc/constants";
 import { branchReceiving } from "@/lib/queue/server";
-import { receivingText, type Receiving } from "@/lib/queue/hours";
+import { breakEndsAt, canJoin, estimateWait, receivingText, type Receiving } from "@/lib/queue/hours";
 import { normalizeMobile, saudiDate, startOfSaudiDay, type ServiceMode, type WipServiceType, type QueueTicket } from "@/lib/queue/core";
 
 const MODES: ServiceMode[] = ["appointment", "walk_in", "inquiry", "spare_parts"];
@@ -166,7 +166,8 @@ export async function joinQueue(input: {
   if (!branch) return { error: "Branch not found. · الفرع غير موجود." };
   if (branch.queue_status !== "open") return { error: "The queue is not taking new customers right now. · الطابور لا يستقبل عملاء جدد حالياً." };
   const { receiving } = await branchReceiving(branch.id);
-  if (!receiving.open) return { error: `${receivingText(receiving, "en")} · ${receivingText(receiving, "ar")}` };
+  // During the break the customer may still join (and waits until it ends); otherwise only while receiving.
+  if (!canJoin(receiving)) return { error: `${receivingText(receiving, "en")} · ${receivingText(receiving, "ar")}` };
   const name = String(input.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const mobile = normalizeMobile(input.mobile);
   let mode = MODES.find((m) => m === input.mode);
@@ -233,6 +234,10 @@ export type TicketView = {
   ticket: Pick<QueueTicket, "id" | "ticket_number" | "status" | "service_mode" | "wip_service_type" | "services" | "advisor_name" | "served_at" | "queue_entry_at">;
   branch: { name: string; name_ar: string | null; queue_code: string | null };
   position: number | null; // people ahead + 1 while waiting
+  /** Minutes until the customer is called (the break counted), while waiting. */
+  etaMinutes: number | null;
+  /** The branch is on its break now: it ends at this time ("13:00"). */
+  breakUntil: string | null;
 };
 
 /** The customer's ticket page: status, branch and place in line (same queue: service or spare parts). */
@@ -260,7 +265,9 @@ export async function getTicketView(ticketId: string): Promise<TicketView | null
   }
   const { branch_id: _b, ...ticket } = tk;
   void _b;
-  return { ticket, branch: branch ?? { name: "", name_ar: null, queue_code: null }, position };
+  const hours = await branchReceiving(tk.branch_id);
+  const etaMinutes = position != null ? estimateWait(hours.schedule, position - 1) : null;
+  return { ticket, branch: branch ?? { name: "", name_ar: null, queue_code: null }, position, etaMinutes, breakUntil: breakEndsAt(hours.receiving) };
 }
 
 /** "Find my ticket": the active tickets of this mobile, and the held ones (last 24 hours) that can be reactivated. */

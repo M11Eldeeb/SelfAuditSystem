@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getTicketView, type TicketView } from "@/app/actions/queue-public";
 import { MODE_LABEL, serviceText } from "@/lib/queue/core";
 import { QIcon } from "./icons";
+import { clockText } from "@/lib/queue/hours";
 import { PublicShell } from "./public-shell";
 import {
   announceTurn,
@@ -208,6 +209,14 @@ export function TicketTracker({ initial, vapidKey }: { initial: TicketView; vapi
       )}
 
       <div className="flex flex-1 flex-col gap-6 p-5">
+        {view.breakUntil && (tk.status === "waiting" || tk.status === "held") && (
+          <p className="flex gap-3 rounded-2xl bg-amber-50 p-4 text-amber-900 ring-1 ring-amber-200">
+            <QIcon name="info" className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              {t(`It's break time. We start serving again at ${clockText(view.breakUntil, lang)} - your place in line is kept.`, `وقت الاستراحة الآن. نستأنف الخدمة الساعة ${clockText(view.breakUntil, lang)} - مكانك في الطابور محفوظ.`)}
+            </span>
+          </p>
+        )}
         {/* The ticket: a paper ticket stub - the number on top, the tear line, then where the customer stands. */}
         <section className="relative overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_-20px_rgba(0,0,0,0.35)] ring-1 ring-black/5">
           <div className="px-6 pb-6 pt-7 text-center">
@@ -242,7 +251,7 @@ export function TicketTracker({ initial, vapidKey }: { initial: TicketView; vapi
                 <div className="text-end">
                   <p className="text-sm text-neutral-500">{t("About", "حوالي")}</p>
                   <p className="text-2xl font-semibold text-neutral-900 tabular-nums">
-                    {(position - 1) * 6 || 1} <span className="text-base font-medium text-neutral-500">{t("min", "دقيقة")}</span>
+                    {view.etaMinutes ?? ((position - 1) * 6 || 1)} <span className="text-base font-medium text-neutral-500">{t("min", "دقيقة")}</span>
                   </p>
                 </div>
               </div>
