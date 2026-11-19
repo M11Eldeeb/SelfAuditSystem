@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireQueueAccess, queueBranches } from "@/lib/queue/server";
+import { branchReceiving, requireQueueAccess, queueBranches } from "@/lib/queue/server";
+import { receivingText } from "@/lib/queue/hours";
 import { ticketsSince } from "@/lib/queue/pages";
 import { busyLevel, minutesSince, startOfSaudiDay } from "@/lib/queue/core";
 import { AnalyticsView, daysParam } from "@/components/queue/analytics-view";
@@ -19,6 +20,8 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
   const days = daysParam((await searchParams).days);
   const rows = await ticketsSince(days);
   const today = startOfSaudiDay();
+  // Each branch's receiving now (working hours + the reception manager's switch).
+  const receivingOf = new Map(await Promise.all(branches.map(async (b) => [b.id, (await branchReceiving(b.id)).receiving] as const)));
   const stats = branches.map((b) => {
     const t = rows.filter((r) => r.branch_id === b.id && r.queue_entry_at >= today);
     const served = t.filter((r) => r.served_at);
@@ -30,6 +33,7 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
       withAdvisor: t.filter((r) => r.status === "called" || r.status === "in_service").length,
       completed: t.filter((r) => r.status === "completed").length,
       avgWait: served.length ? Math.round(served.reduce((s, r) => s + (+new Date(r.served_at!) - +new Date(r.queue_entry_at)), 0) / served.length / 60000) : null,
+      receiving: receivingOf.get(b.id)!,
     };
   });
 
@@ -54,6 +58,14 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
                   {b.queue_status === "open" ? busyLevel(b.waiting) : b.queue_status}
                 </span>
               </div>
+              <Link
+                href={`/queue/${b.queue_code}/settings`}
+                className={`mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium ${b.receiving.open ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+                title="Working hours and receiving - change in Settings"
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.receiving.open ? "bg-emerald-500" : "bg-red-500"}`} />
+                <span className="truncate">{receivingText(b.receiving, "en")}</span>
+              </Link>
               <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                 {[
                   ["Waiting", b.waiting],
@@ -76,7 +88,7 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
                   Spare parts
                 </Link>
                 <Link href={`/queue/${b.queue_code}/settings`} className="text-brand hover:underline">
-                  Settings
+                  Working hours & settings
                 </Link>
                 <a href={`/q/display/${b.queue_code}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                   TV ↗

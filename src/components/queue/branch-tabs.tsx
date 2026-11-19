@@ -7,7 +7,7 @@ export function BranchTabs({ code, name, active, manager, role }: { code: string
     role !== "advisor" && { href: `/queue/${code}/parts`, key: "parts", label: "Spare parts" },
     { href: `/queue/${code}/analytics`, key: "analytics", label: "Analytics" },
     manager && { href: `/queue/${code}/customers`, key: "customers", label: "Customers" },
-    manager && { href: `/queue/${code}/settings`, key: "settings", label: "Settings" },
+    manager && { href: `/queue/${code}/settings`, key: "settings", label: "Working hours & settings" },
   ].filter(Boolean) as { href: string; key: string; label: string }[];
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
