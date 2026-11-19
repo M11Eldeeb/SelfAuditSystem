@@ -90,7 +90,6 @@ export function HomeBoard({ firstName, initial, kpis }: { firstName: string; ini
   const greeting = hour == null ? "Welcome" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const body = (w: HomeWidget) => {
-    if (w.type === "kpis") return <KpisWidget kpis={kpis} />;
     if (w.type === "reminder") return <ReminderWidget />;
     if (w.type === "weather") return <WeatherWidget />;
     if (w.type === "calendar")
@@ -109,73 +108,82 @@ export function HomeBoard({ firstName, initial, kpis }: { firstName: string; ini
     return C ? <C data={w.data ?? {}} update={(patch) => updateWidget(w.id, patch)} /> : null;
   };
 
-  return (
-    <div className="mx-auto w-full max-w-6xl">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
-            {greeting}
-            {firstName ? `, ${firstName}` : ""}
-          </h1>
-          <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-neutral-500" aria-live="polite">
-            {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
-          </span>
-          <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing} className={`rounded-full px-4 py-2 text-[14px] font-semibold transition ${editing ? "bg-neutral-900 text-white" : "bg-[var(--surface)] text-neutral-800 ring-1 ring-neutral-900/[0.1] hover:bg-neutral-50"}`}>
-            {editing ? "Done" : "Edit"}
+  const widgetList =
+    layout.widgets.length === 0 ? (
+      <div className="rounded-[22px] border border-dashed border-neutral-300 p-6 text-center">
+        <p className="text-[14px] text-neutral-600">No widgets here.</p>
+        <div className="mt-3 flex flex-col items-center gap-2">
+          <button type="button" onClick={() => setPicker(true)} className="rounded-full bg-brand px-4 py-2 text-[13px] font-semibold text-white">
+            Add a widget
           </button>
-          <button type="button" onClick={() => setPicker(true)} disabled={layout.widgets.length >= MAX_WIDGETS} className="rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-white shadow-sm transition hover:bg-brand-dark active:scale-95 disabled:opacity-50">
-            + Add widget
+          <button type="button" onClick={() => commit(STANDARD_LAYOUT)} className="rounded-full px-4 py-2 text-[13px] font-semibold text-neutral-700 ring-1 ring-neutral-900/[0.1]">
+            Bring back the standard ones
           </button>
         </div>
       </div>
+    ) : (
+      <ul className="space-y-4">
+        {layout.widgets.map((w, i) => {
+          const meta = WIDGETS[w.type];
+          const bleed = BLEED.has(w.type);
+          return (
+            <li
+              key={w.id}
+              id={`widget-${w.id}`}
+              className={`home-rise relative flex flex-col rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${editing ? "ring-2 ring-brand/30" : ""}`}
+              style={{ animationDelay: `${Math.min(i, 10) * 60 + 120}ms` }}
+            >
+              {!bleed && <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-neutral-500 uppercase">{meta.title}</h2>}
+              <div className="flex-1">{body(w)}</div>
+              {editing && (
+                <div className="absolute top-2.5 right-2.5 z-10 flex gap-1 rounded-full bg-[var(--surface)] p-1 shadow-md ring-1 ring-neutral-900/[0.08]">
+                  <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${meta.title} up`} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-900/[0.06] disabled:opacity-30">
+                    ↑
+                  </button>
+                  <button type="button" onClick={() => move(i, 1)} disabled={i === layout.widgets.length - 1} aria-label={`Move ${meta.title} down`} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-900/[0.06] disabled:opacity-30">
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => remove(w.id)} aria-label={`Remove ${meta.title}`} className="flex h-7 w-7 items-center justify-center rounded-full text-red-600 hover:bg-red-50">
+                    ×
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
 
-      {layout.widgets.length === 0 ? (
-        <div className="rounded-[22px] border border-dashed border-neutral-300 p-10 text-center">
-          <p className="text-[15px] text-neutral-600">Your Home is empty.</p>
-          <div className="mt-3 flex justify-center gap-2">
-            <button type="button" onClick={() => setPicker(true)} className="rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-white">
-              Add a widget
+  return (
+    // Wider than the area's page column, like the dashboards: the figures on the left, the widgets in a column on the right.
+    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2">
+      <div className="mb-6">
+        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
+          {greeting}
+          {firstName ? `, ${firstName}` : ""}
+        </h1>
+        <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <section aria-label={kpis.title} className="min-w-0">
+          <KpisWidget kpis={kpis} />
+        </section>
+        <aside aria-label="My widgets" className="min-w-0">
+          <div className="mb-3 flex items-center justify-end gap-2">
+            <span className="mr-auto text-[12px] text-neutral-500" aria-live="polite">
+              {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
+            </span>
+            <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${editing ? "bg-neutral-900 text-white" : "bg-[var(--surface)] text-neutral-800 ring-1 ring-neutral-900/[0.1] hover:bg-neutral-50"}`}>
+              {editing ? "Done" : "Edit"}
             </button>
-            <button type="button" onClick={() => commit(STANDARD_LAYOUT)} className="rounded-full px-4 py-2 text-[14px] font-semibold text-neutral-700 ring-1 ring-neutral-900/[0.1]">
-              Bring back the standard ones
+            <button type="button" onClick={() => setPicker(true)} disabled={layout.widgets.length >= MAX_WIDGETS} className="rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-dark active:scale-95 disabled:opacity-50">
+              + Add widget
             </button>
           </div>
-        </div>
-      ) : (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,19rem),1fr))] gap-4">
-          {layout.widgets.map((w, i) => {
-            const meta = WIDGETS[w.type];
-            const bleed = BLEED.has(w.type);
-            return (
-              <li
-                key={w.id}
-                id={`widget-${w.id}`}
-                className={`home-rise relative flex flex-col rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${"wide" in meta && meta.wide ? "col-span-full" : ""} ${editing ? "ring-2 ring-brand/30" : ""}`}
-                style={{ animationDelay: `${Math.min(i, 10) * 50}ms` }}
-              >
-                {!bleed && <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-neutral-500 uppercase">{meta.title}</h2>}
-                <div className="flex-1">{body(w)}</div>
-                {editing && (
-                  <div className="absolute top-2.5 right-2.5 z-10 flex gap-1 rounded-full bg-[var(--surface)] p-1 shadow-md ring-1 ring-neutral-900/[0.08]">
-                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${meta.title} earlier`} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-900/[0.06] disabled:opacity-30">
-                      ←
-                    </button>
-                    <button type="button" onClick={() => move(i, 1)} disabled={i === layout.widgets.length - 1} aria-label={`Move ${meta.title} later`} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-900/[0.06] disabled:opacity-30">
-                      →
-                    </button>
-                    <button type="button" onClick={() => remove(w.id)} aria-label={`Remove ${meta.title}`} className="flex h-7 w-7 items-center justify-center rounded-full text-red-600 hover:bg-red-50">
-                      ×
-                    </button>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+          {widgetList}
+        </aside>
+      </div>
 
       {picker && <WidgetPicker present={new Set(layout.widgets.map((w) => w.type))} onPick={add} onClose={() => setPicker(false)} />}
     </div>

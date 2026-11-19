@@ -4,7 +4,6 @@
 export type WidgetCategory = "standard" | "productive" | "games" | "fun";
 
 export const WIDGETS = {
-  kpis: { title: "My numbers", blurb: "The figures of your own work, at a glance.", category: "standard", wide: true, single: true },
   reminder: { title: "Today's reminder", blurb: "A kind word for the day.", category: "standard", single: true },
   weather: { title: "Weather", blurb: "Jeddah now and the next three days.", category: "standard", single: true },
   calendar: { title: "Calendar", blurb: "The month, the Hijri date and your notes on any day.", category: "standard", single: true },
@@ -23,7 +22,7 @@ export const WIDGETS = {
   breathe: { title: "Breathe", blurb: "One calm minute: breathe in, hold, breathe out.", category: "fun", single: true },
   carfact: { title: "Car fact of the day", blurb: "Something new about cars, every day.", category: "fun", single: true },
   dice: { title: "Dice & coin", blurb: "Let chance decide who buys the tea.", category: "fun", single: true },
-} as const satisfies Record<string, { title: string; blurb: string; category: WidgetCategory; wide?: boolean; single?: boolean }>;
+} as const satisfies Record<string, { title: string; blurb: string; category: WidgetCategory; single?: boolean }>;
 
 export type WidgetType = keyof typeof WIDGETS;
 
@@ -40,7 +39,6 @@ export type HomeLayout = {
 
 export const STANDARD_LAYOUT: HomeLayout = {
   widgets: [
-    { id: "kpis", type: "kpis" },
     { id: "reminder", type: "reminder" },
     { id: "weather", type: "weather" },
     { id: "calendar", type: "calendar" },

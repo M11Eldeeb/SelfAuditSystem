@@ -23,34 +23,45 @@ export function useNow(ms = 1000): Date | null {
 
 // ---- my numbers ------------------------------------------------------------------------------------------------------------
 
+// Soft tints for the big-number cards, in turn (as on the Sub-Dealer Warranty Desk).
+const TINTS = ["#e4002b", "#f29d38", "#5b6270", "#2e9e5b", "#5b8def", "#8e6cd8"];
+
+/** The role's figures as big numbers on softly tinted cards (the left side of Home). */
 export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
-  if (!kpis.items.length) return <p className="text-[14px] text-neutral-500">No figures yet for your work - they appear here once there is something to count.</p>;
   return (
     <div>
-      <p className="mb-3 text-[13px] font-medium text-neutral-500">{kpis.title}</p>
-      <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.items.map((k) => {
-          const body = (
-            <>
-              <span className="block text-[13px] font-medium text-neutral-600">{k.label}</span>
-              <span className={`mt-1.5 block text-[26px] leading-none font-bold tabular-nums ${k.tone === "bad" ? "text-red-600" : k.tone === "good" ? "text-emerald-700" : "text-neutral-900"}`}>{k.value}</span>
-              {k.note && <span className="mt-1.5 block text-[12px] text-neutral-500">{k.note}</span>}
-            </>
-          );
-          const cls = "block h-full rounded-2xl bg-neutral-900/[0.035] px-4 py-3.5 transition-colors";
-          return (
-            <li key={k.label}>
-              {k.href ? (
-                <Link href={k.href} className={`${cls} hover:bg-neutral-900/[0.06]`}>
-                  {body}
-                </Link>
-              ) : (
-                <div className={cls}>{body}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      <h2 className="mb-3 text-[15px] font-semibold text-neutral-900">{kpis.title}</h2>
+      {!kpis.items.length ? (
+        <p className="rounded-[22px] bg-[var(--surface)] p-5 text-[14px] text-neutral-500 ring-1 ring-neutral-900/[0.07]">No figures yet for your work - they appear here once there is something to count.</p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+          {kpis.items.map((k, i) => {
+            const tint = TINTS[i % TINTS.length];
+            const body = (
+              <>
+                <span className="block text-[13px] font-semibold text-neutral-700">{k.label}</span>
+                <span className={`mt-3 block text-[30px] leading-none font-bold tabular-nums ${k.tone === "bad" ? "text-red-600" : "text-neutral-900"}`}>{k.value}</span>
+                {k.note && <span className="mt-2.5 block text-[12px] text-neutral-600">{k.note}</span>}
+              </>
+            );
+            const cls = "home-rise block h-full rounded-[22px] p-5 ring-1 transition";
+            const style = { background: `color-mix(in srgb, ${tint} 9%, var(--surface))`, "--tw-ring-color": `color-mix(in srgb, ${tint} 18%, transparent)`, animationDelay: `${i * 60}ms` } as React.CSSProperties;
+            return (
+              <li key={k.label}>
+                {k.href ? (
+                  <Link href={k.href} className={`${cls} hover:-translate-y-0.5 hover:shadow-md`} style={style}>
+                    {body}
+                  </Link>
+                ) : (
+                  <div className={cls} style={style}>
+                    {body}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
