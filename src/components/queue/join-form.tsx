@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { checkExistingTicket, joinQueue, knownCustomerName, lookupAppointment, rejoinHeldTicket, type AppointmentInfo } from "@/app/actions/queue-public";
@@ -8,6 +8,7 @@ import { MODE_LABEL, WIP_LABEL, saudiDate, type ServiceMode, type WipServiceType
 import { PublicShell, Spinner } from "./public-shell";
 import { useQueueLang } from "./alerts";
 import { QIcon, type QIconName } from "./icons";
+import { receivingText, type Receiving } from "@/lib/queue/hours";
 
 const WIPS: { value: WipServiceType; icon: QIconName }[] = [
   { value: "quick_service", icon: "quick" },
@@ -42,7 +43,7 @@ function toggleService(list: WipServiceType[], s: WipServiceType): WipServiceTyp
  * confirm - Join, or Edit to change the name / service or add a note (the advisor sees what was changed or added).
  * A new customer answers the name and the service, one per screen.
  */
-export function JoinForm({ branch }: { branch: { id: string; name: string; name_ar: string | null; status: "open" | "paused" | "closed" } }) {
+export function JoinForm({ branch, receiving }: { branch: { id: string; name: string; name_ar: string | null; status: "open" | "paused" | "closed" }; receiving: Receiving }) {
   const router = useRouter();
   const { lang, toggle, t, dir } = useQueueLang();
   const [step, setStep] = useState<Step>("mobile");
@@ -61,6 +62,12 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
   const [notice, setNotice] = useState<string | null>(null);
 
   const branchName = lang === "ar" && branch.name_ar ? branch.name_ar : branch.name;
+  // Closed now: look again every minute, so the page opens by itself when receiving starts.
+  useEffect(() => {
+    if (receiving.open) return;
+    const id = setInterval(() => router.refresh(), 60_000);
+    return () => clearInterval(id);
+  }, [receiving.open, router]);
   const validMobile = /^5\d{8}$/.test(mobile);
   const needsWip = mode === "appointment" || mode === "walk_in";
   const locale = lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB";
@@ -74,13 +81,21 @@ export function JoinForm({ branch }: { branch: { id: string; name: string; name_
       `موعدك يوم ${day(a.date)}${a.time ? ` الساعة ${clock(a.time)}` : ""}. سيتم خدمتك اليوم بدون موعد.`
     );
 
-  if (branch.status !== "open") {
+  if (branch.status !== "open" || !receiving.open) {
     return (
       <PublicShell title={branchName} subtitle={t("After-Sales Service Center", "مركز خدمة ما بعد البيع")} lang={lang} dir={dir} onToggle={toggle}>
-        <div className="m-5 rounded-3xl bg-white p-8 text-center shadow-sm">
-          <p className="text-4xl">⏸️</p>
-          <p className="mt-3 text-lg font-semibold text-neutral-900">{t("The queue is not taking new customers right now.", "الطابور لا يستقبل عملاء جدد حالياً.")}</p>
-          <p className="mt-1 text-neutral-500">{t("Please ask at the reception desk.", "يرجى السؤال في الاستقبال.")}</p>
+        <div className="m-5 flex flex-col items-center gap-3 rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-black/5">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-700">
+            <QIcon name="info" className="h-7 w-7" />
+          </span>
+          <p className="text-lg font-semibold text-neutral-900">
+            {branch.status !== "open" ? t("The queue is not taking new customers right now.", "الطابور لا يستقبل عملاء جدد حالياً.") : receivingText(receiving, lang)}
+          </p>
+          <p className="text-neutral-600">{t("Please ask at the reception desk.", "يرجى السؤال في الاستقبال.")}</p>
+          <Link href="/q/find" className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-neutral-700">
+            <QIcon name="ticket" className="h-4 w-4 text-brand" />
+            {t("Already have a ticket?", "لديك تذكرة؟")} <span className="text-brand underline underline-offset-2">{t("Find it", "ابحث عنها")}</span>
+          </Link>
         </div>
       </PublicShell>
     );

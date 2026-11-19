@@ -62,8 +62,14 @@ export interface Database {
         Relationships: [];
       };
       self_audit_queue_settings: {
-        Row: { branch_id: string; priority_order: string[]; fairness_enabled: boolean; fairness_override_minutes: number; updated_by: string | null; updated_at: string };
-        Insert: { branch_id: string; priority_order?: string[]; fairness_enabled?: boolean; fairness_override_minutes?: number; updated_by?: string | null; updated_at?: string };
+        Row: {
+          branch_id: string; priority_order: string[]; fairness_enabled: boolean; fairness_override_minutes: number; updated_by: string | null; updated_at: string;
+          schedule: unknown; receiving_override: "open" | "closed" | null; override_date: string | null;
+        };
+        Insert: {
+          branch_id: string; priority_order?: string[]; fairness_enabled?: boolean; fairness_override_minutes?: number; updated_by?: string | null; updated_at?: string;
+          schedule?: unknown; receiving_override?: "open" | "closed" | null; override_date?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["self_audit_queue_settings"]["Insert"]>;
         Relationships: [];
       };

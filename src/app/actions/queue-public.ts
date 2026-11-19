@@ -6,6 +6,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modelFromText, modelName } from "@/lib/qc/constants";
+import { branchReceiving } from "@/lib/queue/server";
+import { receivingText, type Receiving } from "@/lib/queue/hours";
 import { normalizeMobile, saudiDate, startOfSaudiDay, type ServiceMode, type WipServiceType, type QueueTicket } from "@/lib/queue/core";
 
 const MODES: ServiceMode[] = ["appointment", "walk_in", "inquiry", "spare_parts"];
@@ -163,6 +165,8 @@ export async function joinQueue(input: {
   const branch = await openBranch(input.branchId);
   if (!branch) return { error: "Branch not found. · الفرع غير موجود." };
   if (branch.queue_status !== "open") return { error: "The queue is not taking new customers right now. · الطابور لا يستقبل عملاء جدد حالياً." };
+  const { receiving } = await branchReceiving(branch.id);
+  if (!receiving.open) return { error: `${receivingText(receiving, "en")} · ${receivingText(receiving, "ar")}` };
   const name = String(input.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const mobile = normalizeMobile(input.mobile);
   let mode = MODES.find((m) => m === input.mode);
@@ -293,7 +297,7 @@ export async function findTicketsByMobile(mobileRaw: string): Promise<{
 export type DisplayCall = { id: string; ticket_number: string | null; advisor_name: string | null; status: string; served_at: string | null; parts: boolean };
 
 /** The branch TV: today's latest calls (ticket number and advisor only) and how many are waiting. */
-export async function getDisplayView(branchId: string): Promise<{ calls: DisplayCall[]; waiting: number } | null> {
+export async function getDisplayView(branchId: string): Promise<{ calls: DisplayCall[]; waiting: number; receiving: Receiving } | null> {
   if (!(await openBranch(branchId))) return null;
   const admin = createAdminClient();
   const [{ data }, { count }] = await Promise.all([
@@ -310,6 +314,7 @@ export async function getDisplayView(branchId: string): Promise<{ calls: Display
   return {
     calls: (data ?? []).map(({ service_mode, ...r }) => ({ ...r, parts: service_mode === "spare_parts" })),
     waiting: count ?? 0,
+    receiving: (await branchReceiving(branchId)).receiving,
   };
 }
 

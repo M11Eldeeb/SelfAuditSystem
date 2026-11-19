@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { getDisplayView, type DisplayCall } from "@/app/actions/queue-public";
+import { receivingText, type Receiving } from "@/lib/queue/hours";
 import { playChime, speak, unlockAudio, unlockSpeech, usePolling, wait } from "./alerts";
 
 const FLASH_MS = 9000;
@@ -22,6 +23,7 @@ async function announce(c: DisplayCall) {
 export function TvDisplay({ branch, qrSvg }: { branch: { id: string; name: string; name_ar: string | null }; qrSvg: string }) {
   const [calls, setCalls] = useState<DisplayCall[]>([]);
   const [waiting, setWaiting] = useState(0);
+  const [receiving, setReceiving] = useState<Receiving | null>(null);
   const [flash, setFlash] = useState<DisplayCall | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [clock, setClock] = useState("");
@@ -52,6 +54,7 @@ export function TvDisplay({ branch, qrSvg }: { branch: { id: string; name: strin
     if (!v) return;
     setCalls(v.calls);
     setWaiting(v.waiting);
+    setReceiving(v.receiving);
     if (seen.current === null) {
       seen.current = new Set(v.calls.map(callKey)); // first load: nothing announced
       return;
@@ -121,7 +124,20 @@ export function TvDisplay({ branch, qrSvg }: { branch: { id: string; name: strin
             )}
           </div>
         </div>
-        <div className="text-[5vh] font-bold tabular-nums">{clock}</div>
+        <div className="flex items-center gap-[1.5vw]">
+          {receiving && (
+            <div className={`flex items-center gap-[0.8vw] rounded-full px-[1.4vw] py-[0.8vh] ${receiving.open ? "bg-emerald-500/15 text-emerald-300" : "bg-white/10 text-white/80"}`}>
+              <span className={`h-[1.4vh] w-[1.4vh] rounded-full ${receiving.open ? "animate-pulse bg-emerald-400" : "bg-red-500"}`} />
+              <div className="text-end leading-tight">
+                <div className="text-[2.2vh] font-semibold">{receivingText(receiving, "en")}</div>
+                <div className="text-[2.2vh] font-semibold" dir="rtl">
+                  {receivingText(receiving, "ar")}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="text-[5vh] font-bold tabular-nums">{clock}</div>
+        </div>
       </header>
 
       <div className="grid flex-1 grid-cols-1 gap-[2vw] p-[3vw] lg:grid-cols-3">

@@ -17,6 +17,7 @@ import {
 } from "@/app/actions/queue";
 import { MODE_LABEL, minutesSince, serviceText, type QueueTicket } from "@/lib/queue/core";
 import { usePolling } from "./alerts";
+import { receivingText } from "@/lib/queue/hours";
 import { Spinner } from "./public-shell";
 
 const btn = "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50";
@@ -96,8 +97,17 @@ export function Desk({ branch, kind, initial }: { branch: { id: string; name: st
             </span>
           )}
         </div>
-        <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> Live
+        <span className="flex items-center gap-2">
+          <span
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${board.receiving.open ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}
+            title="Set by the reception manager in Queue settings"
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${board.receiving.open ? "bg-emerald-500" : "bg-red-500"}`} />
+            {receivingText(board.receiving, "en")}
+          </span>
+          <span className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> Live
+          </span>
         </span>
       </div>
 

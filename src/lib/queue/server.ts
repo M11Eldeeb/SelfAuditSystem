@@ -4,6 +4,7 @@ import webpush from "web-push";
 import { getCurrentUser, homePathFor, type CurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_SETTINGS, fullOrder, type QueueSettings } from "@/lib/queue/core";
+import { cleanSchedule, receivingNow, saudiNow, type Override } from "@/lib/queue/hours";
 
 /**
  * Who may do what in the customer queue.
@@ -78,6 +79,15 @@ export async function branchByCode(code: string): Promise<QueueBranch | null> {
 
 /** May this person work in this branch's queue? */
 export const canUseBranch = (a: QueueAccess, branchId: string) => a.allBranches || a.branchId === branchId;
+
+/** The branch's working hours and the reception manager's switch, and whether new customers are taken now. */
+export async function branchReceiving(branchId: string) {
+  const { data } = await createAdminClient().from("self_audit_queue_settings").select("schedule, receiving_override, override_date").eq("branch_id", branchId).maybeSingle();
+  const schedule = cleanSchedule(data?.schedule);
+  const override = (data?.receiving_override ?? null) as Override;
+  const overrideDate = data?.override_date ?? null;
+  return { schedule, override: override && overrideDate === saudiNow().date ? override : null, receiving: receivingNow(schedule, override, overrideDate) };
+}
 
 export async function branchSettings(branchId: string): Promise<QueueSettings> {
   const { data } = await createAdminClient().from("self_audit_queue_settings").select("*").eq("branch_id", branchId).maybeSingle();

@@ -5,7 +5,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getQueueAccess, canUseBranch, branchSettings, pushTurnAlert, effectiveQueueRole, type QueueAccess } from "@/lib/queue/server";
+import { cleanSchedule, saudiNow, type Receiving } from "@/lib/queue/hours";
+import { branchReceiving, getQueueAccess, canUseBranch, branchSettings, pushTurnAlert, effectiveQueueRole, type QueueAccess } from "@/lib/queue/server";
 import { ALL_TIERS, fullOrder, pickNext, startOfSaudiDay, type QueueTicket, type QueueSettings, type Tier, type TicketStatus } from "@/lib/queue/core";
 import type { Database } from "@/lib/supabase/types";
 
@@ -46,6 +47,7 @@ export type DeskBoard = {
   advisors: DeskAdvisor[];
   settings: QueueSettings;
   servedToday: number;
+  receiving: Receiving;
 };
 
 /** Everything a desk shows, read again every few seconds. */
@@ -80,6 +82,7 @@ export async function getDeskBoard(branchId: string, kind: Kind): Promise<DeskBo
       .map((u) => ({ id: u.id, name: u.full_name || u.email })),
     settings,
     servedToday: served.count ?? 0,
+    receiving: (await branchReceiving(branchId)).receiving,
   };
 }
 
@@ -221,6 +224,37 @@ export async function transferToManager(ticketId: string): Promise<{ error?: str
   const name = m.full_name || m.email;
   const r = await update(a, ticketId, ["called", "in_service"], { advisor_id: m.id, advisor_name: name });
   return r.error ? r : { name };
+}
+
+/** Working hours of the branch (one entry per weekday, 0 = Sunday). */
+export async function saveWorkingHours(branchId: string, schedule: unknown): Promise<{ error?: string }> {
+  const a = await access();
+  if (a.role !== "manager" || !canUseBranch(a, branchId) || a.user.viewOnly) return { error: "Only the queue manager changes the working hours." };
+  const clean = cleanSchedule(schedule);
+  const { error } = await createAdminClient()
+    .from("self_audit_queue_settings")
+    .upsert({ branch_id: branchId, schedule: clean, updated_by: meName(a), updated_at: new Date().toISOString() });
+  if (error) return { error: error.message };
+  revalidatePath("/queue", "layout");
+  return {};
+}
+
+/** Receiving now: follow the hours ("auto"), or open / closed for the rest of today. */
+export async function setReceiving(branchId: string, mode: "auto" | "open" | "closed"): Promise<{ error?: string }> {
+  const a = await access();
+  if (a.role !== "manager" || !canUseBranch(a, branchId) || a.user.viewOnly) return { error: "Only the queue manager opens or closes receiving." };
+  const { error } = await createAdminClient()
+    .from("self_audit_queue_settings")
+    .upsert({
+      branch_id: branchId,
+      receiving_override: mode === "auto" ? null : mode,
+      override_date: mode === "auto" ? null : saudiNow().date,
+      updated_by: meName(a),
+      updated_at: new Date().toISOString(),
+    });
+  if (error) return { error: error.message };
+  revalidatePath("/queue", "layout");
+  return {};
 }
 
 export async function saveQueueSettings(branchId: string, order: string[], fairnessEnabled: boolean, overrideMinutes: number): Promise<{ error?: string }> {
