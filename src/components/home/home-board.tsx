@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { saveHomeLayout } from "@/app/actions/home-layout";
 import { CATEGORY_LABEL, MAX_WIDGETS, STANDARD_LAYOUT, WIDGETS, type HomeLayout, type HomeWidget, type WidgetCategory, type WidgetType } from "@/lib/home/layout";
 import type { HomeKpis } from "@/lib/home/kpis";
+import type { HomeAction } from "@/lib/home/actions";
 import { CalendarWidget, KpisWidget, ReminderWidget, WeatherWidget, useNow } from "@/components/home/widgets-daily";
 import { BreatheWidget, CarFactWidget, ClockWidget, CountdownWidget, DiceWidget, FocusWidget, LinksWidget, StickyWidget, TodoWidget, WaterWidget, type WidgetProps } from "@/components/home/widgets-tools";
 import { GuessWidget, MemoryWidget, ReactionWidget, ScrambleWidget, TicTacToeWidget } from "@/components/home/widgets-games";
@@ -32,7 +34,7 @@ const BLEED = new Set<WidgetType>(["reminder", "sticky"]);
  * The Home page: a welcome, then the person's own widgets. "Add widget" picks from the catalogue (lib/home/layout.ts);
  * "Edit" shows the move and remove buttons. Every change is saved on the account a moment later.
  */
-export function HomeBoard({ firstName, initial, kpis }: { firstName: string; initial: HomeLayout | null; kpis: HomeKpis }) {
+export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: string; initial: HomeLayout | null; kpis: HomeKpis; actions: HomeAction[] }) {
   const [layout, setLayout] = useState<HomeLayout>(initial ?? STANDARD_LAYOUT);
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState(false);
@@ -156,8 +158,10 @@ export function HomeBoard({ firstName, initial, kpis }: { firstName: string; ini
 
   return (
     // Wider than the area's page column, like the dashboards: the figures on the left, the widgets in a column on the right.
-    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2">
-      <div className="mb-6">
+    // On a wide screen the page itself does not scroll: the figures and the widgets are two columns that scroll apart
+    // (their scrollbars show only while in use, globals.css).
+    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:flex lg:h-[calc(100dvh-8.5rem)] lg:flex-col">
+      <div className="mb-6 lg:mb-4 lg:shrink-0">
         <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
           {greeting}
           {firstName ? `, ${firstName}` : ""}
@@ -165,12 +169,13 @@ export function HomeBoard({ firstName, initial, kpis }: { firstName: string; ini
         <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
-        <section aria-label={kpis.title} className="min-w-0">
+      <div className="grid grid-cols-1 items-start gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
+        <section aria-label={kpis.title} className="min-w-0 space-y-6 lg:overflow-y-auto lg:overscroll-contain lg:pr-1.5 lg:pb-4">
           <KpisWidget kpis={kpis} />
+          <ActionList actions={actions} />
         </section>
-        <aside aria-label="My widgets" className="min-w-0">
-          <div className="mb-3 flex items-center justify-end gap-2">
+        <aside aria-label="My widgets" className="flex min-w-0 flex-col lg:min-h-0">
+          <div className="mb-3 flex shrink-0 items-center justify-end gap-2">
             <span className="mr-auto text-[12px] text-neutral-500" aria-live="polite">
               {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
             </span>
@@ -181,12 +186,38 @@ export function HomeBoard({ firstName, initial, kpis }: { firstName: string; ini
               + Add widget
             </button>
           </div>
-          {widgetList}
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-1 lg:pt-1 lg:pb-4">{widgetList}</div>
         </aside>
       </div>
 
       {picker && <WidgetPicker present={new Set(layout.widgets.map((w) => w.type))} onPick={add} onClose={() => setPicker(false)} />}
     </div>
+  );
+}
+
+/** What waits for this person (lib/home/actions.ts): a count and the page where it is done. */
+function ActionList({ actions }: { actions: HomeAction[] }) {
+  const waiting = actions.filter((a) => a.count > 0).length;
+  return (
+    <section className="rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-neutral-900/[0.07]">
+      <h2 className="text-[15px] font-semibold text-neutral-900">Needs your action</h2>
+      {actions.length === 0 || waiting === 0 ? (
+        <p className="mt-2 text-[14px] text-neutral-500">Nothing waits for you right now. Well done!</p>
+      ) : null}
+      {actions.length > 0 && (
+        <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          {actions.map((a) => (
+            <li key={a.key}>
+              <Link href={a.href} className={`flex items-center gap-3 rounded-xl bg-neutral-900/[0.035] px-3 py-2.5 transition-colors hover:bg-neutral-900/[0.07] ${a.count > 0 ? "" : "opacity-60 hover:opacity-100"}`}>
+                <span className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[14px] font-bold tabular-nums ${a.count > 0 ? "bg-brand text-white" : "bg-[var(--surface)] text-neutral-500"}`}>{a.count}</span>
+                <span className="min-w-0 flex-1 text-[14px] font-medium text-neutral-800">{a.label}</span>
+                <span aria-hidden="true" className="text-neutral-400">↗</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

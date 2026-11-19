@@ -42,6 +42,7 @@ export const STANDARD_LAYOUT: HomeLayout = {
     { id: "reminder", type: "reminder" },
     { id: "weather", type: "weather" },
     { id: "calendar", type: "calendar" },
+    { id: "todo-1", type: "todo" },
   ],
 };
 

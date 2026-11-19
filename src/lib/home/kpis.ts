@@ -117,17 +117,25 @@ async function complaintKpis(user: CurrentUser): Promise<HomeKpi[]> {
   return [{ label: "Complaints in my name", value: String(open), note: open ? `Open now · ${mine.length} in total` : mine.length ? `None open · ${mine.length} in total` : "None - keep it up!", tone: open ? "bad" : "good", href: "/advisor/complaints" }];
 }
 
-/** Warranty claims uploaded this month (all branches, or one). */
+/**
+ * Warranty claims of the latest month uploaded (all branches, or one): in December, until December's batch is uploaded,
+ * this is November.
+ */
 async function claimsKpis(branchId: string | null, href: string): Promise<HomeKpi[]> {
-  let q = createAdminClient().from("self_audit_claims").select("claim_amount, return_times").gte("creation_date", monthStart().slice(0, 10)).limit(20000);
+  const admin = createAdminClient();
+  const { data: last } = await admin.from("self_audit_upload_batches").select("claim_month").order("claim_month", { ascending: false }).limit(1).maybeSingle();
+  if (!last) return [];
+  const { data: batches } = await admin.from("self_audit_upload_batches").select("id").eq("claim_month", last.claim_month);
+  let q = admin.from("self_audit_claims").select("claim_amount, return_times").in("upload_batch_id", (batches ?? []).map((b) => b.id)).limit(20000);
   if (branchId) q = q.eq("branch_id", branchId);
   const { data } = await q;
   const rows = data ?? [];
+  const month = new Date(`${last.claim_month.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const amount = rows.reduce((s, r) => s + Number(r.claim_amount ?? 0), 0);
   const returned = rows.filter((r) => (r.return_times ?? 0) > 0).length;
   return [
-    { label: "Warranty claims this month", value: String(rows.length), note: amount ? `${sar(amount)} claimed` : undefined, href },
-    { label: "Returned at least once", value: pct(returned, rows.length), note: `${returned} claims`, tone: rows.length && returned / rows.length > 0.1 ? "bad" : undefined },
+    { label: `Warranty claims, ${month}`, value: String(rows.length), note: amount ? `${sar(amount)} claimed · latest upload` : "Latest upload", href },
+    { label: `Returned at least once, ${month}`, value: pct(returned, rows.length), note: `${returned} claims`, tone: rows.length && returned / rows.length > 0.1 ? "bad" : undefined },
   ];
 }
 
