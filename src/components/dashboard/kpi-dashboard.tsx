@@ -171,6 +171,19 @@ export function KpiDashboard({
   );
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 
+  // The desktop rail's KPIs menu opens each dashboard as its own page: while this page is open it asks for a tab with this event
+  // (instant, nothing is fetched again). The tab bar below is for phones and tablets.
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      // A tab this view does not hold (the national manager's Quality dashboard is its own view): load that page.
+      if (tabs.some((x) => x.id === id)) setTab(id as DashboardTab);
+      else router.push(`${basePath}?tab=${id}`);
+    };
+    window.addEventListener("kpi-tab", onTab);
+    return () => window.removeEventListener("kpi-tab", onTab);
+  }, [tabs, router, basePath]);
+
   const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
     const qs = new URLSearchParams({ tab: next.tab ?? tab, from: next.from ?? from, to: next.to ?? to });
     for (const b of next.branches ?? selectedBranchIds) qs.append("branch", b);
@@ -233,7 +246,7 @@ export function KpiDashboard({
       <nav
         aria-label="Dashboard sections"
         onFocusCapture={() => setBarHidden(false)}
-        className={`sticky top-[72px] z-10 -mx-1 px-1 py-1 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none ${
+        className={`sticky top-[72px] z-10 -mx-1 px-1 py-1 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none xl:hidden ${
           barHidden ? "pointer-events-none -translate-y-[calc(100%+80px)] opacity-0" : ""
         }`}
       >

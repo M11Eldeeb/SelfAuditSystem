@@ -192,7 +192,7 @@ export function NavBar({
   return (
     <>
       {/* Desktop (1280 px and up): the department rail. Below that the drawer further down is the menu. */}
-      <Rail links={links} kpis={kpis ?? []} activeHref={activeHref} />
+      <Rail links={links} kpis={kpis ?? []} activeHref={activeHrefFor(pathname, [...links, ...(kpis ?? [])], search)} />
 
       {/* Top bar: a floating glass toolbar lined up with the sidebar panel - the page title on the left, the account
           controls grouped in one capsule on the right (Apple toolbars: few items, grouped, quiet). */}

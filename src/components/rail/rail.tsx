@@ -17,7 +17,15 @@ export function Rail({ links, kpis, activeHref }: { links: RailLink[]; kpis: Rai
   const router = useRouter();
   const pathname = usePathname();
   const model = useMemo(() => buildRail(links, kpis), [links, kpis]);
-  const activeKey = railActiveKey(model, activeHref);
+  // The dashboard page with no ?tab= is its Overview; its KPI entry carries the marker.
+  const pageHref = useMemo(() => {
+    if (!activeHref) return activeHref;
+    if (railActiveKey(model, activeHref)) return activeHref;
+    const path = activeHref.split("?")[0];
+    const same = kpis.filter((k) => k.href.split("?")[0] === path);
+    return (same.find((k) => k.href.includes("tab=overview")) ?? same[0])?.href ?? activeHref;
+  }, [model, kpis, activeHref]);
+  const activeKey = railActiveKey(model, pageHref);
 
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [panelTop, setPanelTop] = useState(12);
@@ -33,7 +41,9 @@ export function Rail({ links, kpis, activeHref }: { links: RailLink[]; kpis: Rai
   const [glide, setGlide] = useState(false);
   useLayoutEffect(() => {
     const el = activeKey ? itemRefs.current.get(activeKey) : null;
-    setMarker(el ? { y: el.offsetTop } : null);
+    // Measured against the rail body (the marker's positioned parent), so top and bottom buttons share one coordinate system.
+    const body = bodyRef.current;
+    setMarker(el && body ? { y: el.getBoundingClientRect().top - body.getBoundingClientRect().top } : null);
     setPlaced(true);
   }, [activeKey]);
   useEffect(() => {
@@ -154,7 +164,7 @@ export function Rail({ links, kpis, activeHref }: { links: RailLink[]; kpis: Rai
   const openEntry = model.top.find((e) => e.key === openKey);
 
   const pageLink = (l: RailLink, isDashboard: boolean) => {
-    const current = !l.external && activeHref === l.href;
+    const current = !l.external && pageHref === l.href;
     const cls = `rail-row ${current ? "rail-row-on" : ""}`;
     const body = (
       <>
