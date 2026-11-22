@@ -160,7 +160,7 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
     // Laid out like the Sub-Dealer Warranty Desk's home: the greeting with the widget buttons on its line, the figures and what waits
     // for you on the left, the widgets in one narrow column on the right - all compact, so on a wide screen nothing needs scrolling.
     <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:flex lg:h-[calc(100dvh-8.5rem)] lg:flex-col">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3 lg:mb-4 lg:shrink-0">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 lg:mb-2 lg:shrink-0">
         <div>
           <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
             {greeting}
@@ -183,11 +183,11 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
 
       <div className="grid grid-cols-1 items-start gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
         {/* The padding and the matching negative margin keep the cards' shadows and rings from being cut by the scroll area. */}
-        <section aria-label={kpis.title} className="min-w-0 space-y-5 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
+        <section aria-label={kpis.title} className="min-w-0 space-y-5 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-0.5 lg:pb-6">
           <KpisWidget kpis={kpis} />
           <ActionList actions={actions} />
         </section>
-        <aside aria-label="My widgets" className="min-w-0 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
+        <aside aria-label="My widgets" className="min-w-0 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-0.5 lg:pb-6">
           {widgetList}
         </aside>
       </div>

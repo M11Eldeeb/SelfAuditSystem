@@ -30,7 +30,6 @@ export function useNow(ms = 1000): Date | null {
 export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
   return (
     <div>
-      <h2 className="mb-3 text-[15px] font-semibold text-neutral-900">{kpis.title}</h2>
       {!kpis.items.length ? (
         <p className="rounded-[22px] bg-[var(--surface)] p-5 text-[14px] text-neutral-500 ring-1 ring-neutral-900/[0.07]">No figures yet for your work - they appear here once there is something to count.</p>
       ) : (
