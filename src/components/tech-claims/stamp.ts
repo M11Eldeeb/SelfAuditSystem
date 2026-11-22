@@ -476,7 +476,7 @@ async function stampBadge(minSide: number, lines: string[]): Promise<{ png: Uint
 }
 
 /** Width, height (as shown, turned the right way up) and length of a video, from its header - no decoder needed. */
-async function videoMeta(file: File): Promise<{ w: number; h: number; seconds: number | null }> {
+export async function videoMeta(file: File): Promise<{ w: number; h: number; seconds: number | null }> {
   try {
     const mb = await import("mediabunny");
     const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });

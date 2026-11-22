@@ -12,7 +12,7 @@ import {
   type ClaimFields,
 } from "@/app/actions/tech-claims";
 import { SessionExpired, fmtBytes, uploadToSession } from "./upload";
-import { FAST_BUSY, lastStampMethod, stampPhoto, stampVideo, videoDuration, videoLengthFromFile } from "./stamp";
+import { FAST_BUSY, lastStampMethod, stampPhoto, stampVideo, videoDuration, videoLengthFromFile, videoMeta } from "./stamp";
 import {
   TAB,
   deleteBlob,
@@ -46,6 +46,8 @@ type Item = {
   error?: string;
   /** A video this phone could not open to stamp: the original is sent. */
   unstamped?: string; // why the stamp could not be added (shown small, for support)
+  /** A note for the technician (e.g. a 4K video on a browser without a video encoder is slow to stamp). */
+  hint?: string;
   /** A local link to the file (the stamped one once it is ready), so the technician can look at it before sending. */
   preview?: string;
 };
@@ -277,6 +279,8 @@ export function TechClaimForm({
     queueMicrotask(() => setSlowBrowser(typeof VideoEncoder === "undefined" && /Firefox/i.test(navigator.userAgent)));
   }, []);
   const sources = useRef(new Map<string, File>());
+  /** "3840x2160, 120s" of each video picked, for the timing line in the upload problems. */
+  const videoFacts = useRef(new Map<string, string>());
   const jobs = useRef(new Map<string, Promise<void>>());
   const removed = useRef(new Set<string>());
   const seq = useRef(0);
@@ -489,7 +493,7 @@ export function TechClaimForm({
             name: original.name,
             type: stamped.type,
             size: stamped.size,
-            message: `timing: ${stamped === original ? "unstamped" : lastStampMethod} stamp ${stampSecs}s, upload ${Math.round((Date.now() - t1) / 1000)}s, ${fmtBytes(original.size)} -> ${fmtBytes(stamped.size)}`,
+            message: `timing: ${stamped === original ? "unstamped" : lastStampMethod} stamp ${stampSecs}s, upload ${Math.round((Date.now() - t1) / 1000)}s, ${fmtBytes(original.size)} -> ${fmtBytes(stamped.size)}${videoFacts.current.get(key) ? ` (video ${videoFacts.current.get(key)})` : ""}`,
           });
         if (removed.current.has(key)) {
           void discardStagedFile(driveId);
@@ -550,6 +554,15 @@ export function TechClaimForm({
       }
       const key = `f${++seq.current}`;
       sources.current.set(key, f);
+      let hint: string | undefined;
+      if (f.type.startsWith("video/")) {
+        const info = await videoMeta(f).catch(() => null);
+        if (info) {
+          videoFacts.current.set(key, `${info.w}x${info.h}${info.seconds ? `, ${Math.round(info.seconds)}s` : ""}`);
+          // Without a hardware video encoder (Firefox on Android) a video is stamped as it plays - and a 4K one plays slowly there.
+          if (typeof VideoEncoder === "undefined" && info.w * info.h > 2_200_000) hint = t.big4k;
+        }
+      }
       void keepItem(key, f);
       const preview = URL.createObjectURL(f);
       previews.current.add(preview);
@@ -563,6 +576,7 @@ export function TechClaimForm({
           status: "waiting",
           pct: 0,
           preview,
+          hint,
         },
       ]);
       process(key);
@@ -1001,6 +1015,7 @@ export function TechClaimForm({
                     {t.remove}
                   </button>
                 </div>
+                {it.hint && it.status !== "ready" && <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">{it.hint}</p>}
                 {(it.status === "stamping" || it.status === "sending") && (
                   <div className="h-1 overflow-hidden rounded-full bg-neutral-100">
                     <div
