@@ -100,7 +100,7 @@ function Viewer({ file, onClose }: { file: { url: string; type: string; name: st
   );
 }
 
-const MAX_VIDEO_SECONDS = 120;
+const MAX_VIDEO_SECONDS = 180;
 const PARALLEL_UPLOADS = 4;
 
 const inputCls =
