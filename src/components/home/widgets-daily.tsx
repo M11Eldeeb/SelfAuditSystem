@@ -117,7 +117,7 @@ export function ReminderWidget() {
       <span aria-hidden="true" className="absolute right-2 -bottom-14 h-32 w-32 rounded-full bg-black/10" />
       <div className="relative">
         <p className="text-[11px] font-bold tracking-[0.14em] text-white/80 uppercase">Today&apos;s reminder</p>
-        <p className="mt-2 text-[18px] leading-snug font-bold tracking-tight">{pickOfTheDay(MESSAGES)}</p>
+        <p className="mt-1.5 text-[16px] leading-snug font-bold tracking-tight">{pickOfTheDay(MESSAGES)}</p>
       </div>
     </div>
   );
@@ -211,26 +211,26 @@ export function WeatherWidget() {
   return (
     <div>
       <p className="text-[13px] font-medium text-neutral-500">Jeddah</p>
-      <div className="mt-1 flex items-center justify-between gap-3">
+      <div className="mt-0.5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[38px] leading-none font-bold text-neutral-900 tabular-nums">{Math.round(w.temp)}°</p>
-          <p className="mt-1 text-[14px] font-medium text-neutral-700">{now.text}</p>
+          <p className="text-[32px] leading-none font-bold text-neutral-900 tabular-nums">{Math.round(w.temp)}°</p>
+          <p className="mt-0.5 text-[13px] font-medium text-neutral-700">{now.text}</p>
         </div>
-        <WeatherIcon kind={now.kind} size={52} />
+        <WeatherIcon kind={now.kind} size={40} />
       </div>
-      <p className="mt-2 flex gap-4 text-[12px] text-neutral-600">
+      <p className="mt-1.5 flex gap-3 text-[11.5px] text-neutral-600">
         <span>Humidity {Math.round(w.humidity)}%</span>
         <span>Wind {Math.round(w.wind)} km/h</span>
         <span className="ml-auto font-medium">
           H {Math.round(w.days[0].max)}° · L {Math.round(w.days[0].min)}°
         </span>
       </p>
-      <ul className="mt-3 grid grid-cols-3 gap-2">
+      <ul className="mt-2 grid grid-cols-3 gap-2">
         {w.days.slice(1, 4).map((d) => (
-          <li key={d.date} className="rounded-xl bg-sky-500/[0.07] px-2 py-1.5 text-center">
+          <li key={d.date} className="rounded-xl bg-sky-500/[0.07] px-2 py-1 text-center">
             <p className="text-[11px] font-semibold text-neutral-500">{new Date(`${d.date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short" })}</p>
-            <span className="my-0.5 flex justify-center">
-              <WeatherIcon kind={describe(d.code).kind} size={20} />
+            <span className="flex justify-center">
+              <WeatherIcon kind={describe(d.code).kind} size={18} />
             </span>
             <p className="text-[11px] font-semibold text-neutral-900 tabular-nums">
               {Math.round(d.max)}° <span className="text-neutral-500">{Math.round(d.min)}°</span>
@@ -267,8 +267,10 @@ export function CalendarWidget({ notes, onNote }: { notes: Record<string, string
     <div>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-[15px] font-semibold text-neutral-900">{now ? title : " "}</p>
-          {now && offset === 0 && <p className="mt-0.5 text-[12px] text-neutral-500">{hijri.format(now)}</p>}
+          <p className="text-[14px] font-semibold text-neutral-900">
+            {now ? title : " "}
+            {now && offset === 0 && <span className="ml-2 text-[11.5px] font-normal text-neutral-500">{hijri.format(now)}</span>}
+          </p>
         </div>
         <div className="flex items-center gap-0.5">
           {offset !== 0 && (
@@ -276,15 +278,15 @@ export function CalendarWidget({ notes, onNote }: { notes: Record<string, string
               Today
             </button>
           )}
-          <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-900/[0.05]">
+          <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Previous month" className="flex h-6 w-7 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-900/[0.05]">
             ‹
           </button>
-          <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-900/[0.05]">
+          <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Next month" className="flex h-6 w-7 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-900/[0.05]">
             ›
           </button>
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-7 gap-y-0.5 text-center">
+      <div className="mt-1 grid grid-cols-7 gap-y-px text-center">
         {WEEKDAYS.map((w, i) => (
           <span key={i} className={`pb-0.5 text-[11px] font-semibold ${i >= 5 ? "text-neutral-400" : "text-neutral-500"}`}>
             {w}
@@ -298,7 +300,7 @@ export function CalendarWidget({ notes, onNote }: { notes: Record<string, string
                 onClick={() => setOpen(key(d))}
                 title={notes[key(d)] ?? "Add a note"}
                 aria-label={`${d} ${title}${notes[key(d)] ? ", has a note" : ""}`}
-                className={`relative flex h-6 w-8 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors ${
+                className={`relative flex h-[22px] w-8 items-center justify-center rounded-full text-[11.5px] font-semibold tabular-nums transition-colors ${
                   isToday(d) ? "bg-brand text-white" : i % 7 >= 5 ? "text-neutral-400 hover:bg-neutral-900/[0.05]" : "text-neutral-800 hover:bg-neutral-900/[0.05]"
                 } ${notes[key(d)] && !isToday(d) ? "ring-2 ring-amber-400/70" : ""}`}
               >
