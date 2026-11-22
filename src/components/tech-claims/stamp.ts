@@ -220,6 +220,22 @@ export function videoDuration(file: File): Promise<number | null> {
 /** Thrown by stampVideo when a video stamped at the same time as another could not use the hardware: run it again alone. */
 export const FAST_BUSY = "FAST_BUSY";
 
+/** The video length read from the file itself (no video decoder needed) - for a phone whose browser cannot open the video to tell. */
+export async function videoLengthFromFile(file: File): Promise<number | null> {
+  try {
+    const mb = await import("mediabunny");
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    try {
+      const d = await input.computeDuration();
+      return Number.isFinite(d) && d > 0 ? d : null;
+    } finally {
+      input.dispose?.();
+    }
+  } catch {
+    return null;
+  }
+}
+
 const VIDEO_LONG_SIDE = 960; // 540p: still sharp enough to read a part, and about 1.8x fewer pixels to encode than 720p (the stamping is what takes the time)
 
 /** Every stamped video is kept to 20 MB or less - quick to send even on a weak connection. */
@@ -373,8 +389,23 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
   if (opts?.concurrent && problem.text !== "no WebCodecs") throw new Error(FAST_BUSY);
   const why = [`fast: ${problem.text || "?"}`];
   try {
-    const out = (await fit((sq) => stampVideoReplay(file, who, onProgress, at, sq)))!;
-    lastStampMethod = "replay";
+    let via = "replay";
+    const out = (await fit(async (sq) => {
+      try {
+        return await stampVideoReplay(file, who, onProgress, at, sq);
+      } catch (e) {
+        if (!(e instanceof Error) || !/black picture/.test(e.message)) throw e;
+        // Drawing the video onto a canvas the usual way gives black on this phone (Firefox on Android): hand it to WebGL instead.
+        try {
+          const g = await stampVideoReplay(file, who, onProgress, at, sq, "gl");
+          via = "replay-gl";
+          return g;
+        } catch (g) {
+          throw new Error(`${e.message} / webgl: ${g instanceof Error ? g.message : g}`);
+        }
+      }
+    }))!;
+    lastStampMethod = via;
     return out;
   } catch (replayError) {
     why.push(`replay: ${replayError instanceof Error ? replayError.message : replayError}`);
@@ -553,7 +584,104 @@ async function toH264(file: File, onProgress: (pct: number) => void, opts?: { ba
   }
 }
 
-async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1): Promise<File> {
+/** The stamp box as a small canvas (same look as drawStamp), for the WebGL replay. */
+function stampBoxCanvas(minSide: number, lines: string[]): HTMLCanvasElement {
+  const size = Math.max(14, Math.round(minSide / 26));
+  const pad = Math.round(size * 0.45);
+  const lineH = Math.round(size * 1.25);
+  const font = `600 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const c = document.createElement("canvas");
+  const x = c.getContext("2d")!;
+  x.font = font;
+  const w = Math.ceil(Math.max(...lines.map((l) => x.measureText(l).width)) + pad * 2);
+  const h = lineH * lines.length + pad * 2 - (lineH - size);
+  c.width = w;
+  c.height = h;
+  x.font = font;
+  x.textBaseline = "top";
+  x.fillStyle = "rgba(0,0,0,0.55)";
+  x.fillRect(0, 0, w, h);
+  x.fillStyle = "#ffd400";
+  lines.forEach((l, i) => x.fillText(l, pad, pad + i * lineH));
+  return c;
+}
+
+/**
+ * Draws each video frame with the stamp through WebGL (the frame is a texture): on some phones (Firefox on Android) drawing a playing
+ * video onto a 2D canvas gives black, while the GPU path can still see the picture. `seen()` tells whether any frame was not black.
+ */
+function glRenderer(canvas: HTMLCanvasElement, video: HTMLVideoElement, lines: string[]) {
+  const gl = canvas.getContext("webgl", { alpha: false, preserveDrawingBuffer: true, antialias: false });
+  if (!gl) throw new Error("no WebGL");
+  const shader = (type: number, src: string) => {
+    const sh = gl.createShader(type)!;
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(`WebGL shader: ${gl.getShaderInfoLog(sh)}`);
+    return sh;
+  };
+  const prog = gl.createProgram()!;
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, "attribute vec2 p; varying vec2 v; uniform vec4 r; void main(){ v = vec2(p.x, 1.0 - p.y); gl_Position = vec4(r.xy + p * r.zw, 0.0, 1.0); }"));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, "precision mediump float; varying vec2 v; uniform sampler2D s; void main(){ gl_FragColor = texture2D(s, v); }"));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error("WebGL program did not link");
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const rect = gl.getUniformLocation(prog, "r");
+  const texture = () => {
+    const t = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    return t;
+  };
+  const videoTex = texture();
+  const stampTex = texture();
+  const box = stampBoxCanvas(Math.min(canvas.width, canvas.height), lines);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, box);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  const pad = Math.round(Math.max(14, Math.round(Math.min(canvas.width, canvas.height) / 26)) * 0.45);
+  let saw = false;
+  let frames = 0;
+  const px = new Uint8Array(4);
+  const probe = () => {
+    if (saw || frames++ % 5) return;
+    // a few spots over the frame, read back from what was just drawn (before the stamp)
+    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75], [0.5, 0.25], [0.5, 0.75], [0.15, 0.5], [0.85, 0.5]]) {
+      gl.readPixels(Math.floor(canvas.width * fx), Math.floor(canvas.height * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      if (px[0] > 16 || px[1] > 16 || px[2] > 16) return void (saw = true);
+    }
+  };
+  return {
+    seen: () => saw,
+    draw() {
+      gl.disable(gl.BLEND);
+      gl.bindTexture(gl.TEXTURE_2D, videoTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+      gl.uniform4f(rect, -1, -1, 2, 2);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      probe();
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.bindTexture(gl.TEXTURE_2D, stampTex);
+      const w = (2 * box.width) / canvas.width;
+      const h = (2 * box.height) / canvas.height;
+      gl.uniform4f(rect, 1 - w - (2 * pad) / canvas.width, -1 + (2 * pad) / canvas.height, w, h);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    },
+  };
+}
+
+async function stampVideoReplay(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1, mode: "2d" | "gl" = "2d"): Promise<File> {
   const type = recorderType();
   if (!type) throw new Error("This phone's browser cannot stamp videos - use Chrome or Safari.");
   const start = startAt ?? (await takenAt(file, "video"));
@@ -574,7 +702,8 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
     const canvas = document.createElement("canvas");
     canvas.width = Math.round((video.videoWidth * scale) / 2) * 2;
     canvas.height = Math.round((video.videoHeight * scale) / 2) * 2;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = mode === "2d" ? canvas.getContext("2d")! : null;
+    const glr = mode === "gl" ? glRenderer(canvas, video, [fmt(start), who]) : null;
 
     const stream = canvas.captureStream(30);
     // Sound: through an audio graph that is not connected to the speaker.
@@ -614,10 +743,15 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
     };
     let noPicture: (() => void) | null = null;
     const draw = () => {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      checkPicture();
+      if (glr) {
+        glr.draw();
+        if (glr.seen()) sawPicture = true;
+      } else if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        checkPicture();
+      }
       if (!sawPicture && video.currentTime > 2) noPicture?.();
-      drawStamp(ctx, canvas.width, canvas.height, [fmt(new Date(start.getTime() + video.currentTime * 1000)), who]);
+      if (ctx) drawStamp(ctx, canvas.width, canvas.height, [fmt(new Date(start.getTime() + video.currentTime * 1000)), who]);
       if (video.duration) onProgress(Math.min(99, Math.round((video.currentTime / video.duration) * 100)));
     };
     const vfc = (video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback?.bind(video);

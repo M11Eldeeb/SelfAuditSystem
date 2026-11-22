@@ -12,7 +12,7 @@ import {
   type ClaimFields,
 } from "@/app/actions/tech-claims";
 import { SessionExpired, fmtBytes, uploadToSession } from "./upload";
-import { FAST_BUSY, lastStampMethod, stampPhoto, stampVideo, videoDuration } from "./stamp";
+import { FAST_BUSY, lastStampMethod, stampPhoto, stampVideo, videoDuration, videoLengthFromFile } from "./stamp";
 import {
   TAB,
   deleteBlob,
@@ -539,7 +539,8 @@ export function TechClaimForm({
         continue;
       }
       if (f.type.startsWith("video/")) {
-        const secs = await videoDuration(f);
+        // The video's own header when the browser cannot open it to tell (Firefox on Android): so a long video is still turned away.
+        const secs = (await videoDuration(f)) ?? (await videoLengthFromFile(f));
         // Logged so a phone that cannot open videos shows up in the upload problems.
         if (secs == null) void reportUploadProblem({ name: f.name, type: f.type, size: f.size, message: "duration: the phone did not give the video's length (sent anyway)" });
         if (secs != null && secs > MAX_VIDEO_SECONDS + 0.5) {
