@@ -2179,6 +2179,10 @@ export interface Database {
         Args: { p_inquiry_id: string; p_comment?: string | null };
         Returns: void;
       };
+      business_town: {
+        Args: { p_branch?: string | null };
+        Returns: unknown;
+      };
       get_flagged_part_counts: {
         Args: { p_cycle_id: string };
         Returns: { branch_id: string; claims: number; parts: number }[];

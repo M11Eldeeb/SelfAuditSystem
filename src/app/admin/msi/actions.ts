@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { importLatestMsiReport, type MsiImportResult } from "@/lib/msi/import";
 import { msiScopeFor, scopeExtra } from "@/lib/msi/scope";
 import type { MsiExtra } from "@/lib/msi/types";
+import type { TownDetails } from "@/lib/msi/town";
 import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 
 /**
@@ -126,4 +127,21 @@ export async function getBusinessView(reportDate: string): Promise<{ branches?: 
         };
       }),
   };
+}
+
+/** The 3D view's department details (see migration 0193): every branch together, or the branch with our code `code`. */
+export async function getTownDetails(code: string | null): Promise<{ details?: TownDetails; error?: string }> {
+  const user = await requireAnyViewer(["officer"]);
+  const scope = await msiScopeFor(user);
+  if (!scope?.all) return { error: "Only for the warranty officers and managers." };
+  const admin = createAdminClient();
+  let branchId: string | null = null;
+  if (code) {
+    const { data } = await admin.from("self_audit_branches").select("id").eq("code", code).maybeSingle();
+    if (!data) return { error: "Branch not found." };
+    branchId = data.id;
+  }
+  const { data, error } = await admin.rpc("business_town", { p_branch: branchId });
+  if (error) return { error: error.message.includes("business_town") ? "The details are not available yet - the database update (0193) is not applied." : error.message };
+  return { details: data as unknown as TownDetails };
 }

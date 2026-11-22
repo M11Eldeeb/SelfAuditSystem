@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
-import type { BusinessBranch } from "@/app/admin/msi/actions";
+import { getTownDetails, type BusinessBranch } from "@/app/admin/msi/actions";
+import type { TownDetails } from "@/lib/msi/town";
 import { money, pct } from "@/components/msi/msi-ui";
 import { short } from "@/components/msi/msi-overview";
+import { DEPT_TITLE, DeptPanel, type Dept } from "@/components/msi/msi-town-panel";
 
 // The business as a small animated service centre (three.js, isometric): each building is a part of after-sales and
 // carries a LIVE card with its numbers - the sales tower fills up floor by floor with the month, the workshop has as
@@ -52,27 +54,56 @@ function totalsOf(list: BusinessBranch[]): Totals {
 const statusOf = (v: number | null) => (v == null ? null : v >= 1 ? "good" : v >= 0.9 ? "warn" : "bad");
 const STATUS = { good: { c: "#248a3d", t: "✓ On track" }, warn: { c: "#b45309", t: "! Close" }, bad: { c: "#d70015", t: "↓ Behind" } } as const;
 
-type CardId = "sales" | "workshop" | "reception" | "warranty" | "care";
+type CardId = Dept;
 /** Where each card hangs (a point on its building) and on which side of it the card sits (CSS translate). */
 const ANCHOR: Record<CardId, [number, number, number]> = {
   sales: [7.8, 4.2, -3.6],
   workshop: [-8.5, 3.2, -3.6],
-  reception: [2.6, 1.2, 2.4],
+  customers: [2.6, 1.2, 2.4],
   warranty: [1.6, 2.6, -4.4],
-  care: [-6.5, 1.0, 5.4],
+  room: [5.3, 1.4, -1.2],
+  audit: [-9.6, 1.8, 4.4],
+  care: [-3.4, 0.4, 6.0],
 };
 const SIDE: Record<CardId, string> = {
   sales: "translate(18px, -50%)",
   workshop: "translate(calc(-100% - 18px), -40%)",
-  reception: "translate(18px, 8px)",
+  customers: "translate(-40%, 20px)",
   warranty: "translate(-50%, calc(-100% - 18px))",
-  care: "translate(calc(-100% - 18px), 0)",
+  room: "translate(18px, -20%)",
+  audit: "translate(calc(-100% - 18px), -50%)",
+  care: "translate(-50%, 18px)",
 };
 
-export function ServiceTown({ branches }: { branches: BusinessBranch[] }) {
+export function ServiceTown({ branches, loadDetails = getTownDetails }: { branches: BusinessBranch[]; /** Where the department details come from (a test can give its own). */ loadDetails?: typeof getTownDetails }) {
   const [code, setCode] = useState<string>("ALL");
   const list = useMemo(() => (code === "ALL" ? branches : branches.filter((b) => b.code === code)), [branches, code]);
   const t = useMemo(() => totalsOf(list), [list]);
+  const [open, setOpen] = useState<Dept | null>(null);
+  const [details, setDetails] = useState<Record<string, TownDetails>>({});
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (details[code]) return;
+    let live = true;
+    loadDetails(code === "ALL" ? null : code).then(
+      (r) => {
+        if (!live) return;
+        if (r.details) setDetails((cur) => ({ ...cur, [code]: r.details! }));
+        setError(r.error ?? null);
+      },
+      () => live && setError("Could not load the details."),
+    );
+    return () => {
+      live = false;
+    };
+  }, [code, details, loadDetails]);
+  const d = details[code] ?? null;
+  // On a phone the details open under the cards: bring them into view.
+  const phonePanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open && window.innerWidth < 640) phonePanel.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [open]);
+  const panel = open && <DeptPanel dept={open} details={d} branches={branches} selected={list} error={error} onClose={() => setOpen(null)} />;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Branch">
@@ -88,9 +119,10 @@ export function ServiceTown({ branches }: { branches: BusinessBranch[] }) {
           </button>
         ))}
       </div>
-      <Town totals={t} scale={code === "ALL" ? branches.length || 1 : 1} />
+      <Town totals={t} details={d} scale={code === "ALL" ? branches.length || 1 : 1} open={open} onOpen={setOpen} panel={panel} />
+      {open && <div ref={phonePanel} className="h-[70vh] scroll-mt-20 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.06] sm:hidden">{panel}</div>}
       <p className="text-xs text-[#6e6e73]">
-        Sales tower: floors light up with the sales against the plan for today. Workshop: one car in a bay for every few open job cards. Reception: customers walking in today. Drag to turn, scroll to zoom.
+        Click a building or its card for the department&apos;s details. Sales tower: floors light up with the sales against the plan. Workshop: cars in the bays with the open job cards. Warranty room: crates with the parts to scrap. Reception: customers walking in today. Drag to turn, scroll to zoom.
       </p>
     </div>
   );
@@ -98,11 +130,16 @@ export function ServiceTown({ branches }: { branches: BusinessBranch[] }) {
 
 type Row = { label: string; value: string; color?: string };
 
-function Card({ id, title, icon, rows, setEl }: { id: CardId; title: string; icon: string; rows: Row[]; setEl: (id: CardId, el: HTMLDivElement | null) => void }) {
+function Card({ id, title, icon, rows, setEl, active, onOpen }: { id: CardId; title: string; icon: string; rows: Row[]; setEl: (id: CardId, el: HTMLDivElement | null) => void; active: boolean; onOpen: (d: Dept) => void }) {
   return (
     <div
       ref={(el) => setEl(id, el)}
-      className="pointer-events-none absolute top-0 left-0 w-48 rounded-xl bg-white/95 px-3 py-2 text-[12px] text-[#1d1d1f] shadow-[0_6px_20px_rgba(0,0,0,0.12)] ring-1 ring-black/[0.06] will-change-transform"
+      role="button"
+      tabIndex={0}
+      aria-label={`${title}: details`}
+      onClick={() => onOpen(id)}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(id)}
+      className={`absolute top-0 left-0 w-48 cursor-pointer rounded-xl bg-white/95 px-3 py-2 text-[12px] text-[#1d1d1f] shadow-[0_6px_20px_rgba(0,0,0,0.12)] ring-1 transition-shadow will-change-transform hover:shadow-[0_8px_28px_rgba(0,0,0,0.2)] ${active ? "ring-2 ring-[#1d1d1f]" : "ring-black/[0.06]"}`}
       style={{ visibility: "hidden" }}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -127,16 +164,18 @@ function Card({ id, title, icon, rows, setEl }: { id: CardId; title: string; ico
   );
 }
 
-function Town({ totals, scale }: { totals: Totals; scale: number }) {
+function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals; details: TownDetails | null; scale: number; open: Dept | null; onOpen: (d: Dept | null) => void; panel: React.ReactNode }) {
   const host = useRef<HTMLDivElement>(null);
   const cards = useRef<Partial<Record<CardId, HTMLDivElement | null>>>({});
   const dots = useRef<Partial<Record<CardId, HTMLSpanElement | null>>>({});
-  const api = useRef<{ update: (t: Totals, scale: number) => void } | null>(null);
-  const latest = useRef({ totals, scale });
+  const api = useRef<{ update: (t: Totals, scale: number, d: TownDetails | null) => void } | null>(null);
+  const latest = useRef({ totals, scale, details });
+  const openRef = useRef(onOpen);
   useEffect(() => {
-    latest.current = { totals, scale };
-    api.current?.update(totals, scale);
-  }, [totals, scale]);
+    openRef.current = onOpen;
+    latest.current = { totals, scale, details };
+    api.current?.update(totals, scale, details);
+  }, [totals, scale, details, onOpen]);
 
   useEffect(() => {
     let disposed = false;
@@ -224,9 +263,16 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
         [-11, -7], [-8, -7.2], [-4, -7.3], [0.5, -7.3], [4.5, -7.3], [8.5, -7.2], [11, -6], [11, 0], [11, 5], [11, 8], [7, 8.3], [2, 8.3], [-2.5, 8.3], [-7, 8.3], [-11, 8], [-11, 3], [-11, -2],
       ].map(([x, z], i) => tree(x, z, 0.85 + (i % 3) * 0.12));
 
+      // Each department's buildings in a group that says which department it is (clicking it opens the details).
+      const dept = (d: Dept) => {
+        const g = new T3.Group();
+        g.userData.dept = d;
+        scene.add(g);
+        return g;
+      };
+
       // ---- workshop: blue shed with a saw-tooth roof, bays in front
-      const ws = new T3.Group();
-      scene.add(ws);
+      const ws = dept("workshop");
       box(7.2, 2.3, 4.2, 0x3557c8, -6.2, 0, -3.6, ws);
       for (let i = 0; i < 4; i++) {
         const prism = new T3.Mesh(new T3.CylinderGeometry(0.9, 0.9, 4.2, 3), mat(0x2b47a8));
@@ -239,7 +285,7 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
       for (let i = 0; i < 4; i++) box(1.5, 1.6, 0.06, 0xdfe6f5, -8.9 + i * 1.8, 0, -1.47, ws);
       const bayPads: THREE.Vector3[] = [];
       for (let i = 0; i < 4; i++) {
-        box(1.55, 0.03, 2.4, 0xe4e1da, -8.9 + i * 1.8, 0, 0.0);
+        box(1.55, 0.03, 2.4, 0xe4e1da, -8.9 + i * 1.8, 0, 0.0, ws);
         bayPads.push(new T3.Vector3(-8.9 + i * 1.8, 0, 0.1));
       }
       // crates beside the workshop
@@ -284,6 +330,7 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
       const movers = [0, 0.27, 0.52, 0.78].map((p, i) => ({ car: car(CAR_COLORS[i]), p, speed: 0.018 + i * 0.002 }));
 
       // ---- sales tower: floors that light up with the sales against plan
+      const salesG = dept("sales");
       const FLOORS = 10;
       const floors: THREE.Mesh[] = [];
       for (let i = 0; i < FLOORS; i++) {
@@ -291,33 +338,59 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
         f.position.set(6.6, 0.25 + i * 0.52 + 0.23, -3.6);
         f.castShadow = true;
         f.receiveShadow = true;
-        scene.add(f);
+        salesG.add(f);
         floors.push(f);
-        box(2.5, 0.06, 2.5, 0xffffff, 6.6, 0.25 + i * 0.52 + 0.46, -3.6);
+        box(2.5, 0.06, 2.5, 0xffffff, 6.6, 0.25 + i * 0.52 + 0.46, -3.6, salesG);
       }
-      box(2.7, 0.25, 2.7, 0xb8b2a6, 6.6, 0, -3.6);
-      box(0.8, 0.3, 0.8, 0xe8e4dc, 6.6, 0.25 + FLOORS * 0.52, -3.6);
+      box(2.7, 0.25, 2.7, 0xb8b2a6, 6.6, 0, -3.6, salesG);
+      box(0.8, 0.3, 0.8, 0xe8e4dc, 6.6, 0.25 + FLOORS * 0.52, -3.6, salesG);
 
       // ---- warranty office: red roof
-      box(3.2, 2.2, 2.6, 0xfafafa, 1.6, 0, -4.4);
-      box(3.4, 0.25, 2.8, 0xc4121a, 1.6, 2.2, -4.4);
-      for (let i = 0; i < 3; i++) box(0.6, 0.6, 0.05, 0x9fc3e6, 0.6 + i * 1.0, 1.1, -3.08);
+      const wo = dept("warranty");
+      box(3.2, 2.2, 2.6, 0xfafafa, 1.6, 0, -4.4, wo);
+      box(3.4, 0.25, 2.8, 0xc4121a, 1.6, 2.2, -4.4, wo);
+      for (let i = 0; i < 3; i++) box(0.6, 0.6, 0.05, 0x9fc3e6, 0.6 + i * 1.0, 1.1, -3.08, wo);
 
       // ---- reception with the MG sign
-      box(3.2, 1.5, 2.2, 0xffffff, 1.4, 0, 1.6);
-      box(3.4, 0.16, 2.4, 0x2d2d2f, 1.4, 1.5, 1.6);
-      box(1.0, 0.5, 0.06, 0xc4121a, 1.4, 1.75, 2.72);
-      box(0.9, 1.0, 0.05, 0x9fc3e6, 1.4, 0, 2.72);
+      const rc = dept("customers");
+      box(3.2, 1.5, 2.2, 0xffffff, 1.4, 0, 1.6, rc);
+      box(3.4, 0.16, 2.4, 0x2d2d2f, 1.4, 1.5, 1.6, rc);
+      box(1.0, 0.5, 0.06, 0xc4121a, 1.4, 1.75, 2.72, rc);
+      box(0.9, 1.0, 0.05, 0x9fc3e6, 1.4, 0, 2.72, rc);
+
+      // ---- warranty room: a brown warehouse with a roll-up door, crates of parts to scrap, a forklift
+      const room = dept("room");
+      box(2.6, 1.4, 2.0, 0x9a6b45, 4.1, 0, -1.2, room);
+      box(2.8, 0.14, 2.2, 0x6f4a2e, 4.1, 1.4, -1.2, room);
+      box(1.2, 0.9, 0.05, 0xd9d2c5, 4.1, 0, -0.18, room);
+      for (let i = 0; i < 4; i++) box(1.2, 0.03, 0.06, 0xb8ae9d, 4.1, 0.2 + i * 0.2, -0.15, room);
+      const crates: THREE.Mesh[] = [];
+      for (let i = 0; i < 8; i++) crates.push(box(0.42, 0.36, 0.42, i % 2 ? 0xc9965a : 0xb9864a, 2.9 + (i % 4) * 0.5, Math.floor(i / 4) * 0.36, 0.5, room));
+      const fork = new T3.Group();
+      box(0.5, 0.3, 0.36, 0xf2b705, 0, 0.08, 0, fork);
+      box(0.08, 0.6, 0.3, 0x333333, 0.28, 0.08, 0, fork);
+      box(0.3, 0.04, 0.26, 0x666666, 0.42, 0.1, 0, fork);
+      fork.position.set(5.2, 0, 0.4);
+      room.add(fork);
+
+      // ---- audit office: purple, with a clipboard sign
+      const au = dept("audit");
+      box(2.2, 1.7, 2.0, 0xf4f1fb, -8.6, 0, 4.6, au);
+      box(2.4, 0.16, 2.2, 0x6d4bd1, -8.6, 1.7, 4.6, au);
+      box(0.5, 0.65, 0.05, 0xffffff, -8.6, 0.75, 5.62, au);
+      box(0.32, 0.05, 0.06, 0x6d4bd1, -8.6, 1.32, 5.64, au);
+      for (let i = 0; i < 3; i++) box(0.3, 0.03, 0.06, 0xb9b0d6, -8.6, 0.9 + i * 0.13, 5.64, au);
 
       // ---- customer care: coloured booths
+      const care = dept("care");
       const BOOTH = [0xf27aa6, 0xa78bfa, 0x34c4a0, 0x60a5fa, 0xfdba74];
       BOOTH.forEach((c, i) => {
         const x = -6 + i * 1.3;
-        box(1.1, 0.7, 0.9, 0xffffff, x, 0, 5.2);
-        const roof = box(1.2, 0.12, 1.1, c, x, 0.95, 5.1);
+        box(1.1, 0.7, 0.9, 0xffffff, x, 0, 5.2, care);
+        const roof = box(1.2, 0.12, 1.1, c, x, 0.95, 5.1, care);
         roof.rotation.x = -0.2;
-        box(0.06, 0.95, 0.06, 0xbbbbbb, x - 0.5, 0, 5.6);
-        box(0.06, 0.95, 0.06, 0xbbbbbb, x + 0.5, 0, 5.6);
+        box(0.06, 0.95, 0.06, 0xbbbbbb, x - 0.5, 0, 5.6, care);
+        box(0.06, 0.95, 0.06, 0xbbbbbb, x + 0.5, 0, 5.6, care);
       });
 
       // ---- people: customers walking from the parking to reception
@@ -344,7 +417,11 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
 
       // ---- the numbers change what the town shows
       const lit = new T3.Color();
-      const update = (t: Totals, sc: number) => {
+      const update = (t: Totals, sc: number, d: TownDetails | null) => {
+        // Crates: the parts flagged to scrap (one per few parts), none when the cycle is clear.
+        const parts = d?.room.flaggedParts ?? 0;
+        const crateN = parts === 0 ? 0 : Math.max(1, Math.min(crates.length, Math.ceil(parts / Math.max(1, sc) / 10)));
+        crates.forEach((c, i) => (c.visible = i < crateN));
         const s = statusOf(t.vsPlan);
         lit.set(s ? STATUS[s].c : "#8e8e93");
         const n = t.vsPlan == null ? 0 : Math.round(Math.min(1, t.vsPlan) * FLOORS);
@@ -360,7 +437,35 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
         boothPeople.forEach((g, i) => (g.visible = i < atBooths));
       };
       api.current = { update };
-      update(latest.current.totals, latest.current.scale);
+      update(latest.current.totals, latest.current.scale, latest.current.details);
+
+      // Click a building: open its department. Hover: a hand cursor.
+      const ray = new T3.Raycaster();
+      const ptr = new T3.Vector2();
+      const groups: THREE.Object3D[] = [];
+      scene.traverse((o) => o.userData.dept && groups.push(o));
+      const deptAt = (e: PointerEvent): Dept | null => {
+        const r = renderer.domElement.getBoundingClientRect();
+        ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        ray.setFromCamera(ptr, camera);
+        for (const h of ray.intersectObjects(groups, true)) {
+          let o: THREE.Object3D | null = h.object;
+          while (o && !o.userData.dept) o = o.parent;
+          if (o) return o.userData.dept as Dept;
+        }
+        return null;
+      };
+      let downAt = { x: 0, y: 0 };
+      const onDown = (e: PointerEvent) => (downAt = { x: e.clientX, y: e.clientY });
+      const onUp = (e: PointerEvent) => {
+        if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return; // a drag
+        const d = deptAt(e);
+        if (d) openRef.current(d);
+      };
+      const onMove = (e: PointerEvent) => (renderer.domElement.style.cursor = deptAt(e) ? "pointer" : "grab");
+      renderer.domElement.addEventListener("pointerdown", onDown);
+      renderer.domElement.addEventListener("pointerup", onUp);
+      renderer.domElement.addEventListener("pointermove", onMove);
 
       const size = () => {
         const w = el.clientWidth;
@@ -402,6 +507,9 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
           lift.position.y = up;
           bayCars[1].position.y = up + 0.04;
           trees.forEach((tr, i) => (tr.rotation.z = Math.sin(time * 1.2 + i) * 0.03));
+          const f = (Math.sin(time * 0.6) + 1) / 2;
+          fork.position.x = 4.6 + f * 1.4;
+          fork.rotation.y = Math.cos(time * 0.6) > 0 ? Math.PI : 0;
         } else {
           movers.forEach((m) => {
             const pos = loop.getPointAt(m.p);
@@ -436,6 +544,9 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
       cleanup = () => {
         cancelAnimationFrame(frame);
         ro.disconnect();
+        renderer.domElement.removeEventListener("pointerdown", onDown);
+        renderer.domElement.removeEventListener("pointerup", onUp);
+        renderer.domElement.removeEventListener("pointermove", onMove);
         controls.dispose();
         scene.traverse((o) => {
           const mesh = o as THREE.Mesh;
@@ -458,55 +569,53 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
   const setEl = (id: CardId, el: HTMLDivElement | null) => {
     cards.current[id] = el;
   };
-  const list: { id: CardId; icon: string; title: string; rows: Row[] }[] = [
-    {
-      id: "sales",
-      icon: "📈",
-      title: "Sales",
-      rows: [
-        { label: "Sold", value: totals.sold == null ? "—" : `SAR ${short(totals.sold)}` },
-        { label: "vs plan", value: s ? `${pct(totals.vsPlan)} ${STATUS[s].t}` : "—", color: s ? STATUS[s].c : undefined },
-        { label: "Month end", value: totals.forecastVsTarget == null ? "—" : `${pct(totals.forecastVsTarget)} of target` },
-      ],
-    },
-    {
-      id: "workshop",
-      icon: "🔧",
-      title: "Workshop",
-      rows: [
-        { label: "Open WIPs", value: money(totals.openWips) },
-        { label: "Over 30 days", value: money(totals.oldWips), color: totals.oldWips > 0 ? "#d70015" : "#248a3d" },
-        { label: "Value", value: `SAR ${short(totals.openWipValue)}` },
-      ],
-    },
-    {
-      id: "reception",
-      icon: "👥",
-      title: "Customers",
-      rows: [
-        { label: "Today", value: money(totals.queueToday) },
-        { label: "Waiting now", value: money(totals.queueWaiting), color: totals.queueWaiting > 5 ? "#b45309" : undefined },
-      ],
-    },
-    {
-      id: "warranty",
-      icon: "🛡️",
-      title: "Warranty",
-      rows: [
-        { label: "Claims this year", value: money(totals.warrantyClaims) },
-        { label: "Tech. claims waiting", value: money(totals.techWaiting), color: totals.techWaiting > 0 ? "#b45309" : "#248a3d" },
-      ],
-    },
-    {
-      id: "care",
-      icon: "💬",
-      title: "Complaints",
-      rows: [
-        { label: "This year", value: money(totals.complaints) },
-        { label: "Still open", value: money(totals.complaintsOpen), color: totals.complaintsOpen > 0 ? "#d70015" : "#248a3d" },
-      ],
-    },
-  ];
+  const d = details;
+  const g = "#248a3d";
+  const w = "#b45309";
+  const r = "#d70015";
+  const rows: Record<CardId, Row[]> = {
+    sales: [
+      { label: "Sold", value: totals.sold == null ? "—" : `SAR ${short(totals.sold)}` },
+      { label: "vs plan", value: s ? `${pct(totals.vsPlan)} ${STATUS[s].t}` : "—", color: s ? STATUS[s].c : undefined },
+      { label: "Month end", value: totals.forecastVsTarget == null ? "—" : `${pct(totals.forecastVsTarget)} of target` },
+    ],
+    workshop: [
+      { label: "Open WIPs", value: money(totals.openWips) },
+      d
+        ? { label: "Past promised date", value: money(d.workshop.overdue), color: d.workshop.overdue > 0 ? r : g }
+        : { label: "Over 30 days", value: money(totals.oldWips), color: totals.oldWips > 0 ? r : g },
+      d ? { label: "Avg. age", value: d.workshop.avgAge == null ? "—" : `${d.workshop.avgAge} days` } : { label: "Value", value: `SAR ${short(totals.openWipValue)}` },
+    ],
+    customers: [
+      { label: "Today", value: money(totals.queueToday) },
+      { label: "Waiting now", value: money(totals.queueWaiting), color: totals.queueWaiting > 5 ? w : undefined },
+      ...(d ? [{ label: "Appointments", value: money(d.customers.appointments) }] : []),
+    ],
+    warranty: [
+      { label: "Claims this year", value: money(d?.warranty.claims ?? totals.warrantyClaims) },
+      ...(d ? [{ label: "Amount", value: `SAR ${short(d.warranty.amount)}` }] : []),
+      { label: "Tech. claims waiting", value: money(totals.techWaiting), color: totals.techWaiting > 0 ? w : g },
+    ],
+    room: d
+      ? [
+          { label: "Parts to scrap", value: money(d.room.flaggedParts), color: d.room.flaggedParts > 0 ? w : g },
+          { label: "Scrapped this cycle", value: money(d.room.scrappedThisCycle) },
+          { label: "Part returns open", value: money(d.room.returnsOpen), color: d.room.returnsOpen > 0 ? w : g },
+        ]
+      : [{ label: "Details", value: "—" }],
+    audit: d
+      ? [
+          { label: "Self-audit done", value: `${d.audit.done} / ${d.audit.assignments}`, color: d.audit.assignments && d.audit.done < d.audit.assignments ? w : g },
+          { label: "Score", value: d.audit.score == null ? "—" : `${d.audit.score}%` },
+          { label: "Internal audits", value: money(d.audit.internal.count) },
+        ]
+      : [{ label: "Details", value: "—" }],
+    care: [
+      { label: "This year", value: money(totals.complaints) },
+      { label: "Still open", value: money(totals.complaintsOpen), color: totals.complaintsOpen > 0 ? r : g },
+    ],
+  };
+  const list = (Object.keys(DEPT_TITLE) as CardId[]).map((id) => ({ id, icon: DEPT_TITLE[id].icon, title: DEPT_TITLE[id].title, rows: rows[id] }));
   return (
     <>
       <div className="relative h-[clamp(360px,72vh,760px)] max-sm:h-[300px] w-full overflow-hidden rounded-2xl bg-[#efe9df] ring-1 ring-black/[0.06]">
@@ -524,26 +633,27 @@ function Town({ totals, scale }: { totals: Totals; scale: number }) {
             />
           ))}
           {list.map((c) => (
-            <Card key={c.id} id={c.id} setEl={setEl} icon={c.icon} title={c.title} rows={c.rows} />
+            <Card key={c.id} id={c.id} setEl={setEl} icon={c.icon} title={c.title} rows={c.rows} active={open === c.id} onOpen={onOpen} />
           ))}
         </div>
+        {open && <div className="absolute inset-y-3 right-3 w-[min(26rem,calc(100%-1.5rem))] overflow-hidden rounded-2xl bg-white/[0.97] shadow-2xl ring-1 ring-black/[0.08] backdrop-blur max-sm:hidden">{panel}</div>}
       </div>
       <div className="grid grid-cols-2 gap-2 sm:hidden">
         {list.map((c) => (
-          <div key={c.id} className="rounded-xl bg-white px-3 py-2 text-[12px] shadow-sm ring-1 ring-black/[0.06]">
+          <button key={c.id} type="button" onClick={() => onOpen(c.id)} className={`rounded-xl bg-white px-3 py-2 text-left text-[12px] shadow-sm ring-1 ${open === c.id ? "ring-2 ring-[#1d1d1f]" : "ring-black/[0.06]"}`}>
             <div className="mb-1 flex items-center gap-1.5 font-bold">
               <span aria-hidden="true">{c.icon}</span>
               {c.title}
             </div>
-            {c.rows.map((r) => (
-              <div key={r.label} className="flex justify-between gap-2 leading-5">
-                <span className="text-[#6e6e73]">{r.label}</span>
-                <span className="font-semibold tabular-nums" style={r.color ? { color: r.color } : undefined}>
-                  {r.value}
+            {c.rows.map((x) => (
+              <div key={x.label} className="flex justify-between gap-2 leading-5">
+                <span className="text-[#6e6e73]">{x.label}</span>
+                <span className="font-semibold tabular-nums" style={x.color ? { color: x.color } : undefined}>
+                  {x.value}
                 </span>
               </div>
             ))}
-          </div>
+          </button>
         ))}
       </div>
     </>
