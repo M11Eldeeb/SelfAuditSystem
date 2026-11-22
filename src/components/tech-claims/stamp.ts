@@ -238,12 +238,12 @@ export async function videoLengthFromFile(file: File): Promise<number | null> {
 
 const VIDEO_LONG_SIDE = 960; // 540p: still sharp enough to read a part, and about 1.8x fewer pixels to encode than 720p (the stamping is what takes the time)
 
-/** Every stamped video is kept to 20 MB or less - quick to send even on a weak connection. */
-export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+/** Every stamped video is kept to 30 MB or less - quick to send even on a weak connection. */
+export const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 const AUDIO_BITRATE = 96_000;
 
 /**
- * Video bits per second so `seconds` of video fits in 20 MB (with room for the sound and the file's own overhead),
+ * Video bits per second so `seconds` of video fits in 30 MB (with room for the sound and the file's own overhead),
  * at most 1.8 Mbit/s (plenty for 720p). `squeeze` < 1 when a first try still came out too big.
  */
 function videoBitrate(seconds: number | null | undefined, squeeze = 1): number {
@@ -371,7 +371,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
  */
 export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void, at?: Date, opts?: { concurrent?: boolean }): Promise<File> {
   const problem: Problem = { text: "" };
-  // A result over 20 MB is made again with fewer bits (from the same source - never a stamp on a stamp).
+  // A result over 30 MB is made again with fewer bits (from the same source - never a stamp on a stamp).
   const fit = async (run: (squeeze: number) => Promise<File | null>): Promise<File | null> => {
     let out = await run(1);
     for (const squeeze of [0.6, 0.35]) {
@@ -515,7 +515,7 @@ export async function videoMeta(file: File): Promise<{ w: number; h: number; sec
 /**
  * Last-resort stamp for phones that have neither a hardware video encoder (WebCodecs) nor a working replay (the picture
  * comes out black, e.g. Firefox on Android): ffmpeg.wasm converts the video to 720p H.264 and lays the stamp over it in
- * ONE pass - no phone video decoder or canvas capture is involved. The result is kept under 20 MB.
+ * ONE pass - no phone video decoder or canvas capture is involved. The result is kept under 30 MB.
  */
 async function stampVideoSoftware(file: File, who: string, onProgress: (pct: number) => void, at?: Date): Promise<File> {
   const start = at ?? (await takenAt(file, "video"));
