@@ -10,7 +10,7 @@ const MARK_TONE: Record<Mark, string> = { G: "text-emerald-700", I: "text-amber-
 
 /** One test's inspection sheet, folded: the items not Good first, then everything section by section. */
 function SheetAnswers({ sheet }: { sheet: Checklist }) {
-  const sections = sectionsFor(sheet.repairType);
+  const sections = sectionsFor(sheet.repairType, sheet.version ?? 1);
   const all = sections.flatMap((s) => s.items);
   const flagged = all.filter((i) => sheet.answers[i.id] === "I" || sheet.answers[i.id] === "R");
   return (

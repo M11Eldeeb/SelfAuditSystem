@@ -24,6 +24,7 @@ const both: SheetKind[] = ["pm", "gr"];
 const pm: SheetKind[] = ["pm"];
 const gr: SheetKind[] = ["gr"];
 
+/** Version 1: the full printed sheets (54 items for "Both"). Kept for the QCs answered on it. */
 export const QC_SECTIONS: Section[] = [
   {
     id: "under_hood",
@@ -125,6 +126,70 @@ export const QC_SECTIONS: Section[] = [
   },
 ];
 
+/**
+ * Version 2 (from November 2026): only what the QC must double-check after the work - safety, what a repair leaves loose
+ * or open, and what the customer sees. What the technician already checks while diagnosing or repairing is left out.
+ * 15 items for "Both", 13 periodic maintenance, 11 general repair.
+ */
+export const QC_SECTIONS_V2: Section[] = [
+  {
+    id: "under_hood",
+    title: "Under Hood",
+    items: [
+      { id: "v2_engine_oil", label: "Engine oil level, filler cap & dipstick fitted", on: both, marks: "GIR" },
+      { id: "v2_fluids", label: "Coolant & brake fluid levels, caps closed", on: both, marks: "GIR" },
+      { id: "v2_leaks", label: "No oil, coolant, fuel or brake fluid leak", on: both, marks: "GIR" },
+      { id: "v2_connections", label: "Battery clamps, wiring & connectors fitted", on: both, marks: "GIR" },
+    ],
+  },
+  {
+    id: "exterior",
+    title: "Vehicle Exterior",
+    extra: "wheels",
+    items: [
+      { id: "wheel_nuts", label: "Wheel nuts tightening & tire pressure", on: both, marks: "GIR" },
+      { id: "v2_lights", label: "Lights, horn & wipers", on: pm, marks: "GIR" },
+    ],
+  },
+  {
+    id: "under_chassis",
+    title: "Brakes & Tires",
+    extra: "brakes",
+    items: [
+      { id: "v2_brakes", label: "Brake pads, disks, hoses & caliper bolts", on: pm, marks: "GIR" },
+      { id: "tire_condition", label: "Tire condition", on: pm, marks: "GIR" },
+    ],
+  },
+  {
+    id: "interior",
+    title: "Interior & Handover",
+    items: [
+      { id: "v2_warning_lamps", label: "No warning lamp on the meter", on: both, marks: "GR" },
+      { id: "v2_pm_reminder", label: "PM reminder reset", on: pm, marks: "GR" },
+      { id: "v2_clean", label: "Vehicle clean - covers removed, no grease marks", on: both, marks: "GR" },
+    ],
+  },
+  {
+    id: "road_test",
+    title: "Road Test",
+    items: [
+      { id: "v2_noise", label: "No abnormal noise or vibration", on: both, marks: "GIR" },
+      { id: "v2_brakes_steering", label: "Brakes, parking brake & steering (no pull)", on: both, marks: "GIR" },
+    ],
+  },
+  {
+    id: "repair_checks",
+    title: "Repair Checks",
+    items: [
+      { id: "v2_complaint_fixed", label: "Customer complaint fixed", on: gr, marks: "GR", clarify: true },
+      { id: "v2_engine_transmission", label: "Engine, transmission & 4x4 working after the repair", on: gr, marks: "GR", clarify: true },
+    ],
+  },
+];
+
+/** The sheet version new QCs are answered on. */
+export const QC_SHEET_VERSION = 2;
+
 export const WHEELS = ["FL", "FR", "RL", "RR"] as const;
 export const BRAKE_MEASURES = [
   { id: "front_pads", label: "Front pads" },
@@ -141,10 +206,10 @@ export function sheetsFor(repairType: string | null | undefined): SheetKind[] {
   return [];
 }
 
-/** The sections (with only their items) a repair type asks. */
-export function sectionsFor(repairType: string | null | undefined): Section[] {
+/** The sections (with only their items) a repair type asks, on sheet `version` (1 when a stored sheet has none). */
+export function sectionsFor(repairType: string | null | undefined, version: number | undefined = QC_SHEET_VERSION): Section[] {
   const kinds = sheetsFor(repairType);
-  return QC_SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => i.on.some((k) => kinds.includes(k))) }))
+  return (version === 2 ? QC_SECTIONS_V2 : QC_SECTIONS).map((s) => ({ ...s, items: s.items.filter((i) => i.on.some((k) => kinds.includes(k))) }))
     .filter((s) => s.items.length > 0)
     .map((s) => ({ ...s, extra: s.extra === "brakes" && !kinds.includes("pm") ? undefined : s.extra }));
 }
@@ -154,6 +219,8 @@ export const sheetTitle = (repairType: string | null | undefined) =>
 
 export type Checklist = {
   repairType: string;
+  /** Sheet version (QC_SECTIONS_V2 = 2); missing on sheets answered before it = version 1. */
+  version?: number;
   answers: Record<string, Mark>;
   clarify: Record<string, string>;
   wheels: Partial<Record<(typeof WHEELS)[number], { pressure?: string; torque?: string }>>;
@@ -166,11 +233,11 @@ export type Checklist = {
   comments: Record<string, string>;
 };
 
-export const emptyChecklist = (repairType: string): Checklist => ({ repairType, answers: {}, clarify: {}, wheels: {}, brakes: {}, comments: {} });
+export const emptyChecklist = (repairType: string): Checklist => ({ repairType, version: QC_SHEET_VERSION, answers: {}, clarify: {}, wheels: {}, brakes: {}, comments: {} });
 
 /** The items still without an answer. */
 export function unanswered(c: Checklist): string[] {
-  return sectionsFor(c.repairType).flatMap((s) => s.items.filter((i) => !c.answers[i.id]).map((i) => i.label));
+  return sectionsFor(c.repairType, c.version ?? 1).flatMap((s) => s.items.filter((i) => !c.answers[i.id]).map((i) => i.label));
 }
 
 const short = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -178,10 +245,11 @@ const numberText = (v: unknown) => short(v, 12).replace(/[^\d.]/g, "");
 
 /** The checklist as the server keeps it: only the questions of its repair type, only allowed answers, text cut short. */
 export function cleanChecklist(raw: unknown, repairType: string): Checklist | null {
-  const sections = sectionsFor(repairType);
-  if (!sections.length) return null;
   const c = (raw && typeof raw === "object" ? raw : {}) as Partial<Checklist>;
-  const out = emptyChecklist(repairType);
+  const version = c.version === 2 ? 2 : 1;
+  const sections = sectionsFor(repairType, version);
+  if (!sections.length) return null;
+  const out = { ...emptyChecklist(repairType), version };
   for (const s of sections) {
     for (const i of s.items) {
       const m = c.answers?.[i.id];

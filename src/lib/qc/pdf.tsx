@@ -134,7 +134,7 @@ const MARK_COLOR: Record<Mark, string> = { G: "#047857", I: "#b45309", R: BRAND,
 
 function sheetPage(qc: QcDetail, t: QcTest) {
   const sheet = t.checklist!;
-  const sections = sectionsFor(sheet.repairType);
+  const sections = sectionsFor(sheet.repairType, sheet.version ?? 1);
   const box = (label: string, on: boolean, color: string) =>
     h(
       View,

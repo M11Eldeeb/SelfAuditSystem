@@ -38,7 +38,7 @@ function Marks({ marks, optional, value, onChange }: { marks: "GIR" | "GR"; opti
 /** The items the last test marked Inspect or Repair (or clarified): what a recheck is about. */
 export function flaggedItems(previous: Checklist | null | undefined): string[] {
   if (!previous) return [];
-  return sectionsFor(previous.repairType)
+  return sectionsFor(previous.repairType, previous.version ?? 1)
     .flatMap((s) => s.items)
     .filter((i) => previous.answers[i.id] === "I" || previous.answers[i.id] === "R" || !!previous.clarify[i.id])
     .map((i) => i.id);
@@ -65,7 +65,7 @@ function ReadingsOk({ on, onChange }: { on: boolean; onChange: (on: boolean) => 
 }
 
 export function ChecklistForm({ value, onChange, previous }: { value: Checklist; onChange: (c: Checklist) => void; previous?: Checklist | null }) {
-  const sections = sectionsFor(value.repairType);
+  const sections = sectionsFor(value.repairType, value.version ?? 1);
   const flagged = flaggedItems(previous);
   const lastComments = previous ? sections.filter((s) => previous.comments[s.id]) : [];
   const recheck = flagged.length > 0 || lastComments.length > 0;
