@@ -8,6 +8,7 @@ import { StandingsList } from "@/components/standings-list";
 import { computeCurrentCycleStandings, computeOverallStandings } from "@/lib/standings";
 import { daysUntil, deadlineCountdown, isPastDeadline } from "@/lib/cycle";
 import { UpcomingInternalAudits, type UpcomingAudit } from "./upcoming-internal-audit";
+import { ExportAuditClaimsButton } from "./export-claims-button";
 
 export default async function AuditDashboardPage() {
   const user = await requireRole("branch_admin");
@@ -174,6 +175,9 @@ export default async function AuditDashboardPage() {
                   </span>
                 )}
               </span>
+            </div>
+            <div className="flex justify-end">
+              <ExportAuditClaimsButton cycleId={cycle.id} />
             </div>
             <div className="overflow-hidden rounded-xl border border-neutral-200/70 bg-white shadow-sm">
               <table className="w-full text-sm">
