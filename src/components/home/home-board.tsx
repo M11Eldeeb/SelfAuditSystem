@@ -124,7 +124,7 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
         </div>
       </div>
     ) : (
-      <ul className="space-y-4">
+      <ul className="space-y-4 xl:block xl:columns-2 xl:gap-4 xl:space-y-0">
         {layout.widgets.map((w, i) => {
           const meta = WIDGETS[w.type];
           const bleed = BLEED.has(w.type);
@@ -132,7 +132,7 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
             <li
               key={w.id}
               id={`widget-${w.id}`}
-              className={`home-rise relative flex flex-col rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${editing ? "ring-2 ring-brand/30" : ""}`}
+              className={`home-rise relative flex flex-col xl:mb-4 xl:break-inside-avoid rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${editing ? "ring-2 ring-brand/30" : ""}`}
               style={{ animationDelay: `${Math.min(i, 10) * 60 + 120}ms` }}
             >
               {!bleed && <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-neutral-500 uppercase">{meta.title}</h2>}
@@ -160,22 +160,24 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
     // Wider than the area's page column, like the dashboards: the figures on the left, the widgets in a column on the right.
     // On a wide screen the page itself does not scroll: the figures and the widgets are two columns that scroll apart
     // (their scrollbars show only while in use, globals.css).
-    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:flex lg:h-[calc(100dvh-8.5rem)] lg:flex-col">
-      <div className="mb-6 lg:mb-4 lg:shrink-0">
-        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
-          {greeting}
-          {firstName ? `, ${firstName}` : ""}
-        </h1>
-        <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
-      </div>
-
-      <div className="grid grid-cols-1 items-start gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
-        <section aria-label={kpis.title} className="min-w-0 space-y-6 lg:overflow-y-auto lg:overscroll-contain lg:pr-1.5 lg:pb-4">
-          <ActionList actions={actions} />
-          <KpisWidget kpis={kpis} />
-        </section>
+    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:h-[calc(100dvh-8.5rem)]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:h-full lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[minmax(0,1fr)_41rem]">
+        <div className="flex min-w-0 flex-col lg:min-h-0">
+          <div className="mb-6 lg:mb-4 lg:shrink-0">
+            <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
+              {greeting}
+              {firstName ? `, ${firstName}` : ""}
+            </h1>
+            <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
+          </div>
+          {/* The padding and the matching negative margin keep the cards' shadows and rings from being cut by the scroll area. */}
+          <section aria-label={kpis.title} className="min-w-0 space-y-6 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
+            <ActionList actions={actions} />
+            <KpisWidget kpis={kpis} />
+          </section>
+        </div>
         <aside aria-label="My widgets" className="flex min-w-0 flex-col lg:min-h-0">
-          <div className="mb-3 flex shrink-0 items-center justify-end gap-2">
+          <div className="mb-3 flex shrink-0 items-center justify-end gap-2 lg:mb-4 lg:min-h-[3.75rem] lg:items-start">
             <span className="mr-auto text-[12px] text-neutral-500" aria-live="polite">
               {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
             </span>
@@ -186,7 +188,7 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
               + Add widget
             </button>
           </div>
-          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-1 lg:pt-1 lg:pb-4">{widgetList}</div>
+          <div className="lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">{widgetList}</div>
         </aside>
       </div>
 
