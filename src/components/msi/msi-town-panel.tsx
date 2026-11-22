@@ -9,14 +9,12 @@ import { short } from "@/components/msi/msi-overview";
 // The details of one department of the 3D service centre, opened by clicking its building or its card.
 // Status colours always come with an icon and a word.
 
-export type Dept = "sales" | "workshop" | "customers" | "warranty" | "room" | "audit" | "care";
+export type Dept = "workshop" | "reception" | "warranty" | "room" | "care";
 export const DEPT_TITLE: Record<Dept, { icon: string; title: string; sub: string }> = {
-  sales: { icon: "📈", title: "Sales", sub: "Major Service Indicators - this month" },
   workshop: { icon: "🔧", title: "Workshop", sub: "Open job cards, cycle time, promised dates, quality control" },
-  customers: { icon: "👥", title: "Customers", sub: "Customer queue and appointments - today" },
+  reception: { icon: "🏢", title: "Reception", sub: "Sales this month (Major Service Indicators), customers and appointments today" },
   warranty: { icon: "🛡️", title: "Warranty", sub: "Warranty claims of the year, settlement, inquiries" },
-  room: { icon: "📦", title: "Warranty room", sub: "Scrap cycle, destroy evidence, part returns, supplier collections" },
-  audit: { icon: "📋", title: "Audit", sub: "Self-audit cycle and internal audits" },
+  room: { icon: "📦", title: "Warranty room", sub: "Scrap cycle, destroy evidence, returns - and the audits" },
   care: { icon: "💬", title: "Complaints", sub: "Customer complaints of the year" },
 };
 
@@ -91,7 +89,7 @@ function Columns({ items, format = (v: number) => money(v) }: { items: { label: 
       <div className="flex h-24 items-end gap-1">
         {items.map((i) => (
           <div key={i.label} className="group relative flex flex-1 flex-col items-center justify-end" title={`${i.label}: ${format(i.v)}`}>
-            <span className="mb-0.5 text-[9px] whitespace-nowrap text-[#6e6e73] tabular-nums group-hover:text-[#1d1d1f]">{short(i.v)}</span>
+            <span className="mb-0.5 text-[9px] whitespace-nowrap text-[#6e6e73] tabular-nums group-hover:text-[#1d1d1f]">{i.v >= 10000 ? short(i.v) : money(i.v)}</span>
             <div className="w-full rounded-t-[4px] bg-[#3a3a3c] group-hover:bg-[#1d1d1f]" style={{ height: `${Math.max(2, (i.v / max) * 80)}px` }} />
           </div>
         ))}
@@ -154,8 +152,12 @@ export function DeptPanel({ dept, details, branches, selected, error, onClose }:
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
-        {dept === "sales" ? (
-          <SalesBody branches={branches} selected={selected} />
+        {dept === "reception" ? (
+          <>
+            <SalesBody branches={branches} selected={selected} />
+            <h3 className="border-t border-black/[0.06] pt-4 text-[15px] font-bold text-[#1d1d1f]">Customers today</h3>
+            {details ? <CustomersBody d={details.customers} /> : <p className="text-sm text-[#6e6e73]">{error ?? "Loading…"}</p>}
+          </>
         ) : !details ? (
           <p className="text-sm text-[#6e6e73]">{error ?? "Loading…"}</p>
         ) : dept === "workshop" ? (
@@ -163,11 +165,11 @@ export function DeptPanel({ dept, details, branches, selected, error, onClose }:
         ) : dept === "warranty" ? (
           <WarrantyBody d={details.warranty} />
         ) : dept === "room" ? (
-          <RoomBody d={details.room} />
-        ) : dept === "audit" ? (
-          <AuditBody d={details.audit} />
-        ) : dept === "customers" ? (
-          <CustomersBody d={details.customers} />
+          <>
+            <RoomBody d={details.room} />
+            <h3 className="border-t border-black/[0.06] pt-4 text-[15px] font-bold text-[#1d1d1f]">Audit</h3>
+            <AuditBody d={details.audit} />
+          </>
         ) : (
           <CareBody d={details.complaints} />
         )}

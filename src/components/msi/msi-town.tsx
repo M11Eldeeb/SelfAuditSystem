@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
 import { getTownDetails, type BusinessBranch } from "@/app/admin/msi/actions";
 import type { TownDetails } from "@/lib/msi/town";
-import { money, pct } from "@/components/msi/msi-ui";
+import { money, pct, MONTHS } from "@/components/msi/msi-ui";
 import { short } from "@/components/msi/msi-overview";
 import { DEPT_TITLE, DeptPanel, type Dept } from "@/components/msi/msi-town-panel";
 
-// The business as a small animated service centre (three.js, isometric): each building is a part of after-sales and
-// carries a LIVE card with its numbers - the sales tower fills up floor by floor with the month, the workshop has as
-// many cars in its bays as it has open job cards, customers walk into reception, cars drive round. All branches together
-// or one branch. Numbers come from the portal and the Major Service Indicators report.
+// The business as a small animated service centre (three.js, isometric). Five buildings: the workshop, reception (sales
+// and customers), the warranty office, the warranty room (scrap and the audits) and the customer-care booths. Each carries
+// a LIVE card. Clicking a building flies the camera to it: its walls fade away and its figures stand up inside as 3D
+// bars, stacks and gauges with number boards, and the department's details open beside it. All branches or one branch.
 
 type Totals = {
   sold: number | null;
@@ -53,27 +53,42 @@ function totalsOf(list: BusinessBranch[]): Totals {
 
 const statusOf = (v: number | null) => (v == null ? null : v >= 1 ? "good" : v >= 0.9 ? "warn" : "bad");
 const STATUS = { good: { c: "#248a3d", t: "✓ On track" }, warn: { c: "#b45309", t: "! Close" }, bad: { c: "#d70015", t: "↓ Behind" } } as const;
+const GOOD = "#248a3d";
+const WARN = "#b45309";
+const BAD = "#d70015";
 
-type CardId = Dept;
-/** Where each card hangs (a point on its building) and on which side of it the card sits (CSS translate). */
-const ANCHOR: Record<CardId, [number, number, number]> = {
-  sales: [7.8, 4.2, -3.6],
-  workshop: [-8.5, 3.2, -3.6],
-  customers: [2.6, 1.2, 2.4],
-  warranty: [1.6, 2.6, -4.4],
-  room: [5.3, 1.4, -1.2],
-  audit: [-9.6, 1.8, 4.4],
-  care: [-3.4, 0.4, 6.0],
+/** Each building: where it stands (the camera flies there) and where its card hangs. */
+const BUILDING: Record<Dept, { center: [number, number, number]; card: [number, number, number]; side: string }> = {
+  workshop: { center: [-6.2, 1.1, -3.6], card: [-8.5, 3.2, -3.6], side: "translate(calc(-100% - 18px), -40%)" },
+  reception: { center: [1.4, 0.8, 1.6], card: [1.6, 1.0, 2.9], side: "translate(-40%, 20px)" },
+  warranty: { center: [1.6, 1.0, -4.4], card: [1.6, 2.6, -4.4], side: "translate(-50%, calc(-100% - 18px))" },
+  room: { center: [6.6, 0.9, -3.6], card: [8.3, 1.6, -3.6], side: "translate(18px, -50%)" },
+  care: { center: [-3.4, 0.6, 5.0], card: [-3.4, 0.4, 6.0], side: "translate(-50%, 18px)" },
 };
-const SIDE: Record<CardId, string> = {
-  sales: "translate(18px, -50%)",
-  workshop: "translate(calc(-100% - 18px), -40%)",
-  customers: "translate(-40%, 20px)",
-  warranty: "translate(-50%, calc(-100% - 18px))",
-  room: "translate(18px, -20%)",
-  audit: "translate(calc(-100% - 18px), -50%)",
-  care: "translate(-50%, 18px)",
-};
+const DEPTS = Object.keys(BUILDING) as Dept[];
+
+/** Number boards that stand inside a building while it is open (static spots, or on top of a 3D bar). */
+type Board = { id: string; dept: Dept; at: [number, number, number]; small?: boolean };
+const AGE_LABELS = ["0-7 d", "8-15 d", "16-30 d", "31-60 d", "60+ d"];
+const BOARDS: Board[] = [
+  { id: "w_open", dept: "workshop", at: [-6.2, 4.2, -4.6] },
+  { id: "w_overdue", dept: "workshop", at: [-10.4, 2.6, -2.4] },
+  { id: "w_age", dept: "workshop", at: [-1.8, 2.8, -3.6] },
+  { id: "w_parts", dept: "workshop", at: [-6.2, 0.4, 0.9] },
+  ...AGE_LABELS.map((_, i) => ({ id: `w_bar${i}`, dept: "workshop" as Dept, at: [0, 0, 0] as [number, number, number], small: true })),
+  { id: "r_sold", dept: "reception", at: [0.4, 3.2, 0.8] },
+  { id: "r_month", dept: "reception", at: [-1.8, 1.2, 3.0] },
+  { id: "r_cust", dept: "reception", at: [4.2, 1.6, 3.0] },
+  { id: "o_claims", dept: "warranty", at: [1.6, 3.2, -4.4] },
+  { id: "o_settled", dept: "warranty", at: [4.6, 1.4, -2.2] },
+  { id: "o_prog", dept: "warranty", at: [-1.4, 1.6, -2.6] },
+  { id: "o_last", dept: "warranty", at: [0, 0, 0], small: true },
+  { id: "m_scrap", dept: "room", at: [4.2, 2.8, -5.4] },
+  { id: "m_audit", dept: "room", at: [9.4, 2.6, -2.2] },
+  { id: "m_evidence", dept: "room", at: [6.0, 0.3, -0.8] },
+  { id: "c_total", dept: "care", at: [-2.2, 0.2, 7.6] },
+  ...[0, 1, 2, 3, 4, 5].map((i) => ({ id: `c_bar${i}`, dept: "care" as Dept, at: [0, 0, 0] as [number, number, number], small: true })),
+];
 
 export function ServiceTown({ branches, loadDetails = getTownDetails }: { branches: BusinessBranch[]; /** Where the department details come from (a test can give its own). */ loadDetails?: typeof getTownDetails }) {
   const [code, setCode] = useState<string>("ALL");
@@ -98,7 +113,7 @@ export function ServiceTown({ branches, loadDetails = getTownDetails }: { branch
     };
   }, [code, details, loadDetails]);
   const d = details[code] ?? null;
-  // On a phone the details open under the cards: bring them into view.
+  // On a phone the details open under the picture: bring them into view.
   const phonePanel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open && window.innerWidth < 640) phonePanel.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -122,7 +137,7 @@ export function ServiceTown({ branches, loadDetails = getTownDetails }: { branch
       <Town totals={t} details={d} scale={code === "ALL" ? branches.length || 1 : 1} open={open} onOpen={setOpen} panel={panel} />
       {open && <div ref={phonePanel} className="h-[70vh] scroll-mt-20 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.06] sm:hidden">{panel}</div>}
       <p className="text-xs text-[#6e6e73]">
-        Click a building or its card for the department&apos;s details. Sales tower: floors light up with the sales against the plan. Workshop: cars in the bays with the open job cards. Warranty room: crates with the parts to scrap. Reception: customers walking in today. Drag to turn, scroll to zoom.
+        Click a building or its card to go inside: its walls open and its figures stand up as bars and boards, with all its details beside. Workshop: cars in the bays with the open job cards. Warranty room: crates with the scrapped parts. Reception: customers walking in today. Drag to turn, scroll to zoom.
       </p>
     </div>
   );
@@ -130,16 +145,16 @@ export function ServiceTown({ branches, loadDetails = getTownDetails }: { branch
 
 type Row = { label: string; value: string; color?: string };
 
-function Card({ id, title, icon, rows, setEl, active, onOpen }: { id: CardId; title: string; icon: string; rows: Row[]; setEl: (id: CardId, el: HTMLDivElement | null) => void; active: boolean; onOpen: (d: Dept) => void }) {
+function Card({ id, title, icon, rows, setEl, active, onOpen }: { id: Dept; title: string; icon: string; rows: Row[]; setEl: (id: Dept, el: HTMLDivElement | null) => void; active: boolean; onOpen: (d: Dept) => void }) {
   return (
     <div
       ref={(el) => setEl(id, el)}
       role="button"
       tabIndex={0}
-      aria-label={`${title}: details`}
+      aria-label={`${title}: go inside`}
       onClick={() => onOpen(id)}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(id)}
-      className={`absolute top-0 left-0 w-48 cursor-pointer rounded-xl bg-white/95 px-3 py-2 text-[12px] text-[#1d1d1f] shadow-[0_6px_20px_rgba(0,0,0,0.12)] ring-1 transition-shadow will-change-transform hover:shadow-[0_8px_28px_rgba(0,0,0,0.2)] ${active ? "ring-2 ring-[#1d1d1f]" : "ring-black/[0.06]"}`}
+      className={`absolute top-0 left-0 w-48 cursor-pointer rounded-xl bg-white/95 px-3 py-2 text-[12px] text-[#1d1d1f] shadow-[0_6px_20px_rgba(0,0,0,0.12)] ring-1 transition-[opacity,box-shadow] duration-300 will-change-transform hover:shadow-[0_8px_28px_rgba(0,0,0,0.2)] ${active ? "ring-2 ring-[#1d1d1f]" : "ring-black/[0.06]"}`}
       style={{ visibility: "hidden" }}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -164,18 +179,53 @@ function Card({ id, title, icon, rows, setEl, active, onOpen }: { id: CardId; ti
   );
 }
 
+/** The content of each number board (what it says), from the figures. */
+function boardContent(t: Totals, d: TownDetails | null): Record<string, { title: string; value: string; note?: string; color?: string }> {
+  const out: Record<string, { title: string; value: string; note?: string; color?: string }> = {};
+  const s = statusOf(t.vsPlan);
+  out.r_sold = { title: "Sold this month", value: t.sold == null ? "—" : `SAR ${short(t.sold)}`, note: s ? `${pct(t.vsPlan)} of plan · ${STATUS[s].t}` : undefined, color: s ? STATUS[s].c : undefined };
+  out.r_month = { title: "Month end (forecast)", value: t.forecastVsTarget == null ? "—" : `${pct(t.forecastVsTarget)} of target`, color: t.forecastVsTarget != null && t.forecastVsTarget < 0.9 ? BAD : undefined };
+  out.r_cust = { title: "Customers today", value: money(t.queueToday), note: `${money(t.queueWaiting)} waiting${d ? ` · ${money(d.customers.appointments)} appointments` : ""}` };
+  if (!d) return out;
+  const w = d.workshop;
+  out.w_open = { title: "Open WIPs", value: money(w.open), note: `SAR ${short(w.value)} to invoice` };
+  out.w_overdue = { title: "Past promised date", value: money(w.overdue), note: `${pct(w.open ? w.overdue / w.open : null)} of open · ${money(w.dueToday)} due today`, color: w.overdue > 0 ? BAD : GOOD };
+  out.w_age = { title: "Average age", value: w.avgAge == null ? "—" : `${w.avgAge} days`, note: "cycle time of the open job cards", color: w.avgAge != null && w.avgAge > 15 ? BAD : undefined };
+  out.w_parts = { title: "Awaiting parts · done not invoiced", value: `${money(w.awaitingParts)} · ${money(w.completeNotInvoiced)}` };
+  w.ageing.forEach((n, i) => (out[`w_bar${i}`] = { title: AGE_LABELS[i], value: money(n) }));
+  const o = d.warranty;
+  out.o_claims = { title: "Warranty claims this year", value: money(o.claims), note: `SAR ${short(o.amount)}` };
+  out.o_settled = { title: "Settled", value: pct(o.claims ? o.settled / o.claims : null), note: `${o.settleDays ?? "—"} days submit to settle`, color: GOOD };
+  out.o_prog = { title: "In progress", value: money(o.inProgress), note: `${money(o.returned)} returned · ${money(o.rejected)} rejected` };
+  const lastM = o.months.at(-1);
+  out.o_last = { title: lastM ? MONTHS[Number(lastM.m.slice(5, 7)) - 1] : "—", value: lastM ? money(lastM.n) : "—" };
+  const m = d.room;
+  const a = d.audit;
+  out.m_scrap = { title: "Scrapped this cycle", value: `${money(m.scrappedThisCycle)} parts`, note: m.flaggedParts ? `${money(m.flaggedParts)} still to scrap` : "nothing left to scrap", color: m.flaggedParts ? WARN : GOOD };
+  out.m_audit = { title: "Self-audit", value: `${a.done} / ${a.assignments}`, note: `score ${a.score ?? "—"}% · ${a.internal.count} internal audits`, color: a.assignments && a.done < a.assignments ? WARN : GOOD };
+  out.m_evidence = { title: "Destroy evidence", value: `${m.evidence.approved} approved`, note: m.evidence.waiting ? `${m.evidence.waiting} waiting` : undefined };
+  const c = d.complaints;
+  out.c_total = { title: "Complaints this year", value: money(c.total), note: `${money(c.open)} still open · ${c.resolveDays ?? "—"} days to resolve`, color: c.open ? BAD : GOOD };
+  c.categories.slice(0, 6).forEach((x, i) => (out[`c_bar${i}`] = { title: x.label, value: money(x.n) }));
+  return out;
+}
+
 function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals; details: TownDetails | null; scale: number; open: Dept | null; onOpen: (d: Dept | null) => void; panel: React.ReactNode }) {
   const host = useRef<HTMLDivElement>(null);
-  const cards = useRef<Partial<Record<CardId, HTMLDivElement | null>>>({});
-  const dots = useRef<Partial<Record<CardId, HTMLSpanElement | null>>>({});
-  const api = useRef<{ update: (t: Totals, scale: number, d: TownDetails | null) => void } | null>(null);
-  const latest = useRef({ totals, scale, details });
+  const cards = useRef<Partial<Record<Dept, HTMLDivElement | null>>>({});
+  const dots = useRef<Partial<Record<Dept, HTMLSpanElement | null>>>({});
+  const boards = useRef<Record<string, HTMLDivElement | null>>({});
+  const api = useRef<{ update: (t: Totals, scale: number, d: TownDetails | null) => void; focus: (d: Dept | null) => void } | null>(null);
+  const latest = useRef({ totals, scale, details, open });
   const openRef = useRef(onOpen);
   useEffect(() => {
     openRef.current = onOpen;
-    latest.current = { totals, scale, details };
+    latest.current = { totals, scale, details, open };
     api.current?.update(totals, scale, details);
-  }, [totals, scale, details, onOpen]);
+  }, [totals, scale, details, onOpen, open]);
+  useEffect(() => {
+    api.current?.focus(open);
+  }, [open]);
 
   useEffect(() => {
     let disposed = false;
@@ -198,15 +248,15 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
       // Isometric: an orthographic camera looking down at 45 degrees.
       const camera = new T3.OrthographicCamera(-1, 1, 1, -1, -100, 200);
       camera.position.set(22, 20, 22);
-      camera.zoom = 1;
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.enablePan = false;
       controls.minZoom = 0.7;
-      controls.maxZoom = 2.6;
+      controls.maxZoom = 4;
       controls.minPolarAngle = Math.PI * 0.18;
       controls.maxPolarAngle = Math.PI * 0.36;
-      controls.target.set(0, 1.4, 0.5);
+      const HOME = new T3.Vector3(0, 1.4, 0.5);
+      controls.target.copy(HOME);
 
       scene.add(new T3.HemisphereLight(0xffffff, 0xd9cdb8, 1.4));
       const sun = new T3.DirectionalLight(0xfff3e0, 1.9);
@@ -222,14 +272,40 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
         if (!mats.has(c)) mats.set(c, new T3.MeshStandardMaterial({ color: c, roughness: 0.75, flatShading: true }));
         return mats.get(c)!;
       };
-      const box = (w: number, h: number, d: number, c: number, x: number, y: number, z: number, parent: THREE.Object3D = scene) => {
-        const m = new T3.Mesh(new T3.BoxGeometry(w, h, d), mat(c));
+      /** A box standing on y (its base). `own`: its own material (walls that fade when the building opens). */
+      const box = (w: number, h: number, d: number, c: number, x: number, y: number, z: number, parent: THREE.Object3D = scene, own = false) => {
+        const m = new T3.Mesh(new T3.BoxGeometry(w, h, d), own ? new T3.MeshStandardMaterial({ color: c, roughness: 0.75, flatShading: true, transparent: true }) : mat(c));
         m.position.set(x, y + h / 2, z);
         m.castShadow = true;
         m.receiveShadow = true;
         parent.add(m);
         return m;
       };
+      /** A bar that grows from the floor: geometry with its base at 0, height = scale.y. */
+      const barGeo = new T3.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+      const bar = (w: number, d: number, c: number, x: number, z: number, parent: THREE.Object3D) => {
+        const m = new T3.Mesh(barGeo, new T3.MeshStandardMaterial({ color: c, roughness: 0.5, flatShading: true }));
+        m.scale.set(w, 0.001, d);
+        m.position.set(x, 0.02, z);
+        m.castShadow = true;
+        parent.add(m);
+        return m;
+      };
+
+      // Each building: a group that says which department it is (for clicks), its walls (fade when it opens) and its
+      // inside (the figures - hidden until it opens).
+      type Building = { group: THREE.Group; shell: THREE.Group; inside: THREE.Group; fade: number };
+      const B = {} as Record<Dept, Building>;
+      for (const dpt of DEPTS) {
+        const group = new T3.Group();
+        group.userData.dept = dpt;
+        const shell = new T3.Group();
+        const inside = new T3.Group();
+        inside.visible = false;
+        group.add(shell, inside);
+        scene.add(group);
+        B[dpt] = { group, shell, inside, fade: 1 };
+      }
 
       // ---- the slab, roads, parking
       box(23, 0.6, 15, 0xf7f5f1, 0, -0.6, 0.5);
@@ -260,42 +336,26 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
         return g;
       };
       const trees = [
-        [-11, -7], [-8, -7.2], [-4, -7.3], [0.5, -7.3], [4.5, -7.3], [8.5, -7.2], [11, -6], [11, 0], [11, 5], [11, 8], [7, 8.3], [2, 8.3], [-2.5, 8.3], [-7, 8.3], [-11, 8], [-11, 3], [-11, -2],
+        [-11, -7], [-8, -7.2], [-4, -7.3], [0.5, -7.3], [4.5, -7.3], [8.5, -7.2], [11, -6], [11, 0], [11, 5], [11, 8], [7, 8.3], [2, 8.3], [-2.5, 8.3], [-7, 8.3], [-11, 8], [-11, 3], [-11, -2], [-9.2, 5.2], [-8.4, 4.0],
       ].map(([x, z], i) => tree(x, z, 0.85 + (i % 3) * 0.12));
 
-      // Each department's buildings in a group that says which department it is (clicking it opens the details).
-      const dept = (d: Dept) => {
+      // ---- people
+      const person = (c: number, parent: THREE.Object3D = scene) => {
         const g = new T3.Group();
-        g.userData.dept = d;
-        scene.add(g);
+        const body = new T3.Mesh(new T3.CylinderGeometry(0.11, 0.14, 0.42, 8), mat(c));
+        body.position.y = 0.21;
+        const head = new T3.Mesh(new T3.SphereGeometry(0.1, 10, 8), mat(0xe8c39e));
+        head.position.y = 0.52;
+        g.add(body, head);
+        g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+        parent.add(g);
         return g;
       };
-
-      // ---- workshop: blue shed with a saw-tooth roof, bays in front
-      const ws = dept("workshop");
-      box(7.2, 2.3, 4.2, 0x3557c8, -6.2, 0, -3.6, ws);
-      for (let i = 0; i < 4; i++) {
-        const prism = new T3.Mesh(new T3.CylinderGeometry(0.9, 0.9, 4.2, 3), mat(0x2b47a8));
-        prism.rotation.x = Math.PI / 2;
-        prism.rotation.z = Math.PI / 2;
-        prism.position.set(-8.9 + i * 1.8, 2.75, -3.6);
-        prism.castShadow = true;
-        ws.add(prism);
-      }
-      for (let i = 0; i < 4; i++) box(1.5, 1.6, 0.06, 0xdfe6f5, -8.9 + i * 1.8, 0, -1.47, ws);
-      const bayPads: THREE.Vector3[] = [];
-      for (let i = 0; i < 4; i++) {
-        box(1.55, 0.03, 2.4, 0xe4e1da, -8.9 + i * 1.8, 0, 0.0, ws);
-        bayPads.push(new T3.Vector3(-8.9 + i * 1.8, 0, 0.1));
-      }
-      // crates beside the workshop
-      box(0.6, 0.5, 0.6, 0xc9965a, -2.2, 0, -2.2);
-      box(0.5, 0.45, 0.5, 0xb9864a, -2.3, 0.5, -2.2);
-      box(0.55, 0.5, 0.55, 0xc9965a, -1.6, 0, -1.6);
+      const PEOPLE_COLORS = [0x3b82f6, 0xef4444, 0x10b981, 0xf59e0b, 0x8b5cf6, 0x111827, 0xec4899, 0x14b8a6];
 
       // ---- cars
       const CAR_COLORS = [0xffffff, 0x1d1d1f, 0xc4121a, 0x8e9196, 0x2e5fa8, 0xd9d4c7];
-      const car = (color: number) => {
+      const car = (color: number, parent: THREE.Object3D = scene) => {
         const g = new T3.Group();
         box(1.0, 0.32, 0.5, color, 0, 0.12, 0, g);
         box(0.55, 0.26, 0.44, color === 0x1d1d1f ? 0x3a3a3c : 0xdbe7f2, -0.05, 0.44, 0, g);
@@ -306,144 +366,232 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
           g.add(w);
         }
         g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-        scene.add(g);
+        parent.add(g);
         return g;
       };
-      // In the bays (one shown per few open job cards), one on a lift going up and down.
+
+      // ================= WORKSHOP: blue shed with a saw-tooth roof, bays in front
+      const W = B.workshop;
+      box(7.2, 0.04, 4.2, 0xd9dde6, -6.2, 0, -3.6, W.group); // the floor (stays)
+      box(7.2, 2.3, 0.12, 0x3557c8, -6.2, 0, -5.64, W.shell, true);
+      box(0.12, 2.3, 4.2, 0x3557c8, -9.74, 0, -3.6, W.shell, true);
+      box(0.12, 2.3, 4.2, 0x3557c8, -2.66, 0, -3.6, W.shell, true);
+      box(7.2, 0.7, 0.12, 0x3557c8, -6.2, 1.6, -1.56, W.shell, true);
+      for (let i = 0; i < 4; i++) {
+        box(0.2, 1.6, 0.12, 0x3557c8, -9.7 + i * 1.8, 0, -1.56, W.shell, true);
+        const prism = new T3.Mesh(new T3.CylinderGeometry(0.9, 0.9, 4.2, 3), new T3.MeshStandardMaterial({ color: 0x2b47a8, roughness: 0.75, flatShading: true, transparent: true }));
+        prism.rotation.x = Math.PI / 2;
+        prism.rotation.z = Math.PI / 2;
+        prism.position.set(-8.9 + i * 1.8, 2.75, -3.6);
+        prism.castShadow = true;
+        W.shell.add(prism);
+        box(1.5, 1.6, 0.05, 0xdfe6f5, -8.9 + i * 1.8, 0, -1.5, W.shell, true);
+      }
+      const bayPads: THREE.Vector3[] = [];
+      for (let i = 0; i < 4; i++) {
+        box(1.55, 0.03, 2.4, 0xe4e1da, -8.9 + i * 1.8, 0, 0.0, W.group);
+        bayPads.push(new T3.Vector3(-8.9 + i * 1.8, 0, 0.1));
+      }
+      box(0.6, 0.5, 0.6, 0xc9965a, -2.2, 0, -1.2);
+      box(0.5, 0.45, 0.5, 0xb9864a, -2.3, 0.5, -1.2);
       const bayCars = bayPads.map((p, i) => {
-        const c = car(CAR_COLORS[(i + 2) % CAR_COLORS.length]);
+        const c = car(CAR_COLORS[(i + 2) % CAR_COLORS.length], W.group);
         c.position.copy(p);
         c.rotation.y = Math.PI / 2;
         return c;
       });
-      const lift = box(1.2, 0.08, 0.7, 0xf2b705, bayPads[1].x, 0, bayPads[1].z);
-      // Parked
+      const lift = box(1.2, 0.08, 0.7, 0xf2b705, bayPads[1].x, 0, bayPads[1].z, W.group);
+      // Inside: the age of the open job cards as five bars (grey to red), cars on lifts at the back.
+      const AGE_COLORS = [0xc7c7cc, 0xa1a1a6, 0x6e6e73, 0xb45309, 0xd70015];
+      const ageBars = AGE_COLORS.map((c, i) => bar(0.85, 0.85, c, -8.9 + i * 1.35, -4.4, W.inside));
+      for (let i = 0; i < 3; i++) {
+        box(1.2, 0.08, 0.7, 0xf2b705, -8.4 + i * 2.2, 0.55, -2.7, W.inside);
+        const c = car(CAR_COLORS[i], W.inside);
+        c.position.set(-8.4 + i * 2.2, 0.62, -2.7);
+      }
+
+      // ================= RECEPTION (sales + customers) with the MG sign
+      const R = B.reception;
+      box(3.6, 0.04, 2.6, 0xeeeae2, 1.4, 0, 1.6, R.group);
+      box(3.6, 1.6, 0.1, 0xffffff, 1.4, 0, 0.35, R.shell, true);
+      box(0.1, 1.6, 2.6, 0xffffff, -0.4, 0, 1.6, R.shell, true);
+      box(0.1, 1.6, 2.6, 0xffffff, 3.2, 0, 1.6, R.shell, true);
+      box(3.6, 1.6, 0.06, 0x9fc3e6, 1.4, 0, 2.88, R.shell, true);
+      box(3.8, 0.16, 2.8, 0x2d2d2f, 1.4, 1.6, 1.6, R.shell, true);
+      box(1.0, 0.5, 0.06, 0xc4121a, 1.4, 1.85, 2.94, R.shell, true);
+      // Inside: the sales gauge (a ring that fills with sales against plan), the counter, the waiting line.
+      box(1.6, 0.5, 0.4, 0xf5f5f7, 2.2, 0, 0.8, R.inside);
+      const ringBack = new T3.Mesh(new T3.TorusGeometry(0.62, 0.11, 10, 64), mat(0xd8dde3));
+      ringBack.position.set(0.4, 1.0, 1.4);
+      ringBack.rotation.y = Math.PI / 4;
+      R.inside.add(ringBack);
+      const ringMat = new T3.MeshStandardMaterial({ color: 0x248a3d, roughness: 0.4 });
+      let ring = new T3.Mesh(new T3.TorusGeometry(0.62, 0.13, 10, 64, 0.01), ringMat);
+      const ringHolder = new T3.Group();
+      ringHolder.position.copy(ringBack.position);
+      ringHolder.rotation.y = Math.PI / 4;
+      ringHolder.add(ring);
+      R.inside.add(ringHolder);
+      box(0.08, 0.4, 0.08, 0x8e8e93, 0.4, 0, 1.4, R.inside);
+      const line = PEOPLE_COLORS.map((c, i) => {
+        const g = person(c, R.inside);
+        g.position.set(1.4 + (i % 4) * 0.4, 0, 1.7 + Math.floor(i / 4) * 0.5);
+        return g;
+      });
+      const walkPath = new T3.CatmullRomCurve3([new T3.Vector3(5.2, 0, 3.6), new T3.Vector3(3.8, 0, 3.4), new T3.Vector3(2.4, 0, 3.2), new T3.Vector3(1.4, 0, 3.0)]);
+      const walkers = PEOPLE_COLORS.map((c, i) => ({ g: person(c), p: i / PEOPLE_COLORS.length, on: false }));
+
+      // ================= WARRANTY OFFICE: red roof
+      const O = B.warranty;
+      box(3.2, 0.04, 2.6, 0xeeeae2, 1.6, 0, -4.4, O.group);
+      box(3.2, 2.2, 0.1, 0xfafafa, 1.6, 0, -5.65, O.shell, true);
+      box(0.1, 2.2, 2.6, 0xfafafa, 0.05, 0, -4.4, O.shell, true);
+      box(0.1, 2.2, 2.6, 0xfafafa, 3.15, 0, -4.4, O.shell, true);
+      box(3.2, 2.2, 0.08, 0xfafafa, 1.6, 0, -3.14, O.shell, true);
+      box(3.4, 0.25, 2.8, 0xc4121a, 1.6, 2.2, -4.4, O.shell, true);
+      for (let i = 0; i < 3; i++) box(0.6, 0.6, 0.05, 0x9fc3e6, 0.6 + i * 1.0, 1.1, -3.08, O.shell, true);
+      // Inside: the claims of each month as columns.
+      const monthBars = Array.from({ length: 12 }, (_, i) => bar(0.18, 0.5, 0x3a3a3c, 0.3 + i * 0.235, -4.6, O.inside));
+      box(2.9, 0.05, 0.6, 0xd8d3ca, 1.6, 0, -4.6, O.inside);
+
+      // ================= WARRANTY ROOM (scrap + audits): brown warehouse, a forklift outside
+      const M = B.room;
+      box(3.4, 0.04, 2.8, 0xe3ddd2, 6.6, 0, -3.6, M.group);
+      box(3.4, 1.8, 0.1, 0x9a6b45, 6.6, 0, -4.95, M.shell, true);
+      box(0.1, 1.8, 2.8, 0x9a6b45, 4.95, 0, -3.6, M.shell, true);
+      box(0.1, 1.8, 2.8, 0x9a6b45, 8.25, 0, -3.6, M.shell, true);
+      box(3.4, 1.8, 0.08, 0x9a6b45, 6.6, 0, -2.24, M.shell, true);
+      box(3.6, 0.14, 3.0, 0x6f4a2e, 6.6, 1.8, -3.6, M.shell, true);
+      box(1.4, 1.1, 0.05, 0xd9d2c5, 6.6, 0, -2.18, M.shell, true);
+      // Inside: stacks of crates (the parts scrapped this cycle), shelves, the audit board with its progress bar.
+      const crates: THREE.Mesh[] = [];
+      for (let i = 0; i < 18; i++) crates.push(box(0.36, 0.3, 0.36, i % 2 ? 0xc9965a : 0xb9864a, 5.4 + (i % 3) * 0.42, Math.floor(i / 6) * 0.3, -4.4 + (Math.floor(i / 3) % 2) * 0.42, M.inside));
+      box(0.1, 1.2, 1.2, 0x8e8e93, 8.0, 0, -3.8, M.inside);
+      const auditBoard = box(0.06, 0.9, 1.4, 0xffffff, 7.9, 0.4, -3.4, M.inside);
+      auditBoard.rotation.y = 0;
+      box(0.08, 0.16, 1.2, 0xd8dde3, 7.86, 1.0, -3.4, M.inside);
+      const auditFill = box(0.09, 0.16, 1.2, 0x248a3d, 7.85, 1.0, -3.4, M.inside);
+      const fork = new T3.Group();
+      box(0.5, 0.3, 0.36, 0xf2b705, 0, 0.08, 0, fork);
+      box(0.08, 0.6, 0.3, 0x333333, 0.28, 0.08, 0, fork);
+      box(0.3, 0.04, 0.26, 0x666666, 0.42, 0.1, 0, fork);
+      fork.position.set(6.0, 0, -1.6);
+      scene.add(fork);
+
+      // ================= CUSTOMER CARE: coloured booths, people at them
+      const Cc = B.care;
+      const BOOTH = [0xf27aa6, 0xa78bfa, 0x34c4a0, 0x60a5fa, 0xfdba74];
+      BOOTH.forEach((c, i) => {
+        const x = -6 + i * 1.3;
+        box(1.1, 0.7, 0.9, 0xffffff, x, 0, 5.2, Cc.shell, true);
+        const roof = box(1.2, 0.12, 1.1, c, x, 0.95, 5.1, Cc.shell, true);
+        roof.rotation.x = -0.2;
+        box(0.06, 0.95, 0.06, 0xbbbbbb, x - 0.5, 0, 5.6, Cc.group);
+        box(0.06, 0.95, 0.06, 0xbbbbbb, x + 0.5, 0, 5.6, Cc.group);
+      });
+      const boothPeople = BOOTH.map((_, i) => {
+        const g = person(PEOPLE_COLORS[(i + 3) % PEOPLE_COLORS.length], Cc.group);
+        g.position.set(-6 + i * 1.3, 0, 6.0);
+        return g;
+      });
+      // Inside: the complaint categories as bars behind the booths.
+      const catBars = [0, 1, 2, 3, 4, 5].map((i) => bar(0.6, 0.6, 0x8b5cf6, -6.2 + i * 1.1, 4.1, Cc.inside));
+
+      // ---- traffic round the block
       [[4.4, 2.6, 0], [6.6, 2.6, 2], [7.7, 4.7, 4], [5.5, 4.7, 1], [8.8, 2.6, 5]].forEach(([x, z, c]) => {
         const p = car(CAR_COLORS[c]);
         p.position.set(x + 0.55, 0, z);
         p.rotation.y = Math.PI / 2;
       });
-      // Driving round the block.
       const loop = new T3.CurvePath<THREE.Vector3>();
       const corners = [new T3.Vector3(-10.15, 0, -6.1), new T3.Vector3(10.15, 0, -6.1), new T3.Vector3(10.15, 0, 7.1), new T3.Vector3(-10.15, 0, 7.1)];
       corners.forEach((c, i) => loop.add(new T3.LineCurve3(c, corners[(i + 1) % 4])));
       const movers = [0, 0.27, 0.52, 0.78].map((p, i) => ({ car: car(CAR_COLORS[i]), p, speed: 0.018 + i * 0.002 }));
 
-      // ---- sales tower: floors that light up with the sales against plan
-      const salesG = dept("sales");
-      const FLOORS = 10;
-      const floors: THREE.Mesh[] = [];
-      for (let i = 0; i < FLOORS; i++) {
-        const f = new T3.Mesh(new T3.BoxGeometry(2.4, 0.46, 2.4), new T3.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.4, flatShading: true }));
-        f.position.set(6.6, 0.25 + i * 0.52 + 0.23, -3.6);
-        f.castShadow = true;
-        f.receiveShadow = true;
-        salesG.add(f);
-        floors.push(f);
-        box(2.5, 0.06, 2.5, 0xffffff, 6.6, 0.25 + i * 0.52 + 0.46, -3.6, salesG);
-      }
-      box(2.7, 0.25, 2.7, 0xb8b2a6, 6.6, 0, -3.6, salesG);
-      box(0.8, 0.3, 0.8, 0xe8e4dc, 6.6, 0.25 + FLOORS * 0.52, -3.6, salesG);
-
-      // ---- warranty office: red roof
-      const wo = dept("warranty");
-      box(3.2, 2.2, 2.6, 0xfafafa, 1.6, 0, -4.4, wo);
-      box(3.4, 0.25, 2.8, 0xc4121a, 1.6, 2.2, -4.4, wo);
-      for (let i = 0; i < 3; i++) box(0.6, 0.6, 0.05, 0x9fc3e6, 0.6 + i * 1.0, 1.1, -3.08, wo);
-
-      // ---- reception with the MG sign
-      const rc = dept("customers");
-      box(3.2, 1.5, 2.2, 0xffffff, 1.4, 0, 1.6, rc);
-      box(3.4, 0.16, 2.4, 0x2d2d2f, 1.4, 1.5, 1.6, rc);
-      box(1.0, 0.5, 0.06, 0xc4121a, 1.4, 1.75, 2.72, rc);
-      box(0.9, 1.0, 0.05, 0x9fc3e6, 1.4, 0, 2.72, rc);
-
-      // ---- warranty room: a brown warehouse with a roll-up door, crates of parts to scrap, a forklift
-      const room = dept("room");
-      box(2.6, 1.4, 2.0, 0x9a6b45, 4.1, 0, -1.2, room);
-      box(2.8, 0.14, 2.2, 0x6f4a2e, 4.1, 1.4, -1.2, room);
-      box(1.2, 0.9, 0.05, 0xd9d2c5, 4.1, 0, -0.18, room);
-      for (let i = 0; i < 4; i++) box(1.2, 0.03, 0.06, 0xb8ae9d, 4.1, 0.2 + i * 0.2, -0.15, room);
-      const crates: THREE.Mesh[] = [];
-      for (let i = 0; i < 8; i++) crates.push(box(0.42, 0.36, 0.42, i % 2 ? 0xc9965a : 0xb9864a, 2.9 + (i % 4) * 0.5, Math.floor(i / 4) * 0.36, 0.5, room));
-      const fork = new T3.Group();
-      box(0.5, 0.3, 0.36, 0xf2b705, 0, 0.08, 0, fork);
-      box(0.08, 0.6, 0.3, 0x333333, 0.28, 0.08, 0, fork);
-      box(0.3, 0.04, 0.26, 0x666666, 0.42, 0.1, 0, fork);
-      fork.position.set(5.2, 0, 0.4);
-      room.add(fork);
-
-      // ---- audit office: purple, with a clipboard sign
-      const au = dept("audit");
-      box(2.2, 1.7, 2.0, 0xf4f1fb, -8.6, 0, 4.6, au);
-      box(2.4, 0.16, 2.2, 0x6d4bd1, -8.6, 1.7, 4.6, au);
-      box(0.5, 0.65, 0.05, 0xffffff, -8.6, 0.75, 5.62, au);
-      box(0.32, 0.05, 0.06, 0x6d4bd1, -8.6, 1.32, 5.64, au);
-      for (let i = 0; i < 3; i++) box(0.3, 0.03, 0.06, 0xb9b0d6, -8.6, 0.9 + i * 0.13, 5.64, au);
-
-      // ---- customer care: coloured booths
-      const care = dept("care");
-      const BOOTH = [0xf27aa6, 0xa78bfa, 0x34c4a0, 0x60a5fa, 0xfdba74];
-      BOOTH.forEach((c, i) => {
-        const x = -6 + i * 1.3;
-        box(1.1, 0.7, 0.9, 0xffffff, x, 0, 5.2, care);
-        const roof = box(1.2, 0.12, 1.1, c, x, 0.95, 5.1, care);
-        roof.rotation.x = -0.2;
-        box(0.06, 0.95, 0.06, 0xbbbbbb, x - 0.5, 0, 5.6, care);
-        box(0.06, 0.95, 0.06, 0xbbbbbb, x + 0.5, 0, 5.6, care);
-      });
-
-      // ---- people: customers walking from the parking to reception
-      const person = (c: number) => {
-        const g = new T3.Group();
-        const body = new T3.Mesh(new T3.CylinderGeometry(0.11, 0.14, 0.42, 8), mat(c));
-        body.position.y = 0.21;
-        const head = new T3.Mesh(new T3.SphereGeometry(0.1, 10, 8), mat(0xe8c39e));
-        head.position.y = 0.52;
-        g.add(body, head);
-        g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-        scene.add(g);
-        return g;
-      };
-      const walkPath = new T3.CatmullRomCurve3([new T3.Vector3(5.2, 0, 3.6), new T3.Vector3(3.6, 0, 3.4), new T3.Vector3(2.2, 0, 3.2), new T3.Vector3(1.4, 0, 2.9)]);
-      const PEOPLE_COLORS = [0x3b82f6, 0xef4444, 0x10b981, 0xf59e0b, 0x8b5cf6, 0x111827, 0xec4899, 0x14b8a6];
-      const walkers = PEOPLE_COLORS.map((c, i) => ({ g: person(c), p: i / PEOPLE_COLORS.length, on: false }));
-      // People at the booths (complaints being handled)
-      const boothPeople = BOOTH.map((_, i) => {
-        const g = person(PEOPLE_COLORS[(i + 3) % PEOPLE_COLORS.length]);
-        g.position.set(-6 + i * 1.3, 0, 6.0);
-        return g;
-      });
-
-      // ---- the numbers change what the town shows
-      const lit = new T3.Color();
+      // ---- the numbers drive the town (target heights; the loop grows the bars to them)
+      const targets = new Map<THREE.Mesh, number>();
+      const anchorOf: Record<string, THREE.Vector3> = {};
+      for (const b of BOARDS) anchorOf[b.id] = new T3.Vector3(...b.at);
       const update = (t: Totals, sc: number, d: TownDetails | null) => {
-        // Crates: the parts flagged to scrap (one per few parts), none when the cycle is clear.
-        const parts = d?.room.flaggedParts ?? 0;
-        const crateN = parts === 0 ? 0 : Math.max(1, Math.min(crates.length, Math.ceil(parts / Math.max(1, sc) / 10)));
-        crates.forEach((c, i) => (c.visible = i < crateN));
         const s = statusOf(t.vsPlan);
-        lit.set(s ? STATUS[s].c : "#8e8e93");
-        const n = t.vsPlan == null ? 0 : Math.round(Math.min(1, t.vsPlan) * FLOORS);
-        floors.forEach((f, i) => (f.material as THREE.MeshStandardMaterial).color.set(i < n ? lit : new T3.Color(0xd8dde3)));
-        // About one car per 15 open job cards per branch, at least one when there is any.
+        // Workshop bays: about one car per 15 open job cards per branch.
         const perBranch = t.openWips / Math.max(1, sc);
         const cars = t.openWips === 0 ? 0 : Math.max(1, Math.min(4, Math.round(perBranch / 15)));
         bayCars.forEach((c, i) => (c.visible = i < cars));
         lift.visible = cars > 1;
+        // Reception: walkers outside (customers today), the waiting line inside, the sales ring.
         const walking = t.queueToday === 0 ? 0 : Math.max(1, Math.min(walkers.length, Math.round(t.queueToday / Math.max(1, sc) / 3)));
         walkers.forEach((w, i) => ((w.on = i < walking), (w.g.visible = w.on)));
-        const atBooths = t.complaintsOpen === 0 ? 0 : Math.max(1, Math.min(BOOTH.length, t.complaintsOpen));
-        boothPeople.forEach((g, i) => (g.visible = i < atBooths));
+        line.forEach((g, i) => (g.visible = i < Math.min(line.length, t.queueWaiting)));
+        ringHolder.remove(ring);
+        ring.geometry.dispose();
+        ring = new T3.Mesh(new T3.TorusGeometry(0.62, 0.13, 10, 64, Math.max(0.01, Math.PI * 2 * Math.min(1, t.vsPlan ?? 0))), ringMat);
+        ring.rotation.z = Math.PI / 2;
+        ringHolder.add(ring);
+        ringMat.color.set(s ? STATUS[s].c : "#8e8e93");
+        // Complaint booths: one person per open complaint (up to five).
+        boothPeople.forEach((g, i) => (g.visible = i < Math.min(BOOTH.length, t.complaintsOpen)));
+        if (!d) return;
+        const maxAge = Math.max(1, ...d.workshop.ageing);
+        ageBars.forEach((m, i) => targets.set(m, 0.15 + (d.workshop.ageing[i] / maxAge) * 2.2));
+        const months = d.warranty.months.slice(-12);
+        const maxM = Math.max(1, ...months.map((x) => x.n));
+        monthBars.forEach((m, i) => {
+          const x = months[i];
+          m.visible = !!x;
+          targets.set(m, x ? 0.1 + (x.n / maxM) * 1.9 : 0.001);
+        });
+        const cats = d.complaints.categories.slice(0, 6);
+        const maxC = Math.max(1, ...cats.map((x) => x.n));
+        catBars.forEach((m, i) => {
+          m.visible = !!cats[i];
+          targets.set(m, cats[i] ? 0.1 + (cats[i].n / maxC) * 1.5 : 0.001);
+        });
+        // Warranty room: one crate per few parts scrapped this cycle per branch; the audit bar fills with the audit.
+        const scr = d.room.scrappedThisCycle / Math.max(1, sc);
+        const crateN = scr === 0 ? 0 : Math.max(1, Math.min(crates.length, Math.ceil(scr / 12)));
+        crates.forEach((c, i) => (c.visible = i < crateN));
+        const frac = d.audit.assignments ? d.audit.done / d.audit.assignments : 0;
+        auditFill.scale.z = Math.max(0.01, frac);
+        auditFill.position.z = -3.4 - (1.2 * (1 - frac)) / 2;
+        (auditFill.material as THREE.MeshStandardMaterial).color.set(frac >= 1 ? GOOD : WARN);
       };
-      api.current = { update };
       update(latest.current.totals, latest.current.scale, latest.current.details);
 
-      // Click a building: open its department. Hover: a hand cursor.
+      // ---- going inside a building: fly there, fade its walls, grow its figures
+      let focused: Dept | null = null;
+      const aim = { target: HOME.clone(), zoom: 1, flying: false };
+      const right = new T3.Vector3();
+      const focus = (dpt: Dept | null) => {
+        focused = dpt;
+        for (const k of DEPTS) {
+          const b = B[k];
+          if (k === dpt) {
+            b.inside.visible = true;
+            b.inside.traverse((o) => targets.has(o as THREE.Mesh) && ((o as THREE.Mesh).scale.y = 0.001));
+          }
+        }
+        const r = el.getBoundingClientRect();
+        if (dpt) {
+          const zoom = r.width < 640 ? 1.7 : 1.9;
+          aim.zoom = zoom;
+          // Keep the building clear of the details panel on the right (about 27rem wide on a computer).
+          right.setFromMatrixColumn(camera.matrixWorld, 0);
+          const pxPerUnit = (r.width / (camera.right - camera.left)) * zoom;
+          const shift = r.width >= 900 ? 215 / pxPerUnit : 0;
+          aim.target.set(...BUILDING[dpt].center).addScaledVector(right, shift);
+        } else {
+          aim.zoom = 1;
+          aim.target.copy(HOME);
+        }
+        aim.flying = true;
+      };
+      api.current = { update, focus };
+
+      // Click a building: go inside. Hover: a hand cursor.
       const ray = new T3.Raycaster();
       const ptr = new T3.Vector2();
-      const groups: THREE.Object3D[] = [];
-      scene.traverse((o) => o.userData.dept && groups.push(o));
+      const groups = DEPTS.map((k) => B[k].group);
       const deptAt = (e: PointerEvent): Dept | null => {
         const r = renderer.domElement.getBoundingClientRect();
         ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -466,6 +614,7 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
       renderer.domElement.addEventListener("pointerdown", onDown);
       renderer.domElement.addEventListener("pointerup", onUp);
       renderer.domElement.addEventListener("pointermove", onMove);
+      controls.addEventListener("start", () => (aim.flying = false));
 
       const size = () => {
         const w = el.clientWidth;
@@ -480,14 +629,50 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
       size();
       const ro = new ResizeObserver(size);
       ro.observe(el);
+      if (latest.current.open) focus(latest.current.open);
 
       const clock = new T3.Clock();
       const v = new T3.Vector3();
+      const place = (node: HTMLElement | null | undefined, p: THREE.Vector3, r: DOMRect, extra = "") => {
+        if (!node) return;
+        v.copy(p).project(camera);
+        node.style.transform = `translate(${((v.x + 1) / 2) * r.width}px, ${((1 - v.y) / 2) * r.height}px) ${extra}`;
+      };
       let frame = 0;
       const tick = () => {
         frame = requestAnimationFrame(tick);
         const dt = Math.min(0.05, clock.getDelta());
         const time = clock.elapsedTime;
+        const k = reduce ? 1 : 1 - Math.pow(0.002, dt); // smooth step towards the aim
+        // Camera flight.
+        if (aim.flying) {
+          controls.target.lerp(aim.target, k);
+          camera.zoom += (aim.zoom - camera.zoom) * k;
+          camera.updateProjectionMatrix();
+          if (controls.target.distanceTo(aim.target) < 0.01 && Math.abs(camera.zoom - aim.zoom) < 0.005) aim.flying = false;
+        }
+        // Walls fade on the open building, back elsewhere; its figures grow.
+        for (const dpt of DEPTS) {
+          const b = B[dpt];
+          const want = dpt === focused ? 0.1 : 1;
+          if (Math.abs(b.fade - want) > 0.002) {
+            b.fade += (want - b.fade) * k;
+            b.shell.traverse((o) => {
+              const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+              if (m) {
+                m.opacity = b.fade;
+                m.depthWrite = b.fade > 0.95;
+              }
+            });
+            if (dpt !== focused && b.fade > 0.97) b.inside.visible = false;
+          }
+        }
+        for (const [m, h] of targets) m.scale.y += (h - m.scale.y) * (reduce ? 1 : k * 0.6);
+        // Bars carry their number boards on top.
+        ageBars.forEach((m, i) => anchorOf[`w_bar${i}`].set(m.position.x, m.scale.y + 0.35, m.position.z));
+        anchorOf.o_last.set(monthBars.filter((m) => m.visible).at(-1)?.position.x ?? 0, (monthBars.filter((m) => m.visible).at(-1)?.scale.y ?? 0) + 0.35, -4.6);
+        catBars.forEach((m, i) => anchorOf[`c_bar${i}`].set(m.position.x, m.scale.y + 0.35, m.position.z));
+
         if (!reduce) {
           for (const m of movers) {
             m.p = (m.p + m.speed * dt) % 1;
@@ -508,8 +693,9 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
           bayCars[1].position.y = up + 0.04;
           trees.forEach((tr, i) => (tr.rotation.z = Math.sin(time * 1.2 + i) * 0.03));
           const f = (Math.sin(time * 0.6) + 1) / 2;
-          fork.position.x = 4.6 + f * 1.4;
+          fork.position.x = 5.4 + f * 2.4;
           fork.rotation.y = Math.cos(time * 0.6) > 0 ? Math.PI : 0;
+          ringHolder.rotation.y = Math.PI / 4 + Math.sin(time * 0.5) * 0.15;
         } else {
           movers.forEach((m) => {
             const pos = loop.getPointAt(m.p);
@@ -522,22 +708,27 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
         }
         controls.update();
         renderer.render(scene, camera);
-        // Cards follow their buildings.
+
+        // Cards follow their buildings (hidden while inside one); boards stand in the open building.
         const r = el.getBoundingClientRect();
-        (Object.keys(ANCHOR) as CardId[]).forEach((id) => {
+        for (const id of DEPTS) {
           const c = cards.current[id];
-          if (!c) return;
-          v.set(...ANCHOR[id]).project(camera);
-          const x = ((v.x + 1) / 2) * r.width;
-          const y = ((1 - v.y) / 2) * r.height;
-          c.style.transform = `translate(${x}px, ${y}px) ${SIDE[id]}`;
-          c.style.visibility = "visible";
           const dot = dots.current[id];
-          if (dot) {
-            dot.style.transform = `translate(${x - 4}px, ${y - 4}px)`;
-            dot.style.visibility = "visible";
-          }
-        });
+          const p = new T3.Vector3(...BUILDING[id].card);
+          place(c, p, r, BUILDING[id].side);
+          place(dot, p, r, "translate(-4px, -4px)");
+          const show = focused ? "hidden" : "visible";
+          if (c) c.style.visibility = show;
+          if (dot) dot.style.visibility = show;
+        }
+        for (const b of BOARDS) {
+          const node = boards.current[b.id];
+          if (!node) continue;
+          const on = focused === b.dept && B[b.dept].fade < 0.6 && node.dataset.empty !== "1";
+          node.style.visibility = on ? "visible" : "hidden";
+          node.style.opacity = on ? "1" : "0";
+          if (on) place(node, anchorOf[b.id], r, "translate(-50%, -100%)");
+        }
       };
       tick();
 
@@ -566,60 +757,71 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
   }, []);
 
   const s = statusOf(totals.vsPlan);
-  const setEl = (id: CardId, el: HTMLDivElement | null) => {
+  const setEl = (id: Dept, el: HTMLDivElement | null) => {
     cards.current[id] = el;
   };
   const d = details;
-  const g = "#248a3d";
-  const w = "#b45309";
-  const r = "#d70015";
-  const rows: Record<CardId, Row[]> = {
-    sales: [
-      { label: "Sold", value: totals.sold == null ? "—" : `SAR ${short(totals.sold)}` },
-      { label: "vs plan", value: s ? `${pct(totals.vsPlan)} ${STATUS[s].t}` : "—", color: s ? STATUS[s].c : undefined },
-      { label: "Month end", value: totals.forecastVsTarget == null ? "—" : `${pct(totals.forecastVsTarget)} of target` },
-    ],
+  const rows: Record<Dept, Row[]> = {
     workshop: [
       { label: "Open WIPs", value: money(totals.openWips) },
       d
-        ? { label: "Past promised date", value: money(d.workshop.overdue), color: d.workshop.overdue > 0 ? r : g }
-        : { label: "Over 30 days", value: money(totals.oldWips), color: totals.oldWips > 0 ? r : g },
+        ? { label: "Past promised date", value: money(d.workshop.overdue), color: d.workshop.overdue > 0 ? BAD : GOOD }
+        : { label: "Over 30 days", value: money(totals.oldWips), color: totals.oldWips > 0 ? BAD : GOOD },
       d ? { label: "Avg. age", value: d.workshop.avgAge == null ? "—" : `${d.workshop.avgAge} days` } : { label: "Value", value: `SAR ${short(totals.openWipValue)}` },
     ],
-    customers: [
-      { label: "Today", value: money(totals.queueToday) },
-      { label: "Waiting now", value: money(totals.queueWaiting), color: totals.queueWaiting > 5 ? w : undefined },
-      ...(d ? [{ label: "Appointments", value: money(d.customers.appointments) }] : []),
+    reception: [
+      { label: "Sold", value: totals.sold == null ? "—" : `SAR ${short(totals.sold)}` },
+      { label: "vs plan", value: s ? `${pct(totals.vsPlan)} ${STATUS[s].t}` : "—", color: s ? STATUS[s].c : undefined },
+      { label: "Customers today", value: money(totals.queueToday) },
     ],
     warranty: [
       { label: "Claims this year", value: money(d?.warranty.claims ?? totals.warrantyClaims) },
-      ...(d ? [{ label: "Amount", value: `SAR ${short(d.warranty.amount)}` }] : []),
-      { label: "Tech. claims waiting", value: money(totals.techWaiting), color: totals.techWaiting > 0 ? w : g },
+      ...(d ? [{ label: "Settled", value: pct(d.warranty.claims ? d.warranty.settled / d.warranty.claims : null) }] : []),
+      { label: "Tech. claims waiting", value: money(totals.techWaiting), color: totals.techWaiting > 0 ? WARN : GOOD },
     ],
     room: d
       ? [
-          { label: "Parts to scrap", value: money(d.room.flaggedParts), color: d.room.flaggedParts > 0 ? w : g },
           { label: "Scrapped this cycle", value: money(d.room.scrappedThisCycle) },
-          { label: "Part returns open", value: money(d.room.returnsOpen), color: d.room.returnsOpen > 0 ? w : g },
-        ]
-      : [{ label: "Details", value: "—" }],
-    audit: d
-      ? [
-          { label: "Self-audit done", value: `${d.audit.done} / ${d.audit.assignments}`, color: d.audit.assignments && d.audit.done < d.audit.assignments ? w : g },
-          { label: "Score", value: d.audit.score == null ? "—" : `${d.audit.score}%` },
-          { label: "Internal audits", value: money(d.audit.internal.count) },
+          { label: "Still to scrap", value: money(d.room.flaggedParts), color: d.room.flaggedParts > 0 ? WARN : GOOD },
+          { label: "Self-audit", value: `${d.audit.done} / ${d.audit.assignments} · ${d.audit.score ?? "—"}%`, color: d.audit.assignments && d.audit.done < d.audit.assignments ? WARN : GOOD },
         ]
       : [{ label: "Details", value: "—" }],
     care: [
       { label: "This year", value: money(totals.complaints) },
-      { label: "Still open", value: money(totals.complaintsOpen), color: totals.complaintsOpen > 0 ? r : g },
+      { label: "Still open", value: money(totals.complaintsOpen), color: totals.complaintsOpen > 0 ? BAD : GOOD },
     ],
   };
-  const list = (Object.keys(DEPT_TITLE) as CardId[]).map((id) => ({ id, icon: DEPT_TITLE[id].icon, title: DEPT_TITLE[id].title, rows: rows[id] }));
+  const list = DEPTS.map((id) => ({ id, icon: DEPT_TITLE[id].icon, title: DEPT_TITLE[id].title, rows: rows[id] }));
+  const content = boardContent(totals, details);
   return (
     <>
-      <div className="relative h-[clamp(360px,72vh,760px)] max-sm:h-[300px] w-full overflow-hidden rounded-2xl bg-[#efe9df] ring-1 ring-black/[0.06]">
+      <div className="relative h-[clamp(360px,72vh,760px)] w-full overflow-hidden rounded-2xl bg-[#efe9df] ring-1 ring-black/[0.06] max-sm:h-[340px]">
         <div ref={host} className="absolute inset-0" />
+        {/* Number boards inside the open building. */}
+        {BOARDS.map((b) => {
+          const c = content[b.id];
+          return (
+            <div
+              key={b.id}
+              ref={(el) => {
+                boards.current[b.id] = el;
+              }}
+              data-empty={c ? "0" : "1"}
+              className={`pointer-events-none absolute top-0 left-0 rounded-lg text-center whitespace-nowrap transition-opacity duration-500 ${b.small ? "bg-white/90 px-1.5 py-0.5 text-[10px] shadow" : "bg-[#1d1d1f]/90 px-2.5 py-1.5 text-white shadow-xl"}`}
+              style={{ visibility: "hidden", opacity: 0 }}
+            >
+              {c && (
+                <>
+                  <div className={b.small ? "text-[#6e6e73]" : "text-[10px] font-semibold tracking-wide text-white/70 uppercase"}>{c.title}</div>
+                  <div className={`font-bold tabular-nums ${b.small ? "text-[12px] text-[#1d1d1f]" : "text-[18px] leading-tight"}`} style={c.color && !b.small ? { color: c.color === GOOD ? "#5bd27a" : c.color === WARN ? "#ffb35c" : c.color === BAD ? "#ff6b6b" : c.color } : undefined}>
+                    {c.value}
+                  </div>
+                  {c.note && !b.small && <div className="text-[10px] text-white/70">{c.note}</div>}
+                </>
+              )}
+            </div>
+          );
+        })}
         {/* On a computer the cards hang beside their buildings; on a phone they are listed under the picture. */}
         <div className="max-sm:hidden">
           {list.map((c) => (
@@ -636,6 +838,11 @@ function Town({ totals, details, scale, open, onOpen, panel }: { totals: Totals;
             <Card key={c.id} id={c.id} setEl={setEl} icon={c.icon} title={c.title} rows={c.rows} active={open === c.id} onOpen={onOpen} />
           ))}
         </div>
+        {open && (
+          <button type="button" onClick={() => onOpen(null)} className="absolute top-3 left-3 rounded-full bg-white/95 px-3.5 py-1.5 text-[13px] font-semibold text-[#1d1d1f] shadow-md ring-1 ring-black/[0.08] hover:bg-white">
+            ← Back to the service centre
+          </button>
+        )}
         {open && <div className="absolute inset-y-3 right-3 w-[min(26rem,calc(100%-1.5rem))] overflow-hidden rounded-2xl bg-white/[0.97] shadow-2xl ring-1 ring-black/[0.08] backdrop-blur max-sm:hidden">{panel}</div>}
       </div>
       <div className="grid grid-cols-2 gap-2 sm:hidden">
