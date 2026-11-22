@@ -171,8 +171,8 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
 
       <div className="grid grid-cols-1 items-start gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
         <section aria-label={kpis.title} className="min-w-0 space-y-6 lg:overflow-y-auto lg:overscroll-contain lg:pr-1.5 lg:pb-4">
-          <KpisWidget kpis={kpis} />
           <ActionList actions={actions} />
+          <KpisWidget kpis={kpis} />
         </section>
         <aside aria-label="My widgets" className="flex min-w-0 flex-col lg:min-h-0">
           <div className="mb-3 flex shrink-0 items-center justify-end gap-2">

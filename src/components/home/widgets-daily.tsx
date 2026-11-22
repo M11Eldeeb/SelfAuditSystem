@@ -23,10 +23,10 @@ export function useNow(ms = 1000): Date | null {
 
 // ---- my numbers ------------------------------------------------------------------------------------------------------------
 
-// Soft tints for the big-number cards, in turn (as on the Sub-Dealer Warranty Desk).
-const TINTS = ["#e4002b", "#f29d38", "#5b6270", "#2e9e5b", "#5b8def", "#8e6cd8"];
-
-/** The role's figures as big numbers on softly tinted cards (the left side of Home). */
+/**
+ * The role's figures as big numbers on white cards, in the site's red, white and black. The cards share each row
+ * between them (a short last row stretches), so the block is always a full rectangle.
+ */
 export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
   return (
     <div>
@@ -34,22 +34,24 @@ export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
       {!kpis.items.length ? (
         <p className="rounded-[22px] bg-[var(--surface)] p-5 text-[14px] text-neutral-500 ring-1 ring-neutral-900/[0.07]">No figures yet for your work - they appear here once there is something to count.</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+        <ul className="flex flex-wrap gap-4">
           {kpis.items.map((k, i) => {
-            const tint = TINTS[i % TINTS.length];
             const body = (
               <>
-                <span className="block text-[13px] font-semibold text-neutral-700">{k.label}</span>
-                <span className={`mt-3 block text-[30px] leading-none font-bold tabular-nums ${k.tone === "bad" ? "text-red-600" : "text-neutral-900"}`}>{k.value}</span>
-                {k.note && <span className="mt-2.5 block text-[12px] text-neutral-600">{k.note}</span>}
+                <span className="flex items-start gap-2">
+                  <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${k.tone === "bad" ? "bg-brand" : "bg-neutral-900"}`} />
+                  <span className="text-[13px] font-semibold text-neutral-600">{k.label}</span>
+                </span>
+                <span className={`mt-auto block pt-3 text-[30px] leading-none font-bold tabular-nums ${k.tone === "bad" ? "text-brand" : "text-neutral-900"}`}>{k.value}</span>
+                <span className="mt-2 block min-h-[1.125rem] text-[12px] text-neutral-500">{k.note ?? ""}</span>
               </>
             );
-            const cls = "home-rise block h-full rounded-[22px] p-5 ring-1 transition";
-            const style = { background: `color-mix(in srgb, ${tint} 9%, var(--surface))`, "--tw-ring-color": `color-mix(in srgb, ${tint} 18%, transparent)`, animationDelay: `${i * 60}ms` } as React.CSSProperties;
+            const cls = "home-rise flex h-full flex-col rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] transition";
+            const style = { animationDelay: `${i * 60}ms` };
             return (
-              <li key={k.label}>
+              <li key={k.label} className="min-w-0 flex-[1_1_13rem]">
                 {k.href ? (
-                  <Link href={k.href} className={`${cls} hover:-translate-y-0.5 hover:shadow-md`} style={style}>
+                  <Link href={k.href} className={`${cls} hover:-translate-y-0.5 hover:ring-neutral-900/20`} style={style}>
                     {body}
                   </Link>
                 ) : (
