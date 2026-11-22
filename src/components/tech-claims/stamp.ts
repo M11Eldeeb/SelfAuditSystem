@@ -217,7 +217,10 @@ export function videoDuration(file: File): Promise<number | null> {
   });
 }
 
-const VIDEO_LONG_SIDE = 1280; // 720p: sharp enough to see a part, a fraction of the size
+/** Thrown by stampVideo when a video stamped at the same time as another could not use the hardware: run it again alone. */
+export const FAST_BUSY = "FAST_BUSY";
+
+const VIDEO_LONG_SIDE = 960; // 540p: still sharp enough to read a part, and about 1.8x fewer pixels to encode than 720p (the stamping is what takes the time)
 
 /** Every stamped video is kept to 20 MB or less - quick to send even on a weak connection. */
 export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
@@ -233,8 +236,8 @@ function videoBitrate(seconds: number | null | undefined, squeeze = 1): number {
   return Math.round(Math.max(200_000, Math.min(1_800_000, budget)) * squeeze);
 }
 
-/** Why the last fast stamp could not run (kept for the problem report). */
-let fastProblem = "";
+/** Why a fast stamp could not run (kept for the problem report) - one holder per stamp, since several videos can be stamped at once. */
+type Problem = { text: string };
 
 /** How the last video was stamped (fast / replay / software / convert) - for the timing report. */
 export let lastStampMethod = "";
@@ -257,10 +260,10 @@ function pictureProbe() {
  * the stamp and re-encoded to 720p H.264, typically several times faster than the video lasts. Null when this phone's
  * browser cannot do it (the caller then uses the slower replay method).
  */
-export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1): Promise<File | null> {
-  fastProblem = "";
+export async function stampVideoFast(file: File, who: string, onProgress: (pct: number) => void, startAt?: Date, squeeze = 1, problem: Problem = { text: "" }): Promise<File | null> {
+  problem.text = "";
   if (typeof VideoEncoder === "undefined" || typeof VideoDecoder === "undefined") {
-    fastProblem = "no WebCodecs";
+    problem.text = "no WebCodecs";
     return null;
   }
   const mb = await import("mediabunny");
@@ -269,7 +272,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
   try {
     const track = await input.getPrimaryVideoTrack();
     if (!track) {
-      fastProblem = "no video track";
+      problem.text = "no video track";
       return null;
     }
     const seconds = await input.computeDuration().catch(() => null);
@@ -283,8 +286,6 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
     const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D | null;
     if (!ctx) return null;
     const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }), target: new mb.BufferTarget() });
-    // Some phones' video decoders hand back black frames for some videos (HDR / 10-bit): the result had sound and a black
-    // picture. Look at the first 2 seconds; no picture at all -> stop and use the next method.
     const hasPicture = pictureProbe();
     let sawPicture = false;
     let frames = 0;
@@ -305,6 +306,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
         processedWidth: outW,
         processedHeight: outH,
         process: (sample) => {
+          ctx.clearRect(0, 0, outW, outH); // a frame that draws nothing must not keep the previous frame (and its stamp)
           sample.draw(ctx, 0, 0, outW, outH);
           if (!sawPicture && frames++ % 5 === 0) {
             sawPicture = hasPicture(canvas);
@@ -316,21 +318,21 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
       },
     });
     if (!conversion.isValid) {
-      fastProblem = `cannot convert (${conversion.discardedTracks.map((d) => `${d.track.type}: ${d.reason}`).join(", ") || "?"})`;
+      problem.text = `cannot convert (${conversion.discardedTracks.map((d) => `${d.track.type}: ${d.reason}`).join(", ") || "?"})`;
       return null;
     }
     // A video that has sound must keep it: never hand back a silent copy (the replay method records the sound again).
     if (audioTrack) {
       const lost = conversion.discardedTracks.find((d: { track: { id: number } }) => d.track.id === audioTrack.id);
       if (lost) {
-        fastProblem = `sound could not be kept (${(lost as { reason?: string }).reason ?? "?"})`;
+        problem.text = `sound could not be kept (${(lost as { reason?: string }).reason ?? "?"})`;
         return null;
       }
     }
     conversion.onProgress = (p) => onProgress(Math.min(99, Math.round(p * 100)));
     await conversion.execute();
     if (!sawPicture) {
-      fastProblem = "black picture";
+      problem.text = "black picture";
       return null;
     }
     const buffer = output.target.buffer;
@@ -339,7 +341,7 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
     return new File([buffer], `${baseName(file.name)}_stamped.mp4`, { type: "video/mp4", lastModified: start.getTime() });
   } catch (e) {
     console.warn("Fast video stamp unavailable, using the replay method:", e);
-    fastProblem = e instanceof Error ? e.message : String(e);
+    problem.text = e instanceof Error ? e.message : String(e);
     return null;
   } finally {
     input.dispose?.();
@@ -351,7 +353,8 @@ export async function stampVideoFast(file: File, who: string, onProgress: (pct: 
  * phone cannot open the video at all (e.g. HEVC / HDR from the gallery), it is first converted to 720p H.264 in
  * software (ffmpeg.wasm) and that copy is stamped, still with the original recording date.
  */
-export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void, at?: Date): Promise<File> {
+export async function stampVideo(file: File, who: string, onProgress: (pct: number) => void, at?: Date, opts?: { concurrent?: boolean }): Promise<File> {
+  const problem: Problem = { text: "" };
   // A result over 20 MB is made again with fewer bits (from the same source - never a stamp on a stamp).
   const fit = async (run: (squeeze: number) => Promise<File | null>): Promise<File | null> => {
     let out = await run(1);
@@ -361,12 +364,14 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
     }
     return out;
   };
-  const fast = await fit((sq) => stampVideoFast(file, who, onProgress, at, sq).catch(() => null));
+  const fast = await fit((sq) => stampVideoFast(file, who, onProgress, at, sq, problem).catch(() => null));
   if (fast) {
     lastStampMethod = "fast";
     return fast;
   }
-  const why = [`fast: ${fastProblem || "?"}`];
+  // Stamped alongside another video and the phone's hardware refused (or gave nothing): the caller runs this one again on its own.
+  if (opts?.concurrent && problem.text !== "no WebCodecs") throw new Error(FAST_BUSY);
+  const why = [`fast: ${problem.text || "?"}`];
   try {
     const out = (await fit((sq) => stampVideoReplay(file, who, onProgress, at, sq)))!;
     lastStampMethod = "replay";
@@ -390,9 +395,9 @@ export async function stampVideo(file: File, who: string, onProgress: (pct: numb
     });
     const rest = (p: number) => onProgress(70 + Math.round(p * 0.3));
     const out = await fit(
-      async (sq) => (await stampVideoFast(h264, who, rest, start, sq).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start, sq)),
+      async (sq) => (await stampVideoFast(h264, who, rest, start, sq, problem).catch(() => null)) ?? (await stampVideoReplay(h264, who, rest, start, sq)),
     ).catch((e) => {
-      throw new Error([...why, `fast after convert: ${fastProblem || "?"}`, `replay after convert: ${e instanceof Error ? e.message : e}`].join(" / "));
+      throw new Error([...why, `fast after convert: ${problem.text || "?"}`, `replay after convert: ${e instanceof Error ? e.message : e}`].join(" / "));
     });
     if (!out) throw new Error(why.join(" / "));
     lastStampMethod = "convert";
@@ -565,7 +570,7 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
       video.onerror = () => (clearTimeout(timer), reject(new Error(`"${file.name}" cannot be played on this phone - record it with the "Record video" button.`)));
       video.load();
     });
-    const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+    const scale = Math.min(1, VIDEO_LONG_SIDE / Math.max(video.videoWidth, video.videoHeight));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round((video.videoWidth * scale) / 2) * 2;
     canvas.height = Math.round((video.videoHeight * scale) / 2) * 2;
@@ -598,11 +603,14 @@ async function stampVideoReplay(file: File, who: string, onProgress: (pct: numbe
     const probeCtx = probe.getContext("2d", { willReadFrequently: true });
     let sawPicture = !probeCtx;
     let frames = 0;
+    // The video element is drawn straight into the probe: the main canvas still holds the stamp of the frame before (yellow text), which
+    // made a phone that draws NO picture (Firefox on Android) look as if it had one - the result was a black video with sound.
     const checkPicture = () => {
       if (sawPicture || !probeCtx || frames++ % 5) return;
-      probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
+      probeCtx.clearRect(0, 0, probe.width, probe.height);
+      probeCtx.drawImage(video, 0, 0, probe.width, probe.height);
       const px = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
-      for (let i = 0; i < px.length; i += 4) if (px[i] > 16 || px[i + 1] > 16 || px[i + 2] > 16) return void (sawPicture = true);
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0 && (px[i] > 16 || px[i + 1] > 16 || px[i + 2] > 16)) return void (sawPicture = true);
     };
     let noPicture: (() => void) | null = null;
     const draw = () => {

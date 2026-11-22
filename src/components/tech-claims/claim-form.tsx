@@ -12,7 +12,7 @@ import {
   type ClaimFields,
 } from "@/app/actions/tech-claims";
 import { SessionExpired, fmtBytes, uploadToSession } from "./upload";
-import { lastStampMethod, stampPhoto, stampVideo, videoDuration } from "./stamp";
+import { FAST_BUSY, lastStampMethod, stampPhoto, stampVideo, videoDuration } from "./stamp";
 import {
   TAB,
   deleteBlob,
@@ -132,18 +132,51 @@ const SNAPSHOT_MAX = 150 * 1024 * 1024;
  * a file the browser can open only for a moment or not at all; holding the bytes keeps every later step (stamp, convert,
  * send) from failing halfway. Returns null when the file cannot be read at all.
  */
-async function snapshot(f: File): Promise<File | null> {
+/** All the files picked together are copied into memory up to this much in total (a phone with little memory keeps the rest as picked). */
+const SNAPSHOT_TOTAL_MAX = 500 * 1024 * 1024;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** One way of reading a file: 0 = the usual call, 1 = a FileReader, 2 = 4 MB pieces (some Android gallery providers only manage small reads). */
+async function readOnce(f: File, how: number): Promise<ArrayBuffer> {
+  if (how === 0) return f.arrayBuffer();
+  if (how === 1) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as ArrayBuffer);
+      r.onerror = () => reject(r.error ?? new Error("read failed"));
+      r.readAsArrayBuffer(f);
+    });
+  }
+  const out = new Uint8Array(f.size);
+  const piece = 4 * 1024 * 1024;
+  for (let at = 0; at < f.size; at += piece) out.set(new Uint8Array(await f.slice(at, at + piece).arrayBuffer()), at);
+  return out.buffer;
+}
+
+async function snapshot(f: File, copy = true): Promise<File | null> {
   if (f.size === 0) return null;
-  try {
-    if (f.size > SNAPSHOT_MAX) {
-      await f.slice(0, 1024).arrayBuffer();
-      return f;
+  // Too big (or too much in memory already): only check that it can be opened, and keep the file as picked.
+  if (!copy || f.size > SNAPSHOT_MAX) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await f.slice(0, 1024).arrayBuffer();
+        return f;
+      } catch {
+        await sleep(400);
+      }
     }
-    const bytes = await f.arrayBuffer();
-    return new File([bytes], f.name, { type: f.type, lastModified: f.lastModified });
-  } catch {
     return null;
   }
+  // Three tries, each a different way of reading, with a short wait between: the phone may be busy for a moment.
+  for (let how = 0; how < 3; how++) {
+    try {
+      const bytes = await readOnce(f, how);
+      return new File([bytes], f.name, { type: f.type, lastModified: f.lastModified });
+    } catch {
+      if (how < 2) await sleep(400 * (how + 1));
+    }
+  }
+  return null;
 }
 
 function withType(f: File): File {
@@ -238,14 +271,21 @@ export function TechClaimForm({
   const filesInput = useRef<HTMLInputElement>(null);
 
   // Background work: original files, the promise of each item, the stamping chain, the upload slots.
+  // A browser without a video encoder (Firefox on Android) is far slower with videos and can come out black: suggest Chrome.
+  const [slowBrowser, setSlowBrowser] = useState(false);
+  useEffect(() => {
+    queueMicrotask(() => setSlowBrowser(typeof VideoEncoder === "undefined" && /Firefox/i.test(navigator.userAgent)));
+  }, []);
   const sources = useRef(new Map<string, File>());
   const jobs = useRef(new Map<string, Promise<void>>());
   const removed = useRef(new Set<string>());
   const seq = useRef(0);
   const latest = useRef<Item[]>([]);
-  // Photos and videos are stamped on separate tracks, so a long video never holds up the photos.
+  // Photos and videos are stamped on separate tracks, so a long video never holds up the photos. Two videos are stamped at the same
+  // time when the phone has a hardware video encoder (the stamping, not the sending, is what takes the time); if the hardware
+  // refuses the second one it is run again alone and the rest go one at a time.
   const photoChain = useRef<Promise<unknown>>(Promise.resolve());
-  const videoChain = useRef<Promise<unknown>>(Promise.resolve());
+  const videoSlots = useRef({ limit: typeof VideoEncoder !== "undefined" ? 2 : 1, running: 0, waiting: [] as (() => void)[] });
   // The first upload makes sure the Drive staging folder exists; after that, sessions are asked for in parallel.
   const sessionChain = useRef<Promise<unknown>>(Promise.resolve());
   const stagingReady = useRef(false);
@@ -330,6 +370,20 @@ export function TechClaimForm({
     chain.current = run.catch(() => undefined);
     return run;
   };
+  const withVideoSlot = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    const v = videoSlots.current;
+    if (v.running < v.limit) v.running++;
+    else await new Promise<void>((r) => v.waiting.push(r)); // the slot is handed over already counted
+    try {
+      return await fn();
+    } finally {
+      v.running--;
+      while (v.waiting.length && v.running < v.limit) {
+        v.running++;
+        v.waiting.shift()!();
+      }
+    }
+  };
   const withSlot = async <T,>(fn: () => Promise<T>): Promise<T> => {
     const s = slots.current;
     if (s.free > 0) s.free--;
@@ -352,26 +406,35 @@ export function TechClaimForm({
         const isVideo = original.type.startsWith("video/");
         const before = persisted.current.get(key);
         const t0 = Date.now();
-        const stamped = before?.stamped ? original : await inOrder(
-          isVideo ? videoChain : photoChain,
-          async () => {
-            if (removed.current.has(key)) return null;
-            patch(key, { status: "stamping", pct: 0 });
-            if (original.type.startsWith("image/"))
-              return stampPhoto(original, who);
-            if (original.type.startsWith("video/"))
-              // Some phone videos (e.g. HEVC / HDR from the gallery) cannot be opened by the browser to stamp:
-              // send the original rather than block the claim.
-              return stampVideo(original, who, (pct) => patch(key, { pct })).catch((e) => {
-                const why = (e instanceof Error ? e.message : String(e)) || "?";
-                patch(key, { unstamped: why.slice(0, 300) });
-                void keepPatch(key, { unstamped: why.slice(0, 300) });
-                void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: `stamp: ${why}` });
-                return original;
-              });
-            return original;
-          },
-        );
+        const stampOne = async (alone: boolean): Promise<File | null> => {
+          if (removed.current.has(key)) return null;
+          patch(key, { status: "stamping", pct: 0 });
+          if (original.type.startsWith("image/"))
+            return stampPhoto(original, who);
+          if (original.type.startsWith("video/"))
+            // Some phone videos (e.g. HEVC / HDR from the gallery) cannot be opened by the browser to stamp:
+            // send the original rather than block the claim.
+            return stampVideo(original, who, (pct) => patch(key, { pct }), undefined, { concurrent: !alone && videoSlots.current.running > 1 }).catch((e) => {
+              if (e instanceof Error && e.message === FAST_BUSY) throw e;
+              const why = (e instanceof Error ? e.message : String(e)) || "?";
+              patch(key, { unstamped: why.slice(0, 300) });
+              void keepPatch(key, { unstamped: why.slice(0, 300) });
+              void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: `stamp: ${why}` });
+              return original;
+            });
+          return original;
+        };
+        const stamped = before?.stamped
+          ? original
+          : isVideo
+            ? await withVideoSlot(() => stampOne(false)).catch(async (e) => {
+                if (!(e instanceof Error) || e.message !== FAST_BUSY) throw e;
+                // Stamped alongside another video and the hardware could not keep up: from now on one at a time, and this one again.
+                videoSlots.current.limit = 1;
+                void reportUploadProblem({ name: original.name, type: original.type, size: original.size, message: "stamp: two videos at once did not work on this phone - one at a time from now on" });
+                return withVideoSlot(() => stampOne(true));
+              })
+            : await inOrder(photoChain, () => stampOne(true));
         if (!stamped || removed.current.has(key)) return;
         const stampSecs = Math.round((Date.now() - t0) / 1000);
         if (!before?.stamped)
@@ -451,17 +514,25 @@ export function TechClaimForm({
       return;
     }
     setError(null);
+    // First every picked file is read into memory, one after the other, BEFORE any stamping starts: a phone busy decoding the first
+    // video could no longer read the next ones from the gallery (they were refused as "cannot be read").
+    const picked: File[] = [];
+    let held = 0;
     for (const raw of Array.from(list)) {
       // Diagnostics: every video (or file without a type) as the phone handed it over.
       if (!raw.type || raw.type.startsWith("video/"))
         void reportUploadProblem({ name: raw.name, type: raw.type || "(no type)", size: raw.size, message: "picked: video handed over by the phone" });
       const typed = withType(raw);
-      const f = await snapshot(typed);
+      const f = await snapshot(typed, held + typed.size <= SNAPSHOT_TOTAL_MAX);
       if (!f) {
         setError(t.errUnreadable(typed.name));
         void reportUploadProblem({ name: typed.name, type: typed.type, size: typed.size, message: "unreadable: the picked file could not be read (permission or the gallery app)" });
         continue;
       }
+      if (f !== typed && f.size <= SNAPSHOT_MAX) held += f.size;
+      picked.push(f);
+    }
+    for (const f of picked) {
       if (!/^(image\/|video\/|application\/pdf$)/.test(f.type)) {
         setError(t.errType(f.name));
         void reportUploadProblem({ name: f.name, type: f.type || "(no type)", size: f.size, message: "type: not a photo, video or PDF" });
@@ -860,6 +931,7 @@ export function TechClaimForm({
           </div>
         )}
 
+        {slowBrowser && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{t.slowBrowser}</p>}
         {(existing.length > 0 || items.length > 0) && (
           <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-100 text-sm">
             {existing.map((f) => (
@@ -872,6 +944,11 @@ export function TechClaimForm({
                   onOpen={() => setViewing({ url: `/api/tech-claims/file/${f.id}`, type: f.mimeType, name: f.name })}
                 />
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                {(f.mimeType.startsWith("image/") || f.mimeType.startsWith("video/") || f.mimeType === "application/pdf") && (
+                  <button type="button" onClick={() => setViewing({ url: `/api/tech-claims/file/${f.id}`, type: f.mimeType, name: f.name })} className="text-xs font-semibold text-brand">
+                    {t.preview}
+                  </button>
+                )}
                 <span className="text-xs text-emerald-700">{t.saved}</span>
                 <span className="text-xs text-neutral-500">
                   {fmtBytes(f.size)}
@@ -891,6 +968,11 @@ export function TechClaimForm({
                 <div className="flex items-center gap-2">
                   <Thumb url={it.preview ?? null} type={it.type} onOpen={() => it.preview && setViewing({ url: it.preview, type: it.type, name: it.name })} />
                   <span className="min-w-0 flex-1 truncate">{it.name}</span>
+                  {it.preview && (
+                    <button type="button" onClick={() => setViewing({ url: it.preview!, type: it.type, name: it.name })} className="text-xs font-semibold text-brand">
+                      {t.preview}
+                    </button>
+                  )}
                   <span
                     className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}
                   >
