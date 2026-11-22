@@ -8,17 +8,21 @@ import { C, GroupedColumns } from "@/components/dashboard/charts";
 import { CarLoaderCard } from "@/components/spinner";
 import { AdvisorsTab } from "@/components/msi/msi-advisors";
 import { DailyTab, KpisTab, MonthlyTab, WholesaleTab } from "@/components/msi/msi-more";
+import { OverviewTab } from "@/components/msi/msi-overview";
+import { Business3DTab } from "@/components/msi/msi-3d";
 import { Bar, Chips, Empty, Pct, TableWrap, dec, fmtDay, money, pct, td, tdr, th, thr } from "@/components/msi/msi-ui";
 import type { MsiExtra, MsiReport, SalesRow } from "@/lib/msi/types";
 
-type Tab = "branches" | "advisors" | "daily" | "monthly" | "kpis" | "wholesale";
+type Tab = "overview" | "branches" | "advisors" | "daily" | "monthly" | "kpis" | "wholesale" | "3d";
 const TABS: { id: Tab; label: string; needsExtra: boolean }[] = [
+  { id: "overview", label: "Overview", needsExtra: true },
   { id: "branches", label: "Branches", needsExtra: false },
   { id: "advisors", label: "Advisors", needsExtra: false },
   { id: "daily", label: "Daily sales", needsExtra: true },
   { id: "monthly", label: "Monthly closing", needsExtra: true },
   { id: "kpis", label: "KPIs", needsExtra: true },
   { id: "wholesale", label: "Wholesale & Affiliates", needsExtra: false },
+  { id: "3d", label: "3D business view", needsExtra: false },
 ];
 
 type ExtraState = { status: "idle" | "loading" | "ready" | "missing" | "failed"; data: MsiExtra | null };
@@ -44,8 +48,8 @@ export function MsiView({
   branchName: string | null;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("branches");
-  const tabs = branchName ? TABS.filter((t) => t.id !== "wholesale") : TABS;
+  const [tab, setTab] = useState<Tab>("overview");
+  const tabs = branchName ? TABS.filter((t) => t.id !== "wholesale" && t.id !== "3d") : TABS;
   const [extra, setExtra] = useState<ExtraState>({ status: "idle", data: null });
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const [busy, startRefresh] = useTransition();
@@ -147,6 +151,8 @@ export function MsiView({
       </nav>
 
       <div className="min-w-0 space-y-5">
+        {tab === "overview" && <OverviewTab report={report} extra={extra.data} extraStatus={extra.status} single={!!branchName} />}
+        {tab === "3d" && !branchName && <Business3DTab reportDate={report.reportDate} />}
         {tab === "branches" && <BranchesTab report={report} single={!!branchName} />}
         {tab === "advisors" && <AdvisorsTab report={report} extra={extra.data} />}
         {tab === "wholesale" && <WholesaleTab report={report} />}
