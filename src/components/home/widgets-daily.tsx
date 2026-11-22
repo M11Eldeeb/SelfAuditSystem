@@ -34,7 +34,7 @@ export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
       {!kpis.items.length ? (
         <p className="rounded-[22px] bg-[var(--surface)] p-5 text-[14px] text-neutral-500 ring-1 ring-neutral-900/[0.07]">No figures yet for your work - they appear here once there is something to count.</p>
       ) : (
-        <ul className="flex flex-wrap gap-4">
+        <ul className="grid grid-cols-2 gap-3 lg:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]" style={{ "--cols": kpis.items.length <= 5 ? kpis.items.length : Math.ceil(kpis.items.length / 2) } as React.CSSProperties}>
           {kpis.items.map((k, i) => {
             const body = (
               <>
@@ -46,10 +46,10 @@ export function KpisWidget({ kpis }: { kpis: HomeKpis }) {
                 <span className="mt-2 block min-h-[1.125rem] text-[12px] text-neutral-500">{k.note ?? ""}</span>
               </>
             );
-            const cls = "home-rise flex h-full flex-col rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] transition";
+            const cls = "home-rise flex h-full min-h-[7.5rem] flex-col rounded-[22px] bg-[var(--surface)] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] transition";
             const style = { animationDelay: `${i * 60}ms` };
             return (
-              <li key={k.label} className="min-w-0 flex-[1_1_13rem]">
+              <li key={k.label} className="min-w-0">
                 {k.href ? (
                   <Link href={k.href} className={`${cls} hover:-translate-y-0.5 hover:ring-neutral-900/20`} style={style}>
                     {body}
@@ -113,12 +113,12 @@ const MESSAGES = [
 
 export function ReminderWidget() {
   return (
-    <div className="relative -m-5 h-[calc(100%+2.5rem)] overflow-hidden rounded-[22px] p-5 text-white" style={{ background: "linear-gradient(140deg, #e0303a 0%, var(--brand) 55%, #8a0c12 100%)" }}>
+    <div className="relative -m-4 h-[calc(100%+2rem)] overflow-hidden rounded-[22px] p-4 text-white" style={{ background: "linear-gradient(140deg, #e0303a 0%, var(--brand) 55%, #8a0c12 100%)" }}>
       <span aria-hidden="true" className="absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
       <span aria-hidden="true" className="absolute right-2 -bottom-14 h-32 w-32 rounded-full bg-black/10" />
       <div className="relative">
         <p className="text-[11px] font-bold tracking-[0.14em] text-white/80 uppercase">Today&apos;s reminder</p>
-        <p className="mt-3 text-[21px] leading-snug font-bold tracking-tight">{pickOfTheDay(MESSAGES)}</p>
+        <p className="mt-2 text-[18px] leading-snug font-bold tracking-tight">{pickOfTheDay(MESSAGES)}</p>
       </div>
     </div>
   );
@@ -299,7 +299,7 @@ export function CalendarWidget({ notes, onNote }: { notes: Record<string, string
                 onClick={() => setOpen(key(d))}
                 title={notes[key(d)] ?? "Add a note"}
                 aria-label={`${d} ${title}${notes[key(d)] ? ", has a note" : ""}`}
-                className={`relative flex h-7 w-8 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors ${
+                className={`relative flex h-6 w-8 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors ${
                   isToday(d) ? "bg-brand text-white" : i % 7 >= 5 ? "text-neutral-400 hover:bg-neutral-900/[0.05]" : "text-neutral-800 hover:bg-neutral-900/[0.05]"
                 } ${notes[key(d)] && !isToday(d) ? "ring-2 ring-amber-400/70" : ""}`}
               >

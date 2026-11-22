@@ -28,7 +28,7 @@ const SIMPLE: Partial<Record<WidgetType, (p: WidgetProps) => ReactNode>> = {
   dice: DiceWidget,
 };
 /** Widgets drawn edge to edge (their own colour fills the card). */
-const BLEED = new Set<WidgetType>(["reminder", "sticky"]);
+const BLEED = new Set<WidgetType>(["reminder", "sticky", "weather", "calendar"]);
 
 /**
  * The Home page: a welcome, then the person's own widgets. "Add widget" picks from the catalogue (lib/home/layout.ts);
@@ -124,7 +124,7 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
         </div>
       </div>
     ) : (
-      <ul className="space-y-4 xl:block xl:columns-2 xl:gap-4 xl:space-y-0">
+      <ul className="space-y-3">
         {layout.widgets.map((w, i) => {
           const meta = WIDGETS[w.type];
           const bleed = BLEED.has(w.type);
@@ -132,10 +132,10 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
             <li
               key={w.id}
               id={`widget-${w.id}`}
-              className={`home-rise relative flex flex-col xl:mb-4 xl:break-inside-avoid rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${editing ? "ring-2 ring-brand/30" : ""}`}
+              className={`home-rise relative flex flex-col rounded-[22px] bg-[var(--surface)] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_30px_-18px_rgba(0,0,0,0.25)] ring-1 ring-neutral-900/[0.07] ${editing ? "ring-2 ring-brand/30" : ""}`}
               style={{ animationDelay: `${Math.min(i, 10) * 60 + 120}ms` }}
             >
-              {!bleed && <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-neutral-500 uppercase">{meta.title}</h2>}
+              {!bleed && <h2 className="mb-2 text-[13px] font-semibold tracking-wide text-neutral-500 uppercase">{meta.title}</h2>}
               <div className="flex-1">{body(w)}</div>
               {editing && (
                 <div className="absolute top-2.5 right-2.5 z-10 flex gap-1 rounded-full bg-[var(--surface)] p-1 shadow-md ring-1 ring-neutral-900/[0.08]">
@@ -157,38 +157,38 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
     );
 
   return (
-    // Wider than the area's page column, like the dashboards: the figures on the left, the widgets in a column on the right.
-    // On a wide screen the page itself does not scroll: the figures and the widgets are two columns that scroll apart
-    // (their scrollbars show only while in use, globals.css).
-    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:h-[calc(100dvh-8.5rem)]">
-      <div className="grid grid-cols-1 items-start gap-5 lg:h-full lg:grid-cols-[minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[minmax(0,1fr)_41rem]">
-        <div className="flex min-w-0 flex-col lg:min-h-0">
-          <div className="mb-6 lg:mb-4 lg:shrink-0">
-            <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
-              {greeting}
-              {firstName ? `, ${firstName}` : ""}
-            </h1>
-            <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
-          </div>
-          {/* The padding and the matching negative margin keep the cards' shadows and rings from being cut by the scroll area. */}
-          <section aria-label={kpis.title} className="min-w-0 space-y-6 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
-            <ActionList actions={actions} />
-            <KpisWidget kpis={kpis} />
-          </section>
+    // Laid out like the Sub-Dealer Warranty Desk's home: the greeting with the widget buttons on its line, the figures and what waits
+    // for you on the left, the widgets in one narrow column on the right - all compact, so on a wide screen nothing needs scrolling.
+    <div className="relative left-1/2 w-[min(88rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2 lg:flex lg:h-[calc(100dvh-8.5rem)] lg:flex-col">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3 lg:mb-4 lg:shrink-0">
+        <div>
+          <h1 className="text-[28px] leading-tight font-bold tracking-[-0.01em] text-neutral-900">
+            {greeting}
+            {firstName ? `, ${firstName}` : ""}
+          </h1>
+          <p className="mt-1 text-[15px] text-neutral-500">{now ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }).format(now) : " "} · Here is your day.</p>
         </div>
-        <aside aria-label="My widgets" className="flex min-w-0 flex-col lg:min-h-0">
-          <div className="mb-3 flex shrink-0 items-center justify-end gap-2 lg:mb-4 lg:min-h-[3.75rem] lg:items-start">
-            <span className="mr-auto text-[12px] text-neutral-500" aria-live="polite">
-              {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
-            </span>
-            <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${editing ? "bg-neutral-900 text-white" : "bg-[var(--surface)] text-neutral-800 ring-1 ring-neutral-900/[0.1] hover:bg-neutral-50"}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-neutral-500" aria-live="polite">
+            {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status}
+          </span>
+          <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${editing ? "bg-neutral-900 text-white" : "bg-[var(--surface)] text-neutral-800 ring-1 ring-neutral-900/[0.1] hover:bg-neutral-50"}`}>
               {editing ? "Done" : "Edit"}
             </button>
             <button type="button" onClick={() => setPicker(true)} disabled={layout.widgets.length >= MAX_WIDGETS} className="rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-dark active:scale-95 disabled:opacity-50">
               + Add widget
             </button>
-          </div>
-          <div className="lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">{widgetList}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
+        {/* The padding and the matching negative margin keep the cards' shadows and rings from being cut by the scroll area. */}
+        <section aria-label={kpis.title} className="min-w-0 space-y-5 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
+          <KpisWidget kpis={kpis} />
+          <ActionList actions={actions} />
+        </section>
+        <aside aria-label="My widgets" className="min-w-0 lg:-mx-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:pt-1 lg:pb-6">
+          {widgetList}
         </aside>
       </div>
 
@@ -201,13 +201,13 @@ export function HomeBoard({ firstName, initial, kpis, actions }: { firstName: st
 function ActionList({ actions }: { actions: HomeAction[] }) {
   const waiting = actions.filter((a) => a.count > 0).length;
   return (
-    <section className="rounded-[22px] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-neutral-900/[0.07]">
+    <section className="rounded-[22px] bg-[var(--surface)] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-neutral-900/[0.07]">
       <h2 className="text-[15px] font-semibold text-neutral-900">Needs your action</h2>
       {actions.length === 0 || waiting === 0 ? (
         <p className="mt-2 text-[14px] text-neutral-500">Nothing waits for you right now. Well done!</p>
       ) : null}
       {actions.length > 0 && (
-        <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+        <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:[grid-template-columns:repeat(auto-fit,minmax(12.5rem,1fr))]">
           {actions.map((a) => (
             <li key={a.key}>
               <Link href={a.href} className={`flex items-center gap-3 rounded-xl bg-neutral-900/[0.035] px-3 py-2.5 transition-colors hover:bg-neutral-900/[0.07] ${a.count > 0 ? "" : "opacity-60 hover:opacity-100"}`}>
