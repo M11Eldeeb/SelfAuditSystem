@@ -466,7 +466,7 @@ export async function addTechClaimEvidence(claimId: string, stagedIds: string[])
   const admin = createAdminClient();
   try {
     const ctx = await technicianContext();
-    const { data: claim } = await admin.from("self_audit_tech_claims").select("id, technician_id, status, drive_folder_id").eq("id", claimId).maybeSingle();
+    const { data: claim } = await admin.from("self_audit_tech_claims").select("id, technician_id, status, drive_folder_id, work_order").eq("id", claimId).maybeSingle();
     if (!claim || claim.technician_id !== ctx.tech.id) return { error: "Claim not found." };
     if (claim.status === "uploading") return { error: "This claim was not sent yet - open it from My claims." };
     if (!claim.drive_folder_id) return { error: "The claim's Drive folder is missing." };
@@ -476,12 +476,22 @@ export async function addTechClaimEvidence(claimId: string, stagedIds: string[])
     const infos = await Promise.all(ids.map((id) => driveFileInfo(id)));
     const staged = infos.filter((f): f is NonNullable<typeof f> => !!f && !f.trashed && f.parents.includes(ctx.staging));
     if (!staged.length) return { error: "No file reached Google Drive - please add the files again." };
-    await Promise.all(staged.map((f) => moveDriveFile(f.id, ctx.staging, claim.drive_folder_id!)));
+    // Named like the claim's other files (work order + counter carrying on after them) with " - NEW - <today>" added,
+    // e.g. HER-12345_004 - NEW - 2026-11-22.jpg, so the warranty admin sees at a glance which files came later.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    let counter = await lastFileCounter(claimId, claim.work_order);
+    const named = staged.map((f) => {
+      const base = evidenceName(claim.work_order, ++counter, f.name, f.mimeType);
+      const dot = base.lastIndexOf(".");
+      const newName = dot > 0 ? `${base.slice(0, dot)} - NEW - ${today}${base.slice(dot)}` : `${base} - NEW - ${today}`;
+      return { ...f, newName };
+    });
+    await Promise.all(named.map((f) => moveDriveFile(f.id, ctx.staging, claim.drive_folder_id!, f.newName)));
     const { error } = await admin
       .from("self_audit_tech_claim_files")
-      .insert(staged.map((f) => ({ claim_id: claimId, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
+      .insert(named.map((f) => ({ claim_id: claimId, drive_file_id: f.id, file_name: f.newName.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: ctx.tech.id })));
     if (error) return { error: error.message };
-    await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: "files_added", body: `Additional evidence: ${staged.map((f) => f.name).join(", ")}`.slice(0, 2000), author_id: ctx.tech.id, author_name: ctx.name });
+    await admin.from("self_audit_tech_claim_events").insert({ claim_id: claimId, kind: "files_added", body: `Additional evidence: ${named.map((f) => f.newName).join(", ")}`.slice(0, 2000), author_id: ctx.tech.id, author_name: ctx.name });
     revalidateAll();
     return { claimId };
   } catch (e) {
