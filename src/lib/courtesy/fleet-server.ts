@@ -26,7 +26,13 @@ export const canRequestTransfer = (u: CurrentUser) => u.role === "officer" && (!
  */
 export async function syncFleet(): Promise<{ added: number; error?: string }> {
   try {
-    const [sheet, resolve, { data: known }] = await Promise.all([loadCourtesy(), branchResolver(), vehiclesTable().select("id, plate_key, condition, condition_at, branch_id, model, vin")]);
+    const [sheet, resolve, { data: known }, { data: moved }] = await Promise.all([
+      loadCourtesy(),
+      branchResolver(),
+      vehiclesTable().select("id, plate_key, condition, condition_at, branch_id, model, vin"),
+      eventsTable().select("vehicle_id").eq("kind", "transfer_received"),
+    ]);
+    const transferred = new Set(((moved ?? []) as { vehicle_id: string }[]).map((m) => m.vehicle_id));
     type Known = { id: string; plate_key: string; condition: string; condition_at: string | null; branch_id: string | null; model: string | null; vin: string | null };
     const byKey = new Map(((known ?? []) as Known[]).map((k) => [k.plate_key, k]));
     const have = new Set(byKey.keys());
@@ -45,7 +51,7 @@ export async function syncFleet(): Promise<{ added: number; error?: string }> {
         const patch: Record<string, unknown> = {};
         if (!k.condition_at && status && conditionFrom(status) !== k.condition) patch.condition = conditionFrom(status);
         const b = c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null;
-        if (!k.branch_id && b) patch.branch_id = b;
+        if (b && b !== k.branch_id && (!k.branch_id || !transferred.has(k.id))) patch.branch_id = b;
         if (!k.model && c.model >= 0 && r[c.model]) patch.model = r[c.model];
         if (!k.vin && c.vin >= 0 && r[c.vin]) patch.vin = r[c.vin];
         if (Object.keys(patch).length) updates.push({ id: k.id, patch: { ...patch, updated_at: new Date().toISOString() } });
@@ -104,6 +110,25 @@ export async function sheetOpenLoans(): Promise<SheetLoan[]> {
   }
 }
 
+/** The Status column of the sheet's Replacement Vehicles tab, per plate ("On loan", "Available", ...). Empty when unreadable. */
+export async function sheetVehicleStatus(): Promise<Map<string, string>> {
+  try {
+    const sheet = await loadCourtesy();
+    const c = sheet.cols.vehicles;
+    const out = new Map<string, string>();
+    if (c.plate < 0 || c.status < 0) return out;
+    for (const r of sheet.vehicles?.rows ?? []) {
+      const key = plateKey(r[c.plate] ?? "");
+      if (key && r[c.status]?.trim()) out.set(key, r[c.status].trim());
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+/** A sheet status that means the car is out with a customer. */
+export const SHEET_ON_LOAN = /on ?loan|loaned|in ?use|rented|with (the )?customer|مؤجر|مع العميل/i;
+
 export type OpenLoan = { source?: "portal" | "sheet"; id: string; ref: string; customer_name: string; advisor_name: string | null; handed_over_at: string | null; expires_at: string | null; mileage_out: number | null; vehicle_id: string | null; vehicle_plate: string | null };
 export type OpenTransfer = { id: string; vehicle_id: string; from_branch: string; to_branch: string; reason: string | null; status: TransferStatus; requested_by_name: string | null; requested_at: string; sent_at: string | null };
 export type FleetRow = Vehicle & { branchName: string | null; loan: OpenLoan | null; transfer: OpenTransfer | null; service: ReturnType<typeof serviceState> };
@@ -112,22 +137,34 @@ export type FleetRow = Vehicle & { branchName: string | null; loan: OpenLoan | n
 export async function loadFleet(branchId: string | null): Promise<{ rows: FleetRow[]; branches: { id: string; name: string; code: string | null; queue_code: string | null }[] }> {
   let vq = vehiclesTable().select("*").order("plate");
   if (branchId) vq = vq.eq("branch_id", branchId);
-  const [{ data: vs }, { data: loans }, { data: trs }, { data: branches }, sheetLoans] = await Promise.all([
+  const [{ data: vs }, { data: loans }, { data: trs }, { data: branches }, sheetLoans, sheetStatus] = await Promise.all([
     vq,
     agreementsTable().select("id, ref, customer_name, advisor_name, handed_over_at, expires_at, mileage_out, vehicle_id, vehicle_plate").eq("status", "open"),
     transfersTable().select("*").in("status", ["requested", "sent"]),
     createAdminClient().from("self_audit_branches").select("id, name, code, queue_code").order("name"),
     sheetOpenLoans(),
+    sheetVehicleStatus(),
   ]);
   const name = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  /**
+   * On loan: a portal agreement first; then, while the other application still runs, the sheet's Replacement Vehicles
+   * status decides (On loan / Available) - with the customer of its open agreement when there is one; a car the sheet
+   * does not list falls back to the sheet's open agreements.
+   */
+  const sheetLoanOf = (v: Vehicle): OpenLoan | null => {
+    const agreement = sheetLoans.find((x) => x.plateKey === v.plate_key);
+    const status = sheetStatus.get(v.plate_key);
+    if (status !== undefined && !SHEET_ON_LOAN.test(status)) return null;
+    if (status === undefined && !agreement) return null;
+    return { source: "sheet", id: "", ref: agreement?.agreement || "Sheet", customer_name: agreement?.customer || "On loan (sheet)", advisor_name: "other application", handed_over_at: agreement?.out || null, expires_at: null, mileage_out: null, vehicle_id: v.id, vehicle_plate: v.plate };
+  };
   const loanList = (loans ?? []) as OpenLoan[];
   const transfers = (trs ?? []) as OpenTransfer[];
   const rows = ((vs ?? []) as Vehicle[]).map((v) => ({
     ...v,
     branchName: v.branch_id ? (name.get(v.branch_id) ?? null) : null,
     loan:
-      loanList.find((l) => l.vehicle_id === v.id || (!l.vehicle_id && l.vehicle_plate && plateKey(l.vehicle_plate) === v.plate_key)) ??
-      ((s) => (s ? { source: "sheet" as const, id: "", ref: s.agreement || "Sheet", customer_name: s.customer || "—", advisor_name: "other application", handed_over_at: s.out || null, expires_at: null, mileage_out: null, vehicle_id: v.id, vehicle_plate: s.plate } : null))(sheetLoans.find((x) => x.plateKey === v.plate_key)),
+      loanList.find((l) => l.vehicle_id === v.id || (!l.vehicle_id && l.vehicle_plate && plateKey(l.vehicle_plate) === v.plate_key)) ?? sheetLoanOf(v),
     transfer: transfers.find((t) => t.vehicle_id === v.id) ?? null,
     service: serviceState(v),
   }));
