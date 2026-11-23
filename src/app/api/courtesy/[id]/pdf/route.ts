@@ -17,12 +17,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!a || (s.branchId && a.branch_id !== s.branchId)) return new Response("Not found", { status: 404 });
   const { data: branch } = await createAdminClient().from("self_audit_branches").select("name").eq("id", a.branch_id).maybeSingle();
   const [customerSignature, advisorSignature, license, ...photos] = await Promise.all([readFile(a.customer_signature), readFile(a.advisor_signature), readFile(a.license_photo), ...a.photos.map(readFile)]);
+  const returnPhotos = await Promise.all((a.return_photos ?? []).map(readFile));
   const area = s.user.role === "officer" ? "admin" : s.user.role === "branch_admin" ? "audit" : "advisor";
   const pdf = await courtesyPdf(a, branch?.name ?? "Branch", `${await siteOrigin()}/${area}/courtesy-cars/${a.id}`, {
     customerSignature,
     advisorSignature,
     license: license && a.license_photo && !a.license_photo.endsWith(".webp") ? { data: license, format: format(a.license_photo) } : null,
     photos: photos.map((b, i) => (b && !a.photos[i].endsWith(".webp") ? { data: b, format: format(a.photos[i]) } : null)).filter((x): x is { data: Buffer; format: "png" | "jpg" } => !!x),
+    returnPhotos: returnPhotos.map((b, i) => (b && !a.return_photos[i].endsWith(".webp") ? { data: b, format: format(a.return_photos[i]) } : null)).filter((x): x is { data: Buffer; format: "png" | "jpg" } => !!x),
   });
   return new Response(new Uint8Array(pdf), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Courtesy Car ${a.ref} - ${a.customer_name.replace(/[^\p{L}\p{N} ]/gu, "")}.pdf"`, "Cache-Control": "private, no-store" },

@@ -19,27 +19,46 @@ export const canManageFleet = (u: CurrentUser) => !u.viewOnly && (u.role === "of
 export const canRequestTransfer = (u: CurrentUser) => u.role === "officer" && (!u.viewOnly || u.managerKind === "national_manager");
 
 /**
- * Copies the cars of the courtesy cars sheet the portal does not know yet (by plate). Cars already in the portal keep
- * their branch, condition and history. Never throws: returns why the sheet could not be read.
+ * Copies the cars of the courtesy cars sheet the portal does not know yet (by plate), and - while both applications run
+ * side by side - keeps the others aligned with the sheet: a car whose condition was never set in the portal takes the
+ * sheet's status (available / maintenance / accident ...), and an empty branch, model or VIN is filled from the sheet.
+ * A condition set in the portal, or a branch changed by a transfer, is never overwritten. Never throws.
  */
 export async function syncFleet(): Promise<{ added: number; error?: string }> {
   try {
-    const [sheet, resolve, { data: known }] = await Promise.all([loadCourtesy(), branchResolver(), vehiclesTable().select("plate_key")]);
-    const have = new Set(((known ?? []) as { plate_key: string }[]).map((k) => k.plate_key));
+    const [sheet, resolve, { data: known }] = await Promise.all([loadCourtesy(), branchResolver(), vehiclesTable().select("id, plate_key, condition, condition_at, branch_id, model, vin")]);
+    type Known = { id: string; plate_key: string; condition: string; condition_at: string | null; branch_id: string | null; model: string | null; vin: string | null };
+    const byKey = new Map(((known ?? []) as Known[]).map((k) => [k.plate_key, k]));
+    const have = new Set(byKey.keys());
+    const conditionFrom = (status: string) =>
+      /accident|حادث/i.test(status) ? "accident" : /mainten|service|workshop|صيان/i.test(status) ? "maintenance" : /hold/i.test(status) ? "on_hold" : /sold|out of service|scrap/i.test(status) ? "out_of_service" : "available";
+    const updates: { id: string; patch: Record<string, unknown> }[] = [];
     const c = sheet.cols.vehicles;
     const fresh = new Map<string, Record<string, unknown>>();
     for (const r of sheet.vehicles?.rows ?? []) {
       const plate = c.plate >= 0 ? r[c.plate]?.trim() : "";
       const key = plate ? plateKey(plate) : "";
-      if (!key || have.has(key) || fresh.has(key)) continue;
+      if (!key || fresh.has(key)) continue;
       const status = c.status >= 0 ? r[c.status] : "";
+      const k = byKey.get(key);
+      if (k) {
+        const patch: Record<string, unknown> = {};
+        if (!k.condition_at && status && conditionFrom(status) !== k.condition) patch.condition = conditionFrom(status);
+        const b = c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null;
+        if (!k.branch_id && b) patch.branch_id = b;
+        if (!k.model && c.model >= 0 && r[c.model]) patch.model = r[c.model];
+        if (!k.vin && c.vin >= 0 && r[c.vin]) patch.vin = r[c.vin];
+        if (Object.keys(patch).length) updates.push({ id: k.id, patch: { ...patch, updated_at: new Date().toISOString() } });
+        continue;
+      }
+      if (have.has(key)) continue;
       fresh.set(key, {
         plate,
         plate_key: key,
         model: c.model >= 0 ? r[c.model] || null : null,
         vin: c.vin >= 0 ? r[c.vin] || null : null,
         branch_id: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
-        condition: /accident|حادث/i.test(status) ? "accident" : /mainten|service|workshop|صيان/i.test(status) ? "maintenance" : /hold/i.test(status) ? "on_hold" : /sold|out of service|scrap/i.test(status) ? "out_of_service" : "available",
+        condition: conditionFrom(status),
       });
     }
     const rows = [...fresh.values()];
@@ -47,6 +66,7 @@ export async function syncFleet(): Promise<{ added: number; error?: string }> {
       const { data } = await vehiclesTable().insert(rows.slice(i, i + 200)).select("id");
       if (data?.length) await eventsTable().insert((data as { id: string }[]).map((v) => ({ vehicle_id: v.id, kind: "added", body: "From the courtesy cars sheet" })));
     }
+    for (const u of updates) await vehiclesTable().update(u.patch).eq("id", u.id);
     return { added: rows.length };
   } catch (e) {
     return { added: 0, error: e instanceof Error ? e.message : "The courtesy cars sheet could not be read." };

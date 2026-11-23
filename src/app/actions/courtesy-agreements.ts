@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { photosToDrive } from "@/lib/courtesy/drive";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { branchByCode } from "@/lib/queue/server";
 import { sendMail } from "@/lib/gmail";
@@ -206,6 +208,11 @@ export async function handOverCourtesyCar(id: string, input: HandoverInput): Pro
       await vehiclesTable().update({ km: Math.max(km, vehicle.km ?? 0), updated_at: now }).eq("id", vehicle.id);
       await addEvent({ vehicle_id: vehicle.id, kind: "loan_out", km, agreement_id: id, body: `${r.a.ref} - ${r.a.customer_name}, WIP ${wip}`, by: r.user });
     }
+    // The photos also go to Drive: Courtesy Cars / model / VIN - plate / <km> Km.
+    if (photos.length) {
+      const v = vehicle;
+      after(() => photosToDrive({ agreementId: id, ref: r.a.ref, when: "out", vehicleKey: v?.id ?? plate, model: v?.model ?? (String(input.vehicle.model ?? "") || null), vin: v?.vin ?? (String(input.vehicle.vin ?? "") || null), plate: v?.plate ?? plate, km, paths: photos }));
+    }
     revalidateAll();
     return {};
   } catch {
@@ -214,7 +221,7 @@ export async function handOverCourtesyCar(id: string, input: HandoverInput): Pro
 }
 
 /** The car came back: mileage and fuel in; the agreement closes. */
-export async function returnCourtesyCar(id: string, input: { mileageIn: number; fuelIn: number; note: string }): Promise<{ error?: string }> {
+export async function returnCourtesyCar(id: string, input: { mileageIn: number; fuelIn: number; note: string; damages?: DamageMark[]; photos?: string[] }): Promise<{ error?: string }> {
   const r = await editable(id);
   if ("error" in r) return { error: r.error };
   if (r.a.status !== "open") return { error: "This car is not out." };
@@ -223,8 +230,15 @@ export async function returnCourtesyCar(id: string, input: { mileageIn: number; 
   const fuel = Math.round(Number(input.fuelIn));
   if (!Number.isFinite(fuel) || fuel < 0 || fuel > 100) return { error: "Choose the fuel level." };
   const now = new Date().toISOString();
+  const kinds = new Set(DAMAGE_KINDS.map((k) => k.id));
+  const damages = (Array.isArray(input.damages) ? input.damages : [])
+    .slice(0, 60)
+    .filter((d) => d && Number.isFinite(d.x) && Number.isFinite(d.y) && d.x >= 0 && d.x <= 1 && d.y >= 0 && d.y <= 1 && kinds.has(d.kind))
+    .map((d) => ({ x: Math.round(d.x * 1000) / 1000, y: Math.round(d.y * 1000) / 1000, kind: d.kind }));
+  const prefix = `${r.a.branch_id}/${r.a.id}/`;
+  const photos = (Array.isArray(input.photos) ? input.photos : []).filter((p) => typeof p === "string" && p.startsWith(prefix)).slice(0, 20);
   const { error } = await agreementsTable()
-    .update({ status: "closed", mileage_in: km, fuel_in: fuel, return_note: String(input.note ?? "").trim().slice(0, 1000) || null, returned_at: now, returned_by_name: r.user.full_name ?? r.user.email, updated_at: now })
+    .update({ status: "closed", mileage_in: km, fuel_in: fuel, return_damages: damages, return_photos: photos, return_note: String(input.note ?? "").trim().slice(0, 1000) || null, returned_at: now, returned_by_name: r.user.full_name ?? r.user.email, updated_at: now })
     .eq("id", id)
     .eq("status", "open");
   if (error) return { error: error.message };
@@ -235,7 +249,8 @@ export async function returnCourtesyCar(id: string, input: { mileageIn: number; 
     if (vehicle) {
       const updated = { ...vehicle, km: Math.max(km, vehicle.km ?? 0) };
       await vehiclesTable().update({ km: updated.km, updated_at: now }).eq("id", vehicle.id);
-      await addEvent({ vehicle_id: vehicle.id, kind: "loan_in", km, agreement_id: id, body: `${r.a.ref} - ${(km - (r.a.mileage_out ?? km)).toLocaleString("en-US")} km driven`, by: r.user });
+      await addEvent({ vehicle_id: vehicle.id, kind: "loan_in", km, agreement_id: id, body: `${r.a.ref} - ${(km - (r.a.mileage_out ?? km)).toLocaleString("en-US")} km driven${damages.length ? ` - ${damages.length} new damage mark(s)` : ""}`, by: r.user });
+      if (photos.length) after(() => photosToDrive({ agreementId: id, ref: r.a.ref, when: "in", vehicleKey: vehicle.id, model: vehicle.model, vin: vehicle.vin, plate: vehicle.plate, km, paths: photos }));
       const sv = serviceState(updated);
       if (sv.state !== "ok" && sv.state !== "unknown" && vehicle.branch_id) {
         const to = await receptionManagerEmails(vehicle.branch_id);

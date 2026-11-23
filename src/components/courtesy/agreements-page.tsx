@@ -5,7 +5,7 @@ import { siteOrigin } from "@/lib/site-origin";
 import { COURTESY_BUCKET, agreementsTable, availableCars, courtesyStaff, type Agreement } from "@/lib/courtesy/agreements-server";
 import { STATUS_LABEL, fuelLabel, nowMs, type AgreementStatus } from "@/lib/courtesy/agreements";
 import { SearchBox } from "@/components/courtesy/search-box";
-import { sheetOpenLoans } from "@/lib/courtesy/fleet-server";
+import { SheetSearch } from "@/components/courtesy/sheet-search";
 import { CustomerLink, CancelButton, ReturnForm } from "@/components/courtesy/agreement-actions";
 import { HandoverForm } from "@/components/courtesy/handover-form";
 import { DamageDiagram } from "@/components/courtesy/damage-diagram";
@@ -66,21 +66,20 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
   const admin = createAdminClient();
   let q = agreementsTable().select("id, ref, branch_id, status, customer_name, phone, advisor_id, advisor_name, handed_over_by, vehicle_id, vehicle_label, wip_no, mileage_out, requested_at, handed_over_at, expires_at, returned_at").order("requested_at", { ascending: false }).limit(400);
   if (s.branchId) q = q.eq("branch_id", s.branchId);
-  const [{ data, error }, { data: branches }, sheet] = await Promise.all([q, admin.from("self_audit_branches").select("id, name, queue_code").order("name"), sheetOpenLoans()]);
+  const [{ data, error }, { data: branches }] = await Promise.all([q, admin.from("self_audit_branches").select("id, name, queue_code").order("name")]);
   const all = (data ?? []) as Row[];
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const origin = await siteOrigin();
   const own = (branches ?? []).find((b) => b.id === s.branchId);
   const isMine = (r: Row) => r.advisor_id === s.user.id || r.handed_over_by === s.user.id;
   const mine = status === "mine";
-  const rows = mine ? all.filter(isMine) : all;
+  // Another advisor's car (on leave, off today): any advisor of the branch can receive it back.
+  const others = status === "others";
+  const rows = mine ? all.filter(isMine) : others ? all.filter((r) => r.status === "open" && !isMine(r)) : all;
   const now = nowMs();
   const waiting = rows.filter((r) => r.status === "requested").sort((a, b) => a.requested_at.localeCompare(b.requested_at));
   const out = rows.filter((r) => r.status === "open").sort((a, b) => (a.expires_at ?? "").localeCompare(b.expires_at ?? ""));
   const history = rows.filter((r) => r.status === "closed" || r.status === "cancelled");
-  const sheetRows = sheet.filter((x) => !s.branchId || x.branchId === s.branchId);
-  const portalPlates = new Set(all.filter((r) => r.status === "open").map((r) => (r.vehicle_label ?? "").toUpperCase()));
-  const sheetOnly = sheetRows.filter((x) => ![...portalPlates].some((l) => l.includes(x.plate.toUpperCase())));
   const q2 = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" ");
   const myLink = own?.queue_code ? `${origin}/cc/${own.queue_code}?a=${s.user.id}` : null;
 
@@ -97,14 +96,22 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
             { id: "mine", label: "Mine" },
             { id: "all", label: s.branchId ? "Whole branch" : "All branches" },
           ].map((t) => (
-            <Link key={t.id} href={`${base}?tab=agreements&status=${t.id}`} className={`rounded-[9px] px-3 py-1.5 text-sm font-semibold ${(mine ? "mine" : "all") === t.id ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
+            <Link key={t.id} href={`${base}?tab=agreements&status=${t.id}`} className={`rounded-[9px] px-3 py-1.5 text-sm font-semibold ${(mine ? "mine" : others ? "" : "all") === t.id ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
               {t.label}
             </Link>
           ))}
         </div>
       </div>
+      <div className="flex flex-wrap gap-2">
+        <Link href={`${base}?tab=agreements&status=others`} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm ${others ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"}`}>
+          Return another advisor&apos;s car
+        </Link>
+        <SheetSearch />
+      </div>
+      {others && <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-900">Cars of the other advisors of {s.branchId ? "your branch" : "every branch"} - open one and receive it back when its advisor is away.</p>}
 
       <div id="cc-list" className="space-y-5">
+        {!others && (
         <section className="space-y-2">
           <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900">
             <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs text-white">{waiting.length}</span>
@@ -130,6 +137,7 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
             ))}
           </div>
         </section>
+        )}
 
         <section className="space-y-2">
           <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900">
@@ -173,40 +181,7 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
           </div>
         </section>
 
-        {sheetOnly.length > 0 && !mine && (
-          <section className="space-y-2">
-            <h2 className="text-base font-bold text-neutral-900">
-              Open in the other application <span className="text-sm font-normal text-neutral-500">(courtesy cars sheet - {sheetOnly.length})</span>
-            </h2>
-            <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-neutral-50 text-left text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">
-                  <tr>
-                    <th className="px-3 py-2">Agreement</th>
-                    <th className="px-3 py-2">Car</th>
-                    <th className="px-3 py-2">Customer</th>
-                    <th className="px-3 py-2">WIP</th>
-                    {!s.branchId && <th className="px-3 py-2">Branch</th>}
-                    <th className="px-3 py-2">Out</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {sheetOnly.map((x) => (
-                    <tr key={x.key} data-q={q2(x.agreement, x.plate, x.customer, x.wip)}>
-                      <td className="px-3 py-2 font-mono text-xs">{x.agreement || "—"}</td>
-                      <td className="px-3 py-2 font-semibold">{x.plate}</td>
-                      <td className="px-3 py-2">{x.customer || "—"}</td>
-                      <td className="px-3 py-2">{x.wip || "—"}</td>
-                      {!s.branchId && <td className="px-3 py-2">{x.branchId ? branchName.get(x.branchId) : "—"}</td>}
-                      <td className="px-3 py-2 text-xs">{x.out || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
+        {!others && (
         <section className="space-y-2">
           <h2 className="text-base font-bold text-neutral-900">History</h2>
           <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
@@ -251,6 +226,7 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
             </table>
           </div>
         </section>
+        )}
       </div>
 
       {own?.queue_code ? (
@@ -293,7 +269,7 @@ export async function CourtesyAgreementPage({ id, base }: { id: string; base: st
   const a = data as Agreement | null;
   if (!a || (s.branchId && a.branch_id !== s.branchId)) notFound();
   const { data: branch } = await createAdminClient().from("self_audit_branches").select("name").eq("id", a.branch_id).maybeSingle();
-  const [customerSign, advisorSign, license, photos] = await Promise.all([signed(a.customer_signature), signed(a.advisor_signature), signed(a.license_photo), Promise.all(a.photos.map(signed))]);
+  const [customerSign, advisorSign, license, photos, returnPhotos] = await Promise.all([signed(a.customer_signature), signed(a.advisor_signature), signed(a.license_photo), Promise.all(a.photos.map(signed)), Promise.all((a.return_photos ?? []).map(signed))]);
   const fleet = a.status === "requested" && s.canEdit ? await availableCars(a.branch_id) : null;
   const defaultExpiry = new Date(nowMs() + 3 * 3_600_000 + 7 * 86_400_000).toISOString().slice(0, 16);
   const row = (l: string, v: React.ReactNode) => (
@@ -391,6 +367,7 @@ export async function CourtesyAgreementPage({ id, base }: { id: string; base: st
               )}
             </div>
           )}
+          {a.drive_folder_out && <a href={`https://drive.google.com/drive/folders/${a.drive_folder_out}`} target="_blank" rel="noreferrer" className="block text-sm font-semibold text-brand hover:underline">Handover photos in Google Drive</a>}
           {advisorSign && (
             <figure>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -401,7 +378,28 @@ export async function CourtesyAgreementPage({ id, base }: { id: string; base: st
         </section>
       )}
 
-      {a.status === "open" && s.canEdit && <ReturnForm id={a.id} mileageOut={a.mileage_out} />}
+      {a.status === "closed" && ((a.return_damages ?? []).length > 0 || (a.return_photos ?? []).length > 0) && (
+        <section className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
+          <h2 className="font-bold text-neutral-900">At return</h2>
+          {(a.return_damages ?? []).length > 0 ? <DamageDiagram marks={a.return_damages} /> : <p className="text-xs text-neutral-500">No new damage marked at return.</p>}
+          {returnPhotos.some(Boolean) && (
+            <div className="flex flex-wrap gap-2">
+              {returnPhotos.map(
+                (u, i) =>
+                  u && (
+                    <a key={i} href={u} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt={`Return photo ${i + 1}`} className="h-24 w-32 rounded-lg object-cover ring-1 ring-black/10" />
+                    </a>
+                  ),
+              )}
+            </div>
+          )}
+          {a.drive_folder_in && <a href={`https://drive.google.com/drive/folders/${a.drive_folder_in}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand hover:underline">Return photos in Google Drive</a>}
+        </section>
+      )}
+
+      {a.status === "open" && s.canEdit && <ReturnForm id={a.id} mileageOut={a.mileage_out} outMarks={a.damages ?? []} />}
     </div>
   );
 }

@@ -34,6 +34,7 @@ export type CourtesyPdfFiles = {
   advisorSignature: Buffer | null;
   license: { data: Buffer; format: "png" | "jpg" } | null;
   photos: { data: Buffer; format: "png" | "jpg" }[];
+  returnPhotos?: { data: Buffer; format: "png" | "jpg" }[];
 };
 
 const page = { size: "A4" as const, style: { paddingTop: 26, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } };
@@ -90,6 +91,30 @@ const signature = (img: Buffer | null, caption: string, name: string | null) =>
     h(Text, { style: { fontSize: 9, marginTop: 3, textAlign: "center" } }, caption),
     name ? h(Text, { style: { fontSize: 8, color: MUTED, textAlign: "center" } }, name) : null
   );
+
+const DW = 515;
+const DH = (515 * 787) / 1212;
+/** The walk-around drawing with its numbered damage marks, and the list under it. */
+function walkAround(diagram: Buffer, marks: { x: number; y: number; kind: string }[], none: string) {
+  return h(
+    View,
+    { wrap: false },
+    h(
+      View,
+      { style: { position: "relative", width: DW, height: DH } },
+      h(Image, { src: { data: diagram, format: "jpg" }, style: { width: DW, height: DH } }),
+      ...marks.map((d, i) =>
+        h(
+          View,
+          { key: i, style: { position: "absolute", left: d.x * DW - 8, top: d.y * DH - 8, width: 16, height: 16, borderRadius: 8, backgroundColor: DAMAGE_KINDS.find((k) => k.id === d.kind)?.color ?? BRAND, alignItems: "center", justifyContent: "center" } },
+          h(Text, { style: { fontSize: 8, color: "#ffffff", fontWeight: 700 } }, String(i + 1))
+        )
+      )
+    ),
+    h(Text, { style: { fontSize: 9, marginTop: 6 } }, marks.length ? marks.map((d, i) => `${i + 1}. ${DAMAGE_KINDS.find((k) => k.id === d.kind)?.en ?? d.kind}`).join("     ") : none)
+  );
+}
+const photoGrid = (list: { data: Buffer; format: "png" | "jpg" }[]) => h(View, { style: { flexDirection: "row", flexWrap: "wrap", gap: 6 } }, ...list.map((p, i) => h(Image, { key: i, src: p, style: { width: 164, height: 123, objectFit: "cover" } })));
 
 export async function courtesyPdf(a: Agreement, branchName: string, url: string, files: CourtesyPdfFiles): Promise<Buffer> {
   const diagram = await readDisk(path.join(process.cwd(), "public", "courtesy", "walkaround.jpg"));
@@ -203,34 +228,29 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
       files.license
         ? h(View, null, bar("Customer Licence", "رخصة العميل"), h(Image, { src: files.license, style: { maxHeight: 250, objectFit: "contain", alignSelf: "flex-start" } }))
         : null,
-      bar("Courtesy Car Walk-Around", "فحص السيارة البديلة"),
-      h(
-        View,
-        { style: { position: "relative", width: 515, height: (515 * 787) / 1212 } },
-        h(Image, { src: { data: diagram, format: "jpg" }, style: { width: 515, height: (515 * 787) / 1212 } }),
-        ...(a.damages ?? []).map((d, i) =>
-          h(
-            View,
-            { key: i, style: { position: "absolute", left: d.x * 515 - 8, top: d.y * ((515 * 787) / 1212) - 8, width: 16, height: 16, borderRadius: 8, backgroundColor: DAMAGE_KINDS.find((k) => k.id === d.kind)?.color ?? BRAND, alignItems: "center", justifyContent: "center" } },
-            h(Text, { style: { fontSize: 8, color: "#ffffff", fontWeight: 700 } }, String(i + 1))
-          )
-        )
-      ),
-      h(
-        Text,
-        { style: { fontSize: 9, marginTop: 6 } },
-        a.damages?.length ? a.damages.map((d, i) => `${i + 1}. ${DAMAGE_KINDS.find((k) => k.id === d.kind)?.en ?? d.kind}`).join("     ") : "No damage marked at checkout."
-      ),
-      files.photos.length
-        ? h(
-            View,
-            { wrap: true },
-            bar("Photos of the Courtesy Car", "صور السيارة البديلة"),
-            h(View, { style: { flexDirection: "row", flexWrap: "wrap", gap: 6 } }, ...files.photos.map((p, i) => h(Image, { key: i, src: p, style: { width: 164, height: 123, objectFit: "cover" } })))
-          )
-        : null,
+      bar("Courtesy Car Walk-Around - Checkout", "فحص السيارة البديلة - عند التسليم"),
+      walkAround(diagram, a.damages ?? [], "No damage marked at checkout."),
+      files.photos.length ? h(View, { wrap: true }, bar("Photos at Checkout", "صور السيارة عند التسليم"), photoGrid(files.photos)) : null,
       footer(a)
-    )
+    ),
+    // ---- 5. The return: new damages and photos
+    a.status === "closed"
+      ? h(
+          Page,
+          page,
+          bar("Courtesy Car Walk-Around - Return", "فحص السيارة البديلة - عند الإعادة"),
+          fields(
+            field("Date & Time In", stamp(a.returned_at)),
+            field("Received by", a.returned_by_name),
+            field("Mileage In", a.mileage_in != null ? `${a.mileage_in.toLocaleString("en-US")} km` : null),
+            field("Fuel Level at Return", fuelLabel(a.fuel_in))
+          ),
+          walkAround(diagram, a.return_damages ?? [], "No new damage marked at return."),
+          a.return_note ? h(Text, { style: { fontSize: 9.5, marginTop: 6 } }, `Note: ${a.return_note}`) : null,
+          files.returnPhotos?.length ? h(View, { wrap: true }, bar("Photos at Return", "صور السيارة عند الإعادة"), photoGrid(files.returnPhotos)) : null,
+          footer(a)
+        )
+      : null
   );
   return renderToBuffer(doc);
 }

@@ -133,3 +133,30 @@ export async function moveTransfer(transferId: string, step: "sent" | "received"
   revalidateAll();
   return {};
 }
+
+export type SheetHit = { agreement: string; plate: string; customer: string; wip: string; out: string; back: string; status: string; open: boolean; branch: string | null };
+
+/** Search the other application's agreements (the courtesy cars sheet): plate, customer, WIP or agreement number. */
+export async function searchOtherApplication(query: string): Promise<{ hits?: SheetHit[]; error?: string }> {
+  const s = await courtesyStaff();
+  const words = String(query ?? "").toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+  if (!words.length) return { error: "Type at least 2 letters or digits." };
+  try {
+    const [{ loadCourtesy, agreementOpen }, { branchResolver }] = await Promise.all([import("@/lib/courtesy/sheet"), import("@/lib/courtesy/branches")]);
+    const [sheet, resolve] = await Promise.all([loadCourtesy(), branchResolver()]);
+    const c = sheet.cols.agreements;
+    const cell = (r: string[], i: number) => (i >= 0 ? (r[i] ?? "") : "");
+    const hits: SheetHit[] = [];
+    for (const r of sheet.agreements?.rows ?? []) {
+      const b = c.branch >= 0 ? resolve(r[c.branch]) : null;
+      if (s.branchId && b?.id !== s.branchId) continue;
+      const text = r.join(" ").toLowerCase();
+      if (!words.every((w) => text.includes(w))) continue;
+      hits.push({ agreement: cell(r, c.agreement), plate: cell(r, c.plate), customer: cell(r, c.customer), wip: cell(r, c.wip), out: cell(r, c.out), back: cell(r, c.back), status: cell(r, c.status), open: agreementOpen(r, c), branch: b?.name ?? null });
+      if (hits.length >= 40) break;
+    }
+    return { hits: hits.reverse() };
+  } catch {
+    return { error: "The other application's sheet could not be read - please try again." };
+  }
+}

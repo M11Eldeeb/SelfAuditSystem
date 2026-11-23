@@ -46,6 +46,10 @@ export type Agreement = {
   mileage_in: number | null;
   fuel_in: number | null;
   return_note: string | null;
+  return_damages: DamageMark[];
+  return_photos: string[];
+  drive_folder_out: string | null;
+  drive_folder_in: string | null;
   returned_at: string | null;
   returned_by_name: string | null;
   updated_at: string;
