@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
 import { agreementsTable, courtesyStaff, readFile, type Agreement } from "@/lib/courtesy/agreements-server";
 import { courtesyPdf } from "@/lib/courtesy/pdf";
+import { termsById } from "@/lib/courtesy/terms-server";
 
 export const maxDuration = 60;
 
@@ -20,6 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const returnPhotos = await Promise.all((a.return_photos ?? []).map(readFile));
   const area = s.user.role === "officer" ? "admin" : s.user.role === "branch_admin" ? "audit" : "advisor";
   const pdf = await courtesyPdf(a, branch?.name ?? "Branch", `${await siteOrigin()}/${area}/courtesy-cars/${a.id}`, {
+    terms: await termsById(a.terms_id),
     customerSignature,
     advisorSignature,
     license: license && a.license_photo && !a.license_photo.endsWith(".webp") ? { data: license, format: format(a.license_photo) } : null,

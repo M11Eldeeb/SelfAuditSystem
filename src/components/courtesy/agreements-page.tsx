@@ -6,6 +6,7 @@ import { COURTESY_BUCKET, agreementsTable, availableCars, courtesyStaff, type Ag
 import { STATUS_LABEL, fuelLabel, nowMs, type AgreementStatus } from "@/lib/courtesy/agreements";
 import { SearchBox } from "@/components/courtesy/search-box";
 import { SheetSearch } from "@/components/courtesy/sheet-search";
+import { TermsTab } from "@/components/courtesy/terms-tab";
 import { CustomerLink, CancelButton, ReturnForm } from "@/components/courtesy/agreement-actions";
 import { HandoverForm } from "@/components/courtesy/handover-form";
 import { DamageDiagram } from "@/components/courtesy/damage-diagram";
@@ -22,16 +23,17 @@ const Pill = ({ s }: { s: AgreementStatus }) => <span className={`inline-block r
 
 /** Courtesy Cars: the agreements made in the portal (default) and the fleet sheet. */
 /** Courtesy Cars: dashboard, agreements (with an advisor's own loans), the fleet in the portal, and the sheet. */
-export async function CourtesyCarsPage({ base, tab, status, f }: { base: string; tab?: string; status?: string; f?: string }) {
+export async function CourtesyCarsPage({ base, tab, status, f, branch }: { base: string; tab?: string; status?: string; f?: string; branch?: string }) {
   const s = await courtesyStaff();
   const advisor = s.user.role === "service_advisor" || (s.user.role === "queue_user" && s.user.queue_role !== "manager");
-  const current = tab === "vehicles" || tab === "dashboard" || tab === "agreements" ? tab : advisor ? "agreements" : "dashboard";
+  const current = tab === "vehicles" || tab === "dashboard" || tab === "agreements" || tab === "terms" ? tab : advisor ? "agreements" : "dashboard";
   const tabs = (
     <nav className="flex gap-0.5 rounded-[12px] bg-[#e9e9ec] p-[3px]" aria-label="Courtesy cars">
       {[
         { id: "dashboard", label: "Dashboard" },
         { id: "agreements", label: "Agreements" },
         { id: "vehicles", label: "Vehicles" },
+        { id: "terms", label: "Terms" },
       ].map((t) => (
         <Link key={t.id} href={`${base}?tab=${t.id}`} aria-current={t.id === current ? "page" : undefined} className={`flex-1 rounded-[9px] px-3 py-1.5 text-center text-sm font-semibold ${t.id === current ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
           {t.label}
@@ -44,6 +46,7 @@ export async function CourtesyCarsPage({ base, tab, status, f }: { base: string;
       <div className="mx-auto max-w-md">{tabs}</div>
       {current === "dashboard" && <CourtesyDashboard base={base} />}
       {current === "vehicles" && <VehiclesTab base={base} filter={f} />}
+      {current === "terms" && <TermsTab base={base} branch={branch} />}
       {current === "agreements" && <AgreementsList base={base} status={status ?? (advisor ? "mine" : undefined)} />}
     </div>
   );

@@ -160,3 +160,26 @@ export async function searchOtherApplication(query: string): Promise<{ hits?: Sh
     return { error: "The other application's sheet could not be read - please try again." };
   }
 }
+
+/**
+ * The branch's reception manager (or a warranty officer) saves the courtesy car terms: a new version - who, when and what
+ * changed are kept; earlier versions stay (agreements already signed keep theirs).
+ */
+export async function saveCourtesyTerms(branchId: string, terms: { en: string; ar: string }[], note: string): Promise<{ error?: string; version?: number }> {
+  const s = await courtesyStaff();
+  if (!canManageFleet(s.user)) return { error: "Only the reception manager or a warranty officer can change the terms." };
+  if (s.branchId && s.branchId !== branchId) return { error: "Only your own branch's terms." };
+  const why = String(note ?? "").trim().slice(0, 500);
+  if (!why) return { error: "Write what you changed." };
+  const list = (Array.isArray(terms) ? terms : []).map((t) => ({ en: String(t?.en ?? "").trim().slice(0, 3000), ar: String(t?.ar ?? "").trim().slice(0, 3000) })).filter((t) => t.en || t.ar);
+  if (!list.length || list.length > 40) return { error: "Keep between 1 and 40 terms." };
+  if (list.some((t) => !t.en || !t.ar)) return { error: "Every term needs its English and its Arabic text." };
+  const { termsTable } = await import("@/lib/courtesy/terms-server");
+  const { data: last } = await termsTable().select("version").eq("branch_id", branchId).order("version", { ascending: false }).limit(1).maybeSingle();
+  const version = ((last?.version as number | undefined) ?? 0) + 1;
+  const { error } = await termsTable().insert({ branch_id: branchId, version, terms: list, note: why, created_by: s.user.id, created_by_name: s.user.full_name ?? s.user.email });
+  if (error) return { error: error.message.includes("self_audit_courtesy_terms") ? "Not available yet - the database update (0198) is not applied." : error.message };
+  revalidateAll();
+  revalidatePath("/cc", "layout");
+  return { version };
+}

@@ -5,7 +5,7 @@ import path from "node:path";
 import { Document, Font, Image, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { TAJAWAL_BOLD, TAJAWAL_REGULAR } from "@/assets/fonts/tajawal-data";
 import { BRAND, INK, LINE, MUTED, QR_BOX, brandLockup, qrBlock } from "@/lib/rejected-claims-logbook";
-import { AUTHORIZATION_AR, AUTHORIZATION_EN, DAMAGE_KINDS, STATUS_LABEL, TERMS, fuelLabel } from "./agreements";
+import { AUTHORIZATION_AR, AUTHORIZATION_EN, DAMAGE_KINDS, STATUS_LABEL, TERMS as STANDARD_TERMS, fuelLabel } from "./agreements";
 import type { Agreement } from "./agreements-server";
 
 /**
@@ -37,6 +37,8 @@ export type CourtesyPdfFiles = {
   returnPhotos?: { data: Buffer; format: "png" | "jpg" }[];
   /** An old agreement printed from the other application's sheet: its other columns, and no walk-around / photo pages. */
   fromSheet?: { extra: { label: string; value: string }[] };
+  /** The terms the customer signed (the branch's version); the standard ones when left out. */
+  terms?: { en: string; ar: string }[];
 };
 
 const page = { size: "A4" as const, style: { paddingTop: 26, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } };
@@ -119,6 +121,7 @@ function walkAround(diagram: Buffer, marks: { x: number; y: number; kind: string
 const photoGrid = (list: { data: Buffer; format: "png" | "jpg" }[]) => h(View, { style: { flexDirection: "row", flexWrap: "wrap", gap: 6 } }, ...list.map((p, i) => h(Image, { key: i, src: p, style: { width: 164, height: 123, objectFit: "cover" } })));
 
 export async function courtesyPdf(a: Agreement, branchName: string, url: string, files: CourtesyPdfFiles): Promise<Buffer> {
+  const TERMS = files.terms?.length ? files.terms : STANDARD_TERMS;
   const diagram = await readDisk(path.join(process.cwd(), "public", "courtesy", "walkaround.jpg"));
   const car = [a.vehicle_label].filter(Boolean).join(" ");
   

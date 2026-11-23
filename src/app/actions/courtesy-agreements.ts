@@ -8,6 +8,7 @@ import { branchByCode } from "@/lib/queue/server";
 import { sendMail } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
 import { ID_RE, PHONE_RE, VIN_RE, cleanPlate, digitsOnly, isAdult, type CourtesyRequestInput, type DamageMark, DAMAGE_KINDS } from "@/lib/courtesy/agreements";
+import { termsTable } from "@/lib/courtesy/terms-server";
 import { agreementsTable, branchAdvisors, courtesyStaff, nextRef, saveFile, type Agreement } from "@/lib/courtesy/agreements-server";
 import { addEvent, receptionManagerEmails, vehicleForPlate, vehiclesTable } from "@/lib/courtesy/fleet-server";
 import { serviceState, type Vehicle } from "@/lib/courtesy/fleet";
@@ -45,6 +46,12 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
   if (!input.accepted) return say("Read and accept the terms and conditions.", "اقرأ الشروط والأحكام ووافق عليها.");
   if (!okImage({ base64: input.signature, mimeType: "image/png" })) return say("Sign in the box.", "وقّع داخل المربع.");
   const advisors = await branchAdvisors(branch.id);
+  // The terms version he read must be this branch's (else the standard terms are recorded).
+  let termsId: string | null = null;
+  if (input.termsId && /^[0-9a-f-]{36}$/i.test(input.termsId)) {
+    const { data: tv } = await termsTable().select("id, branch_id").eq("id", input.termsId).maybeSingle();
+    termsId = tv?.branch_id === branch.id ? (tv.id as string) : null;
+  }
   const advisor = advisors.find((a) => a.id === input.advisorId);
   if (!advisor) return say("Choose your service advisor.", "اختر مستشار الخدمة.");
   if (input.license && !okImage(input.license)) return say("The licence photo could not be read - take it again.", "تعذرت قراءة صورة الرخصة - التقطها مرة أخرى.");
@@ -85,6 +92,7 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
           customer_signature: signature,
           license_photo: license,
           terms_accepted_at: new Date().toISOString(),
+          ...(termsId ? { terms_id: termsId } : {}),
         })
         .select("id, ref")
         .single();

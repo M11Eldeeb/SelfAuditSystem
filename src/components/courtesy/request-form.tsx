@@ -4,11 +4,11 @@ import { useState } from "react";
 import { PublicShell, Spinner } from "@/components/queue/public-shell";
 import { SignaturePad, shrinkPhoto } from "@/components/courtesy/signature-pad";
 import { submitCourtesyRequest } from "@/app/actions/courtesy-agreements";
-import { CC_T, ID_RE, NATIONALITIES, PHONE_RE, TERMS, VIN_RE, cleanPlate, digitsOnly, isAdult, todayKsa, type CourtesyLang } from "@/lib/courtesy/agreements";
+import { CC_T, ID_RE, NATIONALITIES, PHONE_RE, VIN_RE, cleanPlate, digitsOnly, isAdult, todayKsa, type CourtesyLang } from "@/lib/courtesy/agreements";
 import { readRegistration } from "@/components/courtesy/registration-ocr";
 
 /** The customer's courtesy car form (no sign-in): his details, his advisor, the terms, his signature. Arabic or English. */
-export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: { code: string; branch: { name: string; name_ar: string | null }; advisors: { id: string; name: string }[]; presetAdvisor: string | null }) {
+export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, terms, termsId }: { code: string; branch: { name: string; name_ar: string | null }; advisors: { id: string; name: string }[]; presetAdvisor: string | null; terms: { en: string; ar: string }[]; termsId: string | null }) {
   const [lang, setLang] = useState<CourtesyLang>("ar");
   const t = CC_T[lang];
   const ar = lang === "ar";
@@ -47,7 +47,7 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
     if (!accepted) return setError(t.errAccept);
     if (!signature) return setError(t.errSign);
     setBusy(true);
-    const r = await submitCourtesyRequest({ code, lang, name, phone: p, idNumber: id, birthDate: birth, nationality, vin, plate: cleanPlate(plate), advisorId: advisor, accepted, signature, license: license ? { base64: license.base64, mimeType: license.mimeType } : null }).catch(() => ({ error: ar ? "تعذر الإرسال - حاول مرة أخرى." : "Could not send - please try again.", ref: undefined }));
+    const r = await submitCourtesyRequest({ code, lang, name, phone: p, idNumber: id, birthDate: birth, nationality, vin, plate: cleanPlate(plate), advisorId: advisor, accepted, termsId, signature, license: license ? { base64: license.base64, mimeType: license.mimeType } : null }).catch(() => ({ error: ar ? "تعذر الإرسال - حاول مرة أخرى." : "Could not send - please try again.", ref: undefined }));
     setBusy(false);
     if (r.error || !r.ref) return setError(r.error ?? "?");
     setDone(r.ref);
@@ -187,7 +187,7 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
           <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
             <h2 className="font-bold text-neutral-900">{t.terms}</h2>
             <ol className="max-h-80 space-y-2.5 overflow-y-auto rounded-xl bg-neutral-50 p-3 text-[13px] leading-relaxed text-neutral-700">
-              {TERMS.map((x, i) => (
+              {terms.map((x, i) => (
                 <li key={i} className="flex gap-2">
                   <span className="shrink-0 font-bold text-neutral-900">{i + 1}-</span>
                   <span>{ar ? x.ar : x.en}</span>

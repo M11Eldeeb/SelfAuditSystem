@@ -28,6 +28,7 @@ export type Agreement = {
   customer_signature: string | null;
   license_photo: string | null;
   terms_accepted_at: string | null;
+  terms_id?: string | null;
   requested_at: string;
   vehicle_id: string | null;
   vehicle_label: string | null;

@@ -71,6 +71,8 @@ export type CourtesyRequestInput = {
   plate: string;
   advisorId: string;
   accepted: boolean;
+  /** The branch's terms version the customer read (null: the standard terms). */
+  termsId?: string | null;
   signature: string; // PNG, base64 (no data: prefix)
   license?: { base64: string; mimeType: string } | null;
 };
