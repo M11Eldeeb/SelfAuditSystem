@@ -45,7 +45,7 @@ export async function prepareSelfAuditDocUpload(
       folder = await opsDocsFolder(target.cycleId, user.branch_id);
     }
     const ext = file.name.split(".").pop() ?? (file.type === "application/pdf" ? "pdf" : "jpg");
-    const session = await startDocsUpload({ parentId: folder, name: docFileName(MULTI_PHOTO_TYPES.has(photoTypeId) && number && number > 0 ? `${type.label} ${Math.min(number, 999)}` : type.label, ext), mimeType: file.type, size: file.size, origin });
+    const session = await startDocsUpload({ parentId: folder, name: docFileName((MULTI_PHOTO_TYPES.has(photoTypeId) || target.kind === "ops") && number && number > 0 ? `${type.label} ${Math.min(number, 999)}` : type.label, ext), mimeType: file.type, size: file.size, origin });
     return { session };
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };

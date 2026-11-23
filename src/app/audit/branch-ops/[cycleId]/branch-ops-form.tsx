@@ -24,7 +24,7 @@ export function BranchOpsForm({
   questions: Question[];
   answers: Map<string, string | null>;
   photoTypes: PhotoType[];
-  photoStatus: Map<string, PhotoStatus>;
+  photoStatus: Map<string, PhotoStatus[]>;
   locked: boolean;
 }) {
   const boundSave = saveBranchOps.bind(null, cycleId);
@@ -53,7 +53,8 @@ export function BranchOpsForm({
             helpText={pt.help_text}
             required={pt.required}
             locked={locked}
-            status={photoStatus.get(pt.id)}
+            statuses={photoStatus.get(pt.id)}
+            multiple
             fieldName={`photo_path_${pt.id}`}
             target={{ kind: "ops", cycleId }}
             photoTypeId={pt.id}

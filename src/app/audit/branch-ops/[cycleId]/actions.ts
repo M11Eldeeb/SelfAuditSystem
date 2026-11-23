@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { driveIdOf, isDrivePath, opsDocsFolder, syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
 import { driveFileInfo } from "@/lib/tech-claims/drive";
 import { requireRole } from "@/lib/auth";
+import { MAX_MULTI_FILES } from "@/lib/photo-types";
 import { createClient } from "@/lib/supabase/server";
 
 export type SaveBranchOpsState = { error?: string } | undefined;
@@ -48,7 +49,7 @@ export async function saveBranchOps(
     supabase.from("self_audit_audit_photo_types").select("*").eq("scope", "branch").order("sort_order"),
     supabase
       .from("self_audit_branch_operation_photos")
-      .select("photo_type_id")
+      .select("photo_type_id, drive_file_id, storage_path")
       .eq("cycle_id", cycleId)
       .eq("branch_id", branchId)
       .is("deleted_at", null),
@@ -73,17 +74,21 @@ export async function saveBranchOps(
   // 4.5MB regardless of Next's bodySizeLimit config. Only the resulting path
   // arrives here.
   const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
+  const saved = [...(existingPhotos ?? [])];
   for (const pt of photoTypes ?? []) {
-    const path = formData.get(`photo_path_${pt.id}`);
-    if (typeof path === "string" && isDrivePath(path)) {
+    // Every photo type takes several files (each once).
+    const paths = [...new Set(formData.getAll(`photo_path_${pt.id}`).filter((v): v is string => typeof v === "string" && isDrivePath(v)))];
+    for (const path of paths) {
       const driveId = driveIdOf(path);
+      if (saved.some((p) => p.photo_type_id === pt.id && (p.drive_file_id === driveId || (isDrivePath(p.storage_path) && driveIdOf(p.storage_path) === driveId)))) continue;
+      if (saved.filter((p) => p.photo_type_id === pt.id).length >= MAX_MULTI_FILES) return { error: `"${pt.label}": up to ${MAX_MULTI_FILES} files.` };
       const [info, folder] = await Promise.all([driveFileInfo(driveId).catch(() => null), opsDocsFolder(cycleId, branchId).catch(() => null)]);
       if (!info || !folder || !info.parents.includes(folder)) return { error: `"${pt.label}" did not reach Google Drive - please upload it again.` };
-      const { error: photoRowError } = await supabase.from("self_audit_branch_operation_photos").upsert(
-        { cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId, deleted_at: null },
-        { onConflict: "cycle_id,branch_id,photo_type_id" }
-      );
+      const { error: photoRowError } = await supabase
+        .from("self_audit_branch_operation_photos")
+        .insert({ cycle_id: cycleId, branch_id: branchId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId });
       if (photoRowError) return { error: photoRowError.message };
+      saved.push({ photo_type_id: pt.id, drive_file_id: driveId, storage_path: path });
       uploadedPhotoTypeIds.add(pt.id);
     }
   }

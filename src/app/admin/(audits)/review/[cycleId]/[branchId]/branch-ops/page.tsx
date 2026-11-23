@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BranchOpsReviewForm } from "./branch-ops-review-form";
-import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { buildPhotoStatusLists } from "@/lib/photo-status";
 import { PhotoLinks } from "@/components/photo-links";
 
 export default async function BranchOpsReviewPage({
@@ -37,7 +37,7 @@ export default async function BranchOpsReviewPage({
   const answersMap = new Map(
     (answers ?? []).map((a) => [a.question_id, { answer_value: a.answer_value, officer_value: a.officer_value }])
   );
-  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
+  const photoStatus = await buildPhotoStatusLists(supabase, photos ?? []);
 
   return (
     <div className="space-y-6">

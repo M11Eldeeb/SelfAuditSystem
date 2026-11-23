@@ -15,19 +15,23 @@ export function PhotoLinks({
   statusByType,
 }: {
   photoTypes: { id: string; label: string }[];
-  statusByType: Map<string, PhotoStatus>;
+  /** Every saved file of each type (a type may hold several). */
+  statusByType: Map<string, PhotoStatus[]>;
 }) {
   const [preview, setPreview] = useState<{ url: string; label: string } | null>(null);
 
   return (
     <div className="flex flex-wrap gap-3">
-      {photoTypes.map((pt) => {
-        const status = statusByType.get(pt.id);
+      {photoTypes.flatMap((type) => {
+        const list = statusByType.get(type.id) ?? [];
+        // One entry per file ("Warranty room photo 1", "... 2"); a type with nothing saved shows once as not uploaded.
+        return (list.length ? list : [undefined]).map((status, i) => ({ key: `${type.id}-${i}`, pt: { id: type.id, label: list.length > 1 ? `${type.label} ${i + 1}` : type.label }, status }));
+      }).map(({ key, pt, status }) => {
 
         if (status && "url" in status) {
           if (isImagePath(status.path)) {
             return (
-              <div key={pt.id} className="flex flex-col items-center gap-1">
+              <div key={key} className="flex flex-col items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setPreview({ url: status.url, label: pt.label })}
@@ -49,7 +53,7 @@ export function PhotoLinks({
 
           return (
             <a
-              key={pt.id}
+              key={key}
               href={status.url}
               target="_blank"
               rel="noreferrer"
@@ -63,7 +67,7 @@ export function PhotoLinks({
         if (status && "removed" in status) {
           return (
             <span
-              key={pt.id}
+              key={key}
               className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-400"
               title="Deleted from storage after the officer's review (earlier photos, before they were kept)"
             >
@@ -74,7 +78,7 @@ export function PhotoLinks({
 
         return (
           <span
-            key={pt.id}
+            key={key}
             className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-400"
           >
             {pt.label} (not uploaded)

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BranchOpsForm } from "./branch-ops-form";
-import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { buildPhotoStatusLists } from "@/lib/photo-status";
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: "Not started",
@@ -47,7 +47,7 @@ export default async function BranchOpsPage({
     ]);
 
   const answersMap = new Map((existingAnswers ?? []).map((a) => [a.question_id, a.answer_value]));
-  const photoStatus = await buildPhotoStatusMap(supabase, existingPhotos ?? []);
+  const photoStatus = await buildPhotoStatusLists(supabase, existingPhotos ?? []);
   const status = progress?.status ?? "not_started";
   const locked = !allClaimsDone || status !== "not_started";
 
