@@ -105,18 +105,33 @@ export function HandoverForm({ id, cars, carsError, defaultExpiry }: { id: strin
           </div>
         ) : (
           <div className="space-y-2">
-            <input className={input} placeholder={`Search ${cars.length} available cars (plate, model, VIN)`} value={q} onChange={(e) => setQ(e.target.value)} />
-            <div className="max-h-56 divide-y divide-neutral-100 overflow-y-auto rounded-lg border border-neutral-200">
-              {list.map((c) => (
-                <button key={`${c.plate}|${c.vin}`} type="button" onClick={() => setCar(c)} className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${car === c ? "bg-neutral-900 text-white" : "hover:bg-neutral-50"}`}>
-                  <span className="font-semibold">{c.plate}</span>
-                  <span className={`truncate text-xs ${car === c ? "text-white/80" : "text-neutral-500"}`}>
-                    {c.model} {c.vin}
-                  </span>
-                </button>
-              ))}
-              {list.length === 0 && <p className="px-3 py-4 text-center text-sm text-neutral-500">{carsError ? `The courtesy cars sheet could not be read (${carsError}).` : "No available car matches."}</p>}
+            {cars.length > 6 && <input className={input} placeholder={`Search ${cars.length} available cars (plate, model, VIN)`} value={q} onChange={(e) => setQ(e.target.value)} />}
+            <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto p-0.5 sm:grid-cols-3">
+              {list.map((c) => {
+                const on = car?.plate === c.plate;
+                return (
+                  <button
+                    key={`${c.plate}|${c.vin}`}
+                    type="button"
+                    onClick={() => {
+                      setCar(c);
+                      if (c.km != null && !km) setKm(String(c.km));
+                    }}
+                    aria-pressed={on}
+                    className={`rounded-xl px-3 py-2.5 text-left ring-1 transition ${on ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white ring-neutral-200 hover:ring-neutral-400"}`}
+                  >
+                    <div className="font-bold">{c.plate}</div>
+                    <div className={`truncate text-xs ${on ? "text-white/80" : "text-neutral-500"}`}>{c.model || "-"}</div>
+                    {c.km != null && <div className={`text-[11px] ${on ? "text-white/70" : "text-neutral-400"}`}>{c.km.toLocaleString("en-US")} km</div>}
+                  </button>
+                );
+              })}
             </div>
+            {list.length === 0 && (
+              <p className="rounded-lg bg-neutral-50 px-3 py-4 text-center text-sm text-neutral-500">
+                {carsError ? `The courtesy cars could not be read (${carsError}) - type the car instead.` : cars.length ? "No available car matches." : "No car is available at this branch - type the car instead, or set a car back to Available on the Vehicles tab."}
+              </p>
+            )}
           </div>
         )}
       </div>

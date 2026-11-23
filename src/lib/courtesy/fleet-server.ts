@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CurrentUser } from "@/lib/auth";
-import { loadCourtesy } from "./sheet";
+import { agreementOpen, loadCourtesy } from "./sheet";
 import { branchResolver } from "./branches";
 import { agreementsTable } from "./agreements-server";
 import { plateKey, serviceState, type Vehicle, type TransferStatus } from "./fleet";
@@ -53,7 +53,38 @@ export async function syncFleet(): Promise<{ added: number; error?: string }> {
   }
 }
 
-export type OpenLoan = { id: string; ref: string; customer_name: string; advisor_name: string | null; handed_over_at: string | null; expires_at: string | null; mileage_out: number | null; vehicle_id: string | null; vehicle_plate: string | null };
+/**
+ * Open agreements of the other application (the courtesy cars sheet), while both run side by side: the car, the
+ * customer's name, WIP, agreement number, date out and branch. Never throws (empty when the sheet cannot be read).
+ */
+export type SheetLoan = { key: string; plateKey: string; plate: string; customer: string; wip: string; agreement: string; out: string; branchId: string | null; status: string };
+export async function sheetOpenLoans(): Promise<SheetLoan[]> {
+  try {
+    const [sheet, resolve] = await Promise.all([loadCourtesy(), branchResolver()]);
+    const c = sheet.cols.agreements;
+    return (sheet.agreements?.rows ?? [])
+      .filter((r) => agreementOpen(r, c))
+      .map((r, i) => {
+        const plate = c.plate >= 0 ? r[c.plate] : "";
+        return {
+          key: `sheet-${i}`,
+          plateKey: plateKey(plate),
+          plate,
+          customer: c.customer >= 0 ? r[c.customer] : "",
+          wip: c.wip >= 0 ? r[c.wip] : "",
+          agreement: c.agreement >= 0 ? r[c.agreement] : "",
+          out: c.out >= 0 ? r[c.out] : "",
+          branchId: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
+          status: c.status >= 0 ? r[c.status] : "",
+        };
+      })
+      .filter((x) => x.plateKey);
+  } catch {
+    return [];
+  }
+}
+
+export type OpenLoan = { source?: "portal" | "sheet"; id: string; ref: string; customer_name: string; advisor_name: string | null; handed_over_at: string | null; expires_at: string | null; mileage_out: number | null; vehicle_id: string | null; vehicle_plate: string | null };
 export type OpenTransfer = { id: string; vehicle_id: string; from_branch: string; to_branch: string; reason: string | null; status: TransferStatus; requested_by_name: string | null; requested_at: string; sent_at: string | null };
 export type FleetRow = Vehicle & { branchName: string | null; loan: OpenLoan | null; transfer: OpenTransfer | null; service: ReturnType<typeof serviceState> };
 
@@ -61,11 +92,12 @@ export type FleetRow = Vehicle & { branchName: string | null; loan: OpenLoan | n
 export async function loadFleet(branchId: string | null): Promise<{ rows: FleetRow[]; branches: { id: string; name: string; code: string | null; queue_code: string | null }[] }> {
   let vq = vehiclesTable().select("*").order("plate");
   if (branchId) vq = vq.eq("branch_id", branchId);
-  const [{ data: vs }, { data: loans }, { data: trs }, { data: branches }] = await Promise.all([
+  const [{ data: vs }, { data: loans }, { data: trs }, { data: branches }, sheetLoans] = await Promise.all([
     vq,
     agreementsTable().select("id, ref, customer_name, advisor_name, handed_over_at, expires_at, mileage_out, vehicle_id, vehicle_plate").eq("status", "open"),
     transfersTable().select("*").in("status", ["requested", "sent"]),
     createAdminClient().from("self_audit_branches").select("id, name, code, queue_code").order("name"),
+    sheetOpenLoans(),
   ]);
   const name = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const loanList = (loans ?? []) as OpenLoan[];
@@ -73,7 +105,9 @@ export async function loadFleet(branchId: string | null): Promise<{ rows: FleetR
   const rows = ((vs ?? []) as Vehicle[]).map((v) => ({
     ...v,
     branchName: v.branch_id ? (name.get(v.branch_id) ?? null) : null,
-    loan: loanList.find((l) => l.vehicle_id === v.id || (!l.vehicle_id && l.vehicle_plate && plateKey(l.vehicle_plate) === v.plate_key)) ?? null,
+    loan:
+      loanList.find((l) => l.vehicle_id === v.id || (!l.vehicle_id && l.vehicle_plate && plateKey(l.vehicle_plate) === v.plate_key)) ??
+      ((s) => (s ? { source: "sheet" as const, id: "", ref: s.agreement || "Sheet", customer_name: s.customer || "—", advisor_name: "other application", handed_over_at: s.out || null, expires_at: null, mileage_out: null, vehicle_id: v.id, vehicle_plate: s.plate } : null))(sheetLoans.find((x) => x.plateKey === v.plate_key)),
     transfer: transfers.find((t) => t.vehicle_id === v.id) ?? null,
     service: serviceState(v),
   }));

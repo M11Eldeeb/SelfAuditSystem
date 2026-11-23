@@ -6,6 +6,7 @@ import { canManageFleet, canRequestTransfer, eventsTable, loadFleet, syncFleet, 
 import { CONDITIONS, EVENT_LABEL, ON_LOAN, TRANSFER_LABEL, conditionOf, serviceState, type TransferStatus, type Vehicle } from "@/lib/courtesy/fleet";
 import { STATUS_LABEL, nowMs } from "@/lib/courtesy/agreements";
 import { VehicleActions } from "@/components/courtesy/fleet-actions";
+import { SearchBox } from "@/components/courtesy/search-box";
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" }) : "—");
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Riyadh" }) : "—");
@@ -59,6 +60,7 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
   return (
     <div className="space-y-3">
       {sync.error && rows.length === 0 && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">The courtesy cars sheet could not be read ({sync.error}). Cars handed over in the portal appear here.</p>}
+      <SearchBox target="cc-fleet" placeholder="Search plate, model, VIN, customer or branch" />
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((x) => (
           <Link key={x.id} href={`${base}?tab=vehicles${x.id ? `&f=${x.id}` : ""}`} className={`rounded-full px-3 py-1 text-[13px] font-semibold ring-1 ${x.id === f.id ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white text-neutral-800 ring-black/10 hover:bg-neutral-50"}`}>
@@ -66,7 +68,7 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
           </Link>
         ))}
       </div>
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
+      <div id="cc-fleet" className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-neutral-50 text-left text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">
             <tr>
@@ -81,7 +83,7 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {shown.map((r) => (
-              <tr key={r.id} className="align-top hover:bg-neutral-50">
+              <tr key={r.id} data-q={[r.plate, r.model, r.vin, r.branchName, r.loan?.customer_name, r.loan?.ref, conditionOf(r.condition).label, r.loan ? "on loan" : ""].filter(Boolean).join(" ")} className="align-top hover:bg-neutral-50">
                 <td className="px-3 py-2">
                   <Link href={`${base}/vehicle/${r.id}`} className="font-semibold text-brand hover:underline">
                     {r.plate}
@@ -100,10 +102,13 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
                 <td className="px-3 py-2 text-xs">
                   {r.loan ? (
                     <>
-                      <div className="font-medium text-neutral-900">{r.loan.customer_name}</div>
+                      <div className="font-medium text-neutral-900">
+                        {r.loan.id ? <Link href={`${base}/${r.loan.id}`} className="hover:underline">{r.loan.customer_name}</Link> : r.loan.customer_name}
+                        {r.loan.source === "sheet" && <span className="ml-1 rounded bg-neutral-100 px-1 text-[10px] text-neutral-500">sheet</span>}
+                      </div>
                       <div className="text-neutral-500">
                         {r.loan.advisor_name} · since {day(r.loan.handed_over_at)}
-                        {r.loan.expires_at && new Date(r.loan.expires_at).getTime() < nowMs() ? <b className="ml-1 text-red-700">overdue</b> : ` · until ${day(r.loan.expires_at)}`}
+                        {r.loan.expires_at && new Date(r.loan.expires_at).getTime() < nowMs() ? <b className="ml-1 text-red-700">overdue</b> : r.loan.expires_at ? ` · until ${day(r.loan.expires_at)}` : ""}
                       </div>
                     </>
                   ) : (
@@ -131,7 +136,7 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-neutral-500">Cars come from the courtesy cars sheet the first time they are seen; their branch, condition, mileage and service are then kept here. Service every 10,000 km - &quot;soon&quot; within 1,000 km.</p>
+      <p className="text-xs text-neutral-500">Cars come from the courtesy cars sheet the first time they are seen; their branch, condition, mileage and service are then kept here. A car out on an agreement of the other application (sheet) shows as on loan too. Service every 10,000 km - &quot;soon&quot; within 1,000 km.</p>
     </div>
   );
 }

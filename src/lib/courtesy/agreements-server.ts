@@ -87,7 +87,7 @@ export async function nextRef(branchCode: string | null): Promise<string> {
   return `${prefix}${String((Number(last) || 0) + 1).padStart(3, "0")}`;
 }
 
-export type FleetCar = { plate: string; model: string; vin: string; label: string; vehicleId?: string };
+export type FleetCar = { plate: string; model: string; vin: string; label: string; vehicleId?: string; km?: number | null };
 
 /**
  * The branch's cars that are free: the courtesy cars sheet's vehicles of this branch whose status says available (or has
@@ -101,7 +101,7 @@ export async function availableCars(branchId: string): Promise<{ cars: FleetCar[
   if (fleet && fleet.rows.length) {
     const cars = fleet.rows
       .filter((v) => v.branch_id === branchId && v.condition === "available" && !v.loan && !v.transfer)
-      .map((v) => ({ plate: v.plate, model: v.model ?? "", vin: v.vin ?? "", vehicleId: v.id, label: [v.model, v.plate, v.vin].filter(Boolean).join("  ") }));
+      .map((v) => ({ plate: v.plate, model: v.model ?? "", vin: v.vin ?? "", vehicleId: v.id, km: v.km, label: [v.model, v.plate, v.vin].filter(Boolean).join("  ") }));
     return { cars };
   }
   if (synced.error) return { cars: [], error: synced.error };

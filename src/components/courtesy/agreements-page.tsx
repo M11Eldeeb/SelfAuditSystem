@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
 import { COURTESY_BUCKET, agreementsTable, availableCars, courtesyStaff, type Agreement } from "@/lib/courtesy/agreements-server";
 import { STATUS_LABEL, fuelLabel, nowMs, type AgreementStatus } from "@/lib/courtesy/agreements";
-import { CourtesyView } from "@/components/courtesy/courtesy-view";
+import { SearchBox } from "@/components/courtesy/search-box";
+import { sheetOpenLoans } from "@/lib/courtesy/fleet-server";
 import { CustomerLink, CancelButton, ReturnForm } from "@/components/courtesy/agreement-actions";
 import { HandoverForm } from "@/components/courtesy/handover-form";
 import { DamageDiagram } from "@/components/courtesy/damage-diagram";
@@ -24,14 +25,13 @@ const Pill = ({ s }: { s: AgreementStatus }) => <span className={`inline-block r
 export async function CourtesyCarsPage({ base, tab, status, f }: { base: string; tab?: string; status?: string; f?: string }) {
   const s = await courtesyStaff();
   const advisor = s.user.role === "service_advisor" || (s.user.role === "queue_user" && s.user.queue_role !== "manager");
-  const current = tab === "fleet" || tab === "vehicles" || tab === "dashboard" || tab === "agreements" ? tab : advisor ? "agreements" : "dashboard";
+  const current = tab === "vehicles" || tab === "dashboard" || tab === "agreements" ? tab : advisor ? "agreements" : "dashboard";
   const tabs = (
     <nav className="flex gap-0.5 rounded-[12px] bg-[#e9e9ec] p-[3px]" aria-label="Courtesy cars">
       {[
         { id: "dashboard", label: "Dashboard" },
         { id: "agreements", label: "Agreements" },
         { id: "vehicles", label: "Vehicles" },
-        { id: "fleet", label: "Sheet" },
       ].map((t) => (
         <Link key={t.id} href={`${base}?tab=${t.id}`} aria-current={t.id === current ? "page" : undefined} className={`flex-1 rounded-[9px] px-3 py-1.5 text-center text-sm font-semibold ${t.id === current ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
           {t.label}
@@ -40,9 +40,8 @@ export async function CourtesyCarsPage({ base, tab, status, f }: { base: string;
     </nav>
   );
   return (
-    <div className={`${current === "fleet" ? "" : "mx-auto max-w-6xl"} space-y-4`}>
-      <div className="mx-auto max-w-xl">{tabs}</div>
-      {current === "fleet" && <CourtesyView />}
+    <div className="mx-auto max-w-6xl space-y-4">
+      <div className="mx-auto max-w-md">{tabs}</div>
       {current === "dashboard" && <CourtesyDashboard base={base} />}
       {current === "vehicles" && <VehiclesTab base={base} filter={f} />}
       {current === "agreements" && <AgreementsList base={base} status={status ?? (advisor ? "mine" : undefined)} />}
@@ -50,35 +49,216 @@ export async function CourtesyCarsPage({ base, tab, status, f }: { base: string;
   );
 }
 
+type Row = Pick<Agreement, "id" | "ref" | "branch_id" | "status" | "customer_name" | "phone" | "advisor_id" | "advisor_name" | "handed_over_by" | "vehicle_id" | "vehicle_label" | "wip_no" | "mileage_out" | "requested_at" | "handed_over_at" | "expires_at" | "returned_at">;
+
+const ago = (iso: string, now: number) => {
+  const m = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.floor(m / 1440)} d`;
+};
+
+/**
+ * The advisor's working list: customers waiting for a car (hand it over), cars out (with how long and how long left -
+ * return them), the other application's open agreements while both run, then the history. One search box over all.
+ * "Mine" (the default for an advisor) keeps only his own customers.
+ */
 async function AgreementsList({ base, status }: { base: string; status?: string }) {
   const s = await courtesyStaff();
   const admin = createAdminClient();
-  let q = agreementsTable().select("id, ref, branch_id, status, customer_name, phone, advisor_id, advisor_name, handed_over_by, vehicle_id, vehicle_label, wip_no, mileage_out, requested_at, handed_over_at, expires_at, returned_at").order("requested_at", { ascending: false }).limit(300);
+  let q = agreementsTable().select("id, ref, branch_id, status, customer_name, phone, advisor_id, advisor_name, handed_over_by, vehicle_id, vehicle_label, wip_no, mileage_out, requested_at, handed_over_at, expires_at, returned_at").order("requested_at", { ascending: false }).limit(400);
   if (s.branchId) q = q.eq("branch_id", s.branchId);
-  const [{ data, error }, { data: branches }] = await Promise.all([q, admin.from("self_audit_branches").select("id, name, queue_code").order("name")]);
-  const rows = (data ?? []) as Pick<Agreement, "id" | "ref" | "branch_id" | "status" | "customer_name" | "phone" | "advisor_id" | "advisor_name" | "handed_over_by" | "vehicle_id" | "vehicle_label" | "wip_no" | "mileage_out" | "requested_at" | "handed_over_at" | "expires_at" | "returned_at">[];
+  const [{ data, error }, { data: branches }, sheet] = await Promise.all([q, admin.from("self_audit_branches").select("id, name, queue_code").order("name"), sheetOpenLoans()]);
+  const all = (data ?? []) as Row[];
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const origin = await siteOrigin();
   const own = (branches ?? []).find((b) => b.id === s.branchId);
-  const isAdvisor = s.user.role === "service_advisor" || s.user.role === "queue_user";
-  const counts = { requested: 0, open: 0, closed: 0, cancelled: 0 } as Record<AgreementStatus, number>;
-  rows.forEach((r) => counts[r.status]++);
-  const now = nowMs();
-  const isMine = (r: (typeof rows)[number]) => (r.advisor_id === s.user.id || r.handed_over_by === s.user.id) && (r.status === "open" || r.status === "requested");
-  const mineCount = rows.filter(isMine).length;
+  const isMine = (r: Row) => r.advisor_id === s.user.id || r.handed_over_by === s.user.id;
   const mine = status === "mine";
-  const filter = (["requested", "open", "closed", "cancelled"] as const).includes(status as AgreementStatus) ? (status as AgreementStatus) : null;
-  const shown = mine ? rows.filter(isMine) : filter ? rows.filter((r) => r.status === filter) : rows.filter((r) => r.status === "requested" || r.status === "open");
+  const rows = mine ? all.filter(isMine) : all;
+  const now = nowMs();
+  const waiting = rows.filter((r) => r.status === "requested").sort((a, b) => a.requested_at.localeCompare(b.requested_at));
+  const out = rows.filter((r) => r.status === "open").sort((a, b) => (a.expires_at ?? "").localeCompare(b.expires_at ?? ""));
+  const history = rows.filter((r) => r.status === "closed" || r.status === "cancelled");
+  const sheetRows = sheet.filter((x) => !s.branchId || x.branchId === s.branchId);
+  const portalPlates = new Set(all.filter((r) => r.status === "open").map((r) => (r.vehicle_label ?? "").toUpperCase()));
+  const sheetOnly = sheetRows.filter((x) => ![...portalPlates].some((l) => l.includes(x.plate.toUpperCase())));
+  const q2 = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" ");
+  const myLink = own?.queue_code ? `${origin}/cc/${own.queue_code}?a=${s.user.id}` : null;
 
   return (
     <>
-      {error && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">The agreements are not available yet - the database update (0195) is not applied.</p>}
+      {error && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">The agreements are not available yet - the database update (0196) is not applied.</p>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <SearchBox target="cc-list" placeholder="Search customer, mobile, plate, WIP or reference" />
+        </div>
+        <div className="flex gap-0.5 rounded-[12px] bg-[#e9e9ec] p-[3px]">
+          {[
+            { id: "mine", label: "Mine" },
+            { id: "all", label: s.branchId ? "Whole branch" : "All branches" },
+          ].map((t) => (
+            <Link key={t.id} href={`${base}?tab=agreements&status=${t.id}`} className={`rounded-[9px] px-3 py-1.5 text-sm font-semibold ${(mine ? "mine" : "all") === t.id ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
+              {t.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div id="cc-list" className="space-y-5">
+        <section className="space-y-2">
+          <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900">
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs text-white">{waiting.length}</span>
+            Waiting for a car
+          </h2>
+          {waiting.length === 0 && <p className="rounded-xl bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm ring-1 ring-neutral-200/70">No customer waiting. Send the customer link (below) or show the QR poster at reception.</p>}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {waiting.map((r) => (
+              <Link key={r.id} href={`${base}/${r.id}`} data-q={q2(r.customer_name, r.phone, r.ref, r.advisor_name)} className="group flex flex-col gap-2 rounded-xl bg-white p-4 shadow-sm ring-1 ring-amber-200 transition hover:shadow-md hover:ring-amber-400">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-neutral-900">{r.customer_name}</div>
+                    <div className="text-xs text-neutral-500" dir="ltr">{r.phone}</div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">waiting {ago(r.requested_at, now)}</span>
+                </div>
+                <div className="text-xs text-neutral-600">
+                  {r.advisor_name}
+                  {!s.branchId && ` · ${branchName.get(r.branch_id)}`} · <span className="font-mono">{r.ref}</span>
+                </div>
+                <span className="mt-auto rounded-lg bg-brand py-2 text-center text-sm font-bold text-white group-hover:bg-brand-dark">Hand over a car →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900">
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs text-white">{out.length}</span>
+            Cars out with customers
+          </h2>
+          {out.length === 0 && <p className="rounded-xl bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm ring-1 ring-neutral-200/70">No car out.</p>}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {out.map((r) => {
+              const start = r.handed_over_at ? new Date(r.handed_over_at).getTime() : now;
+              const end = r.expires_at ? new Date(r.expires_at).getTime() : now;
+              const late = end < now;
+              const daysLeft = Math.ceil((end - now) / 86_400_000);
+              const share = Math.min(1, Math.max(0, (now - start) / Math.max(1, end - start)));
+              return (
+                <Link key={r.id} href={`${base}/${r.id}`} data-q={q2(r.customer_name, r.phone, r.ref, r.vehicle_label, r.wip_no, r.advisor_name)} className={`group flex flex-col gap-2 rounded-xl bg-white p-4 shadow-sm ring-1 transition hover:shadow-md ${late ? "ring-red-300 hover:ring-red-500" : "ring-neutral-200 hover:ring-neutral-400"}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-bold text-neutral-900">{r.vehicle_label ?? "—"}</div>
+                      <div className="truncate text-sm text-neutral-700">
+                        {r.customer_name} <span className="text-xs text-neutral-500" dir="ltr">{r.phone}</span>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${late ? "bg-red-50 text-red-700" : daysLeft <= 1 ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>
+                      {late ? `! ${Math.ceil((now - end) / 86_400_000)} d overdue` : `${daysLeft} d left`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100" title="Time used of the agreement">
+                    <div className="h-full rounded-full" style={{ width: `${share * 100}%`, backgroundColor: late ? "#d70015" : share > 0.8 ? "#b45309" : "#1d4ed8" }} />
+                  </div>
+                  <div className="text-xs text-neutral-600">
+                    Out {ago(r.handed_over_at ?? r.requested_at, now)} · WIP {r.wip_no ?? "—"} · {r.mileage_out != null ? `${r.mileage_out.toLocaleString("en-US")} km out` : ""}
+                    <br />
+                    {r.advisor_name}
+                    {!s.branchId && ` · ${branchName.get(r.branch_id)}`}
+                  </div>
+                  <span className="mt-auto rounded-lg bg-neutral-900 py-2 text-center text-sm font-bold text-white group-hover:bg-black">Return the car →</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        {sheetOnly.length > 0 && !mine && (
+          <section className="space-y-2">
+            <h2 className="text-base font-bold text-neutral-900">
+              Open in the other application <span className="text-sm font-normal text-neutral-500">(courtesy cars sheet - {sheetOnly.length})</span>
+            </h2>
+            <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-neutral-50 text-left text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">
+                  <tr>
+                    <th className="px-3 py-2">Agreement</th>
+                    <th className="px-3 py-2">Car</th>
+                    <th className="px-3 py-2">Customer</th>
+                    <th className="px-3 py-2">WIP</th>
+                    {!s.branchId && <th className="px-3 py-2">Branch</th>}
+                    <th className="px-3 py-2">Out</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {sheetOnly.map((x) => (
+                    <tr key={x.key} data-q={q2(x.agreement, x.plate, x.customer, x.wip)}>
+                      <td className="px-3 py-2 font-mono text-xs">{x.agreement || "—"}</td>
+                      <td className="px-3 py-2 font-semibold">{x.plate}</td>
+                      <td className="px-3 py-2">{x.customer || "—"}</td>
+                      <td className="px-3 py-2">{x.wip || "—"}</td>
+                      {!s.branchId && <td className="px-3 py-2">{x.branchId ? branchName.get(x.branchId) : "—"}</td>}
+                      <td className="px-3 py-2 text-xs">{x.out || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        <section className="space-y-2">
+          <h2 className="text-base font-bold text-neutral-900">History</h2>
+          <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-neutral-50 text-left text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">
+                <tr>
+                  <th className="px-3 py-2">Ref</th>
+                  <th className="px-3 py-2">Customer</th>
+                  <th className="px-3 py-2">Car</th>
+                  <th className="px-3 py-2">Advisor</th>
+                  <th className="px-3 py-2">Out</th>
+                  <th className="px-3 py-2">Back</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {history.map((r) => (
+                  <tr key={r.id} data-q={q2(r.customer_name, r.phone, r.ref, r.vehicle_label, r.wip_no, r.advisor_name)} className="hover:bg-neutral-50">
+                    <td className="px-3 py-2 font-mono text-xs">
+                      <Link href={`${base}/${r.id}`} className="font-semibold text-brand hover:underline">
+                        {r.ref}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">{r.customer_name}</td>
+                    <td className="px-3 py-2 text-xs">{r.vehicle_id ? <Link href={`${base}/vehicle/${r.vehicle_id}`} className="text-brand hover:underline">{r.vehicle_label}</Link> : (r.vehicle_label ?? "—")}</td>
+                    <td className="px-3 py-2 text-xs">{r.advisor_name ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs">{fmt(r.handed_over_at)}</td>
+                    <td className="px-3 py-2 text-xs">{fmt(r.returned_at)}</td>
+                    <td className="px-3 py-2">
+                      <Pill s={r.status} />
+                    </td>
+                  </tr>
+                ))}
+                {history.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
+                      Nothing yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
       {own?.queue_code ? (
-        <CustomerLink url={`${origin}/cc/${own.queue_code}`} myUrl={isAdvisor || s.user.queue_role === "advisor" ? `${origin}/cc/${own.queue_code}?a=${s.user.id}` : null} posterUrl={`/api/courtesy/poster/${own.queue_code}`} />
+        <CustomerLink url={`${origin}/cc/${own.queue_code}`} myUrl={myLink} posterUrl={`/api/courtesy/poster/${own.queue_code}`} />
       ) : (
         !s.branchId && (
           <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
-            <summary className="cursor-pointer font-bold text-neutral-900">Customer links of the branches</summary>
+            <summary className="cursor-pointer font-bold text-neutral-900">Customer links and QR posters of the branches</summary>
             <ul className="mt-2 space-y-1 text-sm">
               {(branches ?? [])
                 .filter((b) => b.queue_code)
@@ -95,73 +275,6 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
           </details>
         )
       )}
-
-      <div className="flex flex-wrap gap-1.5">
-        {[
-          { id: "mine", label: `My loans (${mineCount})` },
-          { id: "", label: `Active (${counts.requested + counts.open})` },
-          { id: "requested", label: `Waiting for the car (${counts.requested})` },
-          { id: "open", label: `With the customer (${counts.open})` },
-          { id: "closed", label: `Returned (${counts.closed})` },
-          { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
-        ].map((t) => (
-          <Link key={t.id} href={`${base}?tab=agreements${t.id ? `&status=${t.id}` : "&status=all"}`} className={`rounded-full px-3 py-1 text-[13px] font-semibold ring-1 ${(mine ? "mine" : (filter ?? "")) === t.id ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white text-neutral-800 ring-black/10 hover:bg-neutral-50"}`}>
-            {t.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200/70">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-neutral-50 text-left text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">
-            <tr>
-              <th className="px-3 py-2">Ref</th>
-              <th className="px-3 py-2">Customer</th>
-              {!s.branchId && <th className="px-3 py-2">Branch</th>}
-              <th className="px-3 py-2">Advisor</th>
-              <th className="px-3 py-2">Car</th>
-              <th className="px-3 py-2">WIP</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Out for</th>
-              <th className="px-3 py-2">Expiry</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {shown.map((r) => {
-              const late = r.status === "open" && r.expires_at && new Date(r.expires_at).getTime() < now;
-              return (
-                <tr key={r.id} className="hover:bg-neutral-50">
-                  <td className="px-3 py-2 font-mono text-xs">
-                    <Link href={`${base}/${r.id}`} className="font-semibold text-brand hover:underline">
-                      {r.ref}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium">{r.customer_name}</div>
-                    <div className="text-xs text-neutral-500" dir="ltr">{r.phone}</div>
-                  </td>
-                  {!s.branchId && <td className="px-3 py-2">{branchName.get(r.branch_id) ?? "—"}</td>}
-                  <td className="px-3 py-2">{r.advisor_name ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs">{r.vehicle_id ? <Link href={`${base}/vehicle/${r.vehicle_id}`} className="text-brand hover:underline">{r.vehicle_label}</Link> : (r.vehicle_label ?? "—")}</td>
-                  <td className="px-3 py-2">{r.wip_no ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <Pill s={r.status} />
-                  </td>
-                  <td className="px-3 py-2 text-xs tabular-nums">{r.status === "open" && r.handed_over_at ? `${Math.max(0, Math.floor((now - new Date(r.handed_over_at).getTime()) / 86_400_000))} d` : "—"}</td>
-                  <td className={`px-3 py-2 text-xs ${late ? "font-bold text-red-700" : ""}`}>{r.expires_at ? `${fmt(r.expires_at)}${late ? ` - ${Math.ceil((now - new Date(r.expires_at).getTime()) / 86_400_000)} d overdue` : r.status === "open" ? ` (${Math.max(0, Math.ceil((new Date(r.expires_at).getTime() - now) / 86_400_000))} d left)` : ""}` : "—"}</td>
-                </tr>
-              );
-            })}
-            {shown.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
-                  Nothing here.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </>
   );
 }
