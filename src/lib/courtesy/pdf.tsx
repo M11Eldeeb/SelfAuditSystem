@@ -120,9 +120,49 @@ function walkAround(diagram: Buffer, marks: { x: number; y: number; kind: string
 }
 const photoGrid = (list: { data: Buffer; format: "png" | "jpg" }[]) => h(View, { style: { flexDirection: "row", flexWrap: "wrap", gap: 6 } }, ...list.map((p, i) => h(Image, { key: i, src: p, style: { width: 164, height: 123, objectFit: "cover" } })));
 
+/** Which region a branch is in (the gate pass's WR / CR / ER boxes). */
+const regionOf = (branch: string) => (/riyadh|qassim|qasim|buraid/i.test(branch) ? "CR" : /dammam|khobar|ahsa|jubail/i.test(branch) ? "ER" : "WR");
+
+/**
+ * The Vehicle Gate Pass as the company prints it (the scanned form, A4), with the agreement written on its lines:
+ * date, branch and region, After Sales and Demo / Loaner / Company Car Release ticked, customer, plate, model, chassis,
+ * WIP, km out, comments and the advisor's signature and name (date / time out / in and km in are left for the gate).
+ */
+function gatePass(a: Agreement, branchName: string, scan: Buffer, signature: Buffer | null) {
+  const k = 595.28 / 1242; // points per pixel of the scan
+  const at = (x: number, y: number, text: string | null | undefined, size = 8.5, width?: number) =>
+    text
+      ? h(Text, { style: { position: "absolute", left: x * k, top: (y + 6) * k, fontSize: size, fontWeight: 700, color: "#1d4ed8", ...(width ? { width: width * k } : {}) } }, text)
+      : null;
+  const tick = (x: number, y: number) => h(Text, { style: { position: "absolute", left: x * k, top: y * k, fontSize: 12, fontWeight: 700, color: "#1d4ed8" } }, "X");
+  const region = regionOf(branchName);
+  const out = a.handed_over_at ?? a.requested_at;
+  return h(
+    Page,
+    { size: "A4" as const, style: { fontFamily: "Tajawal", position: "relative" } },
+    h(Image, { src: { data: scan, format: "jpg" }, style: { position: "absolute", left: 0, top: 0, width: 595.28, height: (595.28 * 1755) / 1242 } }),
+    at(868, 148, dateOnly(out), 9),
+    at(843, 198, branchName, 9),
+    tick(401, 202),
+    tick(region === "WR" ? 523 : region === "CR" ? 604 : 696, 202),
+    at(312, 266, a.customer_name, 9, 370),
+    at(968, 265, null),
+    at(166, 307, a.vehicle_plate ?? a.vehicle_label, 7.5, 128),
+    at(541, 308, a.vehicle_model, 6.5, 90),
+    at(846, 309, a.vehicle_vin, 6.5, 168),
+    at(154, 349, a.wip_no, 8.5, 135),
+    tick(421, 401),
+    at(204, 556, a.mileage_out != null ? `${a.mileage_out.toLocaleString("en-US")} km` : null, 8.5),
+    at(192, 666, `Agreement ${a.ref}${a.expires_at ? ` · until ${dateOnly(a.expires_at)}` : ""}`, 7.5, 415),
+    signature ? h(Image, { src: { data: signature, format: "png" }, style: { position: "absolute", left: 880 * k, top: 612 * k, width: 230 * k, height: 72 * k, objectFit: "contain" } }) : null,
+    at(708, 660, a.handed_over_by_name ?? a.advisor_name, 8, 170)
+  );
+}
+
 export async function courtesyPdf(a: Agreement, branchName: string, url: string, files: CourtesyPdfFiles): Promise<Buffer> {
   const TERMS = files.terms?.length ? files.terms : STANDARD_TERMS;
   const diagram = await readDisk(path.join(process.cwd(), "public", "courtesy", "walkaround.jpg"));
+  const gate = await readDisk(path.join(process.cwd(), "public", "courtesy", "gate-pass.jpg"));
   const car = [a.vehicle_label].filter(Boolean).join(" ");
   
   const doc = h(
@@ -271,7 +311,9 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
           files.returnPhotos?.length ? h(View, { wrap: true }, bar("Photos at Return", "صور السيارة عند الإعادة"), photoGrid(files.returnPhotos)) : null,
           footer(a)
         )
-      : null
+      : null,
+    // ---- 6. The company's Vehicle Gate Pass (the scanned form), filled in
+    gatePass(a, branchName, gate, files.advisorSignature)
   );
   return renderToBuffer(doc);
 }
