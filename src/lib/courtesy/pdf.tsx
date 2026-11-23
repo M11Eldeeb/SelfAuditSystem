@@ -35,6 +35,8 @@ export type CourtesyPdfFiles = {
   license: { data: Buffer; format: "png" | "jpg" } | null;
   photos: { data: Buffer; format: "png" | "jpg" }[];
   returnPhotos?: { data: Buffer; format: "png" | "jpg" }[];
+  /** An old agreement printed from the other application's sheet: its other columns, and no walk-around / photo pages. */
+  fromSheet?: { extra: { label: string; value: string }[] };
 };
 
 const page = { size: "A4" as const, style: { paddingTop: 26, paddingBottom: 56, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } };
@@ -153,7 +155,7 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
         field("Mileage Out", a.mileage_out != null ? `${a.mileage_out.toLocaleString("en-US")} km` : null),
         field("Date & Time Out", stamp(a.handed_over_at)),
         field("Agreement Expiry", stamp(a.expires_at)),
-        field("Damages at checkout", a.damages?.length ? `${a.damages.length} marked - see the walk-around page` : "None marked")
+        field("Damages at checkout", files.fromSheet ? "Recorded in the other application" : a.damages?.length ? `${a.damages.length} marked - see the walk-around page` : "None marked")
       ),
       a.status === "closed"
         ? h(
@@ -168,6 +170,15 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
               field("Distance driven", a.mileage_in != null && a.mileage_out != null ? `${(a.mileage_in - a.mileage_out).toLocaleString("en-US")} km` : null),
               field("Return note", a.return_note)
             )
+          )
+        : null,
+      files.fromSheet
+        ? h(
+            View,
+            null,
+            bar("More from the other application", "بيانات إضافية"),
+            fields(...files.fromSheet.extra.map((x) => field(x.label, x.value))),
+            h(Text, { style: { fontSize: 8.5, color: MUTED, marginTop: 6 } }, "Printed from the record of the other application (courtesy cars sheet). The agreement was signed there.")
           )
         : null,
       footer(a)
@@ -228,8 +239,8 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
       h(Text, { style: { fontSize: 10, textAlign: "center", marginTop: 4 } }, "WWW.MG-SA.COM"),
       footer(a)
     ),
-    // ---- 4. Licence, walk-around, photos
-    h(
+    // ---- 4. Licence, walk-around, photos (not for an old agreement of the other application)
+    files.fromSheet ? null : h(
       Page,
       page,
       files.license
@@ -241,7 +252,7 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
       footer(a)
     ),
     // ---- 5. The return: new damages and photos
-    a.status === "closed"
+    a.status === "closed" && !files.fromSheet
       ? h(
           Page,
           page,

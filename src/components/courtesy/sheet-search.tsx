@@ -57,6 +57,7 @@ export function SheetSearch() {
                 <th className="px-2 py-1.5">Out</th>
                 <th className="px-2 py-1.5">Back</th>
                 <th className="px-2 py-1.5">Status</th>
+                <th className="px-2 py-1.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -72,11 +73,16 @@ export function SheetSearch() {
                     <span className={`rounded-full px-2 py-0.5 font-semibold ${h.open ? "bg-blue-50 text-blue-800" : "bg-neutral-100 text-neutral-600"}`}>{h.open ? "Open" : h.status || "Closed"}</span>
                     {h.branch && <span className="ml-1 text-neutral-500">{h.branch}</span>}
                   </td>
+                  <td className="px-2 py-1.5">
+                    <a href={`/api/courtesy/sheet/${h.idx}/pdf?ref=${encodeURIComponent(h.agreement || h.plate)}`} target="_blank" rel="noreferrer" className="rounded-lg bg-brand px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-white hover:bg-brand-dark">
+                      Print PDF
+                    </a>
+                  </td>
                 </tr>
               ))}
               {hits.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-4 text-center text-neutral-500">
+                  <td colSpan={8} className="px-2 py-4 text-center text-neutral-500">
                     Nothing found.
                   </td>
                 </tr>

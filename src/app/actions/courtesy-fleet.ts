@@ -134,7 +134,7 @@ export async function moveTransfer(transferId: string, step: "sent" | "received"
   return {};
 }
 
-export type SheetHit = { agreement: string; plate: string; customer: string; wip: string; out: string; back: string; status: string; open: boolean; branch: string | null };
+export type SheetHit = { idx: number; agreement: string; plate: string; customer: string; wip: string; out: string; back: string; status: string; open: boolean; branch: string | null };
 
 /** Search the other application's agreements (the courtesy cars sheet): plate, customer, WIP or agreement number. */
 export async function searchOtherApplication(query: string): Promise<{ hits?: SheetHit[]; error?: string }> {
@@ -147,12 +147,12 @@ export async function searchOtherApplication(query: string): Promise<{ hits?: Sh
     const c = sheet.cols.agreements;
     const cell = (r: string[], i: number) => (i >= 0 ? (r[i] ?? "") : "");
     const hits: SheetHit[] = [];
-    for (const r of sheet.agreements?.rows ?? []) {
+    for (const [idx, r] of (sheet.agreements?.rows ?? []).entries()) {
       const b = c.branch >= 0 ? resolve(r[c.branch]) : null;
       if (s.branchId && b?.id !== s.branchId) continue;
       const text = r.join(" ").toLowerCase();
       if (!words.every((w) => text.includes(w))) continue;
-      hits.push({ agreement: cell(r, c.agreement), plate: cell(r, c.plate), customer: cell(r, c.customer), wip: cell(r, c.wip), out: cell(r, c.out), back: cell(r, c.back), status: cell(r, c.status), open: agreementOpen(r, c), branch: b?.name ?? null });
+      hits.push({ idx, agreement: cell(r, c.agreement), plate: cell(r, c.plate), customer: cell(r, c.customer), wip: cell(r, c.wip), out: cell(r, c.out), back: cell(r, c.back), status: cell(r, c.status), open: agreementOpen(r, c), branch: b?.name ?? null });
       if (hits.length >= 40) break;
     }
     return { hits: hits.reverse() };
