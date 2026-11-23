@@ -27,6 +27,7 @@ export type Agreement = {
   license_photo: string | null;
   terms_accepted_at: string | null;
   requested_at: string;
+  vehicle_id: string | null;
   vehicle_label: string | null;
   vehicle_plate: string | null;
   vehicle_model: string | null;
@@ -86,13 +87,24 @@ export async function nextRef(branchCode: string | null): Promise<string> {
   return `${prefix}${String((Number(last) || 0) + 1).padStart(3, "0")}`;
 }
 
-export type FleetCar = { plate: string; model: string; vin: string; label: string };
+export type FleetCar = { plate: string; model: string; vin: string; label: string; vehicleId?: string };
 
 /**
  * The branch's cars that are free: the courtesy cars sheet's vehicles of this branch whose status says available (or has
  * no status) and that are not out on an open agreement - neither in the sheet nor in the portal.
  */
 export async function availableCars(branchId: string): Promise<{ cars: FleetCar[]; error?: string }> {
+  // The portal's fleet first: the branch's cars that are Available, not out on an agreement and not being transferred.
+  const { syncFleet, loadFleet } = await import("./fleet-server");
+  const synced = await syncFleet();
+  const fleet = await loadFleet(branchId).catch(() => null);
+  if (fleet && fleet.rows.length) {
+    const cars = fleet.rows
+      .filter((v) => v.branch_id === branchId && v.condition === "available" && !v.loan && !v.transfer)
+      .map((v) => ({ plate: v.plate, model: v.model ?? "", vin: v.vin ?? "", vehicleId: v.id, label: [v.model, v.plate, v.vin].filter(Boolean).join("  ") }));
+    return { cars };
+  }
+  if (synced.error) return { cars: [], error: synced.error };
   try {
     const [sheet, resolve, { data: ours }] = await Promise.all([
       loadCourtesy(),

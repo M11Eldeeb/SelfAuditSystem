@@ -7,6 +7,8 @@ import { sendMail } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
 import { ID_RE, PHONE_RE, digitsOnly, isAdult, type CourtesyRequestInput, type DamageMark, DAMAGE_KINDS } from "@/lib/courtesy/agreements";
 import { agreementsTable, branchAdvisors, courtesyStaff, nextRef, saveFile, type Agreement } from "@/lib/courtesy/agreements-server";
+import { addEvent, receptionManagerEmails, vehicleForPlate, vehiclesTable } from "@/lib/courtesy/fleet-server";
+import { serviceState, type Vehicle } from "@/lib/courtesy/fleet";
 
 const PATHS = ["/advisor/courtesy-cars", "/admin/courtesy-cars", "/audit/courtesy-cars"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -126,7 +128,7 @@ export async function uploadCourtesyPhoto(id: string, photo: { base64: string; m
 }
 
 export type HandoverInput = {
-  vehicle: { label: string; plate: string; model: string; vin: string };
+  vehicle: { label: string; plate: string; model: string; vin: string; vehicleId?: string };
   mileageOut: number;
   fuelOut: number;
   damages: DamageMark[];
@@ -163,9 +165,21 @@ export async function handOverCourtesyCar(id: string, input: HandoverInput): Pro
   try {
     const signature = await saveFile(`${r.a.branch_id}/${r.a.id}`, "advisor-signature.png", Buffer.from(input.signature, "base64"), "image/png");
     const now = new Date().toISOString();
+    // The car in the portal's fleet (a car typed in by hand is added to it).
+    let vehicle: Vehicle | null = null;
+    if (input.vehicle.vehicleId) {
+      const { data: v } = await vehiclesTable().select("*").eq("id", input.vehicle.vehicleId).maybeSingle();
+      vehicle = (v as Vehicle | null) ?? null;
+    }
+    vehicle ??= await vehicleForPlate(plate, { model: input.vehicle.model, vin: input.vehicle.vin, branch_id: r.a.branch_id }).catch(() => null);
+    if (vehicle) {
+      const { data: busy } = await agreementsTable().select("ref").eq("vehicle_id", vehicle.id).eq("status", "open").maybeSingle();
+      if (busy) return { error: `This car is already out on agreement ${busy.ref}.` };
+    }
     const { data, error } = await agreementsTable()
       .update({
         status: "open",
+        vehicle_id: vehicle?.id ?? null,
         vehicle_label: String(input.vehicle.label ?? "").slice(0, 200) || plate,
         vehicle_plate: plate.slice(0, 40),
         vehicle_model: String(input.vehicle.model ?? "").slice(0, 80) || null,
@@ -188,6 +202,10 @@ export async function handOverCourtesyCar(id: string, input: HandoverInput): Pro
       .select("id");
     if (error) return { error: error.message };
     if (!data?.length) return { error: "Someone else handed this car over just now - reload the page." };
+    if (vehicle) {
+      await vehiclesTable().update({ km: Math.max(km, vehicle.km ?? 0), updated_at: now }).eq("id", vehicle.id);
+      await addEvent({ vehicle_id: vehicle.id, kind: "loan_out", km, agreement_id: id, body: `${r.a.ref} - ${r.a.customer_name}, WIP ${wip}`, by: r.user });
+    }
     revalidateAll();
     return {};
   } catch {
@@ -210,6 +228,28 @@ export async function returnCourtesyCar(id: string, input: { mileageIn: number; 
     .eq("id", id)
     .eq("status", "open");
   if (error) return { error: error.message };
+  // The car's mileage and history; a car near or past its 10,000 km service: the branch's reception managers are told.
+  if (r.a.vehicle_id) {
+    const { data: v } = await vehiclesTable().select("*").eq("id", r.a.vehicle_id).maybeSingle();
+    const vehicle = v as Vehicle | null;
+    if (vehicle) {
+      const updated = { ...vehicle, km: Math.max(km, vehicle.km ?? 0) };
+      await vehiclesTable().update({ km: updated.km, updated_at: now }).eq("id", vehicle.id);
+      await addEvent({ vehicle_id: vehicle.id, kind: "loan_in", km, agreement_id: id, body: `${r.a.ref} - ${(km - (r.a.mileage_out ?? km)).toLocaleString("en-US")} km driven`, by: r.user });
+      const sv = serviceState(updated);
+      if (sv.state !== "ok" && sv.state !== "unknown" && vehicle.branch_id) {
+        const to = await receptionManagerEmails(vehicle.branch_id);
+        if (to.length)
+          await sendMail({
+            kind: "courtesy-service-due",
+            to,
+            subject: `Courtesy car ${vehicle.plate} ${sv.state === "due" ? "is due for service" : "is near its service"} (${updated.km?.toLocaleString("en-US")} km)`,
+            text: `The courtesy car ${vehicle.model ?? ""} ${vehicle.plate} came back at ${updated.km?.toLocaleString("en-US")} km.\n\nNext service: ${sv.nextKm?.toLocaleString("en-US")} km (${sv.state === "due" ? `${Math.abs(sv.left ?? 0).toLocaleString("en-US")} km overdue` : `${sv.left?.toLocaleString("en-US")} km left`}).\n\nPlease book its service and set its condition to Maintenance in the portal (Courtesy Cars - Vehicles).\n\nWarranty Department - Jiad Modern Motors`,
+            dedupeKey: `courtesy-service:${vehicle.id}:${sv.nextKm}:${sv.state}`,
+          });
+      }
+    }
+  }
   revalidateAll();
   return {};
 }

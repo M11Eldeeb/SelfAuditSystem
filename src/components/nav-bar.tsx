@@ -19,7 +19,7 @@ type NavNotifications = {
   count: number;
   items: {
     id: string;
-    kind: "feedback" | "reply" | "audit" | "task" | "returned";
+    kind: "feedback" | "reply" | "audit" | "task" | "returned" | "courtesy";
     title: string;
     detail: string;
     href: string;

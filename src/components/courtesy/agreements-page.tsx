@@ -8,6 +8,7 @@ import { CourtesyView } from "@/components/courtesy/courtesy-view";
 import { CustomerLink, CancelButton, ReturnForm } from "@/components/courtesy/agreement-actions";
 import { HandoverForm } from "@/components/courtesy/handover-form";
 import { DamageDiagram } from "@/components/courtesy/damage-diagram";
+import { CourtesyDashboard, VehiclesTab } from "@/components/courtesy/fleet-pages";
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" }) : "—");
 const TONE: Record<AgreementStatus, string> = {
@@ -19,31 +20,32 @@ const TONE: Record<AgreementStatus, string> = {
 const Pill = ({ s }: { s: AgreementStatus }) => <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${TONE[s]}`}>{STATUS_LABEL[s]}</span>;
 
 /** Courtesy Cars: the agreements made in the portal (default) and the fleet sheet. */
-export async function CourtesyCarsPage({ base, tab, status }: { base: string; tab?: string; status?: string }) {
-  const fleet = tab === "fleet";
+/** Courtesy Cars: dashboard, agreements (with an advisor's own loans), the fleet in the portal, and the sheet. */
+export async function CourtesyCarsPage({ base, tab, status, f }: { base: string; tab?: string; status?: string; f?: string }) {
+  const s = await courtesyStaff();
+  const advisor = s.user.role === "service_advisor" || (s.user.role === "queue_user" && s.user.queue_role !== "manager");
+  const current = tab === "fleet" || tab === "vehicles" || tab === "dashboard" || tab === "agreements" ? tab : advisor ? "agreements" : "dashboard";
   const tabs = (
     <nav className="flex gap-0.5 rounded-[12px] bg-[#e9e9ec] p-[3px]" aria-label="Courtesy cars">
       {[
-        { id: "agreements", label: "Agreements", href: base },
-        { id: "fleet", label: "Fleet (sheet)", href: `${base}?tab=fleet` },
+        { id: "dashboard", label: "Dashboard" },
+        { id: "agreements", label: "Agreements" },
+        { id: "vehicles", label: "Vehicles" },
+        { id: "fleet", label: "Sheet" },
       ].map((t) => (
-        <Link key={t.id} href={t.href} aria-current={(t.id === "fleet") === fleet ? "page" : undefined} className={`flex-1 rounded-[9px] px-4 py-1.5 text-center text-sm font-semibold ${(t.id === "fleet") === fleet ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
+        <Link key={t.id} href={`${base}?tab=${t.id}`} aria-current={t.id === current ? "page" : undefined} className={`flex-1 rounded-[9px] px-3 py-1.5 text-center text-sm font-semibold ${t.id === current ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:bg-white/50"}`}>
           {t.label}
         </Link>
       ))}
     </nav>
   );
-  if (fleet)
-    return (
-      <div className="space-y-4">
-        <div className="mx-auto max-w-md">{tabs}</div>
-        <CourtesyView />
-      </div>
-    );
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <div className="mx-auto max-w-md">{tabs}</div>
-      <AgreementsList base={base} status={status} />
+    <div className={`${current === "fleet" ? "" : "mx-auto max-w-6xl"} space-y-4`}>
+      <div className="mx-auto max-w-xl">{tabs}</div>
+      {current === "fleet" && <CourtesyView />}
+      {current === "dashboard" && <CourtesyDashboard base={base} />}
+      {current === "vehicles" && <VehiclesTab base={base} filter={f} />}
+      {current === "agreements" && <AgreementsList base={base} status={status ?? (advisor ? "mine" : undefined)} />}
     </div>
   );
 }
@@ -51,10 +53,10 @@ export async function CourtesyCarsPage({ base, tab, status }: { base: string; ta
 async function AgreementsList({ base, status }: { base: string; status?: string }) {
   const s = await courtesyStaff();
   const admin = createAdminClient();
-  let q = agreementsTable().select("id, ref, branch_id, status, customer_name, phone, advisor_name, vehicle_label, wip_no, requested_at, handed_over_at, expires_at, returned_at").order("requested_at", { ascending: false }).limit(300);
+  let q = agreementsTable().select("id, ref, branch_id, status, customer_name, phone, advisor_id, advisor_name, handed_over_by, vehicle_id, vehicle_label, wip_no, mileage_out, requested_at, handed_over_at, expires_at, returned_at").order("requested_at", { ascending: false }).limit(300);
   if (s.branchId) q = q.eq("branch_id", s.branchId);
   const [{ data, error }, { data: branches }] = await Promise.all([q, admin.from("self_audit_branches").select("id, name, queue_code").order("name")]);
-  const rows = (data ?? []) as Pick<Agreement, "id" | "ref" | "branch_id" | "status" | "customer_name" | "phone" | "advisor_name" | "vehicle_label" | "wip_no" | "requested_at" | "handed_over_at" | "expires_at" | "returned_at">[];
+  const rows = (data ?? []) as Pick<Agreement, "id" | "ref" | "branch_id" | "status" | "customer_name" | "phone" | "advisor_id" | "advisor_name" | "handed_over_by" | "vehicle_id" | "vehicle_label" | "wip_no" | "mileage_out" | "requested_at" | "handed_over_at" | "expires_at" | "returned_at">[];
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const origin = await siteOrigin();
   const own = (branches ?? []).find((b) => b.id === s.branchId);
@@ -62,8 +64,11 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
   const counts = { requested: 0, open: 0, closed: 0, cancelled: 0 } as Record<AgreementStatus, number>;
   rows.forEach((r) => counts[r.status]++);
   const now = nowMs();
+  const isMine = (r: (typeof rows)[number]) => (r.advisor_id === s.user.id || r.handed_over_by === s.user.id) && (r.status === "open" || r.status === "requested");
+  const mineCount = rows.filter(isMine).length;
+  const mine = status === "mine";
   const filter = (["requested", "open", "closed", "cancelled"] as const).includes(status as AgreementStatus) ? (status as AgreementStatus) : null;
-  const shown = filter ? rows.filter((r) => r.status === filter) : rows.filter((r) => r.status === "requested" || r.status === "open");
+  const shown = mine ? rows.filter(isMine) : filter ? rows.filter((r) => r.status === filter) : rows.filter((r) => r.status === "requested" || r.status === "open");
 
   return (
     <>
@@ -93,13 +98,14 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
 
       <div className="flex flex-wrap gap-1.5">
         {[
+          { id: "mine", label: `My loans (${mineCount})` },
           { id: "", label: `Active (${counts.requested + counts.open})` },
           { id: "requested", label: `Waiting for the car (${counts.requested})` },
           { id: "open", label: `With the customer (${counts.open})` },
           { id: "closed", label: `Returned (${counts.closed})` },
           { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
         ].map((t) => (
-          <Link key={t.id} href={t.id ? `${base}?status=${t.id}` : base} className={`rounded-full px-3 py-1 text-[13px] font-semibold ring-1 ${(filter ?? "") === t.id ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white text-neutral-800 ring-black/10 hover:bg-neutral-50"}`}>
+          <Link key={t.id} href={`${base}?tab=agreements${t.id ? `&status=${t.id}` : "&status=all"}`} className={`rounded-full px-3 py-1 text-[13px] font-semibold ring-1 ${(mine ? "mine" : (filter ?? "")) === t.id ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white text-neutral-800 ring-black/10 hover:bg-neutral-50"}`}>
             {t.label}
           </Link>
         ))}
@@ -116,6 +122,7 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
               <th className="px-3 py-2">Car</th>
               <th className="px-3 py-2">WIP</th>
               <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Out for</th>
               <th className="px-3 py-2">Expiry</th>
             </tr>
           </thead>
@@ -135,18 +142,19 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
                   </td>
                   {!s.branchId && <td className="px-3 py-2">{branchName.get(r.branch_id) ?? "—"}</td>}
                   <td className="px-3 py-2">{r.advisor_name ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs">{r.vehicle_label ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.vehicle_id ? <Link href={`${base}/vehicle/${r.vehicle_id}`} className="text-brand hover:underline">{r.vehicle_label}</Link> : (r.vehicle_label ?? "—")}</td>
                   <td className="px-3 py-2">{r.wip_no ?? "—"}</td>
                   <td className="px-3 py-2">
                     <Pill s={r.status} />
                   </td>
-                  <td className={`px-3 py-2 text-xs ${late ? "font-bold text-red-700" : ""}`}>{r.expires_at ? `${fmt(r.expires_at)}${late ? " - overdue" : ""}` : "—"}</td>
+                  <td className="px-3 py-2 text-xs tabular-nums">{r.status === "open" && r.handed_over_at ? `${Math.max(0, Math.floor((now - new Date(r.handed_over_at).getTime()) / 86_400_000))} d` : "—"}</td>
+                  <td className={`px-3 py-2 text-xs ${late ? "font-bold text-red-700" : ""}`}>{r.expires_at ? `${fmt(r.expires_at)}${late ? ` - ${Math.ceil((now - new Date(r.expires_at).getTime()) / 86_400_000)} d overdue` : r.status === "open" ? ` (${Math.max(0, Math.ceil((new Date(r.expires_at).getTime() - now) / 86_400_000))} d left)` : ""}` : "—"}</td>
                 </tr>
               );
             })}
             {shown.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
                   Nothing here.
                 </td>
               </tr>

@@ -5,10 +5,11 @@ import { getTasks } from "@/lib/tasks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { auditDays } from "@/lib/ia-schedule-days";
 import { getTechLang } from "@/lib/i18n/tech-server";
+import { courtesyNotes } from "@/lib/courtesy/notify";
 
 export type NotificationItem = {
   id: string;
-  kind: "feedback" | "reply" | "audit" | "task" | "returned";
+  kind: "feedback" | "reply" | "audit" | "task" | "returned" | "courtesy";
   title: string;
   detail: string;
   href: string;
@@ -45,15 +46,22 @@ export async function getNotifications(
   // A service manager sees what the branch's warranty admin sees.
   if (user.role === "service_manager") user = { ...user, role: "branch_admin", viewOnly: true };
   if (user.role === "technician") return getReturnedTechClaims(user);
+  // Service advisors and the reception team: courtesy car items only.
+  if (user.role === "service_advisor" || user.role === "queue_user") {
+    const cc = await courtesyNotes(user, "advisor");
+    return { count: cc.length, items: cc };
+  }
   if (user.role !== "officer" && user.role !== "branch_admin") return EMPTY;
 
-  const [feedback, tasks, planned] = await Promise.all([
+  const [feedback, tasks, planned, cc] = await Promise.all([
     user.role === "officer" ? getOfficerFeedback() : getBranchAdminMessages(),
     includeTasks ? getTaskItems(user) : Promise.resolve(EMPTY),
     user.role === "branch_admin" ? getScheduledAuditItems(user.branch_id) : Promise.resolve([]),
+    // Officers' courtesy items cost a fleet read: only when the bell asks (includeTasks), like the tasks.
+    includeTasks || user.role === "branch_admin" ? courtesyNotes(user, user.role === "officer" ? "admin" : "audit") : Promise.resolve([]),
   ]);
 
-  return { count: planned.length + feedback.count + tasks.count, items: [...planned, ...feedback.items, ...tasks.items] };
+  return { count: planned.length + feedback.count + tasks.count + cc.length, items: [...cc, ...planned, ...feedback.items, ...tasks.items] };
 }
 
 async function getTaskItems(user: CurrentUser): Promise<Notifications> {

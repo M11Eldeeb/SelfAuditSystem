@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Item = {
   id: string;
-  kind: "feedback" | "reply" | "audit" | "task" | "returned";
+  kind: "feedback" | "reply" | "audit" | "task" | "returned" | "courtesy";
   title: string;
   detail: string;
   href: string;
@@ -166,13 +166,15 @@ export function NotificationBell({
   );
   const tasks = data.items.filter((i) => i.kind === "task");
   const returned = data.items.filter((i) => i.kind === "returned");
+  const courtesy = data.items.filter((i) => i.kind === "courtesy");
   const hiddenTasks = Math.max(
     0,
     data.count -
       audits.length -
       messages.length -
       tasks.length -
-      returned.length,
+      returned.length -
+      courtesy.length,
   );
 
   const renderItem = (n: Item) => (
@@ -302,6 +304,16 @@ export function NotificationBell({
                 </p>
                 <ul className="divide-y divide-neutral-100">
                   {returned.map(renderItem)}
+                </ul>
+              </section>
+            )}
+            {courtesy.length > 0 && (
+              <section>
+                <p className="bg-blue-50 px-4 py-1.5 text-[11px] font-semibold tracking-wider text-blue-800 uppercase">
+                  Courtesy cars
+                </p>
+                <ul className="divide-y divide-neutral-100">
+                  {courtesy.map(renderItem)}
                 </ul>
               </section>
             )}

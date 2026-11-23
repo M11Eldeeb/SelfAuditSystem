@@ -1,0 +1,120 @@
+import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { CurrentUser } from "@/lib/auth";
+import { loadCourtesy } from "./sheet";
+import { branchResolver } from "./branches";
+import { agreementsTable } from "./agreements-server";
+import { plateKey, serviceState, type Vehicle, type TransferStatus } from "./fleet";
+
+// New tables (migration 0196): untyped handles until the generated types know them.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = () => createAdminClient() as any;
+export const vehiclesTable = () => db().from("self_audit_courtesy_vehicles");
+export const eventsTable = () => db().from("self_audit_courtesy_vehicle_events");
+export const transfersTable = () => db().from("self_audit_courtesy_transfers");
+
+/** Reception manager (customer queue manager) or warranty officer: sets conditions, records services, sends / receives transfers. */
+export const canManageFleet = (u: CurrentUser) => !u.viewOnly && (u.role === "officer" || u.queue_role === "manager");
+/** Warranty officers and national managers ask a branch to move a car. */
+export const canRequestTransfer = (u: CurrentUser) => u.role === "officer" && (!u.viewOnly || u.managerKind === "national_manager");
+
+/**
+ * Copies the cars of the courtesy cars sheet the portal does not know yet (by plate). Cars already in the portal keep
+ * their branch, condition and history. Never throws: returns why the sheet could not be read.
+ */
+export async function syncFleet(): Promise<{ added: number; error?: string }> {
+  try {
+    const [sheet, resolve, { data: known }] = await Promise.all([loadCourtesy(), branchResolver(), vehiclesTable().select("plate_key")]);
+    const have = new Set(((known ?? []) as { plate_key: string }[]).map((k) => k.plate_key));
+    const c = sheet.cols.vehicles;
+    const fresh = new Map<string, Record<string, unknown>>();
+    for (const r of sheet.vehicles?.rows ?? []) {
+      const plate = c.plate >= 0 ? r[c.plate]?.trim() : "";
+      const key = plate ? plateKey(plate) : "";
+      if (!key || have.has(key) || fresh.has(key)) continue;
+      const status = c.status >= 0 ? r[c.status] : "";
+      fresh.set(key, {
+        plate,
+        plate_key: key,
+        model: c.model >= 0 ? r[c.model] || null : null,
+        vin: c.vin >= 0 ? r[c.vin] || null : null,
+        branch_id: c.branch >= 0 ? (resolve(r[c.branch])?.id ?? null) : null,
+        condition: /accident|حادث/i.test(status) ? "accident" : /mainten|service|workshop|صيان/i.test(status) ? "maintenance" : /hold/i.test(status) ? "on_hold" : /sold|out of service|scrap/i.test(status) ? "out_of_service" : "available",
+      });
+    }
+    const rows = [...fresh.values()];
+    for (let i = 0; i < rows.length; i += 200) {
+      const { data } = await vehiclesTable().insert(rows.slice(i, i + 200)).select("id");
+      if (data?.length) await eventsTable().insert((data as { id: string }[]).map((v) => ({ vehicle_id: v.id, kind: "added", body: "From the courtesy cars sheet" })));
+    }
+    return { added: rows.length };
+  } catch (e) {
+    return { added: 0, error: e instanceof Error ? e.message : "The courtesy cars sheet could not be read." };
+  }
+}
+
+export type OpenLoan = { id: string; ref: string; customer_name: string; advisor_name: string | null; handed_over_at: string | null; expires_at: string | null; mileage_out: number | null; vehicle_id: string | null; vehicle_plate: string | null };
+export type OpenTransfer = { id: string; vehicle_id: string; from_branch: string; to_branch: string; reason: string | null; status: TransferStatus; requested_by_name: string | null; requested_at: string; sent_at: string | null };
+export type FleetRow = Vehicle & { branchName: string | null; loan: OpenLoan | null; transfer: OpenTransfer | null; service: ReturnType<typeof serviceState> };
+
+/** The fleet of a branch (or every branch: null), each car with its open agreement, open transfer and service state. */
+export async function loadFleet(branchId: string | null): Promise<{ rows: FleetRow[]; branches: { id: string; name: string; code: string | null; queue_code: string | null }[] }> {
+  let vq = vehiclesTable().select("*").order("plate");
+  if (branchId) vq = vq.eq("branch_id", branchId);
+  const [{ data: vs }, { data: loans }, { data: trs }, { data: branches }] = await Promise.all([
+    vq,
+    agreementsTable().select("id, ref, customer_name, advisor_name, handed_over_at, expires_at, mileage_out, vehicle_id, vehicle_plate").eq("status", "open"),
+    transfersTable().select("*").in("status", ["requested", "sent"]),
+    createAdminClient().from("self_audit_branches").select("id, name, code, queue_code").order("name"),
+  ]);
+  const name = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const loanList = (loans ?? []) as OpenLoan[];
+  const transfers = (trs ?? []) as OpenTransfer[];
+  const rows = ((vs ?? []) as Vehicle[]).map((v) => ({
+    ...v,
+    branchName: v.branch_id ? (name.get(v.branch_id) ?? null) : null,
+    loan: loanList.find((l) => l.vehicle_id === v.id || (!l.vehicle_id && l.vehicle_plate && plateKey(l.vehicle_plate) === v.plate_key)) ?? null,
+    transfer: transfers.find((t) => t.vehicle_id === v.id) ?? null,
+    service: serviceState(v),
+  }));
+  // A branch also sees a car on its way to it.
+  if (branchId) {
+    const incoming = transfers.filter((t) => t.to_branch === branchId && t.status === "sent" && !rows.some((r) => r.id === t.vehicle_id)).map((t) => t.vehicle_id);
+    if (incoming.length) {
+      const { data } = await vehiclesTable().select("*").in("id", incoming);
+      for (const v of (data ?? []) as Vehicle[]) rows.push({ ...v, branchName: v.branch_id ? (name.get(v.branch_id) ?? null) : null, loan: null, transfer: transfers.find((t) => t.vehicle_id === v.id) ?? null, service: serviceState(v) });
+    }
+  }
+  return { rows, branches: (branches ?? []) as { id: string; name: string; code: string | null; queue_code: string | null }[] };
+}
+
+export async function addEvent(e: { vehicle_id: string; kind: string; body?: string | null; km?: number | null; agreement_id?: string | null; from_branch?: string | null; to_branch?: string | null; by?: CurrentUser | null }) {
+  await eventsTable().insert({
+    vehicle_id: e.vehicle_id,
+    kind: e.kind,
+    body: e.body ?? null,
+    km: e.km ?? null,
+    agreement_id: e.agreement_id ?? null,
+    from_branch: e.from_branch ?? null,
+    to_branch: e.to_branch ?? null,
+    by_id: e.by?.id ?? null,
+    by_name: e.by ? (e.by.full_name ?? e.by.email) : null,
+  });
+}
+
+/** The vehicle for a plate (creates it when the car was typed in by hand). */
+export async function vehicleForPlate(plate: string, fallback: { model?: string | null; vin?: string | null; branch_id: string }): Promise<Vehicle | null> {
+  const key = plateKey(plate);
+  if (!key) return null;
+  const { data } = await vehiclesTable().select("*").eq("plate_key", key).maybeSingle();
+  if (data) return data as Vehicle;
+  const { data: made } = await vehiclesTable().insert({ plate: plate.trim(), plate_key: key, model: fallback.model || null, vin: fallback.vin || null, branch_id: fallback.branch_id }).select("*").maybeSingle();
+  if (made) await addEvent({ vehicle_id: (made as Vehicle).id, kind: "added", body: "Typed in at a handover" });
+  return (made as Vehicle | null) ?? null;
+}
+
+/** The branch's reception managers' e-mails (customer queue managers). */
+export async function receptionManagerEmails(branchId: string): Promise<string[]> {
+  const { data } = await createAdminClient().from("self_audit_users").select("email, role, queue_role").eq("branch_id", branchId);
+  return (data ?? []).filter((u) => u.queue_role === "manager" || u.role === "service_manager").map((u) => u.email);
+}
