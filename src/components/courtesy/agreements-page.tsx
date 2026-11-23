@@ -67,9 +67,9 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
 
   return (
     <>
-      {error && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">The agreements are not available yet - the database update (0194) is not applied.</p>}
+      {error && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">The agreements are not available yet - the database update (0195) is not applied.</p>}
       {own?.queue_code ? (
-        <CustomerLink url={`${origin}/cc/${own.queue_code}`} myUrl={isAdvisor ? `${origin}/cc/${own.queue_code}?a=${s.user.id}` : null} />
+        <CustomerLink url={`${origin}/cc/${own.queue_code}`} myUrl={isAdvisor || s.user.queue_role === "advisor" ? `${origin}/cc/${own.queue_code}?a=${s.user.id}` : null} posterUrl={`/api/courtesy/poster/${own.queue_code}`} />
       ) : (
         !s.branchId && (
           <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
@@ -81,6 +81,9 @@ async function AgreementsList({ base, status }: { base: string; status?: string 
                   <li key={b.id} className="flex gap-2">
                     <span className="w-40 shrink-0 font-medium">{b.name}</span>
                     <span className="truncate font-mono text-xs text-neutral-600" dir="ltr">{`${origin}/cc/${b.queue_code}`}</span>
+                    <a href={`/api/courtesy/poster/${b.queue_code}`} target="_blank" rel="noreferrer" className="ml-auto shrink-0 text-xs font-semibold text-brand hover:underline">
+                      QR poster
+                    </a>
                   </li>
                 ))}
             </ul>

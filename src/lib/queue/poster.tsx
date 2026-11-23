@@ -41,7 +41,8 @@ function bigQr(url: string, size: number) {
   );
 }
 
-const STEPS: { en: [string, string]; ar: [string, string] }[] = [
+type Step = { en: [string, string]; ar: [string, string] };
+const STEPS: Step[] = [
   { en: ["Scan the code", "Open your phone's camera and point it at the code above."], ar: ["امسح الرمز", "افتح كاميرا جوالك ووجّهها نحو الرمز أعلاه."] },
   { en: ["Enter your mobile", "9 digits starting with 5 (5XXXXXXXX)."], ar: ["أدخل رقم جوالك", "تسعة أرقام تبدأ بالرقم خمسة."] },
   {
@@ -54,7 +55,32 @@ const STEPS: { en: [string, string]; ar: [string, string] }[] = [
   },
 ];
 
-function posterDocument(branch: { name: string; name_ar: string | null }, joinUrl: string) {
+/** What a poster says: the customer queue's by default; the courtesy car request has its own. */
+type PosterText = { kicker: [string, string]; title: [string, string]; steps: Step[]; note: [string, string]; footer: string; doc: string };
+const QUEUE_TEXT: PosterText = {
+  kicker: ["CUSTOMER QUEUE", "طابور العملاء"],
+  title: ["JOIN THE QUEUE", "انضم إلى الطابور"],
+  steps: STEPS,
+  note: ["Already have a ticket? Scan the code and tap Find it.", "لديك تذكرة؟ امسح الرمز واضغط ابحث عنها."],
+  footer: "customer queue",
+  doc: "Customer queue",
+};
+const COURTESY_TEXT: PosterText = {
+  kicker: ["COURTESY CAR", "السيارة البديلة"],
+  title: ["REQUEST A COURTESY CAR", "طلب سيارة بديلة"],
+  steps: [
+    { en: ["Scan the code", "Open your phone's camera and point it at the code above."], ar: ["امسح الرمز", "افتح كاميرا جوالك ووجّهها نحو الرمز أعلاه."] },
+    { en: ["Enter your details", "Name, mobile, ID / Iqama, date of birth and nationality, and choose your service advisor."], ar: ["أدخل بياناتك", "الاسم والجوال ورقم الهوية / الإقامة وتاريخ الميلاد والجنسية، واختر مستشار الخدمة."] },
+    { en: ["Read and sign", "Read the terms and conditions, accept them and sign with your finger."], ar: ["اقرأ ووقّع", "اقرأ الشروط والأحكام ووافق عليها ووقّع بإصبعك."] },
+    { en: ["Receive the car", "Your service advisor prepares the car and the agreement - please wait at reception."], ar: ["استلم السيارة", "يجهّز مستشار الخدمة السيارة والاتفاقية - يرجى الانتظار في الاستقبال."] },
+  ],
+  note: ["You must be 18 or older and hold a valid driving licence.", "يجب أن يكون عمرك 18 سنة أو أكثر ولديك رخصة قيادة سارية."],
+  footer: "courtesy car request",
+  doc: "Courtesy car request",
+};
+
+function posterDocument(branch: { name: string; name_ar: string | null }, joinUrl: string, text: PosterText = QUEUE_TEXT) {
+  const STEPS = text.steps;
   const step = (i: number) =>
     h(
       View,
@@ -96,7 +122,7 @@ function posterDocument(branch: { name: string; name_ar: string | null }, joinUr
 
   return h(
     Document,
-    { title: `Customer queue - ${branch.name}`, author: "MG Warranty Management", subject: "Customer queue" },
+    { title: `${text.doc} - ${branch.name}`, author: "MG Warranty Management", subject: text.doc },
     h(
       Page,
       { size: "A4", style: { paddingTop: 26, paddingBottom: 50, paddingHorizontal: 40, fontFamily: "Tajawal", fontSize: 10, color: INK } },
@@ -111,12 +137,12 @@ function posterDocument(branch: { name: string; name_ar: string | null }, joinUr
           h(
             View,
             { style: { flexDirection: "row", alignItems: "center" } },
-            h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: 1.5 } }, "CUSTOMER QUEUE"),
+            h(Text, { style: { fontSize: 9, color: MUTED, fontWeight: 700, letterSpacing: 1.5 } }, text.kicker[0]),
             h(Text, { style: { fontSize: 9, color: MUTED, marginHorizontal: 6 } }, "·"),
-            h(Text, { style: { fontSize: 10, color: MUTED, fontWeight: 700 } }, "طابور العملاء")
+            h(Text, { style: { fontSize: 10, color: MUTED, fontWeight: 700 } }, text.kicker[1])
           ),
-          h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: 1.5, marginTop: 4 } }, "JOIN THE QUEUE"),
-          h(Text, { style: { fontSize: 20, color: BRAND, fontWeight: 700, marginTop: 1 } }, "انضم إلى الطابور"),
+          h(Text, { style: { fontSize: 24, color: BRAND, fontWeight: 700, letterSpacing: 1.5, marginTop: 4 } }, text.title[0]),
+          h(Text, { style: { fontSize: 20, color: BRAND, fontWeight: 700, marginTop: 1 } }, text.title[1]),
           h(View, { style: { width: 36, height: 2, backgroundColor: BRAND, marginTop: 6, marginBottom: 6 } }),
           h(Text, { style: { fontSize: 15, fontWeight: 700 } }, branch.name),
           branch.name_ar ? h(Text, { style: { fontSize: 13, fontWeight: 700, color: MUTED, marginTop: 1 } }, branch.name_ar) : null
@@ -151,13 +177,13 @@ function posterDocument(branch: { name: string; name_ar: string | null }, joinUr
       h(
         View,
         { style: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 } },
-        h(Text, { style: { fontSize: 9, color: MUTED, flex: 1 } }, "Already have a ticket? Scan the code and tap Find it."),
-        h(Text, { style: { fontSize: 9.5, color: MUTED, flex: 1, textAlign: "right" } }, "لديك تذكرة؟ امسح الرمز واضغط ابحث عنها.")
+        h(Text, { style: { fontSize: 9, color: MUTED, flex: 1 } }, text.note[0]),
+        h(Text, { style: { fontSize: 9.5, color: MUTED, flex: 1, textAlign: "right" } }, text.note[1])
       ),
       h(
         View,
         { fixed: true, style: { position: "absolute", bottom: 24, left: 40, right: 40, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: LINE, paddingTop: 6 } },
-        h(Text, { style: { fontSize: 8, color: MUTED } }, `${branch.name} - customer queue`),
+        h(Text, { style: { fontSize: 8, color: MUTED } }, `${branch.name} - ${text.footer}`),
         h(
           View,
           { style: { flexDirection: "row" } },
@@ -172,5 +198,11 @@ function posterDocument(branch: { name: string; name_ar: string | null }, joinUr
 
 export async function renderQueuePoster(branch: { name: string; name_ar: string | null }, joinUrl: string): Promise<Uint8Array> {
   const buffer = await renderToBuffer(posterDocument(branch, joinUrl) as Parameters<typeof renderToBuffer>[0]);
+  return new Uint8Array(buffer);
+}
+
+/** The branch's courtesy car poster: the QR code of the customer's request form and its four steps. */
+export async function renderCourtesyPoster(branch: { name: string; name_ar: string | null }, formUrl: string): Promise<Uint8Array> {
+  const buffer = await renderToBuffer(posterDocument(branch, formUrl, COURTESY_TEXT) as Parameters<typeof renderToBuffer>[0]);
   return new Uint8Array(buffer);
 }

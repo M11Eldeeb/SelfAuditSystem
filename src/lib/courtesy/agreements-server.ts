@@ -50,7 +50,7 @@ export type Agreement = {
   updated_at: string;
 };
 
-// The table is new (migration 0194): read through an untyped handle until the generated types know it.
+// The table is new (migration 0195): read through an untyped handle until the generated types know it.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const agreementsTable = () => (createAdminClient() as any).from("self_audit_courtesy_agreements");
 

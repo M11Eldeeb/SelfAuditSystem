@@ -74,7 +74,7 @@ export function CancelButton({ id }: { id: string }) {
 }
 
 /** The branch's customer link: copy it, show its QR code; "my link" picks the advisor for the customer. */
-export function CustomerLink({ url, myUrl }: { url: string; myUrl: string | null }) {
+export function CustomerLink({ url, myUrl, posterUrl }: { url: string; myUrl: string | null; posterUrl: string }) {
   const [qr, setQr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (u: string) => {
@@ -89,6 +89,10 @@ export function CustomerLink({ url, myUrl }: { url: string; myUrl: string | null
           <h2 className="font-bold text-neutral-900">Customer link</h2>
           <p className="text-sm text-neutral-600">Send it to the customer or let him scan the QR code: he fills in his details in Arabic or English, reads the terms and signs. You get an e-mail when he submits.</p>
         </div>
+        <span className="flex flex-wrap gap-2">
+        <a href={posterUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
+          QR poster (PDF)
+        </a>
         <button
           type="button"
           onClick={async () => setQr(qr ? null : await QRCode.toDataURL(myUrl ?? url, { margin: 1, width: 320 }))}
@@ -96,6 +100,7 @@ export function CustomerLink({ url, myUrl }: { url: string; myUrl: string | null
         >
           {qr ? "Hide QR code" : "Show QR code"}
         </button>
+        </span>
       </div>
       <div className="flex flex-wrap gap-2">
         {[...(myUrl ? [{ u: myUrl, l: "My link (I am chosen)" }] : []), { u: url, l: "Branch link" }].map((x) => (
