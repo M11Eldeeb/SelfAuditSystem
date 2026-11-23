@@ -83,7 +83,8 @@ export const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
 export const cleanPlate = (v: string) => {
   const t = v.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).toUpperCase().replace(/[^A-Z0-9\u0600-\u06FF]/g, "");
   const m = t.match(/^(\d{1,4})([A-Z\u0600-\u06FF]{1,3})$/) ?? t.match(/^([A-Z\u0600-\u06FF]{1,3})(\d{1,4})$/);
-  return m ? (/^\d/.test(m[1]) ? `${m[1]} ${m[2]}` : `${m[2]} ${m[1]}`) : v.trim().toUpperCase();
+  // Digits, then the letters spaced as on the registration card: "4200 X Z R".
+  return m ? (/^\d/.test(m[1]) ? `${m[1]} ${[...m[2]].join(" ")}` : `${m[2]} ${[...m[1]].join(" ")}`) : v.trim().toUpperCase();
 };
 export const ID_RE = /^[12]\d{9}$/;
 /** 18 or older on `today` (YYYY-MM-DD). */
