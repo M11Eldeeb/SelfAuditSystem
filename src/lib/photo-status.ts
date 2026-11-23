@@ -5,6 +5,26 @@ import type { Database } from "@/lib/supabase/types";
 export type PhotoStatus = { url: string; path: string } | { removed: true };
 
 /**
+ * Like buildPhotoStatusMap, but keeps every file of a document type (a type may hold several, e.g. Parts Requisition),
+ * oldest first.
+ */
+export async function buildPhotoStatusLists(
+  supabase: SupabaseClient<Database>,
+  photos: { photo_type_id: string; storage_path: string; deleted_at: string | null; uploaded_at?: string }[],
+  ttlSeconds = 3600
+): Promise<Map<string, PhotoStatus[]>> {
+  const sorted = [...photos].sort((a, b) => (a.uploaded_at ?? "").localeCompare(b.uploaded_at ?? ""));
+  const lists = new Map<string, PhotoStatus[]>();
+  for (const photo of sorted) {
+    const one = await buildPhotoStatusMap(supabase, [photo], ttlSeconds);
+    const st = one.get(photo.photo_type_id);
+    if (!st) continue;
+    lists.set(photo.photo_type_id, [...(lists.get(photo.photo_type_id) ?? []), st]);
+  }
+  return lists;
+}
+
+/**
  * Signs a URL for each still-present photo and marks cleaned-up ones as
  * "removed" instead, so the UI can tell that apart from "never uploaded".
  */

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewForm } from "./review-form";
-import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { buildPhotoStatusLists, buildPhotoStatusMap, type PhotoStatus } from "@/lib/photo-status";
+import { MULTI_PHOTO_TYPES } from "@/lib/photo-types";
 import { loadMainPartNames } from "@/lib/claim-main-part";
 import {
   AuditDocumentsPanel,
@@ -102,7 +103,7 @@ export default async function ClaimReviewPage({
     ]),
   );
 
-  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
+  const [photoStatus, photoLists] = await Promise.all([buildPhotoStatusMap(supabase, photos ?? []), buildPhotoStatusLists(supabase, photos ?? [])]);
   // Documents still in Supabase (from before) move to Google Drive once the page is sent.
   if ((photos ?? []).some((p) => !p.deleted_at && !p.storage_path.startsWith("drive:")))
     after(() => syncSelfAuditDocsToDrive({ assignmentId }).catch(() => undefined));
@@ -115,8 +116,7 @@ export default async function ClaimReviewPage({
 
   const locked = assignment.status === "reviewed";
   // The documents in their set order (Job Card front, back, Repair Agreement, Parts Requisition, QC Report, Supporting).
-  const docs: AuditDoc[] = (photoTypes ?? []).map((pt) => {
-    const st = photoStatus.get(pt.id);
+  const docOf = (id: string, label: string, st: PhotoStatus | undefined): AuditDoc => {
     if (st && "url" in st) {
       const ext = st.path.split(".").pop()?.toLowerCase() ?? "";
       const kind = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext)
@@ -124,13 +124,15 @@ export default async function ClaimReviewPage({
         : ext === "pdf"
           ? "pdf"
           : "other";
-      return { id: pt.id, label: pt.label, status: "ok", url: st.url, kind };
+      return { id, label, status: "ok", url: st.url, kind };
     }
-    return {
-      id: pt.id,
-      label: pt.label,
-      status: st && "removed" in st ? "removed" : "missing",
-    };
+    return { id, label, status: st && "removed" in st ? "removed" : "missing" };
+  };
+  // A multi-file type (Parts Requisition) shows every file: "Parts Requisition 1", "... 2".
+  const docs: AuditDoc[] = (photoTypes ?? []).flatMap((pt) => {
+    const list = photoLists.get(pt.id) ?? [];
+    if (MULTI_PHOTO_TYPES.has(pt.id) && list.length > 1) return list.map((st, i) => docOf(`${pt.id}-${i}`, `${pt.label} ${i + 1}`, st));
+    return [docOf(pt.id, pt.label, MULTI_PHOTO_TYPES.has(pt.id) ? list[0] : photoStatus.get(pt.id))];
   });
 
   return (

@@ -6,6 +6,7 @@ import { QuestionField } from "@/components/question-field";
 import { PhotoUploadField } from "@/components/photo-upload-field";
 import type { Database } from "@/lib/supabase/types";
 import type { PhotoStatus } from "@/lib/photo-status";
+import { MULTI_PHOTO_TYPES } from "@/lib/photo-types";
 
 type Question = Database["public"]["Tables"]["self_audit_audit_questions"]["Row"];
 type PhotoType = Database["public"]["Tables"]["self_audit_audit_photo_types"]["Row"];
@@ -16,6 +17,7 @@ export function AuditForm({
   photoTypes,
   answers,
   photoStatus,
+  photoLists,
   noteText,
   locked,
 }: {
@@ -24,6 +26,8 @@ export function AuditForm({
   photoTypes: PhotoType[];
   answers: Map<string, { answer_value: string | null; conditional_value: string | null }>;
   photoStatus: Map<string, PhotoStatus>;
+  /** Every saved file of each document type (the multi-file types show them all). */
+  photoLists: Map<string, PhotoStatus[]>;
   noteText: string;
   locked: boolean;
 }) {
@@ -59,7 +63,9 @@ export function AuditForm({
             helpText={pt.help_text}
             required={pt.required}
             locked={locked}
-            status={photoStatus.get(pt.id)}
+            status={MULTI_PHOTO_TYPES.has(pt.id) ? undefined : photoStatus.get(pt.id)}
+            statuses={MULTI_PHOTO_TYPES.has(pt.id) ? photoLists.get(pt.id) : undefined}
+            multiple={MULTI_PHOTO_TYPES.has(pt.id)}
             fieldName={`photo_path_${pt.id}`}
             target={{ kind: "claim", assignmentId }}
             photoTypeId={pt.id}

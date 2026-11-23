@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { runAiChecks } from "@/lib/ai-check";
 import { claimDocsFolder, driveIdOf, isDrivePath, syncSelfAuditDocsToDrive } from "@/lib/self-audit-drive";
 import { driveFileInfo } from "@/lib/tech-claims/drive";
+import { MAX_MULTI_FILES, MULTI_PHOTO_TYPES } from "@/lib/photo-types";
 
 export type SaveAuditState = { error?: string; success?: string } | undefined;
 
@@ -77,19 +78,46 @@ export async function saveAudit(
   // 4.5MB regardless of Next's bodySizeLimit config, which a scanned PDF or a
   // few phone photos can easily exceed. Only the resulting path arrives here.
   const uploadedPhotoTypeIds = new Set((existingPhotos ?? []).map((p) => p.photo_type_id));
+  const savedRows = [...(existingPhotos ?? [])];
   for (const pt of photoTypes ?? []) {
-    const path = formData.get(`photo_path_${pt.id}`);
-    if (typeof path === "string" && isDrivePath(path)) {
+    const multi = MULTI_PHOTO_TYPES.has(pt.id);
+    // A single-file type takes the last file sent; a multi-file type takes them all (each once).
+    const sent = formData.getAll(`photo_path_${pt.id}`).filter((v): v is string => typeof v === "string" && isDrivePath(v));
+    const paths = multi ? [...new Set(sent)] : sent.slice(-1);
+    for (const path of paths) {
       const driveId = driveIdOf(path);
+      const row = savedRows.find((p) => p.photo_type_id === pt.id && (p.drive_file_id === driveId || (isDrivePath(p.storage_path) && driveIdOf(p.storage_path) === driveId)));
+      if (row && !row.deleted_at) continue; // already saved (the page still holds it after a "Save draft")
       const [info, folder] = await Promise.all([driveFileInfo(driveId).catch(() => null), claimDocsFolder(assignmentId).catch(() => null)]);
       if (!info || !folder || !info.parents.includes(folder)) return { error: `"${pt.label}" did not reach Google Drive - please upload it again.` };
-      const { error: photoRowError } = await supabase
-        .from("self_audit_audit_photos")
-        .upsert(
-          { assignment_id: assignmentId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId, deleted_at: null },
-          { onConflict: "assignment_id,photo_type_id" }
-        );
-      if (photoRowError) return { error: photoRowError.message };
+      if (multi) {
+        const have = savedRows.filter((p) => p.photo_type_id === pt.id && !p.deleted_at).length;
+        if (have >= MAX_MULTI_FILES) return { error: `"${pt.label}": up to ${MAX_MULTI_FILES} files.` };
+        const { data: added, error: photoRowError } = await supabase
+          .from("self_audit_audit_photos")
+          .insert({ assignment_id: assignmentId, photo_type_id: pt.id, storage_path: path, drive_file_id: driveId })
+          .select("*")
+          .single();
+        if (photoRowError || !added) return { error: photoRowError?.message ?? `"${pt.label}" could not be saved.` };
+        savedRows.push(added);
+      } else {
+        // The type's one row: replaced by the new file (no ON CONFLICT - a multi-file type has no unique key).
+        const current = savedRows.find((p) => p.photo_type_id === pt.id);
+        const values = { storage_path: path, drive_file_id: driveId, deleted_at: null };
+        if (current) {
+          const { error: photoRowError } = await supabase.from("self_audit_audit_photos").update(values).eq("id", current.id);
+          if (photoRowError) return { error: photoRowError.message };
+          Object.assign(current, values);
+        } else {
+          const { data: added, error: photoRowError } = await supabase
+            .from("self_audit_audit_photos")
+            .insert({ assignment_id: assignmentId, photo_type_id: pt.id, ...values })
+            .select("*")
+            .single();
+          if (photoRowError || !added) return { error: photoRowError?.message ?? `"${pt.label}" could not be saved.` };
+          savedRows.push(added);
+        }
+      }
       uploadedPhotoTypeIds.add(pt.id);
     }
   }

@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { claimDocsFolder, docFileName, opsDocsFolder } from "@/lib/self-audit-drive";
+import { MULTI_PHOTO_TYPES } from "@/lib/photo-types";
 
 export type DocTarget = { kind: "claim"; assignmentId: string } | { kind: "ops"; cycleId: string };
 
@@ -15,7 +16,13 @@ const MAX_BYTES = 60 * 1024 * 1024;
  * Branch admin: an upload session for one self audit document - the browser sends the file straight to Google Drive
  * (Self Audit Documents / month / branch / claim, or Branch operations). The form then saves the Drive file id.
  */
-export async function prepareSelfAuditDocUpload(target: DocTarget, photoTypeId: string, file: { name: string; type: string; size: number }): Promise<{ session?: string; error?: string }> {
+export async function prepareSelfAuditDocUpload(
+  target: DocTarget,
+  photoTypeId: string,
+  file: { name: string; type: string; size: number },
+  /** For a document type that takes several files: this file's number (Parts Requisition 2.jpg). */
+  number?: number,
+): Promise<{ session?: string; error?: string }> {
   const user = await requireRole("branch_admin");
   if (user.viewOnly) return { error: "View only." };
   if (!user.branch_id) return { error: "Your account has no branch." };
@@ -38,7 +45,7 @@ export async function prepareSelfAuditDocUpload(target: DocTarget, photoTypeId: 
       folder = await opsDocsFolder(target.cycleId, user.branch_id);
     }
     const ext = file.name.split(".").pop() ?? (file.type === "application/pdf" ? "pdf" : "jpg");
-    const session = await startDocsUpload({ parentId: folder, name: docFileName(type.label, ext), mimeType: file.type, size: file.size, origin });
+    const session = await startDocsUpload({ parentId: folder, name: docFileName(MULTI_PHOTO_TYPES.has(photoTypeId) && number && number > 0 ? `${type.label} ${Math.min(number, 999)}` : type.label, ext), mimeType: file.type, size: file.size, origin });
     return { session };
   } catch (e) {
     return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive - please try again." };

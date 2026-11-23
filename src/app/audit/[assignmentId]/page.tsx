@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AuditForm } from "./audit-form";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/status-labels";
-import { buildPhotoStatusMap } from "@/lib/photo-status";
+import { buildPhotoStatusLists, buildPhotoStatusMap } from "@/lib/photo-status";
 import { expireOverdueAssignments } from "@/lib/expire-assignments";
 import { AUDIT_CYCLE_DEADLINE_DAYS } from "@/lib/cycle";
 import { CopyText } from "@/components/copy-text";
@@ -44,7 +44,7 @@ export default async function AuditAssignmentPage({
     (answers ?? []).map((a) => [a.question_id, { answer_value: a.answer_value, conditional_value: a.conditional_value }])
   );
 
-  const photoStatus = await buildPhotoStatusMap(supabase, photos ?? []);
+  const [photoStatus, photoLists] = await Promise.all([buildPhotoStatusMap(supabase, photos ?? []), buildPhotoStatusLists(supabase, photos ?? [])]);
 
   const locked = assignment.status !== "not_started" && assignment.status !== "in_progress";
   // The officer's comments (per question and on the claim), once reviewed.
@@ -128,6 +128,7 @@ export default async function AuditAssignmentPage({
         photoTypes={photoTypes ?? []}
         answers={answersMap}
         photoStatus={photoStatus}
+        photoLists={photoLists}
         noteText={note?.note_text ?? ""}
         locked={locked}
       />
