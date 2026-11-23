@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { branchByCode } from "@/lib/queue/server";
 import { sendMail } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
-import { ID_RE, PHONE_RE, digitsOnly, isAdult, type CourtesyRequestInput, type DamageMark, DAMAGE_KINDS } from "@/lib/courtesy/agreements";
+import { ID_RE, PHONE_RE, VIN_RE, cleanPlate, digitsOnly, isAdult, type CourtesyRequestInput, type DamageMark, DAMAGE_KINDS } from "@/lib/courtesy/agreements";
 import { agreementsTable, branchAdvisors, courtesyStaff, nextRef, saveFile, type Agreement } from "@/lib/courtesy/agreements-server";
 import { addEvent, receptionManagerEmails, vehicleForPlate, vehiclesTable } from "@/lib/courtesy/fleet-server";
 import { serviceState, type Vehicle } from "@/lib/courtesy/fleet";
@@ -38,6 +38,10 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
   if (!ID_RE.test(idNumber)) return say("The ID / Iqama number must be 10 digits.", "رقم الهوية / الإقامة يجب أن يكون 10 أرقام.");
   if (!isAdult(String(input.birthDate ?? ""), todayKsa())) return say("You must be 18 or older to receive a courtesy car.", "يجب أن يكون عمرك 18 سنة أو أكثر لاستلام سيارة بديلة.");
   if (!nationality) return say("Choose your nationality.", "اختر الجنسية.");
+  const vin = String(input.vin ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!VIN_RE.test(vin)) return say("The VIN must be 17 letters and digits (as on the registration card).", "رقم الهيكل يجب أن يكون 17 حرفًا ورقمًا (كما في الاستمارة).");
+  const carPlate = cleanPlate(String(input.plate ?? "")).slice(0, 20);
+  if (carPlate.replace(/\s/g, "").length < 3) return say("Write the plate number.", "اكتب رقم اللوحة.");
   if (!input.accepted) return say("Read and accept the terms and conditions.", "اقرأ الشروط والأحكام ووافق عليها.");
   if (!okImage({ base64: input.signature, mimeType: "image/png" })) return say("Sign in the box.", "وقّع داخل المربع.");
   const advisors = await branchAdvisors(branch.id);
@@ -74,6 +78,8 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
           id_number: idNumber,
           birth_date: input.birthDate,
           nationality,
+          customer_vin: vin,
+          customer_plate: carPlate,
           advisor_id: advisor.id,
           advisor_name: advisor.name,
           customer_signature: signature,
@@ -96,7 +102,7 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
         kind: "courtesy-request",
         to: [u.email],
         subject: `Courtesy car request ${row.ref} - ${name}`,
-        text: `Dear ${advisor.name},\n\n${name} (mobile ${phone}) has filled in the courtesy car request at ${b?.name ?? "the branch"} and signed the terms.\n\nPlease choose the car, record the mileage, fuel and damages, and sign the handover:\n${link}\n\nReference: ${row.ref}\n\nWarranty Department - Jiad Modern Motors`,
+        text: `Dear ${advisor.name},\n\n${name} (mobile ${phone}, car ${carPlate} - VIN ${vin}) has filled in the courtesy car request at ${b?.name ?? "the branch"} and signed the terms.\n\nPlease choose the car, record the mileage, fuel and damages, and sign the handover:\n${link}\n\nReference: ${row.ref}\n\nWarranty Department - Jiad Modern Motors`,
         dedupeKey: `courtesy-request:${row.id}`,
       });
     }

@@ -66,6 +66,9 @@ export type CourtesyRequestInput = {
   idNumber: string;
   birthDate: string; // YYYY-MM-DD
   nationality: string;
+  /** The customer's own car (in for service). */
+  vin: string;
+  plate: string;
   advisorId: string;
   accepted: boolean;
   signature: string; // PNG, base64 (no data: prefix)
@@ -73,6 +76,13 @@ export type CourtesyRequestInput = {
 };
 
 export const PHONE_RE = /^05\d{8}$/;
+export const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+/** "2012 r g r", "2012-RGR" -> "2012 RGR". */
+export const cleanPlate = (v: string) => {
+  const t = v.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).toUpperCase().replace(/[^A-Z0-9\u0600-\u06FF]/g, "");
+  const m = t.match(/^(\d{1,4})([A-Z\u0600-\u06FF]{1,3})$/) ?? t.match(/^([A-Z\u0600-\u06FF]{1,3})(\d{1,4})$/);
+  return m ? (/^\d/.test(m[1]) ? `${m[1]} ${m[2]}` : `${m[2]} ${m[1]}`) : v.trim().toUpperCase();
+};
 export const ID_RE = /^[12]\d{9}$/;
 /** 18 or older on `today` (YYYY-MM-DD). */
 export function isAdult(birth: string, today: string): boolean {
@@ -99,6 +109,16 @@ export const CC_T = {
     birthHelp: "You must be 18 or older",
     nationality: "Nationality",
     otherNationality: "Other - write it",
+    yourCar: "Your car (in for service)",
+    yourCarHelp: "As on your vehicle registration card (istimara).",
+    readCard: "Read from a photo of the registration card",
+    reading: "Reading the card…",
+    readFail: "The card could not be read - type the VIN and plate.",
+    readDone: "Check the VIN and plate below and correct them if needed.",
+    vin: "VIN (chassis number)",
+    plate: "Plate number",
+    errVin: "The VIN must be 17 letters and digits (as on the registration card).",
+    errPlate: "Write the plate number.",
     advisor: "Your service advisor",
     chooseAdvisor: "Choose your service advisor",
     license: "Photo of your driving licence (optional)",
@@ -136,6 +156,16 @@ export const CC_T = {
     birthHelp: "يجب أن يكون عمرك 18 سنة أو أكثر",
     nationality: "الجنسية",
     otherNationality: "أخرى - اكتبها",
+    yourCar: "سيارتك (في الصيانة)",
+    yourCarHelp: "كما في استمارة السيارة.",
+    readCard: "قراءة من صورة الاستمارة",
+    reading: "جارٍ قراءة الاستمارة…",
+    readFail: "تعذرت قراءة الاستمارة - اكتب رقم الهيكل ورقم اللوحة.",
+    readDone: "تحقق من رقم الهيكل ورقم اللوحة أدناه وصححهما إذا لزم.",
+    vin: "رقم الهيكل (VIN)",
+    plate: "رقم اللوحة",
+    errVin: "رقم الهيكل يجب أن يكون 17 حرفًا ورقمًا (كما في الاستمارة).",
+    errPlate: "اكتب رقم اللوحة.",
     advisor: "مستشار الخدمة",
     chooseAdvisor: "اختر مستشار الخدمة",
     license: "صورة رخصة القيادة (اختياري)",

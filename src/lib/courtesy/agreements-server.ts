@@ -21,6 +21,8 @@ export type Agreement = {
   id_number: string;
   birth_date: string;
   nationality: string;
+  customer_vin: string | null;
+  customer_plate: string | null;
   advisor_id: string | null;
   advisor_name: string | null;
   customer_signature: string | null;

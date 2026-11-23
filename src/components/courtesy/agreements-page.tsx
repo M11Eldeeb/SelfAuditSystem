@@ -312,6 +312,7 @@ export async function CourtesyAgreementPage({ id, base }: { id: string; base: st
           {row("ID / Iqama", <span dir="ltr">{a.id_number}</span>)}
           {row("Date of birth", new Date(`${a.birth_date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }))}
           {row("Nationality", a.nationality)}
+          {row("Customer's car", a.customer_plate || a.customer_vin ? <span dir="ltr">{[a.customer_plate, a.customer_vin].filter(Boolean).join(" · ")}</span> : null)}
           {row("Service advisor", a.advisor_name)}
           {row("Terms accepted", fmt(a.terms_accepted_at))}
           {row("Form language", a.lang === "ar" ? "Arabic" : "English")}

@@ -129,7 +129,14 @@ export async function courtesyPdf(a: Agreement, branchName: string, url: string,
       page,
       header(a, url, "COURTESY CAR AGREEMENT", "JIAD MODERN MOTORS - MG AFTER-SALES"),
       bar("Repair Order Information", "بيانات أمر العمل"),
-      fields(field("Service Advisor", a.handed_over_by_name ?? a.advisor_name), field("Branch", branchName), field("WIP number", a.wip_no), field("Notes", a.notes)),
+      fields(
+        field("Service Advisor", a.handed_over_by_name ?? a.advisor_name),
+        field("Branch", branchName),
+        field("WIP number", a.wip_no),
+        field("Customer's car - plate", a.customer_plate),
+        field("Customer's car - VIN", a.customer_vin),
+        field("Notes", a.notes)
+      ),
       bar("Customer Information", "بيانات العميل"),
       fields(
         field("Customer Name", a.customer_name),

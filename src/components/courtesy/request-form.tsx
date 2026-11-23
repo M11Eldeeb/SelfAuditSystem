@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PublicShell, Spinner } from "@/components/queue/public-shell";
 import { SignaturePad, shrinkPhoto } from "@/components/courtesy/signature-pad";
 import { submitCourtesyRequest } from "@/app/actions/courtesy-agreements";
-import { CC_T, ID_RE, NATIONALITIES, PHONE_RE, TERMS, digitsOnly, isAdult, todayKsa, type CourtesyLang } from "@/lib/courtesy/agreements";
+import { CC_T, ID_RE, NATIONALITIES, PHONE_RE, TERMS, VIN_RE, cleanPlate, digitsOnly, isAdult, todayKsa, type CourtesyLang } from "@/lib/courtesy/agreements";
+import { readRegistration } from "@/components/courtesy/registration-ocr";
 
 /** The customer's courtesy car form (no sign-in): his details, his advisor, the terms, his signature. Arabic or English. */
 export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: { code: string; branch: { name: string; name_ar: string | null }; advisors: { id: string; name: string }[]; presetAdvisor: string | null }) {
@@ -17,6 +18,9 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
   const [birth, setBirth] = useState("");
   const [nat, setNat] = useState("");
   const [otherNat, setOtherNat] = useState("");
+  const [vin, setVin] = useState("");
+  const [plate, setPlate] = useState("");
+  const [reading, setReading] = useState<"idle" | "busy" | "done" | "fail">("idle");
   const [advisor, setAdvisor] = useState(presetAdvisor && advisors.some((a) => a.id === presetAdvisor) ? presetAdvisor : "");
   const [accepted, setAccepted] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
@@ -37,11 +41,13 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
     if (!ID_RE.test(id)) return setError(t.errId);
     if (!isAdult(birth, today)) return setError(t.errBirth);
     if (!nationality) return setError(t.errNationality);
+    if (!VIN_RE.test(vin)) return setError(t.errVin);
+    if (plate.trim().length < 3) return setError(t.errPlate);
     if (!advisor) return setError(t.errAdvisor);
     if (!accepted) return setError(t.errAccept);
     if (!signature) return setError(t.errSign);
     setBusy(true);
-    const r = await submitCourtesyRequest({ code, lang, name, phone: p, idNumber: id, birthDate: birth, nationality, advisorId: advisor, accepted, signature, license: license ? { base64: license.base64, mimeType: license.mimeType } : null }).catch(() => ({ error: ar ? "تعذر الإرسال - حاول مرة أخرى." : "Could not send - please try again.", ref: undefined }));
+    const r = await submitCourtesyRequest({ code, lang, name, phone: p, idNumber: id, birthDate: birth, nationality, vin, plate: cleanPlate(plate), advisorId: advisor, accepted, signature, license: license ? { base64: license.base64, mimeType: license.mimeType } : null }).catch(() => ({ error: ar ? "تعذر الإرسال - حاول مرة أخرى." : "Could not send - please try again.", ref: undefined }));
     setBusy(false);
     if (r.error || !r.ref) return setError(r.error ?? "?");
     setDone(r.ref);
@@ -98,6 +104,48 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
                 <option value="__other">{t.otherNationality}</option>
               </select>
               {nat === "__other" && <input className={`${input} mt-2`} value={otherNat} onChange={(e) => setOtherNat(e.target.value)} aria-label={t.otherNationality} />}
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <div>
+              <h2 className="font-bold text-neutral-900">{t.yourCar}</h2>
+              <p className={help}>{t.yourCarHelp}</p>
+            </div>
+            <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-3 text-sm font-bold ${reading === "busy" ? "border-neutral-300 text-neutral-500" : "border-[#c4121a]/40 text-[#c4121a] hover:bg-red-50"}`}>
+              <span aria-hidden="true">📷</span>
+              {reading === "busy" ? t.reading : t.readCard}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={reading === "busy"}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  setReading("busy");
+                  try {
+                    const r = await readRegistration(f);
+                    if (r.vin) setVin(r.vin);
+                    if (r.plate) setPlate(r.plate);
+                    setReading(r.vin || r.plate ? "done" : "fail");
+                  } catch {
+                    setReading("fail");
+                  }
+                }}
+              />
+            </label>
+            {reading === "done" && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{t.readDone}</p>}
+            {reading === "fail" && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{t.readFail}</p>}
+            <div>
+              <label className={label} htmlFor="cc-vin">{t.vin}</label>
+              <input id="cc-vin" dir="ltr" className={`${input} font-mono tracking-wide`} value={vin} maxLength={17} autoCapitalize="characters" onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/[IOQ]/g, (c) => (c === "I" ? "1" : "0")).slice(0, 17))} placeholder="LSJ…" />
+              <p className={help} dir="ltr">{vin.length}/17</p>
+            </div>
+            <div>
+              <label className={label} htmlFor="cc-plate">{t.plate}</label>
+              <input id="cc-plate" dir="ltr" className={input} value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase().slice(0, 12))} placeholder="1234 ABC" />
             </div>
             <div>
               <label className={label} htmlFor="cc-adv">{t.advisor}</label>
