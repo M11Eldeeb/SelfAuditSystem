@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // The customer queue's public pages (joining at the branch, the ticket page, find my ticket, the branch TV) and its
   // alert service worker need no sign-in.
-  const isPublicPath = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/q/") || pathname === "/queue-sw.js";
+  const isPublicPath = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/q/") || pathname.startsWith("/cc/") || pathname === "/queue-sw.js";
 
   if (!user && !isPublicPath) {
     const loginUrl = new URL("/login", request.url);

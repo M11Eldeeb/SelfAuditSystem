@@ -1,11 +1,13 @@
 import { requireAdvisorArea } from "@/lib/reception";
-import { CourtesyView } from "@/components/courtesy/courtesy-view";
+import { CourtesyCarsPage } from "@/components/courtesy/agreements-page";
 
-export default async function AdvisorCourtesyCarsPage() {
+/** Courtesy cars: the agreements made in the portal (customer link, handover, return) and the fleet sheet. */
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; status?: string }> }) {
   await requireAdvisorArea();
+  const { tab, status } = await searchParams;
   return (
     <div className="relative left-1/2 w-[min(90rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2">
-      <CourtesyView />
+      <CourtesyCarsPage base="/advisor/courtesy-cars" tab={tab} status={status} />
     </div>
   );
 }
