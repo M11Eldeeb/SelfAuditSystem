@@ -64,7 +64,7 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
           </p>
         </div>
       ) : (
-        <div className="space-y-4 p-4 pb-32">
+        <div className="space-y-4 p-4 pb-44">
           <p className="text-sm text-neutral-600">{t.intro}</p>
           <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
             <div>
@@ -159,6 +159,7 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor }: {
           <div className="fixed inset-x-0 bottom-0 z-20 flex justify-center border-t border-black/5 bg-white/90 p-3 backdrop-blur-xl">
             <div className="w-full max-w-md space-y-2 px-1">
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
+              <p className="text-center text-[11px] leading-snug text-neutral-500">{t.consent}</p>
               <button type="button" disabled={busy} onClick={() => void submit()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#c4121a] py-3.5 text-base font-bold text-white shadow-sm disabled:opacity-60">
                 {busy && <Spinner />}
                 {busy ? t.sending : t.submit}

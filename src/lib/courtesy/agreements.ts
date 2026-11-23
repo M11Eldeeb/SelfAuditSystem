@@ -121,6 +121,7 @@ export const CC_T = {
     errAdvisor: "Choose your service advisor.",
     errAccept: "Read and accept the terms and conditions.",
     errSign: "Sign in the box.",
+    consent: "By continuing, you agree that your name, mobile number and visit details are used by MG and its service partners and systems to manage your visit and send you queue notifications.",
     language: "العربية",
   },
   ar: {
@@ -157,6 +158,7 @@ export const CC_T = {
     errAdvisor: "اختر مستشار الخدمة.",
     errAccept: "اقرأ الشروط والأحكام ووافق عليها.",
     errSign: "وقّع داخل المربع.",
+    consent: "بالمتابعة، أنت توافق على استخدام اسمك ورقم جوالك وبيانات زيارتك من قبل إم جي وشركائها ومزوّدي الأنظمة لإدارة زيارتك وإرسال تنبيهات الدور.",
     language: "English",
   },
 } as const;
