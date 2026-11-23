@@ -40,7 +40,7 @@ export async function submitCourtesyRequest(input: CourtesyRequestInput): Promis
   if (!isAdult(String(input.birthDate ?? ""), todayKsa())) return say("You must be 18 or older to receive a courtesy car.", "يجب أن يكون عمرك 18 سنة أو أكثر لاستلام سيارة بديلة.");
   if (!nationality) return say("Choose your nationality.", "اختر الجنسية.");
   const vin = String(input.vin ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!VIN_RE.test(vin)) return say("The VIN must be 17 letters and digits (as on the registration card).", "رقم الهيكل يجب أن يكون 17 حرفًا ورقمًا (كما في الاستمارة).");
+  if (!VIN_RE.test(vin)) return say("Enter the VIN / chassis number (letters and digits, as on the registration card).", "أدخل رقم الهيكل (حروف وأرقام، كما في الاستمارة).");
   const carPlate = cleanPlate(String(input.plate ?? "")).slice(0, 20);
   if (carPlate.replace(/\s/g, "").length < 3) return say("Write the plate number.", "اكتب رقم اللوحة.");
   if (!input.accepted) return say("Read and accept the terms and conditions.", "اقرأ الشروط والأحكام ووافق عليها.");

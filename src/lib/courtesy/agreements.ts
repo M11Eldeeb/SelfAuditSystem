@@ -78,7 +78,8 @@ export type CourtesyRequestInput = {
 };
 
 export const PHONE_RE = /^05\d{8}$/;
-export const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+/** The VIN / chassis number as on the card: letters and digits, any length (older and imported cars differ from 17). */
+export const VIN_RE = /^[A-Z0-9]{1,30}$/;
 /** "2012 r g r", "2012-RGR" -> "2012 RGR". */
 export const cleanPlate = (v: string) => {
   const t = v.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).toUpperCase().replace(/[^A-Z0-9\u0600-\u06FF]/g, "");
@@ -120,7 +121,7 @@ export const CC_T = {
     readDone: "Check the VIN and plate below and correct them if needed.",
     vin: "VIN (chassis number)",
     plate: "Plate number",
-    errVin: "The VIN must be 17 letters and digits (as on the registration card).",
+    errVin: "Enter the VIN / chassis number (letters and digits, as on the registration card).",
     errPlate: "Write the plate number.",
     advisor: "Your service advisor",
     chooseAdvisor: "Choose your service advisor",
@@ -167,7 +168,7 @@ export const CC_T = {
     readDone: "تحقق من رقم الهيكل ورقم اللوحة أدناه وصححهما إذا لزم.",
     vin: "رقم الهيكل (VIN)",
     plate: "رقم اللوحة",
-    errVin: "رقم الهيكل يجب أن يكون 17 حرفًا ورقمًا (كما في الاستمارة).",
+    errVin: "أدخل رقم الهيكل (حروف وأرقام، كما في الاستمارة).",
     errPlate: "اكتب رقم اللوحة.",
     advisor: "مستشار الخدمة",
     chooseAdvisor: "اختر مستشار الخدمة",

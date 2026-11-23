@@ -140,8 +140,7 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
             {reading === "fail" && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{t.readFail}</p>}
             <div>
               <label className={label} htmlFor="cc-vin">{t.vin}</label>
-              <input id="cc-vin" dir="ltr" className={`${input} font-mono tracking-wide`} value={vin} maxLength={17} autoCapitalize="characters" onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/[IOQ]/g, (c) => (c === "I" ? "1" : "0")).slice(0, 17))} placeholder="LSJ…" />
-              <p className={help} dir="ltr">{vin.length}/17</p>
+              <input id="cc-vin" dir="ltr" className={`${input} font-mono tracking-wide`} value={vin} maxLength={30} autoCapitalize="characters" onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30))} placeholder="LSJ…" />
             </div>
             <div>
               <label className={label} htmlFor="cc-plate">{t.plate}</label>
