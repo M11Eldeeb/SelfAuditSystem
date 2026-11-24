@@ -45,6 +45,15 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
     if (activeKey) setOpenKey(activeKey);
   }
 
+  // The folder inside a folder (Customer Queue inside Service): open while one of its pages is the current one, or by its arrow.
+  const inSub = model.top.some((e) => e.kind === "menu" && !!e.sub?.pages.some((p) => p.href === pageHref));
+  const [subOpen, setSubOpen] = useState(inSub);
+  const [lastInSub, setLastInSub] = useState(inSub);
+  if (inSub !== lastInSub) {
+    setLastInSub(inSub);
+    if (inSub) setSubOpen(true);
+  }
+
   const toggle = (key: string) => {
     const next = openKey === key ? null : key;
     setOpenKey(next);
@@ -141,6 +150,34 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
           <div className="overflow-hidden">
             <div className="mt-1 mb-1 ml-[1.35rem] border-l border-neutral-900/[0.08] pl-2">
               {e.pages.length > 0 && subList(e.pages)}
+              {e.sub && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setSubOpen((v) => !v)}
+                    aria-expanded={subOpen}
+                    className={`flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[14px] leading-snug transition-colors hover:bg-neutral-900/[0.04] ${
+                      inSub && !subOpen ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700"
+                    }`}
+                  >
+                    <span className="text-brand">
+                      <KeyIcon name={e.sub.icon} size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{e.sub.label}</span>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={`shrink-0 text-neutral-400 transition-transform duration-200 ${subOpen ? "rotate-90" : ""}`}>
+                      <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${subOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                    inert={!subOpen}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="mt-0.5 ml-[1.1rem] border-l border-neutral-900/[0.08] pl-2">{subList(e.sub.pages)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

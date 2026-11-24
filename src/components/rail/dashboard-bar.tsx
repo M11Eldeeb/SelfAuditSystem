@@ -18,8 +18,14 @@ const tabOf = (href: string) => new URLSearchParams(href.split("?")[1] ?? "").ge
 export function currentDashboard(kpis: RailKpi[], pathname: string, search: URLSearchParams | null): RailKpi | null {
   const onPath = kpis.filter((k) => k.href.split("?")[0] === pathname);
   if (!onPath.length) return null;
-  const tab = search?.get("tab");
-  if (tab) return onPath.find((k) => tabOf(k.href) === tab) ?? null;
+  // The dashboard whose ?tab= / ?view= the page has (the one asking the most wins).
+  const params = (k: RailKpi) => [...new URLSearchParams(k.href.split("?")[1] ?? "")];
+  const hit = onPath
+    .filter((k) => params(k).length && params(k).every(([key, v]) => search?.get(key) === v))
+    .sort((a, b) => params(b).length - params(a).length)[0];
+  if (hit) return hit;
+  if (search?.get("tab") || search?.get("view")) return null;
+  // No ?tab=: the page's own dashboard (the KPI dashboard's Overview, the first complaints view).
   const plain = onPath.find((k) => !k.href.includes("?"));
   if (plain) return plain;
   return /\/(dashboard|complaints)$/.test(pathname) ? (mainDashboard(onPath) ?? null) : null;

@@ -112,11 +112,10 @@ test("kpiLinks per role", () => {
   assert.equal(extra.at(-1).href, "/admin/msi");
 });
 
-test("the customer queue's pages are one folder after Service", () => {
+test("the customer queue's pages are a folder inside Service", () => {
   const m = buildRail([...OFFICER.filter((l) => l.href !== "/queue"), { href: "/queue", label: "Queue overview", group: "Customer Queue" }, { href: "/queue/team", label: "Team", group: "Customer Queue" }], []);
-  const keys = m.top.map((e) => e.key);
-  assert.equal(keys[keys.indexOf("service") + 1], "queue");
-  const q = m.top.find((e) => e.key === "queue");
-  assert.deepEqual(hrefs(q.pages), ["/queue", "/queue/team"]);
-  assert.equal(railActiveKey(m, "/queue/team"), "queue");
+  assert.ok(!m.top.some((e) => e.key === "queue"));
+  const service = m.top.find((e) => e.key === "service");
+  assert.deepEqual(hrefs(service.sub.pages), ["/queue", "/queue/team"]);
+  assert.equal(railActiveKey(m, "/queue/team"), "service");
 });

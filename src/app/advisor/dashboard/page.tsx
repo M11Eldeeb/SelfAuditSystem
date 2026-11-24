@@ -1,4 +1,5 @@
-import { requireRole } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { requireAnyRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDashboardData } from "@/lib/dashboard/kpis";
@@ -12,9 +13,12 @@ import { getSupportLeadTimes } from "@/lib/dashboard/support";
 /**
  * The service advisor: his branch's KPI dashboard (read only), as the warranty admin sees it. The data is read with
  * the service role, scoped here to his own branch only (database policies are written for the warranty admin).
+ * The reception manager (customer queue) sees the warranty Overview tab only.
  */
 export default async function AdvisorDashboardPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; tab?: string }> }) {
-  const user = await requireRole("service_advisor");
+  const user = await requireAnyRole(["service_advisor", "queue_user"]);
+  const receptionManager = user.role === "queue_user";
+  if (receptionManager && user.queue_role !== "manager") redirect("/queue");
   const params = await searchParams;
   const { from, to, clamped } = resolveMonthRange(params);
   const supabase = await createClient();
@@ -29,7 +33,8 @@ export default async function AdvisorDashboardPage({ searchParams }: { searchPar
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab === "tasks" ? "overview" : params.tab)}
+        tab={receptionManager ? "overview" : parseTab(params.tab === "tasks" ? "overview" : params.tab)}
+        only={receptionManager ? ["overview"] : undefined}
         basePath="/advisor/dashboard"
         from={from}
         to={to}

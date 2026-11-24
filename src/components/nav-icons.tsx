@@ -1,7 +1,10 @@
 // Menu icons: one simple line style (1.6 stroke, 20 px), matched to the sidebar text. Picked from the link's address.
 
 const P: Record<string, string> = {
-  dashboard: "M3.5 3.5h5v6h-5zM11.5 3.5h5v3.5h-5zM11.5 10h5v6.5h-5zM3.5 12.5h5v4h-5z",
+  // Dashboard: a gauge with its needle.
+  dashboard: "M3.5 14.5a6.5 6.5 0 1113 0M10 14.5l3-4.2M6.2 10.4l.8.6M10 8v1M3.5 14.5h1.5M15 14.5h1.5M10 15.5a1 1 0 100-2 1 1 0 000 2z",
+  // Courtesy car: a car seen from the side with a hand-over arrow above it.
+  courtesy: "M2.5 14v-2.5l2.2-3.5h7.6l3 3.5h2.2V14h-1.3M7.8 14h4.4M6 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM14 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM5.5 4.5h8M11.5 2.5l2 2-2 2",
   audits: "M7 3.5h6M7.5 2.5h5v2h-5zM5 3.5H4.5v14h11v-14H15M7 10l2 2 4-4",
   results: "M4 16.5V9M8.5 16.5V4M13 16.5v-5M17 16.5H3",
   schedule: "M3.5 5.5h13v11h-13zM3.5 8.5h13M7 3.5v3M13 3.5v3M6.5 11.5h2M11.5 11.5h2M6.5 14h2",
@@ -67,7 +70,7 @@ function keyFor(href: string, label: string): string {
   if (h.includes("complaints")) return "complaints";
   if (h.includes("vor-parts")) return "vor";
   if (h.includes("open-wips")) return "wips";
-  if (h.includes("courtesy")) return "key";
+  if (h.includes("courtesy")) return "courtesy";
   if (h.includes("feedback")) return "feedback";
   if (h.includes("reconciliation")) return "money";
   if (h.includes("audit") || h === "/audit") return "audits";

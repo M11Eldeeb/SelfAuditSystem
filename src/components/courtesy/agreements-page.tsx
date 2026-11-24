@@ -21,9 +21,24 @@ const TONE: Record<AgreementStatus, string> = {
 };
 const Pill = ({ s }: { s: AgreementStatus }) => <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${TONE[s]}`}>{STATUS_LABEL[s]}</span>;
 
-/** Courtesy Cars: the agreements made in the portal (default) and the fleet sheet. */
-/** Courtesy Cars: dashboard, agreements (with an advisor's own loans), the fleet in the portal, and the sheet. */
-export async function CourtesyCarsPage({ base, tab, status, f, branch }: { base: string; tab?: string; status?: string; f?: string; branch?: string }) {
+/**
+ * Courtesy Cars: dashboard, agreements (with an advisor's own loans), the fleet in the portal, and the terms.
+ * `view` "dashboard" (from Dashboard > Service): the dashboard alone, to look at - no tabs, a button to the Courtesy Cars page.
+ */
+export async function CourtesyCarsPage({ base, tab, status, f, branch, view }: { base: string; tab?: string; status?: string; f?: string; branch?: string; view?: string }) {
+  if (view === "dashboard")
+    return (
+      <div className="mx-auto max-w-6xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Courtesy Cars</h1>
+          <Link href={base} className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-neutral-800">
+            Open Courtesy Cars
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <CourtesyDashboard base={base} />
+      </div>
+    );
   const s = await courtesyStaff();
   const advisor = s.user.role === "service_advisor" || (s.user.role === "queue_user" && s.user.queue_role !== "manager");
   const current = tab === "vehicles" || tab === "dashboard" || tab === "agreements" || tab === "terms" ? tab : advisor ? "agreements" : "dashboard";

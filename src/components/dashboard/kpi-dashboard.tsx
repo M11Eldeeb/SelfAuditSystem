@@ -95,6 +95,7 @@ export function KpiDashboard({
   national = false,
   auditsPanel,
   hasSubDealer = false,
+  only,
 }: {
   data: DashboardData;
   tab: DashboardTab;
@@ -130,6 +131,8 @@ export function KpiDashboard({
   auditsPanel?: React.ReactNode;
   /** Manager only - the Sub-dealer Dashboard tab (a service manager gets it only where his branch has sub-dealer work). */
   hasSubDealer?: boolean;
+  /** Only these tabs (the reception manager: the Overview alone). */
+  only?: DashboardTab[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -167,7 +170,11 @@ export function KpiDashboard({
   // The national manager has two menu entries: the Quality Dashboard (quality only, no other tabs) and the Warranty Dashboard (every tab but quality).
   const qualityOnly = national && initialTab === "quality" && !!quality;
   const tabs = tabsFor(isOfficer, manager, national).filter(
-    (x) => (x.id !== "quality" || !!quality) && (x.id !== "subdealer" || hasSubDealer) && (!national || (qualityOnly ? x.id === "quality" : x.id !== "quality"))
+    (x) =>
+      (x.id !== "quality" || !!quality) &&
+      (x.id !== "subdealer" || hasSubDealer) &&
+      (!national || (qualityOnly ? x.id === "quality" : x.id !== "quality")) &&
+      (!only || only.includes(x.id as DashboardTab))
   );
   const current = tabs.find((x) => x.id === tab) ?? tabs[0];
 

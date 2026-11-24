@@ -13,7 +13,8 @@ import { techClaimsWaiting } from "@/lib/tech-claims/server";
 import { createClient } from "@/lib/supabase/server";
 import { branchHasSubDealer } from "@/lib/dashboard/sub-dealer-access";
 import { isReception } from "@/lib/reception";
-import { getQueueAccess, queueBranches } from "@/lib/queue/server";
+import { getQueueAccess, queueBranches, type QueueAccess, type QueueBranch } from "@/lib/queue/server";
+import { QUEUE_GROUP } from "@/lib/rail";
 
 /**
  * The portal menu of each area (the links, the dashboards and the bell), in one place: the area layouts use it, and so does the
@@ -80,52 +81,83 @@ const AUDITS_KPI = { href: "/admin/audits", label: "Audits", dept: "warranty" as
 const SUB_DEALER_KPI = { href: "/admin/sub-dealer", label: "Sub-Dealer Analytics", dept: "warranty" as const };
 const INQUIRY_REPORTS_KPI = { href: "/admin/technical-inquiries/reports", label: "Technical Inquiries & Verification Codes", dept: "technical" as const };
 
-/**
- * The Service and Complaints dashboards of an area (`base` "/admin", "/audit", "/advisor"): Major Service Indicators, Open WIPs,
- * Courtesy Cars, the Customer Queue's analytics (for people in the queue), and the two complaints views.
- */
-async function serviceKpis(base: string): Promise<RailKpi[]> {
-  const out: RailKpi[] = [
-    { href: `${base}/msi`, label: "Major Service Indicators", dept: "service" },
-    { href: `${base}/open-wips`, label: "Open WIPs", dept: "service" },
-    { href: `${base}/courtesy-cars?tab=dashboard`, label: "Courtesy Cars", dept: "service" },
-  ];
-  const q = await getQueueAccess();
-  if (q) {
-    if (q.allBranches) out.push({ href: "/queue", label: "Customer Queue", dept: "service" });
-    else {
-      const code = (await queueBranches()).find((b) => b.id === q.branchId)?.queue_code;
-      if (code) out.push({ href: `/queue/${code}/analytics`, label: "Customer Queue", dept: "service" });
+/** The customer queue's own pages for this person (their desks, analytics, appointments, team ...), as one menu folder. */
+export function queueLinks(a: QueueAccess, branches: QueueBranch[]): NavLink[] {
+  const links: NavLink[] = [];
+  if (a.allBranches) links.push({ href: "/queue", label: "Queue overview" });
+  else {
+    const branch = branches.find((b) => b.id === a.branchId);
+    if (branch) {
+      const base = `/queue/${branch.queue_code}`;
+      if (a.role !== "parts_advisor") links.push({ href: base, label: "Service desk" });
+      if (a.role !== "advisor") links.push({ href: `${base}/parts`, label: "Spare parts desk" });
+      links.push({ href: `${base}/analytics`, label: "Queue analytics" });
+      if (a.role === "manager") {
+        links.push({ href: `${base}/customers`, label: "Customers" });
+        links.push({ href: `${base}/settings`, label: "Queue settings" });
+        links.push({ href: `/q/display/${branch.queue_code}`, label: "TV display" });
+      }
     }
   }
-  out.push(
+  links.push({ href: "/queue/appointments", label: "Appointments" });
+  links.push({ href: "/queue/team", label: "Team" });
+  if (a.admin) links.push({ href: "/queue/admin", label: "Queue admin" });
+  return links.map((l) => ({ ...l, group: QUEUE_GROUP }));
+}
+
+/**
+ * The Service and Complaints dashboards of an area (`base` "/admin", "/audit", "/advisor"): Major Service Indicators, Open WIPs,
+ * Courtesy Cars, the Customer Queue's analytics (for people in the queue), and the two complaints views; and the queue's
+ * pages for the menu (a "Customer Queue" folder inside Service).
+ */
+async function serviceMenu(base: string): Promise<{ kpis: RailKpi[]; queue: NavLink[] }> {
+  const kpis: RailKpi[] = [
+    { href: `${base}/msi`, label: "Major Service Indicators", dept: "service" },
+    { href: `${base}/open-wips`, label: "Open WIPs", dept: "service" },
+    { href: `${base}/courtesy-cars?view=dashboard`, label: "Courtesy Cars", dept: "service" },
+  ];
+  let queue: NavLink[] = [];
+  const q = await getQueueAccess();
+  if (q) {
+    const branches = await queueBranches();
+    queue = queueLinks(q, branches);
+    if (q.allBranches) kpis.push({ href: "/queue", label: "Customer Queue", dept: "service" });
+    else {
+      const code = branches.find((b) => b.id === q.branchId)?.queue_code;
+      if (code) kpis.push({ href: `/queue/${code}/analytics`, label: "Customer Queue", dept: "service" });
+    }
+  }
+  kpis.push(
     { href: `${base}/complaints?tab=moc`, label: "MOC · SAIC · CRM", dept: "complaints" },
     { href: `${base}/complaints?tab=internal`, label: "Internal", dept: "complaints" }
   );
-  return out;
+  return { kpis, queue };
 }
+
+/** The menu's links with the queue folder before the bottom ones. */
+const withQueue = (links: NavLink[], queue: NavLink[]) => [...links.filter((l) => !l.bottom), ...queue, ...links.filter((l) => l.bottom)];
 
 /** The warranty officer, the manager and the national manager (the /admin area); `user` as requireRole("officer") gives it. */
 export async function adminNav(user: CurrentUser): Promise<PortalNav> {
   if (user.managerKind === "manager" || user.managerKind === "national_manager") {
-    const [feedback, service] = await Promise.all([feedbackLink(user.id, "/admin/my-feedback"), serviceKpis("/admin")]);
+    const [feedback, service] = await Promise.all([feedbackLink(user.id, "/admin/my-feedback"), serviceMenu("/admin")]);
     const national = user.managerKind === "national_manager";
     return {
-      links: [...(national ? NATIONAL_LINKS : MANAGER_LINKS), feedback],
+      links: withQueue([...(national ? NATIONAL_LINKS : MANAGER_LINKS), feedback], service.queue),
       kpis: national
-        ? kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false, true), quality: true, extra: [SUB_DEALER_KPI, ...service] })
-        : kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, true), subDealer: true, extra: service }),
+        ? kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false, true), quality: true, extra: [SUB_DEALER_KPI, ...service.kpis] })
+        : kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, true), subDealer: true, extra: service.kpis }),
     };
   }
-  const [notifications, inquiryBadge, service] = await Promise.all([getNotifications(user), inquiriesBadge(user), serviceKpis("/admin")]);
+  const [notifications, inquiryBadge, service] = await Promise.all([getNotifications(user), inquiriesBadge(user), serviceMenu("/admin")]);
   // The Technical Inquiries tab carries the number of cases waiting for the technical team.
   const links = ADMIN_LINKS.map((l) => (l.href === "/admin/technical-inquiries" ? { ...l, badge: inquiryBadge } : l));
   // A technical team member with view-all access keeps a way back to his own pages (where he can act).
   if (user.viewOnly) links.push({ href: "/technical/technical-inquiries", label: "My technical pages" });
   return {
-    links,
+    links: withQueue(links, service.queue),
     notifications,
-    kpis: kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), quality: true, extra: [AUDITS_KPI, SUB_DEALER_KPI, ...service, INQUIRY_REPORTS_KPI] }),
+    kpis: kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), quality: true, extra: [AUDITS_KPI, SUB_DEALER_KPI, ...service.kpis, INQUIRY_REPORTS_KPI] }),
   };
 }
 
@@ -167,13 +199,13 @@ export async function auditNav(user: CurrentUser): Promise<PortalNav> {
       getNotifications(user),
       supabase.from("self_audit_branches").select("name").eq("id", user.branch_id!).maybeSingle(),
       branchHasSubDealer(supabase, user.branch_id),
-      serviceKpis("/audit"),
+      serviceMenu("/audit"),
     ]);
     return {
-      links: SERVICE_MANAGER_LINKS,
+      links: withQueue(SERVICE_MANAGER_LINKS, service.queue),
       notifications,
       roleDetail: branch?.name,
-      kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, true), subDealer, extra: service }),
+      kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, true), subDealer, extra: service.kpis }),
     };
   }
   const [notifications, diaryAccess, inquiryBadge, claimsWaiting, service] = await Promise.all([
@@ -181,7 +213,7 @@ export async function auditNav(user: CurrentUser): Promise<PortalNav> {
     getRejectedClaimsAccess(user),
     inquiriesBadge(user),
     techClaimsWaiting(user),
-    serviceKpis("/audit"),
+    serviceMenu("/audit"),
   ]);
   // Until the diary is unlocked for branch admins its tab carries a "Soon" tag.
   const links = BRANCH_ADMIN_LINKS.map((l) =>
@@ -194,7 +226,7 @@ export async function auditNav(user: CurrentUser): Promise<PortalNav> {
           : l
   );
   // The branch admin has no Major Service Indicators page: the other Service dashboards only.
-  return { links, notifications, kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, false), quality: true, extra: service.filter((k) => !k.href.endsWith("/msi")) }) };
+  return { links: withQueue(links, service.queue), notifications, kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, false), quality: true, extra: service.kpis.filter((k) => !k.href.endsWith("/msi")) }) };
 }
 
 /** The service advisor: his branch's dashboard (read only), Complaints, VOR Part Query, Open WIPs and Courtesy Cars. */
@@ -209,15 +241,16 @@ const ADVISOR_LINKS: NavLink[] = [
 
 /** The service advisor area; the reception team of the customer queue uses the same pages (and Query) - see lib/reception. */
 export async function advisorNav(user: CurrentUser): Promise<PortalNav> {
-  const [feedback, notifications, service] = await Promise.all([feedbackLink(user.id, "/advisor/feedback"), getNotifications(user), serviceKpis("/advisor")]);
+  const [feedback, notifications, service] = await Promise.all([feedbackLink(user.id, "/advisor/feedback"), getNotifications(user), serviceMenu("/advisor")]);
   // The reception team (customer queue): the same pages without the branch dashboard, plus Query.
   const reception = isReception(user);
   const links = reception ? [...ADVISOR_LINKS.filter((l) => l.href !== "/advisor/dashboard"), { href: "/advisor/query", label: "Query" }] : ADVISOR_LINKS;
+  // The reception team has no branch dashboard: the Service and Complaints dashboards; the reception manager also the warranty Overview.
+  const overview: RailKpi[] = user.queue_role === "manager" ? [{ href: "/advisor/dashboard?tab=overview", label: "Overview", title: "Warranty KPI overview", dept: "warranty" }] : [];
   return {
-    links: [...links, feedback],
+    links: withQueue([...links, feedback], service.queue),
     notifications,
-    // The reception team has no branch dashboard: the Service and Complaints dashboards only.
-    kpis: reception ? service : kpiLinks({ base: "/advisor/dashboard", tabs: tabsFor(false, false), extra: service }),
+    kpis: reception ? [...overview, ...service.kpis] : kpiLinks({ base: "/advisor/dashboard", tabs: tabsFor(false, false), extra: service.kpis }),
   };
 }
 
@@ -230,6 +263,6 @@ export async function portalNavFor(user: CurrentUser): Promise<PortalNav | null>
   if (user.role === "manager" || user.role === "national_manager") return adminNav({ ...user, role: "officer", viewOnly: true, managerKind: user.role });
   if (user.role === "service_manager") return auditNav({ ...user, role: "branch_admin", viewOnly: true, managerKind: "service_manager" });
   if (user.role === "branch_admin") return auditNav(user);
-  if (user.role === "service_advisor") return advisorNav(user);
+  if (user.role === "service_advisor" || isReception(user)) return advisorNav(user);
   return null;
 }

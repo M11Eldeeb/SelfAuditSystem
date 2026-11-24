@@ -20,7 +20,10 @@ export type RailKpi = RailLink & { dept: RailDept };
 
 export type RailEntry =
   | { kind: "link"; key: string; label: string; icon: string; link: RailLink }
-  | { kind: "menu"; key: string; label: string; icon: string; pages: RailLink[]; dashboards: RailKpi[] };
+  | { kind: "menu"; key: string; label: string; icon: string; pages: RailLink[]; dashboards: RailKpi[]; sub?: RailSub };
+
+/** A folder inside a department's folder (the Customer Queue inside Service), with its own arrow. */
+export type RailSub = { key: string; label: string; icon: string; pages: RailLink[] };
 
 export type RailModel = { top: RailEntry[]; bottom: RailLink[] };
 
@@ -94,14 +97,16 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
   if (query) top.push({ kind: "link", key: "query", label: query.title ?? query.label, icon: "query", link: query });
   // One "Dashboard" entry: it opens the dashboard screen, where a bar picks the department and the dashboard.
   if (entries.length) top.push({ kind: "menu", key: "kpis", label: "Dashboard", icon: "dashboard", pages: [], dashboards: entries });
+  // The customer queue's pages: a folder inside Service (its own folder when there is no Service).
+  const queueSub: RailSub | undefined = queue.length ? { key: "queue", label: "Customer Queue", icon: "queue", pages: queue } : undefined;
   for (const dept of ORDER) {
     const own = pages[dept];
-    if (!own.length) continue;
-    if (own.length === 1) top.push({ kind: "link", key: dept, label: own[0].title ?? own[0].label, icon: DEPT_ICON[dept], link: own[0] });
-    else top.push({ kind: "menu", key: dept, label: DEPT_LABEL[dept], icon: DEPT_ICON[dept], pages: own, dashboards: [] });
-    if (dept === "service" && queue.length) top.push({ kind: "menu", key: "queue", label: "Customer Queue", icon: "queue", pages: queue, dashboards: [] });
+    const sub = dept === "service" ? queueSub : undefined;
+    if (!own.length && !sub) continue;
+    if (own.length === 1 && !sub) top.push({ kind: "link", key: dept, label: own[0].title ?? own[0].label, icon: DEPT_ICON[dept], link: own[0] });
+    else if (!own.length && sub) top.push({ kind: "menu", key: "queue", label: sub.label, icon: sub.icon, pages: sub.pages, dashboards: [] });
+    else top.push({ kind: "menu", key: dept, label: DEPT_LABEL[dept], icon: DEPT_ICON[dept], pages: own, dashboards: [], ...(sub ? { sub } : {}) });
   }
-  if (queue.length && !pages.service.length) top.push({ kind: "menu", key: "queue", label: "Customer Queue", icon: "queue", pages: queue, dashboards: [] });
   if (complaints) top.push({ kind: "link", key: "complaints", label: complaints.title ?? complaints.label, icon: "complaints", link: complaints });
   for (const l of others) top.push({ kind: "link", key: l.href, label: l.title ?? l.label, icon: "", link: l });
   return { top, bottom };
@@ -112,7 +117,7 @@ export function railActiveKey(model: RailModel, activeHref: string | undefined):
   if (!activeHref) return null;
   const hit = (l: RailLink) => !l.external && same(l.href, activeHref);
   for (const e of model.top) {
-    if (e.kind === "link" ? hit(e.link) : e.pages.some(hit)) return e.key;
+    if (e.kind === "link" ? hit(e.link) : e.pages.some(hit) || !!e.sub?.pages.some(hit)) return e.key;
   }
   const kpis = model.top.find((e) => e.key === "kpis");
   if (kpis?.kind === "menu" && kpis.dashboards.some(hit)) return "kpis";
