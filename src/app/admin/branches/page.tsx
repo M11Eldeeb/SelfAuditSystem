@@ -6,6 +6,8 @@ import { UserForm } from "./user-form";
 import { TechnicianImport } from "./technician-import";
 import { ExportUsersButton } from "./export-users";
 import { ResetPasswordButton } from "./reset-password-button";
+import { WelcomeEmailButton } from "./welcome-email-button";
+import { getsCourtesyWelcome } from "@/lib/courtesy/welcome-mail";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
 import { compareUsers } from "@/lib/user-roles";
@@ -105,6 +107,7 @@ export default async function BranchesPage() {
                         </Link>
                       ) : (
                         <>
+                          {getsCourtesyWelcome(u.role, u.queue_role) && <WelcomeEmailButton userId={u.id} email={u.email} />}
                           <ResetPasswordButton userId={u.id} email={u.email} />
                           <DeleteUserButton userId={u.id} email={u.email} />
                         </>

@@ -137,7 +137,10 @@ function buildMime(input: {
   attachments?: MailAttachment[];
 }): string {
   const boundary = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-  const mixed = input.attachments?.length ? `m${boundary}` : null;
+  const inline = (input.attachments ?? []).filter((a) => a.cid);
+  const files = (input.attachments ?? []).filter((a) => !a.cid);
+  const mixed = files.length ? `m${boundary}` : null;
+  const related = inline.length ? `r${boundary}` : null;
   const lines = [
     `From: ${encodeWord(MAIL_FROM_NAME)} <${input.from}>`,
     input.to.length ? `To: ${input.to.join(", ")}` : null,
@@ -149,21 +152,33 @@ function buildMime(input: {
     input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
     input.inReplyTo ? `References: ${input.inReplyTo}` : null,
     "MIME-Version: 1.0",
-    mixed ? `Content-Type: multipart/mixed; boundary="${mixed}"` : `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    mixed
+      ? `Content-Type: multipart/mixed; boundary="${mixed}"`
+      : related
+        ? `Content-Type: multipart/related; boundary="${related}"`
+        : `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ].filter((l): l is string => l !== null);
 
   const part = (type: string, body: string) =>
     `--${boundary}\r\nContent-Type: ${type}; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap76(Buffer.from(body, "utf8").toString("base64"))}\r\n`;
   const alternative = `${part("text/plain", input.text)}${input.html ? part("text/html", input.html) : ""}--${boundary}--`;
-  if (!mixed) return `${lines.join("\r\n")}\r\n\r\n${alternative}`;
+  // Pictures shown inside the HTML (cid): the text/HTML pair and the pictures are one multipart/related.
+  const picture = (a: MailAttachment) =>
+    `--${related}\r\nContent-Type: ${a.mimeType}; name="${encodeWord(a.filename)}"\r\nContent-ID: <${a.cid}>\r\nContent-Disposition: inline; filename="${encodeWord(a.filename)}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap76(a.data.toString("base64"))}\r\n`;
+  const body = related
+    ? `--${related}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}\r\n${inline.map(picture).join("")}--${related}--`
+    : alternative;
+  const bodyType = related ? `multipart/related; boundary="${related}"` : `multipart/alternative; boundary="${boundary}"`;
+  if (!mixed) return `${lines.join("\r\n")}\r\n\r\n${body}`;
 
-  // With attachments: the text/HTML pair is the first part of a multipart/mixed message.
+  // With attachments: the text/HTML (with its pictures) is the first part of a multipart/mixed message.
   const file = (a: MailAttachment) =>
     `--${mixed}\r\nContent-Type: ${a.mimeType}; name="${encodeWord(a.filename)}"\r\nContent-Disposition: attachment; filename="${encodeWord(a.filename)}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap76(a.data.toString("base64"))}\r\n`;
-  return `${lines.join("\r\n")}\r\n\r\n--${mixed}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}\r\n${input.attachments!.map(file).join("")}--${mixed}--`;
+  return `${lines.join("\r\n")}\r\n\r\n--${mixed}\r\nContent-Type: ${bodyType}\r\n\r\n${body}\r\n${files.map(file).join("")}--${mixed}--`;
 }
 
-export type MailAttachment = { filename: string; mimeType: string; data: Buffer };
+/** A file sent with the mail; with `cid` it is a picture shown inside the HTML (`<img src="cid:...">`), not an attachment. */
+export type MailAttachment = { filename: string; mimeType: string; data: Buffer; cid?: string };
 
 export type SendMailInput = {
   kind: string; // e.g. "test", "self-audit-ready" - what the log files it under

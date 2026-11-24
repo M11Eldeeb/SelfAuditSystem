@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTempPassword } from "@/lib/temp-password";
 import { compareUsers } from "@/lib/user-roles";
+import { getsCourtesyWelcome, sendCourtesyWelcome } from "@/lib/courtesy/welcome-mail";
+import { siteOrigin } from "@/lib/site-origin";
 
 export type ActionState = { error?: string; success?: string; tempPassword?: string } | undefined;
 
@@ -92,7 +94,7 @@ export async function setBranchActive(branchId: string, active: boolean): Promis
 }
 
 export async function createUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole("officer");
+  const me = await requireRole("officer");
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fullName = String(formData.get("full_name") ?? "").trim();
@@ -139,11 +141,58 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     return { error: profileError.message };
   }
 
+  // Service advisors and the reception team get the welcome e-mail (sign-in and the Courtesy Cars guide) at once, and
+  // choose their own password at the first sign-in.
+  let mailNote = "";
+  if (getsCourtesyWelcome(role, queueRole)) {
+    await admin.from("self_audit_users").update({ must_change_password: true }).eq("id", created.user.id);
+    const sent = await sendCourtesyWelcome({
+      name: fullName || email.split("@")[0],
+      email,
+      tempPassword,
+      receptionManager: role === "queue_user" && queueRole === "manager",
+      senderName: me.full_name?.trim() || "Warranty Team",
+      site: await siteOrigin(),
+      sentBy: me.id,
+    }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : "Could not send." }));
+    mailNote = sent.ok ? " Welcome e-mail sent." : ` The welcome e-mail could not be sent (${sent.error}) - give the password by hand.`;
+  }
+
   revalidatePath("/admin/branches");
   return {
-    success: `Account created for ${email}.`,
+    success: `Account created for ${email}.${mailNote}`,
     tempPassword,
   };
+}
+
+/**
+ * The welcome e-mail again (or for an account made before it existed): a new temporary password, chosen again at the next
+ * sign-in, sent with the Courtesy Cars guide. Service advisors and the reception team only.
+ */
+export async function sendWelcomeEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireRole("officer");
+  if (me.viewOnly) return { error: "View only." };
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) return { error: "Missing user." };
+  const admin = createAdminClient();
+  const { data: u } = await admin.from("self_audit_users").select("id, email, full_name, role, queue_role").eq("id", userId).maybeSingle();
+  if (!u) return { error: "Account not found." };
+  if (!getsCourtesyWelcome(u.role, u.queue_role)) return { error: "Only for service advisors and the reception team." };
+  const tempPassword = generateTempPassword();
+  const { error } = await admin.auth.admin.updateUserById(u.id, { password: tempPassword });
+  if (error) return { error: error.message };
+  await admin.from("self_audit_users").update({ must_change_password: true }).eq("id", u.id);
+  const sent = await sendCourtesyWelcome({
+    name: u.full_name?.trim() || u.email.split("@")[0],
+    email: u.email,
+    tempPassword,
+    receptionManager: u.role === "queue_user" && u.queue_role === "manager",
+    senderName: me.full_name?.trim() || "Warranty Team",
+    site: await siteOrigin(),
+    sentBy: me.id,
+  }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : "Could not send." }));
+  if (!sent.ok) return { error: `The password was changed but the e-mail could not be sent (${sent.error}).`, tempPassword };
+  return { success: `Welcome e-mail sent to ${u.email}.` };
 }
 
 export async function resetUserPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
