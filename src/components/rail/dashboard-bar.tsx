@@ -38,13 +38,14 @@ const DEPT_ICON: Record<RailDept, string> = {
 /**
  * Dashboard mode: the bar shows only when the person came in through the Dashboard (the menu's Dashboard entry or the bar
  * itself). Opening a page from anywhere else in the menu (Service > Open WIPs ...) turns it off, so that page shows no bar.
- * Kept for this browser tab (sessionStorage).
+ * Kept for this browser tab (sessionStorage), as the page the Dashboard was clicked on: that page does not turn it off
+ * again while the dashboard is still loading (it was clicked once and did nothing).
  */
 const DASH_KEY = "dashboard-mode";
 const DASH_EVENT = "dashboard-mode";
 export function setDashMode(on: boolean) {
   try {
-    if (on) sessionStorage.setItem(DASH_KEY, "1");
+    if (on) sessionStorage.setItem(DASH_KEY, window.location.pathname);
     else sessionStorage.removeItem(DASH_KEY);
   } catch {
     // private window: the bar follows this page only
@@ -62,12 +63,12 @@ function useDashMode() {
     },
     () => {
       try {
-        return sessionStorage.getItem(DASH_KEY) === "1";
+        return sessionStorage.getItem(DASH_KEY);
       } catch {
-        return false;
+        return null;
       }
     },
-    () => false,
+    () => null,
   );
 }
 
@@ -114,9 +115,12 @@ function Segmented({
   label,
   activeKey,
   items,
+  dark = false,
 }: {
   label: string;
   activeKey: string;
+  /** The department row: a dark pill with white text, so it reads as the first choice (the dashboards' pill is white). */
+  dark?: boolean;
   items: { key: string; node: (cls: string) => ReactNode }[];
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -145,13 +149,15 @@ function Segmented({
       <span
         ref={pill}
         aria-hidden="true"
-        className="absolute top-[3px] bottom-[3px] left-0 rounded-[11px] bg-white opacity-0 shadow-sm transition-[transform,width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+        className={`absolute top-[3px] bottom-[3px] left-0 rounded-[11px] opacity-0 shadow-sm ${dark ? "bg-neutral-900" : "bg-white"} transition-[transform,width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none`}
       />
       {items.map((it) =>
         it.node(
           `relative z-[1] flex min-h-9 shrink-0 items-center gap-1.5 rounded-[11px] px-4 py-1.5 text-[14px] font-semibold whitespace-nowrap transition-colors duration-200 ${
             it.key === activeKey
-              ? "text-neutral-900"
+              ? dark
+                ? "text-white"
+                : "text-neutral-900"
               : "text-neutral-500 hover:text-neutral-900"
           }`,
         ),
@@ -174,8 +180,8 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
   // Left the dashboards (any page that is not one of them): the next dashboard page opened directly shows no bar.
   const onDashboard = !!current;
   useEffect(() => {
-    if (!onDashboard && dashMode) setDashMode(false);
-  }, [onDashboard, dashMode]);
+    if (!onDashboard && dashMode && dashMode !== pathname) setDashMode(false);
+  }, [onDashboard, dashMode, pathname]);
   // The tab just clicked shows as chosen at once, while its page loads.
   const [pending, setPending] = useState<string | null>(null);
   const [lastCurrent, setLastCurrent] = useState(current?.href);
@@ -214,6 +220,7 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
           <BarRow label="Department">
             <Segmented
               label="Department"
+              dark
               activeKey={shown.dept}
               items={depts.map((d) => ({
                 key: d,
