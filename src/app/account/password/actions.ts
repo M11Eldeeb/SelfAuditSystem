@@ -1,6 +1,7 @@
 "use server";
 
-import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { getCurrentUser, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -26,7 +27,11 @@ export async function changePassword(
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message };
-  if (user.must_change_password) await createAdminClient().from("self_audit_users").update({ must_change_password: false }).eq("id", user.id);
+  // The first password (a new account, or after the welcome e-mail): straight on to the person's Home page.
+  if (user.must_change_password) {
+    await createAdminClient().from("self_audit_users").update({ must_change_password: false }).eq("id", user.id);
+    redirect(homePathFor(user.role));
+  }
 
   return { success: "Password updated." };
 }
