@@ -27,6 +27,35 @@ const received = (range: string | null): number | null => {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// How fast this phone sends to Google (bytes per second, smoothed), kept between visits. A video is stamped at a bitrate that
+// suits it: a phone on a weak connection gets a smaller video, so it does not spend minutes sending it.
+const SPEED_KEY = "tcUplink";
+let speed: number | null | undefined;
+
+export function uplinkBytesPerSec(): number | null {
+  if (speed === undefined) {
+    try {
+      const v = Number(localStorage.getItem(SPEED_KEY));
+      speed = v > 0 ? v : null;
+    } catch {
+      speed = null;
+    }
+  }
+  return speed;
+}
+
+function noteSpeed(bytes: number, ms: number) {
+  if (bytes < 1024 * 1024 || ms < 500) return; // a small file mostly measures the handshake
+  const now = bytes / (ms / 1000);
+  const before = uplinkBytesPerSec();
+  speed = before ? before * 0.5 + now * 0.5 : now;
+  try {
+    localStorage.setItem(SPEED_KEY, String(Math.round(speed)));
+  } catch {
+    // no storage: the estimate lives until the page closes
+  }
+}
+
 /** The upload session is gone (Google keeps one about a week): ask for a new session and send the file again. */
 export class SessionExpired extends Error {}
 
@@ -35,6 +64,13 @@ export class SessionExpired extends Error {}
  * (the page was closed mid-upload) - first ask Google how much it already has and carry on from there.
  */
 export async function uploadToSession(sessionUrl: string, file: File | Blob, onProgress: (sent: number) => void, resume = false): Promise<string> {
+  const startedAt = Date.now();
+  const id = await sendToSession(sessionUrl, file, onProgress, resume);
+  if (!resume) noteSpeed(file.size, Date.now() - startedAt);
+  return id;
+}
+
+async function sendToSession(sessionUrl: string, file: File | Blob, onProgress: (sent: number) => void, resume: boolean): Promise<string> {
   const size = file.size;
   let offset = 0;
   let retries = 0;

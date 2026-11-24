@@ -2,6 +2,8 @@
 // The date is when the photo / video was taken (photo: EXIF date; video: the MP4's own creation time; otherwise the file's
 // date), shown in Saudi time with the technician's name.
 
+import { uplinkBytesPerSec } from "./upload";
+
 /** The stamp shows the date only (Saudi calendar day), e.g. 20/10/2026. */
 const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Riyadh" });
 
@@ -242,14 +244,22 @@ const VIDEO_LONG_SIDE = 960; // 540p: still sharp enough to read a part, and abo
 export const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 const AUDIO_BITRATE = 96_000;
 
+const VIDEO_MAX_BITRATE = 900_000; // 540p evidence video: clear enough, about half the bytes of the 1.8 Mbit/s used before
+const VIDEO_SLOW_FLOOR = 500_000; // never below this just because the connection is weak
+const SEND_TARGET_SECONDS = 60; // aim to send a video in about a minute at this phone's own sending speed
+
 /**
- * Video bits per second so `seconds` of video fits in 30 MB (with room for the sound and the file's own overhead),
- * at most 1.8 Mbit/s (plenty for 720p). `squeeze` < 1 when a first try still came out too big.
+ * Video bits per second so `seconds` of video fits in 30 MB (with room for the sound and the file's own overhead), at most
+ * 0.9 Mbit/s - and less when this phone has been sending slowly, so the video goes out in about a minute. `squeeze` < 1 when
+ * a first try still came out too big.
  */
 function videoBitrate(seconds: number | null | undefined, squeeze = 1): number {
   const secs = seconds && Number.isFinite(seconds) && seconds > 0 ? seconds : 120;
   const budget = (MAX_VIDEO_BYTES * 8 * 0.88) / secs - AUDIO_BITRATE;
-  return Math.round(Math.max(200_000, Math.min(1_800_000, budget)) * squeeze);
+  let cap = VIDEO_MAX_BITRATE;
+  const up = uplinkBytesPerSec();
+  if (up) cap = Math.min(cap, Math.max(VIDEO_SLOW_FLOOR, (up * SEND_TARGET_SECONDS * 8 * 0.9) / secs - AUDIO_BITRATE));
+  return Math.round(Math.max(200_000, Math.min(cap, budget)) * squeeze);
 }
 
 /** Why a fast stamp could not run (kept for the problem report) - one holder per stamp, since several videos can be stamped at once. */
