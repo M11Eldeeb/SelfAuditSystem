@@ -44,16 +44,17 @@ test("officer menu: departments in the agreed order with the agreed pages", () =
   assert.deepEqual(hrefs(m.bottom), ["/admin/feedbacks"]);
 });
 
-test("the Dashboard link is replaced by the KPI entries", () => {
+test("the Dashboard link is replaced by one Dashboard entry holding the KPI pages", () => {
   const kpis = [
     { href: "/admin/dashboard?tab=cycle", label: "Cycle Times & SLA", dept: "warranty" },
     { href: "/admin/dashboard?tab=quality", label: "Quality Dashboard", dept: "quality" },
   ];
   const m = buildRail(OFFICER, kpis);
   const by = Object.fromEntries(m.top.map((e) => [e.key, e]));
-  assert.deepEqual(hrefs(by.warranty.dashboards), ["/admin/dashboard?tab=cycle"]);
-  assert.equal(by.quality.kind, "menu");
-  assert.deepEqual(hrefs(by.quality.dashboards), ["/admin/dashboard?tab=quality"]);
+  // One "Dashboard" entry holds every dashboard; the departments list only their pages.
+  assert.equal(by.kpis.label, "Dashboard");
+  assert.deepEqual(hrefs(by.warranty.dashboards), []);
+  assert.equal(by.quality.kind, "link");
   assert.deepEqual(hrefs(by.kpis.dashboards), hrefs(kpis));
   for (const e of m.top) if (e.kind === "link") assert.notEqual(e.link.href, "/admin/dashboard");
 });
@@ -109,4 +110,13 @@ test("kpiLinks per role", () => {
   assert.deepEqual(hrefs(advisor), ["/advisor/dashboard?tab=overview", "/advisor/dashboard?tab=cycle", "/advisor/dashboard?tab=financials", "/advisor/dashboard?tab=warranty"]);
   const extra = kpiLinks({ base: "/admin/dashboard", tabs: tabsFor(true, false), extra: [{ href: "/admin/msi", label: "MSI", dept: "service" }] });
   assert.equal(extra.at(-1).href, "/admin/msi");
+});
+
+test("the customer queue's pages are one folder after Service", () => {
+  const m = buildRail([...OFFICER.filter((l) => l.href !== "/queue"), { href: "/queue", label: "Queue overview", group: "Customer Queue" }, { href: "/queue/team", label: "Team", group: "Customer Queue" }], []);
+  const keys = m.top.map((e) => e.key);
+  assert.equal(keys[keys.indexOf("service") + 1], "queue");
+  const q = m.top.find((e) => e.key === "queue");
+  assert.deepEqual(hrefs(q.pages), ["/queue", "/queue/team"]);
+  assert.equal(railActiveKey(m, "/queue/team"), "queue");
 });

@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { SettingsMenu } from "@/components/settings-menu";
 import { NavList, type NavLink } from "@/components/nav-menu";
 import { DeptSidebar } from "@/components/rail/dept-sidebar";
+import { DashboardBar } from "@/components/rail/dashboard-bar";
 import { SIDEBAR_KEY } from "@/lib/site";
 import { homeHrefFor } from "@/lib/home/layout";
 import type { RailKpi } from "@/lib/rail";
@@ -96,6 +97,7 @@ export function NavBar({
   notifications,
   roleDetail,
   kpis,
+  home,
 }: {
   user: CurrentUser;
   links: NavLink[];
@@ -103,6 +105,8 @@ export function NavBar({
   kpis?: RailKpi[];
   /** Initial bell state from the server; omit for roles that have no notifications. */
   notifications?: NavNotifications;
+  /** The Home page of the menu when it is not this area's own (the customer queue inside the portal: the person's portal home). */
+  home?: string;
   /** Shown after the role under the name, e.g. the service manager's branch (instead of "view only"). */
   roleDetail?: string;
 }) {
@@ -114,7 +118,7 @@ export function NavBar({
     ? [...areaLinks.filter((l) => !l.bottom), { href: "/queue", label: "Customer Queue" }, ...areaLinks.filter((l) => l.bottom)]
     : areaLinks;
   // Every area has a Home page (widgets and the person's own figures): first in the menu.
-  const homeHref = homeHrefFor(pathname);
+  const homeHref = home ?? homeHrefFor(pathname);
   const links = homeHref && !withQueue.some((l) => l.href === homeHref) ? [{ href: homeHref, label: "Home" }, ...withQueue] : withQueue;
   // Each account arranges its own menu (kept on the account): drag entries into an order and into folders.
   const [layout, setLayout] = useState<NavLayout | null>((user.nav_layout as NavLayout | null) ?? null);
@@ -309,6 +313,9 @@ export function NavBar({
           </div>
         </div>
       </header>
+
+      {/* On a dashboard: pick the department, then the dashboard. */}
+      {kpis && kpis.length > 1 && <DashboardBar kpis={kpis} />}
 
       {/* Phone / tablet drawer: always mounted so it can animate both in and out; inert while closed keeps it out of tab
           order and from assistive tech. It sits outside <header> on purpose: the header's backdrop-filter would

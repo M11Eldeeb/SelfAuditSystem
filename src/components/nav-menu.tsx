@@ -24,7 +24,7 @@ export type NavLink = {
 
 const GROUPS_KEY = "sidebar-groups-open";
 
-/** Which folders are open: kept in this browser; a folder holding the current page opens by itself. */
+/** Which folder is open: one at a time (opening one closes the other), kept in this browser; a folder holding the current page opens by itself. */
 function useOpenGroups(activeGroup: string | undefined) {
   const [open, setOpen] = useState<Set<string>>(() => new Set(activeGroup ? [activeGroup] : []));
   // The folders left open last time come back after the first paint (the server cannot know them).
@@ -32,7 +32,7 @@ function useOpenGroups(activeGroup: string | undefined) {
     queueMicrotask(() => {
       try {
         const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "[]") as string[];
-        if (saved.length) setOpen((cur) => new Set([...cur, ...saved]));
+        if (saved.length) setOpen((cur) => (cur.size ? cur : new Set([saved[0]])));
       } catch {
         // nothing saved
       }
@@ -41,13 +41,11 @@ function useOpenGroups(activeGroup: string | undefined) {
   const [lastActive, setLastActive] = useState(activeGroup);
   if (activeGroup !== lastActive) {
     setLastActive(activeGroup);
-    if (activeGroup && !open.has(activeGroup)) setOpen(new Set([...open, activeGroup]));
+    if (activeGroup && !open.has(activeGroup)) setOpen(new Set([activeGroup]));
   }
   const toggle = (g: string) =>
     setOpen((cur) => {
-      const next = new Set(cur);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
+      const next = new Set(cur.has(g) ? [] : [g]);
       try {
         localStorage.setItem(GROUPS_KEY, JSON.stringify([...next]));
       } catch {

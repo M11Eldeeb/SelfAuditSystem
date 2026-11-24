@@ -1013,3 +1013,8 @@ html.no-welcome .welcome-intro {
     animation: none;
   }
 }
+
+/* The dashboard screen's own bar (DashboardBar, under the top bar) picks the dashboard: the KPI dashboard's local tab bar is then not shown. */
+html:has(.dash-bar) .kpi-local-tabs {
+  display: none;
+}

@@ -1,20 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { KeyIcon, NavIcon } from "@/components/nav-icons";
-import { DEPT_LABEL, buildRail, railActiveKey, type RailDept, type RailEntry, type RailKpi, type RailLink } from "@/lib/rail";
+import { buildRail, mainDashboard, railActiveKey, type RailEntry, type RailKpi, type RailLink } from "@/lib/rail";
 
-const OPEN_KEY = "sidebar-depts-open";
+const OPEN_KEY = "sidebar-dept-open";
 
 /**
  * The desktop navigation (1280 px and up): the docked light sidebar, with the links sorted into departments (lib/rail.ts).
- * A department is a folder that opens in place with its pages and its dashboards; the one holding the current page opens
- * by itself, and the folders left open are kept in this browser. Below 1280 px NavBar shows its drawer instead.
+ * A department is a folder that opens in place with its pages; only one is open at a time (opening one closes the other).
+ * The one holding the current page opens by itself; the one left open is kept in this browser. One "Dashboard" entry opens
+ * the dashboard screen (its bar picks the department and the dashboard). Below 1280 px NavBar shows its drawer instead.
  */
 export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links: RailLink[]; kpis: RailKpi[]; activeHref: string | undefined; header: ReactNode; footer: ReactNode }) {
-  const pathname = usePathname();
   const model = useMemo(() => buildRail(links, kpis), [links, kpis]);
   // The dashboard page with no ?tab= is its Overview; its KPI entry is the current one.
   const pageHref = useMemo(() => {
@@ -26,50 +25,38 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
   }, [model, kpis, activeHref]);
   const activeKey = railActiveKey(model, pageHref);
 
-  const [open, setOpen] = useState<Set<string>>(() => new Set(activeKey ? [activeKey] : []));
-  // The folders left open last time come back after the first paint (the server cannot know them).
+  // One folder open at a time: the one holding the current page, else the one left open last time.
+  const [openKey, setOpenKey] = useState<string | null>(activeKey);
   useEffect(() => {
+    if (activeKey) return;
     queueMicrotask(() => {
       try {
-        const saved = JSON.parse(localStorage.getItem(OPEN_KEY) ?? "null");
-        if (Array.isArray(saved)) setOpen((s) => new Set([...s, ...saved.filter((k): k is string => typeof k === "string")]));
+        const saved = localStorage.getItem(OPEN_KEY);
+        if (saved) setOpenKey(saved);
       } catch {
-        // private window / bad value: only the current folder is open
+        // private window: nothing saved
       }
     });
-  }, []);
-  // Moving to a page in a closed folder opens it.
+  }, [activeKey]);
+  // Moving to a page in another folder opens that one (and closes the rest).
   const [lastKey, setLastKey] = useState(activeKey);
   if (activeKey !== lastKey) {
     setLastKey(activeKey);
-    if (activeKey && !open.has(activeKey)) setOpen(new Set([...open, activeKey]));
+    if (activeKey) setOpenKey(activeKey);
   }
 
   const toggle = (key: string) => {
-    const next = new Set(open);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    setOpen(next);
+    const next = openKey === key ? null : key;
+    setOpenKey(next);
     try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify([...next]));
+      if (next) localStorage.setItem(OPEN_KEY, next);
+      else localStorage.removeItem(OPEN_KEY);
     } catch {
       // private window: the choice lasts for this page only
     }
   };
 
-  /** A dashboard link on the dashboard page that is already open: switch its tab right here (instant, no reload). */
-  const onDashboardClick = (e: React.MouseEvent, link: RailLink) => {
-    const [path, query] = link.href.split("?");
-    const tab = new URLSearchParams(query).get("tab");
-    if (!tab || path !== pathname) return;
-    e.preventDefault();
-    window.dispatchEvent(new CustomEvent("kpi-tab", { detail: tab }));
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", tab);
-    window.history.replaceState(null, "", url.pathname + url.search);
-  };
-
-  const row = (l: RailLink, opts: { compact?: boolean; icon?: ReactNode; dashboard?: boolean } = {}) => {
+  const row = (l: RailLink, opts: { compact?: boolean; icon?: ReactNode } = {}) => {
     const current = !l.external && pageHref === l.href;
     const className = `flex ${opts.compact ? "min-h-9 gap-2.5 px-2.5 py-1.5 text-[14px]" : "min-h-10 gap-3 px-3 py-2 text-[15px]"} items-center rounded-xl leading-snug transition-colors ${
       current ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"
@@ -92,17 +79,16 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
         <span className="sr-only">(opens in a new tab)</span>
       </a>
     ) : (
-      <Link href={l.href} aria-current={current ? "page" : undefined} className={className} onClick={opts.dashboard ? (e) => onDashboardClick(e, l) : undefined}>
+      <Link href={l.href} aria-current={current ? "page" : undefined} className={className}>
         {content}
       </Link>
     );
   };
 
-  const subHead = (text: string) => <p className="px-2.5 pt-2 pb-0.5 text-[11px] font-semibold tracking-wide text-neutral-500 uppercase">{text}</p>;
-  const subList = (list: RailLink[], dashboard: boolean) => (
+  const subList = (list: RailLink[]) => (
     <ul className="space-y-0.5">
       {list.map((l) => (
-        <li key={l.href}>{row(l, { compact: true, dashboard })}</li>
+        <li key={l.href}>{row(l, { compact: true })}</li>
       ))}
     </ul>
   );
@@ -110,7 +96,25 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
   const entry = (e: RailEntry) => {
     const icon = e.icon ? <KeyIcon name={e.icon} size={20} /> : undefined;
     if (e.kind === "link") return <li key={e.key}>{row({ ...e.link, label: e.label }, { icon })}</li>;
-    const isOpen = open.has(e.key);
+    // The one Dashboard entry: opens the dashboard screen (current while any dashboard is open).
+    if (e.key === "kpis") {
+      const main = mainDashboard(e.dashboards);
+      if (!main) return null;
+      const current = activeKey === "kpis";
+      return (
+        <li key={e.key}>
+          <Link
+            href={main.href}
+            aria-current={current ? "page" : undefined}
+            className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[15px] leading-snug transition-colors ${current ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"}`}
+          >
+            <span className="text-brand">{icon}</span>
+            <span className="min-w-0 flex-1">{e.label}</span>
+          </Link>
+        </li>
+      );
+    }
+    const isOpen = openKey === e.key;
     const badge = e.pages.some((p) => p.badge) || e.dashboards.some((p) => p.badge);
     return (
       <li key={e.key}>
@@ -136,23 +140,7 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
         >
           <div className="overflow-hidden">
             <div className="mt-1 mb-1 ml-[1.35rem] border-l border-neutral-900/[0.08] pl-2">
-              {e.pages.length > 0 && subList(e.pages, false)}
-              {e.key === "kpis"
-                ? (Object.keys(DEPT_LABEL) as RailDept[]).map((d) => {
-                    const list = e.dashboards.filter((k) => k.dept === d);
-                    return list.length ? (
-                      <div key={d}>
-                        {subHead(DEPT_LABEL[d])}
-                        {subList(list, true)}
-                      </div>
-                    ) : null;
-                  })
-                : e.dashboards.length > 0 && (
-                    <div>
-                      {subHead("Dashboards")}
-                      {subList(e.dashboards, true)}
-                    </div>
-                  )}
+              {e.pages.length > 0 && subList(e.pages)}
             </div>
           </div>
         </div>

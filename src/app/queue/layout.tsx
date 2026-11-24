@@ -4,10 +4,13 @@ import { NavBar } from "@/components/nav-bar";
 import type { NavLink } from "@/components/nav-menu";
 import { requireQueueAccess, queueBranches } from "@/lib/queue/server";
 import { isReception } from "@/lib/reception";
+import { portalNavFor } from "@/lib/portal-nav";
+import { QUEUE_GROUP } from "@/lib/rail";
 
 /**
  * The customer queue's staff area (moved from the MG Queue app). Branch people see their branch's desks; head office
  * (warranty officers, national managers, managers, queue managers without a branch) see every branch.
+ * People who also work in the portal keep their own portal menu here, with the queue's pages as one "Customer Queue" folder.
  */
 export default async function QueueLayout({ children }: { children: ReactNode }) {
   const a = await requireQueueAccess();
@@ -29,6 +32,28 @@ export default async function QueueLayout({ children }: { children: ReactNode })
     }
   }
   links.push({ href: "/queue/appointments", label: "Appointments" });
+  links.push({ href: "/queue/team", label: "Team" });
+  if (a.admin) links.push({ href: "/queue/admin", label: "Queue admin" });
+
+  // Inside the portal: the person's own menu and the queue as one folder.
+  const portal = a.user.role === "queue_user" ? null : await portalNavFor(a.user);
+  if (portal) {
+    const queue = links.map((l) => ({ ...l, group: QUEUE_GROUP }));
+    return (
+      <div className="app-shell-bg flex min-h-screen flex-col">
+        <NavBar
+          user={a.user}
+          links={[...portal.links.filter((l) => !l.bottom), ...queue, ...portal.links.filter((l) => l.bottom)]}
+          notifications={portal.notifications}
+          roleDetail={portal.roleDetail}
+          kpis={portal.kpis}
+          home={homePathFor(a.user.role)}
+        />
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      </div>
+    );
+  }
+
   // The reception team (queue-only service advisors and reception managers) also use the service advisor's pages.
   if (isReception(a.user))
     links.push(
@@ -39,8 +64,6 @@ export default async function QueueLayout({ children }: { children: ReactNode })
       { href: "/advisor/courtesy-cars", label: "Courtesy Cars" },
       { href: "/advisor/query", label: "Query" }
     );
-  links.push({ href: "/queue/team", label: "Team" });
-  if (a.admin) links.push({ href: "/queue/admin", label: "Queue admin" });
   if (a.user.role !== "queue_user") links.push({ href: homePathFor(a.user.role), label: "Back to portal", bottom: true });
   return (
     <div className="app-shell-bg flex min-h-screen flex-col">

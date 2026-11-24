@@ -24,6 +24,14 @@ export type RailEntry =
 
 export type RailModel = { top: RailEntry[]; bottom: RailLink[] };
 
+/** Links with this group are the customer queue's pages (one folder in the menu). */
+export const QUEUE_GROUP = "Customer Queue";
+
+/** The dashboard the "Dashboard" entry opens: the warranty Overview when there is one, else the first. */
+export function mainDashboard(kpis: RailKpi[]): RailKpi | undefined {
+  return kpis.find((k) => k.href.includes("tab=overview")) ?? kpis[0];
+}
+
 export const DEPT_LABEL: Record<RailDept, string> = { service: "Service", warranty: "Warranty", technical: "Technical", quality: "Quality", parts: "Parts" };
 /** Department -> icon key of nav-icons.tsx. */
 const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box" };
@@ -56,10 +64,16 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
   let home: RailLink | undefined;
   let query: RailLink | undefined;
   let complaints: RailLink | undefined;
+  /** The customer queue's own pages (shown inside the portal while working in the queue): one folder. */
+  const queue: RailLink[] = [];
 
   for (const link of links) {
     if (link.bottom) {
       bottom.push(link);
+      continue;
+    }
+    if (link.group === QUEUE_GROUP) {
+      queue.push(link);
       continue;
     }
     const d = departmentsOf(link);
@@ -78,15 +92,16 @@ export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
   const top: RailEntry[] = [];
   if (home) top.push({ kind: "link", key: "home", label: home.label, icon: "home", link: home });
   if (query) top.push({ kind: "link", key: "query", label: query.title ?? query.label, icon: "query", link: query });
-  if (entries.length) top.push({ kind: "menu", key: "kpis", label: "KPIs", icon: "dashboard", pages: [], dashboards: entries });
+  // One "Dashboard" entry: it opens the dashboard screen, where a bar picks the department and the dashboard.
+  if (entries.length) top.push({ kind: "menu", key: "kpis", label: "Dashboard", icon: "dashboard", pages: [], dashboards: entries });
   for (const dept of ORDER) {
     const own = pages[dept];
-    // A dashboard that is also one of the department's pages (Major Service Indicators) is listed once.
-    const dashboards = entries.filter((e) => e.dept === dept && !own.some((p) => same(p.href, e.href)));
-    if (!own.length && !dashboards.length) continue;
-    if (own.length === 1 && !dashboards.length) top.push({ kind: "link", key: dept, label: own[0].title ?? own[0].label, icon: DEPT_ICON[dept], link: own[0] });
-    else top.push({ kind: "menu", key: dept, label: DEPT_LABEL[dept], icon: DEPT_ICON[dept], pages: own, dashboards });
+    if (!own.length) continue;
+    if (own.length === 1) top.push({ kind: "link", key: dept, label: own[0].title ?? own[0].label, icon: DEPT_ICON[dept], link: own[0] });
+    else top.push({ kind: "menu", key: dept, label: DEPT_LABEL[dept], icon: DEPT_ICON[dept], pages: own, dashboards: [] });
+    if (dept === "service" && queue.length) top.push({ kind: "menu", key: "queue", label: "Customer Queue", icon: "queue", pages: queue, dashboards: [] });
   }
+  if (queue.length && !pages.service.length) top.push({ kind: "menu", key: "queue", label: "Customer Queue", icon: "queue", pages: queue, dashboards: [] });
   if (complaints) top.push({ kind: "link", key: "complaints", label: complaints.title ?? complaints.label, icon: "complaints", link: complaints });
   for (const l of others) top.push({ kind: "link", key: l.href, label: l.title ?? l.label, icon: "", link: l });
   return { top, bottom };

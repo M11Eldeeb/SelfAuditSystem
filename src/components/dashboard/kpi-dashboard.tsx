@@ -246,7 +246,7 @@ export function KpiDashboard({
       <nav
         aria-label="Dashboard sections"
         onFocusCapture={() => setBarHidden(false)}
-        className={`sticky top-[72px] z-10 -mx-1 px-1 py-1 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none xl:hidden ${
+        className={`sticky top-[72px] z-10 -mx-1 px-1 py-1 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none kpi-local-tabs xl:hidden ${
           barHidden ? "pointer-events-none -translate-y-[calc(100%+80px)] opacity-0" : ""
         }`}
       >
