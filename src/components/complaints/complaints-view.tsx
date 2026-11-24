@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getComplaintsData, getInternalComplaints, type ComplaintsData, type InternalData } from "@/app/actions/complaints";
 import { CarLoaderCard } from "@/components/spinner";
 import { MocComplaints } from "./moc-complaints";
@@ -8,7 +9,16 @@ import { InternalComplaints } from "./internal-complaints";
 
 /** Reports > Complaints: MOC / SAIC / CRM complaints (monthly e-mail) and internal complaints (Google Sheet). */
 export function ComplaintsView() {
-  const [tab, setTab] = useState<"moc" | "internal">("moc");
+  // ?tab=internal opens the internal complaints; the dashboard bar (DashboardBar) switches the tab with a "kpi-tab" event.
+  const [tab, setTab] = useState<"moc" | "internal">(useSearchParams().get("tab") === "internal" ? "internal" : "moc");
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id === "moc" || id === "internal") setTab(id);
+    };
+    window.addEventListener("kpi-tab", onTab);
+    return () => window.removeEventListener("kpi-tab", onTab);
+  }, []);
   const [moc, setMoc] = useState<ComplaintsData | null>(null);
   const [internal, setInternal] = useState<InternalData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +47,7 @@ export function ComplaintsView() {
           <h1 className="text-2xl font-bold tracking-tight text-[#1d1d1f]">Complaints</h1>
           <p className="mt-0.5 text-[14px] text-[#6e6e73]">{scope && scope !== "all" ? `${scope} only.` : "All branches."} Spot where complaints come from and what to fix first.</p>
         </div>
-        <div className="inline-flex rounded-xl bg-[#f5f5f7] p-1 text-sm font-semibold ring-1 ring-black/[0.05]" role="tablist">
+        <div className="kpi-local-tabs inline-flex rounded-xl bg-[#f5f5f7] p-1 text-sm font-semibold ring-1 ring-black/[0.05]" role="tablist">
           {(
             [
               ["moc", "MOC · SAIC · CRM"],

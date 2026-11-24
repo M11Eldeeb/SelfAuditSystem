@@ -2,96 +2,161 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { DEPT_LABEL, mainDashboard, type RailDept, type RailKpi } from "@/lib/rail";
 import { KeyIcon } from "@/components/nav-icons";
 
-const ORDER: RailDept[] = ["warranty", "quality", "service", "technical", "parts"];
-const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box" };
+const ORDER: RailDept[] = ["warranty", "quality", "service", "technical", "parts", "complaints"];
+const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box", complaints: "complaints" };
 
-/** The dashboard open on this page (null when the page is not one of the dashboards). The dashboard page with no ?tab= is its Overview. */
+const tabOf = (href: string) => new URLSearchParams(href.split("?")[1] ?? "").get("tab");
+
+/**
+ * The dashboard open on this page (null when the page is not one of the dashboards). With ?tab= the dashboard of that tab;
+ * without, the page's own dashboard (the KPI dashboard's Overview, the first complaints view).
+ */
 export function currentDashboard(kpis: RailKpi[], pathname: string, search: URLSearchParams | null): RailKpi | null {
   const onPath = kpis.filter((k) => k.href.split("?")[0] === pathname);
   if (!onPath.length) return null;
   const tab = search?.get("tab");
-  const withTab = tab ? onPath.find((k) => new URLSearchParams(k.href.split("?")[1] ?? "").get("tab") === tab) : undefined;
-  return withTab ?? onPath.find((k) => !k.href.includes("?")) ?? mainDashboard(onPath) ?? null;
+  if (tab) return onPath.find((k) => tabOf(k.href) === tab) ?? null;
+  const plain = onPath.find((k) => !k.href.includes("?"));
+  if (plain) return plain;
+  return /\/(dashboard|complaints)$/.test(pathname) ? (mainDashboard(onPath) ?? null) : null;
 }
 
 /**
- * The dashboard screen's switcher, under the top bar: a small bar of departments (Warranty, Quality, Service ...) and under it
- * the dashboards of the chosen department. A dashboard tab of the page already open switches right here (no reload).
+ * A segmented control whose white pill slides to the chosen item (the motion when switching). The pill is placed straight on
+ * the DOM after each render, so it follows the chosen item without a second render.
+ */
+function Segmented({ label, activeKey, items }: { label: string; activeKey: string; items: { key: string; node: (cls: string) => ReactNode }[] }) {
+  const box = useRef<HTMLDivElement>(null);
+  const pill = useRef<HTMLSpanElement>(null);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    const el = box.current?.querySelector<HTMLElement>(`[data-seg="${CSS.escape(activeKey)}"]`);
+    const p = pill.current;
+    if (!el || !p) return;
+    // No slide on the first paint, only when switching.
+    p.style.transition = first.current ? "none" : "";
+    p.style.transform = `translateX(${el.offsetLeft}px)`;
+    p.style.width = `${el.offsetWidth}px`;
+    p.style.opacity = "1";
+    first.current = false;
+  });
+  return (
+    <div ref={box} role="tablist" aria-label={label} className="relative inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl [scrollbar-width:none]">
+      <span
+        ref={pill}
+        aria-hidden="true"
+        className="absolute top-[3px] bottom-[3px] left-0 rounded-[11px] bg-white opacity-0 shadow-sm transition-[transform,width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+      />
+      {items.map((it) =>
+        it.node(
+          `relative z-[1] flex shrink-0 items-center gap-1.5 rounded-[11px] px-3.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${
+            it.key === activeKey ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
+          }`
+        )
+      )}
+    </div>
+  );
+}
+
+/**
+ * The dashboard screen's switcher, under the top bar: the departments (Warranty, Quality, Service, Complaints ...) and under them
+ * the dashboards of the chosen one, both as sliding segmented controls; the lower one is only as wide as its tabs.
+ * A tab of the dashboard page already open switches right there (no reload).
  */
 export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const router = useRouter();
   const current = currentDashboard(kpis, pathname, search);
+  // The tab just clicked shows as chosen at once, while its page loads.
+  const [pending, setPending] = useState<string | null>(null);
+  const [lastCurrent, setLastCurrent] = useState(current?.href);
+  if (current?.href !== lastCurrent) {
+    setLastCurrent(current?.href);
+    setPending(null);
+  }
   if (!current || kpis.length < 2) return null;
+  const shown = kpis.find((k) => k.href === pending) ?? current;
   const depts = ORDER.filter((d) => kpis.some((k) => k.dept === d));
-  const list = kpis.filter((k) => k.dept === current.dept);
+  const list = kpis.filter((k) => k.dept === shown.dept);
 
-  /** A tab of the dashboard page already open: switched right here (true); else the link loads its page. */
+  /** A tab of the KPI dashboard or of the complaints page already open: switched right here (true); else its page loads. */
   const switchHere = (k: RailKpi) => {
-    const [path, query] = k.href.split("?");
-    const tab = new URLSearchParams(query ?? "").get("tab");
-    if (!tab || path !== pathname) return false;
+    const path = k.href.split("?")[0];
+    const tab = tabOf(k.href);
+    if (!tab || path !== pathname || !/\/(dashboard|complaints)$/.test(path)) return false;
     window.dispatchEvent(new CustomEvent("kpi-tab", { detail: tab }));
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
     window.history.replaceState(null, "", url.pathname + url.search);
     return true;
   };
+  const go = (k: RailKpi) => {
+    if (k.href === shown.href) return;
+    setPending(k.href);
+    if (!switchHere(k)) router.push(k.href);
+  };
 
   return (
     <div className="dash-bar px-3 pt-3 print:hidden">
-      <div className="mx-auto w-full max-w-5xl space-y-2 px-1">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-start gap-2 px-1">
         {depts.length > 1 && (
-          <div role="tablist" aria-label="Department" className="flex gap-1 overflow-x-auto">
-            {depts.map((d) => {
-              const active = d === current.dept;
-              return (
+          <Segmented
+            label="Department"
+            activeKey={shown.dept}
+            items={depts.map((d) => ({
+              key: d,
+              node: (cls) => (
                 <button
                   key={d}
                   type="button"
                   role="tab"
-                  aria-selected={active}
+                  data-seg={d}
+                  aria-selected={d === shown.dept}
                   onClick={() => {
-                    if (active) return;
-                    const first = kpis.filter((k) => k.dept === d);
-                    const go = mainDashboard(first);
-                    if (go && !switchHere(go)) router.push(go.href);
+                    const target = mainDashboard(kpis.filter((k) => k.dept === d));
+                    if (target) go(target);
                   }}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-semibold transition ${
-                    active ? "bg-neutral-900 text-white" : "bg-white text-neutral-600 ring-1 ring-neutral-900/[0.08] hover:bg-neutral-50 hover:text-neutral-900"
-                  }`}
+                  className={cls}
                 >
-                  <KeyIcon name={DEPT_ICON[d]} size={14} />
+                  <KeyIcon name={DEPT_ICON[d]} size={15} />
                   {DEPT_LABEL[d]}
                 </button>
-              );
-            })}
-          </div>
+              ),
+            }))}
+          />
         )}
-        <nav aria-label="Dashboards" className="flex gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl">
-          {list.map((k) => {
-            const active = k.href === current.href;
-            return (
-              <Link
-                key={k.href}
-                href={k.href}
-                onClick={(e) => {
-                  if (switchHere(k)) e.preventDefault();
-                }}
-                aria-current={active ? "page" : undefined}
-                className={`shrink-0 rounded-[11px] px-3.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap transition ${
-                  active ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                {k.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Keyed by department: a new set of dashboards comes in with a short rise. */}
+        <div key={shown.dept} className="dash-bar-in max-w-full">
+          <Segmented
+            label="Dashboards"
+            activeKey={shown.href}
+            items={list.map((k) => ({
+              key: k.href,
+              node: (cls) => (
+                <Link
+                  key={k.href}
+                  href={k.href}
+                  data-seg={k.href}
+                  role="tab"
+                  aria-selected={k.href === shown.href}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                    e.preventDefault();
+                    go(k);
+                  }}
+                  className={cls}
+                >
+                  {k.label}
+                </Link>
+              ),
+            }))}
+          />
+        </div>
       </div>
     </div>
   );

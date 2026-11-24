@@ -1,7 +1,7 @@
 // The desktop rail: the links an area's layout hands to the NavBar, sorted into departments. Pure (no imports) so a plain
 // Node test can run it - see scripts/rail.test.mjs.
 
-export type RailDept = "service" | "warranty" | "technical" | "quality" | "parts";
+export type RailDept = "service" | "warranty" | "technical" | "quality" | "parts" | "complaints";
 
 export type RailLink = {
   href: string;
@@ -32,9 +32,9 @@ export function mainDashboard(kpis: RailKpi[]): RailKpi | undefined {
   return kpis.find((k) => k.href.includes("tab=overview")) ?? kpis[0];
 }
 
-export const DEPT_LABEL: Record<RailDept, string> = { service: "Service", warranty: "Warranty", technical: "Technical", quality: "Quality", parts: "Parts" };
+export const DEPT_LABEL: Record<RailDept, string> = { service: "Service", warranty: "Warranty", technical: "Technical", quality: "Quality", parts: "Parts", complaints: "Complaints" };
 /** Department -> icon key of nav-icons.tsx. */
-const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box" };
+const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box", complaints: "complaints" };
 const ORDER: RailDept[] = ["service", "warranty", "technical", "quality", "parts"];
 
 /** Which department(s) a link belongs to, "query" / "complaints" / "dashboard" for the special ones, null when it fits none. */
@@ -57,7 +57,7 @@ export function departmentsOf(link: RailLink): RailDept[] | "home" | "query" | "
 const same = (a: string, b: string) => a === b;
 
 export function buildRail(links: RailLink[], kpis: RailKpi[]): RailModel {
-  const pages: Record<RailDept, RailLink[]> = { service: [], warranty: [], technical: [], quality: [], parts: [] };
+  const pages: Record<RailDept, RailLink[]> = { service: [], warranty: [], technical: [], quality: [], parts: [], complaints: [] };
   const bottom: RailLink[] = [];
   const dashLinks: RailLink[] = [];
   const others: RailLink[] = [];
