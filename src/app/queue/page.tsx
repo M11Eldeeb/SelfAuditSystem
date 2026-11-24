@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { branchReceiving, requireQueueAccess, queueBranches } from "@/lib/queue/server";
 import { receivingText } from "@/lib/queue/hours";
-import { ticketsSince } from "@/lib/queue/pages";
+import { appointmentsSince, ticketsSince } from "@/lib/queue/pages";
 import { busyLevel, minutesSince, startOfSaudiDay } from "@/lib/queue/core";
 import { AnalyticsView, daysParam } from "@/components/queue/analytics-view";
 
@@ -18,7 +18,7 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
     redirect(a.role === "parts_advisor" ? `/queue/${mine.queue_code}/parts` : `/queue/${mine.queue_code}`);
   }
   const days = daysParam((await searchParams).days);
-  const rows = await ticketsSince(days);
+  const [rows, appts] = await Promise.all([ticketsSince(days), appointmentsSince(days)]);
   const today = startOfSaudiDay();
   // Each branch's receiving now (working hours + the reception manager's switch).
   const receivingOf = new Map(await Promise.all(branches.map(async (b) => [b.id, (await branchReceiving(b.id)).receiving] as const)));
@@ -106,7 +106,7 @@ export default async function QueueOverviewPage({ searchParams }: { searchParams
       )}
       <div>
         <h2 className="mb-3 text-lg font-semibold text-neutral-900">All branches</h2>
-        <AnalyticsView rows={rows} days={days} basePath="/queue" />
+        <AnalyticsView rows={rows} days={days} basePath="/queue" appts={appts} branchNames={Object.fromEntries(branches.map((b) => [b.id, b.name]))} />
       </div>
     </div>
   );
