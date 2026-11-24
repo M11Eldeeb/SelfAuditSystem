@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavIcon } from "@/components/nav-icons";
+import { menuClicked } from "@/components/rail/dashboard-bar";
 import { addFolder, buildRows, deleteFolder, moveRows, renameFolder, toLayout, type DragItem, type DropTarget, type MenuRow, type NavLayout } from "@/lib/nav-layout";
 
 export type NavLink = {
@@ -315,7 +316,7 @@ function NavRow({ link, active, compact = false, organize = false }: { link: Nav
     </>
   );
   // While arranging, a click does not open the page.
-  const stopWhenArranging = organize ? { onClick: (e: React.MouseEvent) => e.preventDefault() } : {};
+  const stopWhenArranging = organize ? { onClick: (e: React.MouseEvent) => e.preventDefault() } : { onClick: () => menuClicked(link.href) };
   // An outside site (AMS) opens in its own tab; it is not a page of this portal.
   return link.external ? (
     <a href={link.href} target="_blank" rel="noopener noreferrer" title={`${link.label} - opens in a new tab`} className={className} {...stopWhenArranging}>

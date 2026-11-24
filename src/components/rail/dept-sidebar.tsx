@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { KeyIcon, NavIcon } from "@/components/nav-icons";
 import { buildRail, mainDashboard, railActiveKey, type RailEntry, type RailKpi, type RailLink } from "@/lib/rail";
+import { menuClicked, setDashMode } from "@/components/rail/dashboard-bar";
 
 const OPEN_KEY = "sidebar-dept-open";
 
@@ -88,7 +89,7 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
         <span className="sr-only">(opens in a new tab)</span>
       </a>
     ) : (
-      <Link href={l.href} aria-current={current ? "page" : undefined} className={className}>
+      <Link href={l.href} aria-current={current ? "page" : undefined} className={className} onClick={() => menuClicked(l.href)}>
         {content}
       </Link>
     );
@@ -114,6 +115,7 @@ export function DeptSidebar({ links, kpis, activeHref, header, footer }: { links
         <li key={e.key}>
           <Link
             href={main.href}
+            onClick={() => setDashMode(true)}
             aria-current={current ? "page" : undefined}
             className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[15px] leading-snug transition-colors ${current ? "bg-neutral-900/[0.07] font-semibold text-neutral-900" : "font-medium text-neutral-700 hover:bg-neutral-900/[0.04] hover:text-neutral-900"}`}
           >

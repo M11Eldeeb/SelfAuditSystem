@@ -2,12 +2,47 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { DEPT_LABEL, mainDashboard, type RailDept, type RailKpi } from "@/lib/rail";
 import { KeyIcon } from "@/components/nav-icons";
 
 const ORDER: RailDept[] = ["warranty", "quality", "service", "technical", "parts", "complaints"];
 const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box", complaints: "complaints" };
+
+/**
+ * Dashboard mode: the bar shows only when the person came in through the Dashboard (the menu's Dashboard entry or the bar
+ * itself). Opening a page from anywhere else in the menu (Service > Open WIPs ...) turns it off, so that page shows no bar.
+ * Kept for this browser tab (sessionStorage).
+ */
+const DASH_KEY = "dashboard-mode";
+const DASH_EVENT = "dashboard-mode";
+export function setDashMode(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(DASH_KEY, "1");
+    else sessionStorage.removeItem(DASH_KEY);
+  } catch {
+    // private window: the bar follows this page only
+  }
+  window.dispatchEvent(new Event(DASH_EVENT));
+}
+/** A menu link was clicked: dashboard mode on for a dashboard page, off for anything else. */
+export const menuClicked = (href: string) => setDashMode(/\/dashboard(\?|$)/.test(href));
+function useDashMode() {
+  return useSyncExternalStore(
+    (cb) => {
+      window.addEventListener(DASH_EVENT, cb);
+      return () => window.removeEventListener(DASH_EVENT, cb);
+    },
+    () => {
+      try {
+        return sessionStorage.getItem(DASH_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false
+  );
+}
 
 const tabOf = (href: string) => new URLSearchParams(href.split("?")[1] ?? "").get("tab");
 
@@ -78,6 +113,12 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
   const search = useSearchParams();
   const router = useRouter();
   const current = currentDashboard(kpis, pathname, search);
+  const dashMode = useDashMode();
+  // Left the dashboards (any page that is not one of them): the next dashboard page opened directly shows no bar.
+  const onDashboard = !!current;
+  useEffect(() => {
+    if (!onDashboard && dashMode) setDashMode(false);
+  }, [onDashboard, dashMode]);
   // The tab just clicked shows as chosen at once, while its page loads.
   const [pending, setPending] = useState<string | null>(null);
   const [lastCurrent, setLastCurrent] = useState(current?.href);
@@ -85,7 +126,7 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
     setLastCurrent(current?.href);
     setPending(null);
   }
-  if (!current || kpis.length < 2) return null;
+  if (!current || !dashMode || kpis.length < 2) return null;
   const shown = kpis.find((k) => k.href === pending) ?? current;
   const depts = ORDER.filter((d) => kpis.some((k) => k.dept === d));
   const list = kpis.filter((k) => k.dept === shown.dept);
