@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTempPassword } from "@/lib/temp-password";
 import { compareUsers } from "@/lib/user-roles";
-import { getsCourtesyWelcome, sendCourtesyWelcome } from "@/lib/courtesy/welcome-mail";
+import { getsCourtesyWelcome, sendCourtesyWelcome, signedInIds, welcomeSentMap } from "@/lib/courtesy/welcome-mail";
 import { siteOrigin } from "@/lib/site-origin";
 
 export type ActionState = { error?: string; success?: string; tempPassword?: string } | undefined;
@@ -165,22 +165,14 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   };
 }
 
-/**
- * The welcome e-mail again (or for an account made before it existed): a new temporary password, chosen again at the next
- * sign-in, sent with the Courtesy Cars guide. Service advisors and the reception team only.
- */
-export async function sendWelcomeEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const me = await requireRole("officer");
-  if (me.viewOnly) return { error: "View only." };
-  const userId = String(formData.get("user_id") ?? "");
-  if (!userId) return { error: "Missing user." };
+type WelcomeUser = { id: string; email: string; full_name: string | null; role: string; queue_role: string | null };
+
+/** A new temporary password (chosen again at the next sign-in), sent in the welcome e-mail with the Courtesy Cars guide. */
+async function welcomeOne(u: WelcomeUser, me: { id: string; full_name: string | null }, site: string) {
   const admin = createAdminClient();
-  const { data: u } = await admin.from("self_audit_users").select("id, email, full_name, role, queue_role").eq("id", userId).maybeSingle();
-  if (!u) return { error: "Account not found." };
-  if (!getsCourtesyWelcome(u.role, u.queue_role)) return { error: "Only for service advisors and the reception team." };
   const tempPassword = generateTempPassword();
   const { error } = await admin.auth.admin.updateUserById(u.id, { password: tempPassword });
-  if (error) return { error: error.message };
+  if (error) return { ok: false as const, error: error.message };
   await admin.from("self_audit_users").update({ must_change_password: true }).eq("id", u.id);
   const sent = await sendCourtesyWelcome({
     name: u.full_name?.trim() || u.email.split("@")[0],
@@ -188,11 +180,54 @@ export async function sendWelcomeEmail(_prev: ActionState, formData: FormData): 
     tempPassword,
     receptionManager: u.role === "queue_user" && u.queue_role === "manager",
     senderName: me.full_name?.trim() || "Warranty Team",
-    site: await siteOrigin(),
+    site,
     sentBy: me.id,
   }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : "Could not send." }));
-  if (!sent.ok) return { error: `The password was changed but the e-mail could not be sent (${sent.error}).`, tempPassword };
+  return sent.ok ? { ok: true as const } : { ok: false as const, error: sent.error, tempPassword };
+}
+
+/**
+ * The welcome e-mail for an account made before it existed (or whose e-mail failed): once per account. A new temporary
+ * password is set and sent in it. Service advisors and the reception team only.
+ */
+export async function sendWelcomeEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireRole("officer");
+  if (me.viewOnly) return { error: "View only." };
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) return { error: "Missing user." };
+  const { data: u } = await createAdminClient().from("self_audit_users").select("id, email, full_name, role, queue_role").eq("id", userId).maybeSingle();
+  if (!u) return { error: "Account not found." };
+  if (!getsCourtesyWelcome(u.role, u.queue_role)) return { error: "Only for service advisors and the reception team." };
+  if ((await welcomeSentMap()).has(u.email.toLowerCase())) return { error: "The welcome e-mail was already sent to this account." };
+  const r = await welcomeOne(u, me, await siteOrigin());
+  revalidatePath("/admin/branches");
+  if (!r.ok) return { error: `The password was changed but the e-mail could not be sent (${r.error}).`, tempPassword: r.tempPassword };
   return { success: `Welcome e-mail sent to ${u.email}.` };
+}
+
+/**
+ * The welcome e-mail to every new service advisor / reception account at once: those that never got it and never signed
+ * in (someone already using the portal keeps his password). 15 per click (time limit), the rest with the next click.
+ */
+export async function sendWelcomeToAllNew(): Promise<{ sent: string[]; failed: { email: string; error: string; tempPassword?: string }[]; left: number; error?: string }> {
+  const me = await requireRole("officer");
+  if (me.viewOnly) return { sent: [], failed: [], left: 0, error: "View only." };
+  const [{ data: users }, sentMap, signedIn] = await Promise.all([
+    createAdminClient().from("self_audit_users").select("id, email, full_name, role, queue_role"),
+    welcomeSentMap(),
+    signedInIds(),
+  ]);
+  const todo = (users ?? []).filter((u) => getsCourtesyWelcome(u.role, u.queue_role) && !sentMap.has(u.email.toLowerCase()) && !signedIn.has(u.id));
+  const site = await siteOrigin();
+  const sent: string[] = [];
+  const failed: { email: string; error: string; tempPassword?: string }[] = [];
+  for (const u of todo.slice(0, 15)) {
+    const r = await welcomeOne(u, me, site);
+    if (r.ok) sent.push(u.email);
+    else failed.push({ email: u.email, error: r.error, tempPassword: r.tempPassword });
+  }
+  revalidatePath("/admin/branches");
+  return { sent, failed, left: Math.max(0, todo.length - 15) };
 }
 
 export async function resetUserPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {

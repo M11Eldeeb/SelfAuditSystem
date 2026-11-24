@@ -106,3 +106,34 @@ export async function sendCourtesyWelcome(o: { name: string; email: string; temp
 
 /** Who gets the welcome e-mail: service advisors and the reception team (queue advisors and reception managers). */
 export const getsCourtesyWelcome = (role: string, queueRole: string | null) => role === "service_advisor" || (role === "queue_user" && (queueRole === "advisor" || queueRole === "manager"));
+
+/** Who already got the welcome e-mail (from the portal's e-mail log): e-mail -> when it was sent. Each account gets it once. */
+export async function welcomeSentMap(): Promise<Map<string, string>> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const out = new Map<string, string>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await createAdminClient()
+      .from("self_audit_email_log")
+      .select("recipients, sent_at")
+      .eq("kind", "courtesy-welcome")
+      .eq("status", "sent")
+      .order("sent_at")
+      .range(from, from + 999);
+    for (const r of data ?? []) for (const e of r.recipients ?? []) if (!out.has(e.toLowerCase())) out.set(e.toLowerCase(), r.sent_at);
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Accounts that have signed in at least once (their temporary password must not be replaced by a bulk send). */
+export async function signedInIds(): Promise<Set<string>> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const out = new Set<string>();
+  for (let page = 1; page <= 20; page++) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    for (const u of data?.users ?? []) if (u.last_sign_in_at) out.add(u.id);
+    if (!data?.users || data.users.length < 1000) break;
+  }
+  return out;
+}
