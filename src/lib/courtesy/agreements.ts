@@ -125,7 +125,7 @@ export const CC_T = {
     errPlate: "Write the plate number.",
     advisor: "Your service advisor",
     chooseAdvisor: "Choose your service advisor",
-    license: "Photo of your driving licence (optional)",
+    license: "Photo of your driving licence",
     takePhoto: "Add photo",
     terms: "Terms and conditions",
     accept: "I have read and accept the terms and conditions",
@@ -145,6 +145,7 @@ export const CC_T = {
     errAdvisor: "Choose your service advisor.",
     errAccept: "Read and accept the terms and conditions.",
     errSign: "Sign in the box.",
+    required: "* means mandatory",
     consent: "By continuing, you agree that your name, mobile number and visit details are used by MG and its service partners and systems to manage your visit and send you queue notifications.",
     language: "العربية",
   },
@@ -172,7 +173,7 @@ export const CC_T = {
     errPlate: "اكتب رقم اللوحة.",
     advisor: "مستشار الخدمة",
     chooseAdvisor: "اختر مستشار الخدمة",
-    license: "صورة رخصة القيادة (اختياري)",
+    license: "صورة رخصة القيادة",
     takePhoto: "إضافة صورة",
     terms: "الشروط والأحكام",
     accept: "قرأت الشروط والأحكام وأوافق عليها",
@@ -192,6 +193,7 @@ export const CC_T = {
     errAdvisor: "اختر مستشار الخدمة.",
     errAccept: "اقرأ الشروط والأحكام ووافق عليها.",
     errSign: "وقّع داخل المربع.",
+    required: "* تعني حقلًا إلزاميًا",
     consent: "بالمتابعة، أنت توافق على استخدام اسمك ورقم جوالك وبيانات زيارتك من قبل إم جي وشركائها ومزوّدي الأنظمة لإدارة زيارتك وإرسال تنبيهات الدور.",
     language: "English",
   },
@@ -274,3 +276,23 @@ export const AUTHORIZATION_EN =
 /** The time now, and today's date in Saudi time (YYYY-MM-DD). */
 export const nowMs = () => Date.now();
 export const todayKsa = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+
+/** The agreement PDF's file name: "Courtesy car agreement_<customer name>.pdf" (any language; only characters a file name cannot hold are dropped). */
+export function agreementFileName(customerName: string | null | undefined): string {
+  const name = (customerName ?? "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `Courtesy car agreement_${name || "customer"}.pdf`;
+}
+
+/** The Content-Disposition header for it: a plain Latin fallback name, then the full name (Arabic too) for browsers. */
+export function agreementDisposition(customerName: string | null | undefined): string {
+  const full = agreementFileName(customerName);
+  const ascii = full
+    .replace(/[^\x20-\x7e]+/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/_\s*\.pdf$/, ".pdf")
+    .replace(/"/g, "");
+  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(full)}`;
+}

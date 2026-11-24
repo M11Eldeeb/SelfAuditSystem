@@ -1,3 +1,4 @@
+import { agreementDisposition } from "@/lib/courtesy/agreements";
 import { courtesyStaff } from "@/lib/courtesy/agreements-server";
 import { loadCourtesy } from "@/lib/courtesy/sheet";
 import { branchResolver } from "@/lib/courtesy/branches";
@@ -31,6 +32,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ idx: str
     fromSheet: { extra: mapped.extra },
   });
   return new Response(new Uint8Array(pdf), {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Courtesy Car.pdf"; filename*=UTF-8''${encodeURIComponent(`Courtesy Car ${mapped.agreement.ref.replace(/[^\p{L}\p{N} -]/gu, "")}.pdf`)}`, "Cache-Control": "private, no-store" },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": agreementDisposition(mapped.agreement.customer_name), "Cache-Control": "private, no-store" },
   });
 }

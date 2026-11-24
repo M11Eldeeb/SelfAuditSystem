@@ -56,6 +56,12 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
 
   const input = "w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-3 text-base text-neutral-900 shadow-sm focus:border-[#c4121a] focus:ring-2 focus:ring-[#c4121a]/15 focus:outline-none";
   const label = "mb-1 block text-sm font-semibold text-neutral-800";
+  // A mandatory field: a red star after its name (optional fields have none).
+  const req = (
+    <span className="ms-0.5 text-[#c4121a]" aria-hidden="true">
+      *
+    </span>
+  );
   const help = "mt-1 text-xs text-neutral-500";
 
   return (
@@ -74,26 +80,41 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
           <p className="text-sm text-neutral-600">{t.intro}</p>
           <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
             <div>
-              <label className={label} htmlFor="cc-name">{t.name}</label>
+              <label className={label} htmlFor="cc-name">
+                {t.name}
+                {req}
+              </label>
               <input id="cc-name" className={input} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </div>
             <div>
-              <label className={label} htmlFor="cc-phone">{t.phone}</label>
+              <label className={label} htmlFor="cc-phone">
+                {t.phone}
+                {req}
+              </label>
               <input id="cc-phone" dir="ltr" className={input} value={phone} onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))} inputMode="numeric" autoComplete="tel" placeholder="05XXXXXXXX" />
               <p className={help}>{t.phoneHelp}</p>
             </div>
             <div>
-              <label className={label} htmlFor="cc-id">{t.id}</label>
+              <label className={label} htmlFor="cc-id">
+                {t.id}
+                {req}
+              </label>
               <input id="cc-id" dir="ltr" className={input} value={idNumber} onChange={(e) => setIdNumber(digitsOnly(e.target.value).slice(0, 10))} inputMode="numeric" placeholder="1XXXXXXXXX / 2XXXXXXXXX" />
               <p className={help}>{t.idHelp}</p>
             </div>
             <div>
-              <label className={label} htmlFor="cc-birth">{t.birth}</label>
+              <label className={label} htmlFor="cc-birth">
+                {t.birth}
+                {req}
+              </label>
               <input id="cc-birth" type="date" className={input} value={birth} max={today} onChange={(e) => setBirth(e.target.value)} />
               <p className={help}>{t.birthHelp}</p>
             </div>
             <div>
-              <label className={label} htmlFor="cc-nat">{t.nationality}</label>
+              <label className={label} htmlFor="cc-nat">
+                {t.nationality}
+                {req}
+              </label>
               <select id="cc-nat" className={input} value={nat} onChange={(e) => setNat(e.target.value)}>
                 <option value="">—</option>
                 {NATIONALITIES.map((n) => (
@@ -139,15 +160,24 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
             {reading === "done" && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{t.readDone}</p>}
             {reading === "fail" && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{t.readFail}</p>}
             <div>
-              <label className={label} htmlFor="cc-vin">{t.vin}</label>
+              <label className={label} htmlFor="cc-vin">
+                {t.vin}
+                {req}
+              </label>
               <input id="cc-vin" dir="ltr" className={`${input} font-mono tracking-wide`} value={vin} maxLength={30} autoCapitalize="characters" onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30))} placeholder="LSJ…" />
             </div>
             <div>
-              <label className={label} htmlFor="cc-plate">{t.plate}</label>
+              <label className={label} htmlFor="cc-plate">
+                {t.plate}
+                {req}
+              </label>
               <input id="cc-plate" dir="ltr" className={input} value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase().slice(0, 12))} placeholder="1234 ABC" />
             </div>
             <div>
-              <label className={label} htmlFor="cc-adv">{t.advisor}</label>
+              <label className={label} htmlFor="cc-adv">
+                {t.advisor}
+                {req}
+              </label>
               <select id="cc-adv" className={input} value={advisor} onChange={(e) => setAdvisor(e.target.value)}>
                 <option value="">{t.chooseAdvisor}</option>
                 {advisors.map((a) => (
@@ -195,10 +225,16 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
             </ol>
             <label className="flex items-start gap-3 rounded-xl bg-neutral-50 p-3 text-sm font-semibold text-neutral-900">
               <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#c4121a]" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-              {t.accept}
+              <span>
+                {t.accept}
+                {req}
+              </span>
             </label>
             <div>
-              <span className={label}>{t.sign}</span>
+              <span className={label}>
+                {t.sign}
+                {req}
+              </span>
               <SignaturePad onChange={setSignature} clearLabel={t.clear} hint={t.signHelp} dir={ar ? "rtl" : "ltr"} />
             </div>
           </section>
@@ -206,7 +242,9 @@ export function CourtesyRequestForm({ code, branch, advisors, presetAdvisor, ter
           <div className="fixed inset-x-0 bottom-0 z-20 flex justify-center border-t border-black/5 bg-white/90 p-3 backdrop-blur-xl">
             <div className="w-full max-w-md space-y-2 px-1">
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
-              <p className="text-center text-[11px] leading-snug text-neutral-500">{t.consent}</p>
+              <p className="text-center text-[11px] leading-snug text-neutral-500">
+                <span className="font-semibold text-[#c4121a]">{t.required}</span> · {t.consent}
+              </p>
               <button type="button" disabled={busy} onClick={() => void submit()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#c4121a] py-3.5 text-base font-bold text-white shadow-sm disabled:opacity-60">
                 {busy && <Spinner />}
                 {busy ? t.sending : t.submit}

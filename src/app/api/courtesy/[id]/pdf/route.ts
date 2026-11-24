@@ -1,3 +1,4 @@
+import { agreementDisposition } from "@/lib/courtesy/agreements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
 import { agreementsTable, courtesyStaff, readFile, type Agreement } from "@/lib/courtesy/agreements-server";
@@ -29,6 +30,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     returnPhotos: returnPhotos.map((b, i) => (b && !a.return_photos[i].endsWith(".webp") ? { data: b, format: format(a.return_photos[i]) } : null)).filter((x): x is { data: Buffer; format: "png" | "jpg" } => !!x),
   });
   return new Response(new Uint8Array(pdf), {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Courtesy Car ${a.ref}.pdf"; filename*=UTF-8''${encodeURIComponent(`Courtesy Car ${a.ref} - ${a.customer_name.replace(/[^\p{L}\p{N} ]/gu, "")}.pdf`)}`, "Cache-Control": "private, no-store" },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": agreementDisposition(a.customer_name), "Cache-Control": "private, no-store" },
   });
 }
