@@ -230,6 +230,53 @@ export async function sendWelcomeToAllNew(): Promise<{ sent: string[]; failed: {
   return { sent, failed, left: Math.max(0, todo.length - 15) };
 }
 
+const EDIT_WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor", "quality_controller"];
+const EDIT_ALL_ROLES = [...EDIT_WORKSHOP_ROLES, "officer", "manager", "national_manager", "data_analyst", "technical", "queue_user"];
+
+/**
+ * Change an account after it was made: name, role, customer queue access, branch and view-all access. A role that works
+ * in a branch needs the branch; a queue-only account needs its queue role. An officer cannot change his own role or access
+ * (so nobody locks himself out).
+ */
+export async function updateUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireRole("officer");
+  if (me.viewOnly) return { error: "View only." };
+  const userId = String(formData.get("user_id") ?? "");
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const role = String(formData.get("role") ?? "");
+  const branchId = String(formData.get("branch_id") ?? "");
+  const queueRole = (["advisor", "parts_advisor", "manager"] as const).find((r) => r === formData.get("queue_role")) ?? null;
+  const viewAll = formData.get("view_all") === "on";
+  if (!userId) return { error: "Missing user." };
+  if (!EDIT_ALL_ROLES.includes(role)) return { error: "Choose a valid role." };
+  if (role === "queue_user" && !queueRole) return { error: "Choose what this person does in the customer queue." };
+  if (EDIT_WORKSHOP_ROLES.includes(role) && !branchId) return { error: "Select a branch for this role." };
+
+  const admin = createAdminClient();
+  const { data: before } = await admin.from("self_audit_users").select("id, email, role, queue_role, branch_id, view_all").eq("id", userId).maybeSingle();
+  if (!before) return { error: "Account not found." };
+  if (userId === me.id && (role !== before.role || queueRole !== before.queue_role || viewAll !== !!before.view_all)) {
+    return { error: "You cannot change your own role or access - ask another warranty officer." };
+  }
+
+  const { error } = await admin
+    .from("self_audit_users")
+    .update({
+      full_name: fullName || null,
+      role: role as "officer",
+      queue_role: queueRole,
+      // A role that works in a branch keeps it; head office roles have none (a queue-only account may have one).
+      branch_id: EDIT_WORKSHOP_ROLES.includes(role) || (role === "queue_user" && branchId) ? branchId : null,
+      // View-all (read the officer pages) is for people who are not officers.
+      view_all: role === "officer" ? false : viewAll,
+    })
+    .eq("id", userId);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/branches");
+  revalidatePath("/", "layout");
+  return { success: `Saved ${before.email}.` };
+}
+
 export async function resetUserPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("officer");
 

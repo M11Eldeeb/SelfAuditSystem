@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState, useEffect } from "react";
 import { createUser } from "./actions";
+import { ROLE_OPTIONS, queueDefaultLabel } from "./roles";
 
 export function UserForm({ branches }: { branches: { id: string; name: string }[] }) {
   const [state, formAction, pending] = useActionState(createUser, undefined);
@@ -47,20 +48,11 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           onChange={(e) => setRole(e.target.value)}
           className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         >
-          <option value="branch_admin">Branch admin</option>
-          <option value="officer">Warranty officer</option>
-          <option value="technical">Technical team</option>
-          <option value="workshop_supervisor">Workshop supervisor</option>
-          <option value="team_leader">Team leader</option>
-          <option value="national_manager">National Manager (all branches, view only)</option>
-          <option value="manager">Manager (all branches, view only)</option>
-          <option value="data_analyst">Data Analyst (Sub-Dealer Analytics only)</option>
-          <option value="service_manager">Service manager (own branch, view only)</option>
-          <option value="technician">Technician</option>
-          <option value="claims_reviewer">Technician claims reviewer</option>
-          <option value="service_advisor">Service advisor</option>
-          <option value="quality_controller">Quality controller</option>
-          <option value="queue_user">Customer queue only (e.g. parts advisor)</option>
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="space-y-1">
@@ -73,7 +65,7 @@ export function UserForm({ branches }: { branches: { id: string; name: string }[
           required={role === "queue_user"}
           className="rounded-lg border border-neutral-300 bg-white shadow-sm transition-colors focus:border-brand focus:ring-2 focus:ring-brand/15 focus:outline-none px-3 py-1.5 text-sm"
         >
-          <option value="">{role === "service_advisor" ? "Service advisor (from the role)" : role === "service_manager" ? "Queue manager (from the role)" : role === "queue_user" ? "Select" : "No queue access"}</option>
+          <option value="">{queueDefaultLabel(role)}</option>
           <option value="advisor">Service advisor</option>
           <option value="parts_advisor">Spare parts advisor</option>
           <option value="manager">Queue manager</option>

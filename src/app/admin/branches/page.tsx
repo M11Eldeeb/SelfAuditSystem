@@ -9,6 +9,7 @@ import { ResetPasswordButton } from "./reset-password-button";
 import { WelcomeEmailButton } from "./welcome-email-button";
 import { getsCourtesyWelcome, signedInIds, welcomeSentMap } from "@/lib/courtesy/welcome-mail";
 import { WelcomeAllButton } from "./welcome-all-button";
+import { EditUserButton } from "./edit-user-button";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
 import { compareUsers } from "@/lib/user-roles";
@@ -109,6 +110,11 @@ export default async function BranchesPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-start justify-end gap-3">
+                      <EditUserButton
+                        user={{ id: u.id, email: u.email, full_name: u.full_name, role: u.role, queue_role: u.queue_role, branch_id: u.branch_id, view_all: u.view_all }}
+                        branches={branchList.filter((b) => b.active || b.id === u.branch_id).map((b) => ({ id: b.id, name: b.name }))}
+                        self={u.id === currentUser?.id}
+                      />
                       {u.id === currentUser?.id ? (
                         <Link
                           href="/account/password"
