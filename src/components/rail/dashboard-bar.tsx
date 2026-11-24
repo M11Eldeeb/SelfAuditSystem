@@ -2,12 +2,38 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { DEPT_LABEL, mainDashboard, type RailDept, type RailKpi } from "@/lib/rail";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import {
+  DEPT_LABEL,
+  mainDashboard,
+  type RailDept,
+  type RailKpi,
+} from "@/lib/rail";
 import { KeyIcon } from "@/components/nav-icons";
 
-const ORDER: RailDept[] = ["warranty", "quality", "service", "technical", "parts", "complaints"];
-const DEPT_ICON: Record<RailDept, string> = { service: "wrench", warranty: "shield", technical: "gear", quality: "quality", parts: "box", complaints: "complaints" };
+const ORDER: RailDept[] = [
+  "warranty",
+  "quality",
+  "service",
+  "technical",
+  "parts",
+  "complaints",
+];
+const DEPT_ICON: Record<RailDept, string> = {
+  service: "wrench",
+  warranty: "shield",
+  technical: "gear",
+  quality: "quality",
+  parts: "box",
+  complaints: "complaints",
+};
 
 /**
  * Dashboard mode: the bar shows only when the person came in through the Dashboard (the menu's Dashboard entry or the bar
@@ -26,7 +52,8 @@ export function setDashMode(on: boolean) {
   window.dispatchEvent(new Event(DASH_EVENT));
 }
 /** A menu link was clicked: dashboard mode on for a dashboard page, off for anything else. */
-export const menuClicked = (href: string) => setDashMode(/\/dashboard(\?|$)/.test(href));
+export const menuClicked = (href: string) =>
+  setDashMode(/\/dashboard(\?|$)/.test(href));
 function useDashMode() {
   return useSyncExternalStore(
     (cb) => {
@@ -40,42 +67,65 @@ function useDashMode() {
         return false;
       }
     },
-    () => false
+    () => false,
   );
 }
 
-const tabOf = (href: string) => new URLSearchParams(href.split("?")[1] ?? "").get("tab");
+const tabOf = (href: string) =>
+  new URLSearchParams(href.split("?")[1] ?? "").get("tab");
 
 /**
  * The dashboard open on this page (null when the page is not one of the dashboards). With ?tab= the dashboard of that tab;
  * without, the page's own dashboard (the KPI dashboard's Overview, the first complaints view).
  */
-export function currentDashboard(kpis: RailKpi[], pathname: string, search: URLSearchParams | null): RailKpi | null {
+export function currentDashboard(
+  kpis: RailKpi[],
+  pathname: string,
+  search: URLSearchParams | null,
+): RailKpi | null {
   const onPath = kpis.filter((k) => k.href.split("?")[0] === pathname);
   if (!onPath.length) return null;
   // The dashboard whose ?tab= / ?view= the page has (the one asking the most wins).
-  const params = (k: RailKpi) => [...new URLSearchParams(k.href.split("?")[1] ?? "")];
+  const params = (k: RailKpi) => [
+    ...new URLSearchParams(k.href.split("?")[1] ?? ""),
+  ];
   const hit = onPath
-    .filter((k) => params(k).length && params(k).every(([key, v]) => search?.get(key) === v))
+    .filter(
+      (k) =>
+        params(k).length &&
+        params(k).every(([key, v]) => search?.get(key) === v),
+    )
     .sort((a, b) => params(b).length - params(a).length)[0];
   if (hit) return hit;
   if (search?.get("tab") || search?.get("view")) return null;
   // No ?tab=: the page's own dashboard (the KPI dashboard's Overview, the first complaints view).
   const plain = onPath.find((k) => !k.href.includes("?"));
   if (plain) return plain;
-  return /\/(dashboard|complaints)$/.test(pathname) ? (mainDashboard(onPath) ?? null) : null;
+  return /\/(dashboard|complaints)$/.test(pathname)
+    ? (mainDashboard(onPath) ?? null)
+    : null;
 }
 
 /**
  * A segmented control whose white pill slides to the chosen item (the motion when switching). The pill is placed straight on
  * the DOM after each render, so it follows the chosen item without a second render.
  */
-function Segmented({ label, activeKey, items }: { label: string; activeKey: string; items: { key: string; node: (cls: string) => ReactNode }[] }) {
+function Segmented({
+  label,
+  activeKey,
+  items,
+}: {
+  label: string;
+  activeKey: string;
+  items: { key: string; node: (cls: string) => ReactNode }[];
+}) {
   const box = useRef<HTMLDivElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const first = useRef(true);
   useLayoutEffect(() => {
-    const el = box.current?.querySelector<HTMLElement>(`[data-seg="${CSS.escape(activeKey)}"]`);
+    const el = box.current?.querySelector<HTMLElement>(
+      `[data-seg="${CSS.escape(activeKey)}"]`,
+    );
     const p = pill.current;
     if (!el || !p) return;
     // No slide on the first paint, only when switching.
@@ -86,7 +136,12 @@ function Segmented({ label, activeKey, items }: { label: string; activeKey: stri
     first.current = false;
   });
   return (
-    <div ref={box} role="tablist" aria-label={label} className="relative inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl [scrollbar-width:none]">
+    <div
+      ref={box}
+      role="tablist"
+      aria-label={label}
+      className="relative inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[14px] bg-[#e9e9ec]/85 p-[3px] backdrop-blur-xl [scrollbar-width:none]"
+    >
       <span
         ref={pill}
         aria-hidden="true"
@@ -94,10 +149,12 @@ function Segmented({ label, activeKey, items }: { label: string; activeKey: stri
       />
       {items.map((it) =>
         it.node(
-          `relative z-[1] flex shrink-0 items-center gap-1.5 rounded-[11px] px-3.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${
-            it.key === activeKey ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
-          }`
-        )
+          `relative z-[1] flex min-h-9 shrink-0 items-center gap-1.5 rounded-[11px] px-4 py-1.5 text-[14px] font-semibold whitespace-nowrap transition-colors duration-200 ${
+            it.key === activeKey
+              ? "text-neutral-900"
+              : "text-neutral-500 hover:text-neutral-900"
+          }`,
+        ),
       )}
     </div>
   );
@@ -135,7 +192,8 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
   const switchHere = (k: RailKpi) => {
     const path = k.href.split("?")[0];
     const tab = tabOf(k.href);
-    if (!tab || path !== pathname || !/\/(dashboard|complaints)$/.test(path)) return false;
+    if (!tab || path !== pathname || !/\/(dashboard|complaints)$/.test(path))
+      return false;
     window.dispatchEvent(new CustomEvent("kpi-tab", { detail: tab }));
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
@@ -150,61 +208,80 @@ export function DashboardBar({ kpis }: { kpis: RailKpi[] }) {
 
   return (
     <div className="dash-bar px-3 pt-3 print:hidden">
-      <div className="mx-auto flex w-full max-w-5xl flex-col items-start gap-2 px-1">
+      {/* One panel at the left edge (lined up with the top bar): each row says what it picks - first the department, then its dashboard. */}
+      <div className="w-fit max-w-full space-y-2 rounded-2xl bg-white/80 p-2.5 shadow-sm ring-1 ring-neutral-900/[0.06] backdrop-blur-xl">
         {depts.length > 1 && (
-          <Segmented
-            label="Department"
-            activeKey={shown.dept}
-            items={depts.map((d) => ({
-              key: d,
-              node: (cls) => (
-                <button
-                  key={d}
-                  type="button"
-                  role="tab"
-                  data-seg={d}
-                  aria-selected={d === shown.dept}
-                  onClick={() => {
-                    const target = mainDashboard(kpis.filter((k) => k.dept === d));
-                    if (target) go(target);
-                  }}
-                  className={cls}
-                >
-                  <KeyIcon name={DEPT_ICON[d]} size={15} />
-                  {DEPT_LABEL[d]}
-                </button>
-              ),
-            }))}
-          />
+          <BarRow label="Department">
+            <Segmented
+              label="Department"
+              activeKey={shown.dept}
+              items={depts.map((d) => ({
+                key: d,
+                node: (cls) => (
+                  <button
+                    key={d}
+                    type="button"
+                    role="tab"
+                    data-seg={d}
+                    aria-selected={d === shown.dept}
+                    onClick={() => {
+                      const target = mainDashboard(
+                        kpis.filter((k) => k.dept === d),
+                      );
+                      if (target) go(target);
+                    }}
+                    className={cls}
+                  >
+                    <KeyIcon name={DEPT_ICON[d]} size={15} />
+                    {DEPT_LABEL[d]}
+                  </button>
+                ),
+              }))}
+            />
+          </BarRow>
         )}
-        {/* Keyed by department: a new set of dashboards comes in with a short rise. */}
-        <div key={shown.dept} className="dash-bar-in max-w-full">
-          <Segmented
-            label="Dashboards"
-            activeKey={shown.href}
-            items={list.map((k) => ({
-              key: k.href,
-              node: (cls) => (
-                <Link
-                  key={k.href}
-                  href={k.href}
-                  data-seg={k.href}
-                  role="tab"
-                  aria-selected={k.href === shown.href}
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-                    e.preventDefault();
-                    go(k);
-                  }}
-                  className={cls}
-                >
-                  {k.label}
-                </Link>
-              ),
-            }))}
-          />
-        </div>
+        <BarRow label="Dashboard">
+          {/* Keyed by department: a new set of dashboards comes in with a short rise. */}
+          <div key={shown.dept} className="dash-bar-in max-w-full">
+            <Segmented
+              label="Dashboards"
+              activeKey={shown.href}
+              items={list.map((k) => ({
+                key: k.href,
+                node: (cls) => (
+                  <Link
+                    key={k.href}
+                    href={k.href}
+                    data-seg={k.href}
+                    role="tab"
+                    aria-selected={k.href === shown.href}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                      e.preventDefault();
+                      go(k);
+                    }}
+                    className={cls}
+                  >
+                    {k.label}
+                  </Link>
+                ),
+              }))}
+            />
+          </div>
+        </BarRow>
       </div>
+    </div>
+  );
+}
+
+/** A row of the dashboard panel: what it picks (same width for both rows, so both bars start at the same place), then the bar. */
+function BarRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+      <span className="shrink-0 pl-1 text-[12px] font-semibold tracking-wide text-neutral-500 uppercase sm:w-[6.5rem]">
+        {label}
+      </span>
+      <div className="min-w-0 max-w-full">{children}</div>
     </div>
   );
 }
