@@ -85,12 +85,19 @@ async function refuseChange(): Promise<never> {
 
 const inServerAction = async () => (await headers()).has("next-action");
 
+/** TEMPORARY (QC testing): accounts that may also act as a quality controller. */
+const TEMP_QC_TESTERS = new Set(["092bf5b6-a540-4384-aac1-c3050c8de0ca"]); // Mostafa Eldeeb (officer)
+const TEMP_QC_BRANCH = "12d47c61-e69f-4854-adfe-2a2196eea1ef"; // Jeddah Heraa
+
 async function resolve(roles: UserRole[], allowViewOnlyActions: boolean): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   // A password someone else chose (e.g. a shared one for an imported team) is changed before anything else.
   if (user.must_change_password) redirect("/account/password?first=1");
   if (roles.includes(user.role)) return user;
+  // TEMPORARY (QC testing): the warranty officer's own account may use the quality controller's pages and submit QCs, as a
+  // quality controller of Jeddah Heraa. Remove this block, TEMP_QC_TESTERS and TEMP_QC_BRANCH when the testing is over.
+  if (roles.includes("quality_controller") && TEMP_QC_TESTERS.has(user.id)) return { ...user, role: "quality_controller", branch_id: TEMP_QC_BRANCH };
   for (const role of roles) {
     const view = viewAs(user, role);
     if (view) {
