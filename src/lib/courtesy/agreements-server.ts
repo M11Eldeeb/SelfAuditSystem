@@ -19,7 +19,8 @@ export type Agreement = {
   customer_name: string;
   phone: string;
   id_number: string;
-  birth_date: string;
+  /** Empty for a loan entered from a branch's manual list (customer details unknown). */
+  birth_date: string | null;
   nationality: string;
   customer_vin: string | null;
   customer_plate: string | null;
