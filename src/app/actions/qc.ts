@@ -8,7 +8,8 @@ import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import { cleanChecklist, unanswered, type Checklist } from "@/lib/qc/checklist";
-import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, QC_WHYS, modelFromText, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
+import { cleanOperator, fillMissingQcVins } from "@/lib/qc/fill-vins";
+import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEAM_LEADERS, QC_WHYS, modelFromText, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -48,7 +49,7 @@ function checkFile(f: QcFileMeta): string | null {
   return null;
 }
 
-export type QcFormOptions = { technicians: QcTechnician[]; models: string[]; teamLeaders: string[]; advisors: string[]; branchCode: string; /** Who a case closed as failed can be assigned to: the branch's team leaders and workshop supervisors. */ assignees: QcAssignee[] };
+export type QcFormOptions = { technicians: QcTechnician[]; models: string[]; teamLeaders: string[]; branchCode: string; /** Who a case closed as failed can be assigned to: the branch's team leaders and workshop supervisors. */ assignees: QcAssignee[] };
 
 /** The accounts a closed case can be assigned to: the team leaders and workshop supervisors of the branch. */
 async function branchAssignees(branchId: string): Promise<QcAssignee[]> {
@@ -56,7 +57,7 @@ async function branchAssignees(branchId: string): Promise<QcAssignee[]> {
   return (data ?? []).map((u) => ({ id: u.id, name: u.full_name ?? u.email, role: u.role as QcAssignee["role"] }));
 }
 
-/** The form's lists: the branch's technicians (accounts + names added before), the batch models, team leaders, advisors. */
+/** The form's lists: the branch's technicians (accounts + names added before), the batch models, team leaders. */
 export async function qcFormOptions(): Promise<QcFormOptions> {
   const { branch } = await controller();
   const admin = createAdminClient();
@@ -71,7 +72,7 @@ export async function qcFormOptions(): Promise<QcFormOptions> {
   // The model names (MG RX5, not the batch code AS22). A fixed list: reading the codes from the claims batches took
   // seconds on every page.
   const names = [...new Set(Object.values(QC_MODEL_BY_CODE))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "", assignees };
+  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, branchCode: branch.code ?? "", assignees };
 }
 
 /** Quality controller: a technician without an account, kept for his branch's next QCs. */
@@ -102,16 +103,8 @@ export async function lookupQcWip(input: string): Promise<{ info?: QcWipInfo; er
     admin.from("self_audit_qc_checks").select("id, qc_no, status, purpose, attempts, created_at").eq("branch_id", branch.id).eq("wip_no", wip).order("created_at", { ascending: false }),
   ]);
   const mileage = open?.mileage ? Number(String(open.mileage).replace(/\D/g, "")) : NaN;
-  // The report writes the advisor's name its own way ("MoayedAlothman"): match on letters only.
-  const letters = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
-  const op = open?.operator ? letters(open.operator) : "";
-  // Same first name and the surname's first 4 letters ("Amr Yosry Elsherbini" = "Amr Elsharbini").
-  const advisor = op
-    ? (QC_SERVICE_ADVISORS.find((a) => {
-        const parts = a.split(/\s+/).map(letters);
-        return op.startsWith(parts[0]) && op.includes(parts[parts.length - 1].slice(0, 4));
-      }) ?? null)
-    : null;
+  // The service advisor is the owning operator of the WIP in the report (shown here; the QC takes it from the reports itself).
+  const advisor = cleanOperator(open?.operator);
   return {
     info: {
       wip,
@@ -222,7 +215,6 @@ export type QcNewInput = QcResultInput & {
   purpose: string;
   model: string;
   teamLeader: string;
-  serviceAdvisor: string;
   replacedParts: string;
   defectDescription: string;
   repairType: string;
@@ -292,9 +284,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     const model = input.model.trim().slice(0, 60);
     if (!model) return { error: "Choose the vehicle model." };
     const teamLeader = input.teamLeader.trim().slice(0, 120) || null;
-    const serviceAdvisor = input.serviceAdvisor.trim().slice(0, 120) || null;
     if (!teamLeader) return { error: "Choose the team leader." };
-    if (!serviceAdvisor) return { error: "Choose the service advisor." };
     const r = await cleanResult(input, branch.id, odometerIn);
     if ("error" in r) return { error: r.error };
     const sheetCheck = checkedSheet(input.checklist, input.repairType);
@@ -324,7 +314,6 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
         purpose: input.purpose as never,
         repair_type: input.repairType as never,
         team_leader: teamLeader,
-        service_advisor: serviceAdvisor,
         replaced_parts: input.replacedParts.trim().slice(0, 4000) || null,
         defect_description: input.defectDescription.trim().slice(0, 4000) || null,
         status: STATUS_OF[r.result],
@@ -349,6 +338,8 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
       ({ data: check, error } = await admin.from("self_audit_qc_checks").insert({ ...older, ...(vin ? { vin } : {}) }).select("id").single());
     }
     if (error || !check) return { error: notYet(error?.message) ?? "Could not save the QC." };
+    // The VIN and the service advisor (the owning operator) come from the reports (Open WIPs, then the invoicing labor lines); later once the WIP shows up there.
+    await fillMissingQcVins([check.id]);
     const { data: test, error: testError } = await insertTest(
       { check_id: check.id, attempt_no: 1, result: r.result, comment: r.comment, technicians: r.technicians, final_odometer: r.finalOdometer, tested_by: user.id, tested_by_name: name },
       sheetCheck.sheet

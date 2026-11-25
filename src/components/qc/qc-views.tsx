@@ -211,7 +211,7 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
                 <ol className="space-y-1">
                   {qc.rca_whys.map((w, i) => (
                     <li key={i} className="flex gap-2">
-                      <span className="w-12 shrink-0 text-xs font-bold text-neutral-500">Why {i + 1}</span>
+                      <span className="w-5 shrink-0 text-xs font-bold text-neutral-500">{i + 1}</span>
                       <span className="whitespace-pre-wrap text-neutral-900">{w}</span>
                     </li>
                   ))}

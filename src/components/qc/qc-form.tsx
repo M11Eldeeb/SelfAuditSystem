@@ -214,7 +214,7 @@ function RcaFields({ rca, onChange, assignees }: { rca: QcRca; onChange: (r: QcR
         <div className="space-y-2">
           {rca.whys.map((w, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="mt-3 w-12 shrink-0 text-xs font-bold text-neutral-500">Why {i + 1}</span>
+              <span className="mt-3 w-5 shrink-0 text-sm font-bold text-neutral-500">{i + 1}</span>
               <textarea value={w} onChange={(e) => onChange({ ...rca, whys: rca.whys.map((x, j) => (j === i ? e.target.value : x)) })} rows={2} className={field} />
             </div>
           ))}
@@ -451,7 +451,7 @@ function SubmitBar({
 
 /** What a draft of the new-QC form keeps. */
 export type NewQcDraftData = {
-  wip?: string; vin?: string; odometerIn?: string; group?: string; technicians?: QcTechnician[]; teamLeader?: string; serviceAdvisor?: string;
+  wip?: string; vin?: string; odometerIn?: string; group?: string; technicians?: QcTechnician[]; teamLeader?: string;
   model?: string; repairType?: string; checklist?: Checklist; replacedParts?: string; defectDescription?: string;
   result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[]; rca?: QcRca;
 };
@@ -469,7 +469,6 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   const [group, setGroup] = useState<string>(d.group ?? "");
   const [technicians, setTechnicians] = useState<QcTechnician[]>(d.technicians ?? []);
   const [teamLeader, setTeamLeader] = useState(d.teamLeader ?? "");
-  const [serviceAdvisor, setServiceAdvisor] = useState(d.serviceAdvisor ?? "");
   const [model, setModel] = useState(d.model ?? "");
   const [repairType, setRepairType] = useState(d.repairType ?? "");
   const [checklist, setChecklist] = useState<Checklist>(d.checklist ?? emptyChecklist(""));
@@ -490,7 +489,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   async function saveDraft() {
     setError(null);
     setDraftSaving(true);
-    const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, serviceAdvisor, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, rca, files: files.saved };
+    const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, rca, files: files.saved };
     const r = await saveQcDraft({ id: draftId, kind: "new", data });
     setDraftSaving(false);
     if (r.error || !r.id) return setError(r.error ?? "Could not save.");
@@ -515,7 +514,6 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
     if (r.info.vin) setVin((v) => v || r.info!.vin!);
     if (r.info.earlier.length) setDupOpen(true);
     if (r.info.mileage && !odometerIn) setOdometerIn(String(r.info.mileage));
-    if (r.info.advisor && !serviceAdvisor) setServiceAdvisor(r.info.advisor);
     if (r.info.modelName && !model && options.models.includes(r.info.modelName)) setModel(r.info.modelName);
   }
 
@@ -528,7 +526,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
     const rcaError = result === "close" ? rcaMissing(rca) : null;
     if (rcaError) return setError(rcaError);
     setSaving(true);
-    const r = await submitQc({ rca: result === "close" ? rca : undefined, wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType }, draftId: draftId ?? undefined });
+    const r = await submitQc({ rca: result === "close" ? rca : undefined, wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType }, draftId: draftId ?? undefined });
     setSaving(false);
     if (r.error) return setError(r.error);
     // Saved: back to the QC records (a pass or close closes the case; a fail waits for its retest).
@@ -558,6 +556,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
           <p className="rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-700 ring-1 ring-neutral-200">
             Open WIPs: <b>{info.model}</b>
             {info.registration ? ` · ${info.registration}` : ""}
+            {info.advisor ? ` · Service advisor: ${info.advisor}` : ""}
           </p>
         )}
         {info && info.earlier.length > 0 && !dupOpen && (
@@ -590,9 +589,6 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
         </Field>
         <Field title="Team leader *">
           <PersonChoice options={options.teamLeaders} value={teamLeader} onChange={setTeamLeader} />
-        </Field>
-        <Field title="Service advisor *">
-          <PersonChoice options={options.advisors} value={serviceAdvisor} onChange={setServiceAdvisor} />
         </Field>
       </Section>
 

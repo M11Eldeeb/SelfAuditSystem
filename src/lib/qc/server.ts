@@ -116,8 +116,8 @@ export async function getQcDetail(user: CurrentUser, id: string): Promise<QcDeta
   const admin = createAdminClient();
   let { data: c } = await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle();
   if (!c) return null;
-  // Saved without a VIN: look again in Open WIPs (FF3) and the invoicing labor lines (KH9).
-  if (!c.vin && (await fillMissingQcVins([c.id]))) c = (await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle()).data ?? c;
+  // Saved without a VIN or service advisor: look again in Open WIPs (FF3) and the invoicing labor lines (KH9).
+  if ((!c.vin || !c.service_advisor) && (await fillMissingQcVins([c.id]))) c = (await admin.from("self_audit_qc_checks").select("*").eq("id", id).maybeSingle()).data ?? c;
   const scope = qcBranchScope(user);
   if (scope && c.branch_id !== scope) return null;
   const [{ data: tests }, { data: files }, { data: branch }] = await Promise.all([
