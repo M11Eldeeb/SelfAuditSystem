@@ -15,7 +15,7 @@ const nameOf = (u: { full_name: string | null; email: string }) => u.full_name ?
 /** The car, if the signed-in person may manage it (his branch's reception manager, or a warranty officer). */
 async function manageable(vehicleId: string) {
   const s = await courtesyStaff();
-  if (!canManageFleet(s.user)) return { error: "Only the reception manager or a warranty officer can change the car." as const };
+  if (!canManageFleet(s.user)) return { error: "Only the service manager, the reception manager or a warranty officer can change the car." as const };
   const { data } = await vehiclesTable().select("*").eq("id", vehicleId).maybeSingle();
   const v = data as Vehicle | null;
   if (!v || (s.branchId && v.branch_id !== s.branchId)) return { error: "Car not found." as const };
@@ -119,7 +119,7 @@ export async function moveTransfer(transferId: string, step: "sent" | "received"
   const manager = canManageFleet(s.user);
   const mine = (b: string) => !s.branchId || s.branchId === b;
   if (step === "cancelled" ? !(officer || (manager && mine(t.from_branch))) : !(manager && mine(step === "sent" ? t.from_branch : t.to_branch)))
-    return { error: "Only the reception manager of that branch (or a warranty officer) can do this." };
+    return { error: "Only that branch's service or reception manager (or a warranty officer) can do this." };
   const need = step === "sent" ? "requested" : step === "received" ? "sent" : null;
   if (need && t.status !== need) return { error: "This transfer has moved on - reload the page." };
   if (step === "cancelled" && !["requested", "sent"].includes(t.status)) return { error: "This transfer is closed." };

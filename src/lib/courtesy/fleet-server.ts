@@ -14,9 +14,14 @@ export const eventsTable = () => db().from("self_audit_courtesy_vehicle_events")
 export const transfersTable = () => db().from("self_audit_courtesy_transfers");
 
 /** Reception manager (customer queue manager) or warranty officer: sets conditions, records services, sends / receives transfers. */
-export const canManageFleet = (u: CurrentUser) => !u.viewOnly && (u.role === "officer" || u.queue_role === "manager");
-/** Who may change a branch's courtesy car terms: as canManageFleet, and the branch's service manager (his own branch). */
-export const canEditTerms = (u: CurrentUser) => canManageFleet(u) || u.managerKind === "service_manager" || u.role === "service_manager";
+/**
+ * Who manages a branch's cars (condition, service, mileage, sending / receiving transfers, the terms): warranty officers,
+ * the reception manager, and the branch's service manager (his account is otherwise view only).
+ */
+export const canManageFleet = (u: CurrentUser) =>
+  (!u.viewOnly && (u.role === "officer" || u.queue_role === "manager")) || u.managerKind === "service_manager" || u.role === "service_manager";
+/** Who may change a branch's courtesy car terms: the same people who manage its cars. */
+export const canEditTerms = canManageFleet;
 /** Warranty officers and national managers ask a branch to move a car. */
 export const canRequestTransfer = (u: CurrentUser) => u.role === "officer" && (!u.viewOnly || u.managerKind === "national_manager");
 
