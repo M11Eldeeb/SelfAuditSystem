@@ -52,7 +52,7 @@ export default async function BranchDashboardPage({
     <div className={`${displayFont.variable} relative left-1/2 w-[min(96rem,calc(100vw-var(--sidebar-w,0px)-2rem))] -translate-x-1/2`}>
       <KpiDashboard
         data={data}
-        tab={parseTab(params.tab, false, manager)}
+        tab={parseTab(params.tab, false, manager, false, manager)}
         basePath="/audit/dashboard"
         from={from}
         to={to}
@@ -67,6 +67,7 @@ export default async function BranchDashboardPage({
         support={support}
         rejected={rejected}
         manager={manager}
+        serviceManager={manager}
         hasSubDealer={manager && (await branchHasSubDealer(supabase, user.branch_id))}
         auditsPanel={
           manager ? (

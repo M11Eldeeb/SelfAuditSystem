@@ -95,6 +95,7 @@ export function KpiDashboard({
   sheetsNotice,
   manager = false,
   national = false,
+  serviceManager = false,
   auditsPanel,
   hasSubDealer = false,
   only,
@@ -131,6 +132,8 @@ export function KpiDashboard({
   manager?: boolean;
   /** The national manager (view only, every branch): the officer's dashboard plus the Audits tab and the rejected-claims card. */
   national?: boolean;
+  /** The branch's service manager: the manager's tabs plus Cycle Times & SLA (lead times). */
+  serviceManager?: boolean;
   /** Manager / national manager - the podium and standings of the Audits tab (built on the server). */
   auditsPanel?: React.ReactNode;
   /** Manager only - the Sub-dealer Dashboard tab (a service manager gets it only where his branch has sub-dealer work). */
@@ -174,7 +177,7 @@ export function KpiDashboard({
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
   // The national manager has two menu entries: the Quality Dashboard (quality only, no other tabs) and the Warranty Dashboard (every tab but quality).
   const qualityOnly = national && initialTab === "quality" && !!quality;
-  const tabs = tabsFor(isOfficer, manager, national).filter(
+  const tabs = tabsFor(isOfficer, manager, national, serviceManager).filter(
     (x) =>
       (x.id !== "quality" || !!quality) &&
       (x.id !== "subdealer" || hasSubDealer) &&
