@@ -20,6 +20,7 @@ export function VehicleActions({
   transfer,
   myBranchId,
   compact = false,
+  sheetLoan = false,
 }: {
   vehicle: { id: string; condition: Condition; km: number | null; branch_id: string | null };
   branches: { id: string; name: string }[];
@@ -29,6 +30,8 @@ export function VehicleActions({
   transfer: { id: string; status: string; from_branch: string; to_branch: string } | null;
   myBranchId: string | null;
   compact?: boolean;
+  /** On loan only because the old application says so: one click marks it back and available. */
+  sheetLoan?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(null);
@@ -58,6 +61,19 @@ export function VehicleActions({
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       <div className="flex flex-wrap gap-1.5">
+        {canManage && sheetLoan && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (!window.confirm("This car is back with us? It shows as Available from now on (the old application still says on loan).")) return;
+              void run(() => setVehicleCondition(vehicle.id, "available", "Back with us - the old application still showed it on loan."));
+            }}
+            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            It’s back – mark available
+          </button>
+        )}
         {canManage && (
           <>
             <button type="button" className={btn} onClick={() => setMode(mode === "condition" ? null : "condition")}>

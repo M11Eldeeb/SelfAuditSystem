@@ -121,7 +121,7 @@ export async function VehiclesTab({ base, filter }: { base: string; filter?: str
                 </td>
                 <td className="px-3 py-2">
                   {(manage || request) && (
-                    <VehicleActions vehicle={{ id: r.id, condition: r.condition, km: r.km, branch_id: r.branch_id }} branches={branches} canManage={manage && (!s.branchId || r.branch_id === s.branchId || r.transfer?.to_branch === s.branchId)} canRequest={request} canNote={false} transfer={r.transfer} myBranchId={s.branchId} compact />
+                    <VehicleActions vehicle={{ id: r.id, condition: r.condition, km: r.km, branch_id: r.branch_id }} branches={branches} canManage={manage && (!s.branchId || r.branch_id === s.branchId || r.transfer?.to_branch === s.branchId)} canRequest={request} canNote={false} transfer={r.transfer} myBranchId={s.branchId} compact sheetLoan={r.loan?.source === "sheet"} />
                   )}
                 </td>
               </tr>

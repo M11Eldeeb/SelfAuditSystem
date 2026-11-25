@@ -163,6 +163,10 @@ export async function loadFleet(branchId: string | null): Promise<{ rows: FleetR
     const status = sheetStatus.get(v.plate_key);
     if (status !== undefined && !SHEET_ON_LOAN.test(status)) return null;
     if (status === undefined && !agreement) return null;
+    // Marked Available in the portal (back with us, though the old application still says on loan): the portal wins -
+    // unless the old application gave the car out again after that.
+    const outAt = agreement?.out ? Date.parse(agreement.out) : NaN;
+    if (v.condition === "available" && v.condition_at && !(outAt > Date.parse(v.condition_at))) return null;
     return { source: "sheet", id: "", ref: agreement?.agreement || "Sheet", customer_name: agreement?.customer || "On loan (sheet)", advisor_name: "other application", handed_over_at: agreement?.out || null, expires_at: null, mileage_out: null, vehicle_id: v.id, vehicle_plate: v.plate };
   };
   const loanList = (loans ?? []) as OpenLoan[];
