@@ -2,9 +2,9 @@ import { notFound } from "next/navigation";
 import type { CurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { countQc, getQcAnalysis, getQcDetail, listQc, qcBranchScope } from "@/lib/qc/server";
-import { resolveMonthRange } from "@/lib/dashboard/range";
+import { parseQcRange } from "@/lib/qc/range";
 import { QcDetailView, QcList, QcTabs } from "./qc-views";
-import { QcAnalysisView, QcRangeForm } from "./qc-analysis";
+import { QcAnalysisView, QcRangePills, qcPeriodLabel } from "./qc-analysis";
 
 // The QC pages every viewer shares: the records list, one QC and the analysis. `base` is the page, e.g. /audit/quality-control.
 
@@ -54,17 +54,18 @@ export async function QcDetailPage({ user, base, id, retest }: { user: CurrentUs
   return <QcDetailView qc={qc} back={base} retest={retest?.(qc)} />;
 }
 
-export async function QcAnalysisPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { from?: string; to?: string; branch?: string }; newHref?: string }) {
-  // The same months as the Quality Dashboard tab (last month unless picked), so the two pages show the same numbers.
-  const { from, to } = resolveMonthRange(params);
+export async function QcAnalysisPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { qc?: string; branch?: string }; newHref?: string }) {
+  // The same periods as the Quality Dashboard tab (counted on the day the QC form was submitted), so the two pages show the same numbers.
+  const range = parseQcRange(params.qc);
   const all = !qcBranchScope(user);
   const branchId = all && params.branch && UUID.test(params.branch) ? params.branch : undefined;
-  const [a, branches] = await Promise.all([getQcAnalysis(user, { from, to, branchId }), all ? allBranches() : Promise.resolve(undefined)]);
+  const [a, branches] = await Promise.all([getQcAnalysis(user, { range, branchId }), all ? allBranches() : Promise.resolve(undefined)]);
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold tracking-tight text-neutral-900">Quality Control</h1>
       <QcTabs base={base} active="analysis" newHref={newHref} />
-      <QcRangeForm action={`${base}/analysis`} from={from} to={to} branches={branches} branchId={branchId} />
+      <QcRangePills action={`${base}/analysis`} range={range} branches={branches} branchId={branchId} />
+      <p className="text-sm text-neutral-500">Quality control checks by the day the QC form was submitted: {qcPeriodLabel(a)}.</p>
       <QcAnalysisView a={a} showBranches={all && !branchId} />
     </div>
   );

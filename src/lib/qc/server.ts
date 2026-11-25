@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 import type { QcTechnician } from "./constants";
 import { cleanChecklist, type Checklist } from "./checklist";
 import { fillMissingQcVins } from "./fill-vins";
+import { ksaDay, qcRangeStart, type QcRangeKey } from "./range";
 
 type CheckRow = Database["public"]["Tables"]["self_audit_qc_checks"]["Row"];
 type TestRow = Database["public"]["Tables"]["self_audit_qc_tests"]["Row"];
@@ -142,7 +143,8 @@ export async function qcFileFor(user: CurrentUser, fileId: string): Promise<{ dr
 
 // ---------------------------------------------------------------- analysis
 
-const ksaMonth = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 7);
+const ksaDayOf = (iso: string) => ksaDay(Date.parse(iso));
+const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 const shift = (m: string, n: number) => {
   const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1));
   return d.toISOString().slice(0, 7);
@@ -150,8 +152,10 @@ const shift = (m: string, n: number) => {
 
 export type QcGroupRow = { key: string; checks: number; firstPass: number; fails: number; tests: number };
 export type QcAnalysis = {
-  from: string;
-  to: string;
+  range: QcRangeKey;
+  /** The first and last day counted (Saudi dates, "2026-11-25"); startDay is null for "All time". */
+  startDay: string | null;
+  endDay: string;
   checks: number;
   passed: number;
   waiting: number;
@@ -164,7 +168,9 @@ export type QcAnalysis = {
   /** Hours from the first fail to the pass (median), for the checks that failed and then passed. */
   medianReworkHours: number | null;
   waitingOver24h: number;
-  months: { month: string; checks: number; firstPass: number; fails: number }[];
+  /** The chart: one bar per day for 1 week / 1 month, per month for longer periods. `key` is "2026-11-25" or "2026-11". */
+  bucketUnit: "day" | "month";
+  buckets: { key: string; checks: number; firstPass: number; fails: number }[];
   byPurpose: QcGroupRow[];
   byRepairType: QcGroupRow[];
   byModel: QcGroupRow[];
@@ -177,19 +183,20 @@ export type QcAnalysis = {
 };
 
 /**
- * Quality KPIs for the checks created in the months picked: first-time pass rate (the vehicle passed at the first test),
+ * Quality KPIs for the checks submitted in the period picked (counted on the day the QC form was submitted): first-time pass rate (the vehicle passed at the first test),
  * fail rate per test, tests per vehicle, rework time from a fail to the pass, vehicles still waiting for a test again -
  * overall, per month and per purpose / repair type / model / technician / team leader / service advisor / branch.
  */
-export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to: string; branchId?: string; branchIds?: string[] }): Promise<QcAnalysis> {
+export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey; branchId?: string; branchIds?: string[] }): Promise<QcAnalysis> {
   const admin = createAdminClient();
   const scope = qcBranchScope(user);
-  // KSA months: created_at from the 1st 00:00 KSA of `from` to the 1st of the month after `to`.
-  const start = new Date(Date.parse(`${opts.from}-01T00:00:00Z`) - 3 * 3_600_000).toISOString();
-  const end = new Date(Date.parse(`${shift(opts.to, 1)}-01T00:00:00Z`) - 3 * 3_600_000).toISOString();
+  // From 00:00 Saudi time of the first day up to now (no start = all time).
+  const start = qcRangeStart(opts.range)?.toISOString() ?? null;
   const checks: CheckRow[] = [];
   for (let page = 0; ; page++) {
-    let q = admin.from("self_audit_qc_checks").select("*").gte("created_at", start).lt("created_at", end).order("created_at").range(page * 1000, page * 1000 + 999);
+    let q = admin.from("self_audit_qc_checks").select("*");
+    if (start) q = q.gte("created_at", start);
+    q = q.order("created_at").range(page * 1000, page * 1000 + 999);
     if (scope) q = q.eq("branch_id", scope);
     else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
     else if (opts.branchIds?.length) q = q.in("branch_id", opts.branchIds);
@@ -223,8 +230,15 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
     if (!r) m.set(key, (r = { key, checks: 0, firstPass: 0, fails: 0, tests: 0 }));
     return r;
   };
-  const months = new Map<string, { month: string; checks: number; firstPass: number; fails: number }>();
-  for (let m = opts.from; m <= opts.to; m = shift(m, 1)) months.set(m, { month: m, checks: 0, firstPass: 0, fails: 0 });
+  // The chart: a bar per day for a week / a month, per month for longer. Every day / month of the period gets a bar, empty ones too.
+  const today = ksaDay(Date.now());
+  const startDay = start ? ksaDayOf(start) : null;
+  const bucketUnit: "day" | "month" = opts.range === "1w" || opts.range === "1m" ? "day" : "month";
+  const firstDay = startDay ?? (checks.length ? ksaDayOf(checks[0].created_at) : today);
+  const bucketKey = (day: string) => (bucketUnit === "day" ? day : day.slice(0, 7));
+  const buckets = new Map<string, { key: string; checks: number; firstPass: number; fails: number }>();
+  if (bucketUnit === "day") for (let d = firstDay; d <= today; d = nextDay(d)) buckets.set(d, { key: d, checks: 0, firstPass: 0, fails: 0 });
+  else for (let m = firstDay.slice(0, 7); m <= today.slice(0, 7); m = shift(m, 1)) buckets.set(m, { key: m, checks: 0, firstPass: 0, fails: 0 });
 
   let firstPass = 0;
   let failedTests = 0;
@@ -287,7 +301,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
         }
       }
     }
-    const m = months.get(ksaMonth(c.created_at));
+    const m = buckets.get(bucketKey(ksaDayOf(c.created_at)));
     if (m) {
       m.checks++;
       if (fp) m.firstPass++;
@@ -298,8 +312,9 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
   rework.sort((a, b) => a - b);
   const sorted = (m: Map<string, QcGroupRow>) => [...m.values()].sort((a, b) => b.checks - a.checks || a.key.localeCompare(b.key));
   return {
-    from: opts.from,
-    to: opts.to,
+    range: opts.range,
+    startDay,
+    endDay: today,
     checks: checks.length,
     passed,
     waiting: checks.filter((c) => c.status === "failed").length,
@@ -310,7 +325,8 @@ export async function getQcAnalysis(user: CurrentUser, opts: { from: string; to:
     avgAttemptsToPass: passed ? attemptsToPass / passed : null,
     medianReworkHours: rework.length ? rework[Math.floor(rework.length / 2)] : null,
     waitingOver24h,
-    months: [...months.values()],
+    bucketUnit,
+    buckets: [...buckets.values()],
     byPurpose: sorted(groups.purpose),
     byRepairType: sorted(groups.repair),
     byModel: sorted(groups.model),

@@ -9,20 +9,22 @@ import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getQcAnalysis } from "@/lib/qc/server";
+import { parseQcRange } from "@/lib/qc/range";
 
 /**
  * The workshop supervisor: his branch's KPI dashboard (read only), as the warranty admin sees it. The data is read with
  * the service role, scoped here to his own branch only (database policies are written for the warranty admin).
  */
-export default async function WorkshopDashboardPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; tab?: string }> }) {
+export default async function WorkshopDashboardPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; tab?: string; qc?: string }> }) {
   const user = await requireRole("workshop_supervisor");
   const params = await searchParams;
   const { from, to, clamped } = resolveMonthRange(params);
+  const qcRange = parseQcRange(params.qc);
   const supabase = await createClient();
   const { data: branch } = await supabase.from("self_audit_branches").select("id, name").eq("id", user.branch_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle();
   const scopeBranches = branch ? [branch] : [];
 
-  const quality = getQcAnalysis(user, { from, to });
+  const quality = getQcAnalysis(user, { range: qcRange });
   quality.catch(() => {});
   const support = getSupportLeadTimes(scopeBranches.map((b) => b.id), from, to);
   support.catch(() => {});
@@ -42,6 +44,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         quality={quality}
+        qcRange={qcRange}
         qualityRecordsHref="/workshop/quality-control"
         support={support}
       />

@@ -26,6 +26,7 @@ import { SectionErrorBoundary } from "@/components/dashboard/error-boundary";
 import { Reveal } from "@/components/dashboard/motion";
 import { QualitySection } from "@/components/dashboard/sections/quality";
 import type { QcAnalysis } from "@/lib/qc/server";
+import { DEFAULT_QC_RANGE, QC_RANGES, type QcRangeKey } from "@/lib/qc/range";
 import { CarLoaderCard, CarProgress } from "@/components/spinner";
 
 const TAB_ICONS: Record<DashboardTab, (p: { size?: number }) => React.ReactNode> = {
@@ -86,6 +87,7 @@ export function KpiDashboard({
   trends,
   forecast,
   quality,
+  qcRange = DEFAULT_QC_RANGE,
   qualityRecordsHref,
   support,
   rejected,
@@ -113,6 +115,8 @@ export function KpiDashboard({
   forecast?: Promise<SettlementForecast>;
   /** Quality control KPIs (Quality Dashboard tab), streamed in; absent where this user may not see QCs (no tab then). */
   quality?: Promise<QcAnalysis>;
+  /** The period of the Quality Dashboard tab (counted on the day the QC form was submitted); the tab has its own buttons, not the repair-end months. */
+  qcRange?: QcRangeKey;
   /** Where "QC records" goes from the Quality Dashboard tab. */
   qualityRecordsHref?: string;
   /** Technical Inquiries / Verification Codes closure lead time (Cycle Times tab), streamed in. */
@@ -166,6 +170,7 @@ export function KpiDashboard({
   const t = data.totals;
   const multiBranch = scopeBranches.length > 1;
   const periodLabel = from === to ? from : `${from} → ${to}`;
+  const qcLabel = (QC_RANGES.find((r) => r.key === qcRange) ?? QC_RANGES[1]).label;
   const scopeLabel = multiBranch ? `${scopeBranches.length} branches` : (scopeBranches[0]?.name ?? "No branch");
   // The national manager has two menu entries: the Quality Dashboard (quality only, no other tabs) and the Warranty Dashboard (every tab but quality).
   const qualityOnly = national && initialTab === "quality" && !!quality;
@@ -191,13 +196,13 @@ export function KpiDashboard({
     return () => window.removeEventListener("kpi-tab", onTab);
   }, [tabs, router, basePath]);
 
-  const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[] }) => {
-    const qs = new URLSearchParams({ tab: next.tab ?? tab, from: next.from ?? from, to: next.to ?? to });
+  const buildUrl = (next: { tab?: DashboardTab; from?: string; to?: string; branches?: string[]; qc?: QcRangeKey }) => {
+    const qs = new URLSearchParams({ tab: next.tab ?? tab, from: next.from ?? from, to: next.to ?? to, qc: next.qc ?? qcRange });
     for (const b of next.branches ?? selectedBranchIds) qs.append("branch", b);
     return `${basePath}?${qs.toString()}`;
   };
 
-  const navigate = (next: { from?: string; to?: string; branches?: string[] }) => {
+  const navigate = (next: { from?: string; to?: string; branches?: string[]; qc?: QcRangeKey }) => {
     startTransition(() => router.push(buildUrl(next), { scroll: false }));
   };
 
@@ -237,14 +242,24 @@ export function KpiDashboard({
           <p className="text-[13px] font-semibold text-[#6e6e73]">KPI Dashboard</p>
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#1d1d1f]">{manager && current.id === "overview" ? "Warranty Overview" : current.title}</h1>
           <p className="mt-1 text-[15px] text-[#6e6e73]">
-            {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
+            {tab === "quality" ? (
+              <>
+                {scopeLabel} · QC form submitted in the last <span className="font-semibold text-[#1d1d1f]">{qcLabel}</span>
+              </>
+            ) : (
+              <>
+                {scopeLabel} · repair end <span className="font-semibold text-[#1d1d1f]">{periodLabel}</span> · {fmtNum(t.workingDays, 1)} working days (Sat–Thu, Thu = ½)
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isPending && <Pill tone="muted">Updating…</Pill>}
-          <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1d1d1f] shadow-sm ring-1 ring-black/[0.05]">
-            {fmtInt(t.claimCount)} claims · {fmtMoney(t.totalClaimAmount)} {data.currency}
-          </span>
+          {tab !== "quality" && (
+            <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1d1d1f] shadow-sm ring-1 ring-black/[0.05]">
+              {fmtInt(t.claimCount)} claims · {fmtMoney(t.totalClaimAmount)} {data.currency}
+            </span>
+          )}
         </div>
       </header>
 
@@ -280,10 +295,30 @@ export function KpiDashboard({
       </nav>
       )}
 
-      {/* Filters: months and branches (they apply to every tab, the Quality Dashboard too; the Audits podium is not by month). */}
+      {/* Filters: repair-end months and branches (the Quality Dashboard has its own period buttons instead of the months; the Audits podium is not by month). */}
       {tab !== "audits" && tab !== "subdealer" && (
 
         <div className={`${card} space-y-3 p-4`}>
+          {tab === "quality" ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label>QC form submitted in the last</Label>
+                <div className="flex flex-wrap gap-1 rounded-xl bg-[#f5f5f7] p-1">
+                  {QC_RANGES.map((r) => (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => navigate({ qc: r.key })}
+                      aria-pressed={r.key === qcRange}
+                      className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold transition ${r.key === qcRange ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"}`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
               <Label>Repair end from</Label>
@@ -333,6 +368,7 @@ export function KpiDashboard({
             </div>
             {rangeClamped && <span className="text-xs text-amber-700">Range limited to the 12 months ending at &quot;to&quot;.</span>}
           </div>
+          )}
           {isOfficer && (
             <div className="flex flex-wrap items-center gap-1.5">
               <Label className="mr-1">Branches</Label>

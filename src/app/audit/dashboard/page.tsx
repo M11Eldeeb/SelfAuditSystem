@@ -7,6 +7,7 @@ import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getQcAnalysis } from "@/lib/qc/server";
+import { parseQcRange } from "@/lib/qc/range";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { getRejectedClaimsAccess } from "@/lib/rejected-claims-server";
@@ -19,11 +20,12 @@ export const maxDuration = 60;
 export default async function BranchDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; tab?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; tab?: string; qc?: string }>;
 }) {
   const user = await requireRole("branch_admin");
   const params = await searchParams;
   const { from, to, clamped } = resolveMonthRange(params);
+  const qcRange = parseQcRange(params.qc);
   const supabase = await createClient();
 
   // A branch admin only ever sees their own branch - RLS enforces the same.
@@ -42,7 +44,7 @@ export default async function BranchDashboardPage({
   const rejected = !manager && (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
   rejected?.catch(() => {});
   // Quality control is not part of the manager's view.
-  const quality = manager ? undefined : getQcAnalysis(user, { from, to });
+  const quality = manager ? undefined : getQcAnalysis(user, { range: qcRange });
   quality?.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 
@@ -60,6 +62,7 @@ export default async function BranchDashboardPage({
         scopeBranches={scopeBranches}
         rangeClamped={clamped}
         quality={quality}
+        qcRange={qcRange}
         qualityRecordsHref="/audit/quality-control"
         support={support}
         rejected={rejected}

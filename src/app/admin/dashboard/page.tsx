@@ -6,6 +6,7 @@ import { resolveMonthRange } from "@/lib/dashboard/range";
 import { KpiDashboard } from "@/components/dashboard/kpi-dashboard";
 import { parseTab } from "@/components/dashboard/tabs";
 import { getQcAnalysis } from "@/lib/qc/server";
+import { parseQcRange } from "@/lib/qc/range";
 import { getSupportLeadTimes } from "@/lib/dashboard/support";
 import { getRejectedClaimsStats } from "@/lib/dashboard/rejected";
 import { loadPriorApprovals } from "@/lib/dashboard/prior-approvals";
@@ -20,7 +21,7 @@ export const maxDuration = 60;
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; sheets?: string; detail?: string }>;
+  searchParams: Promise<{ branch?: string | string[]; from?: string; to?: string; tab?: string; qc?: string; sheets?: string; detail?: string }>;
 }) {
   const user = await requireRole("officer");
   // A manager (view only, every branch) gets the slimmer Warranty Overview + Audits view: no trends, forecast, prior approvals or rejected-claims diary.
@@ -31,6 +32,7 @@ export default async function AdminDashboardPage({
   // Reconciliation moved to its own page in the sidebar.
   if (params.tab === "reconciliation") redirect("/admin/reconciliation");
   const { from, to, clamped } = resolveMonthRange(params);
+  const qcRange = parseQcRange(params.qc);
   const supabase = await createClient();
 
   const { data: branches } = await supabase.from("self_audit_branches").select("id, name, active, code").order("name");
@@ -73,7 +75,7 @@ export default async function AdminDashboardPage({
               ? "Google sign-in is not set up for this link - try connecting again."
               : undefined;
   // Quality control is not part of the manager's view.
-  const quality = manager ? undefined : getQcAnalysis(user, { from, to, branchIds: selectedBranchIds.size ? scopeBranches.map((b) => b.id) : undefined });
+  const quality = manager ? undefined : getQcAnalysis(user, { range: qcRange, branchIds: selectedBranchIds.size ? scopeBranches.map((b) => b.id) : undefined });
   quality?.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, claimSide);
 
@@ -99,6 +101,7 @@ export default async function AdminDashboardPage({
         prior={prior}
         sheetsNotice={sheetsNotice}
         quality={quality}
+        qcRange={qcRange}
         qualityRecordsHref="/admin/quality-control"
         manager={manager}
         national={national}

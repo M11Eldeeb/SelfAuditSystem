@@ -1,8 +1,16 @@
+import Link from "next/link";
 import type { QcAnalysis, QcGroupRow } from "@/lib/qc/server";
+import { QC_RANGES, type QcRangeKey } from "@/lib/qc/range";
 import { purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" });
+const dayName = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+/** "25 Oct 2026 → 25 Nov 2026"; for All time, "all time, up to 25 Nov 2026". */
+export function qcPeriodLabel(a: Pick<QcAnalysis, "startDay" | "endDay">): string {
+  const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return a.startDay ? `${f(a.startDay)} → ${f(a.endDay)}` : `all time, up to ${f(a.endDay)}`;
+}
 
 function Tile({ title, value, sub, tone = "neutral" }: { title: string; value: string; sub?: string; tone?: "neutral" | "good" | "bad" }) {
   const color = tone === "good" ? "text-emerald-700" : tone === "bad" ? "text-red-700" : "text-neutral-900";
@@ -59,21 +67,21 @@ function Breakdown({ title, rows, label = (k) => k, perTest }: { title: string; 
   );
 }
 
-/** The range (and, for officers, branch) picker. */
-export function QcRangeForm({ action, from, to, branches, branchId }: { action: string; from: string; to: string; branches?: { id: string; name: string }[]; branchId?: string }) {
+/** The period buttons (1 week ... All time) as links: the quality controller's page. The dashboard has the same buttons in its own filter bar. */
+export function QcRangePills({ action, range, branches, branchId }: { action: string; range: QcRangeKey; branches?: { id: string; name: string }[]; branchId?: string }) {
+  const href = (key: string) => `${action}?qc=${key}${branchId ? `&branch=${branchId}` : ""}`;
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-neutral-200/70">
-      <label className="space-y-1 text-xs font-semibold text-neutral-700">
-        <div>From</div>
-        <input type="month" name="from" defaultValue={from} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm" />
-      </label>
-      <label className="space-y-1 text-xs font-semibold text-neutral-700">
-        <div>To</div>
-        <input type="month" name="to" defaultValue={to} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm" />
-      </label>
+    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-neutral-200/70">
+      <div className="flex flex-wrap gap-1 rounded-xl bg-neutral-100 p-1">
+        {QC_RANGES.map((r) => (
+          <Link key={r.key} href={href(r.key)} className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold transition ${r.key === range ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>
+            {r.label}
+          </Link>
+        ))}
+      </div>
       {branches && (
-        <label className="space-y-1 text-xs font-semibold text-neutral-700">
-          <div>Branch</div>
+        <form action={action} className="flex items-center gap-2">
+          <input type="hidden" name="qc" value={range} />
           <select name="branch" defaultValue={branchId ?? ""} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm">
             <option value="">All branches</option>
             {branches.map((b) => (
@@ -82,10 +90,10 @@ export function QcRangeForm({ action, from, to, branches, branchId }: { action: 
               </option>
             ))}
           </select>
-        </label>
+          <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Show</button>
+        </form>
       )}
-      <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Show</button>
-    </form>
+    </div>
   );
 }
 
@@ -93,7 +101,7 @@ export function QcRangeForm({ action, from, to, branches, branchId }: { action: 
 export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranches?: boolean }) {
   const ftpr = a.checks ? a.firstPass / a.checks : 0;
   const comebacks = a.byPurpose.find((r) => r.key === "comeback")?.checks ?? 0;
-  const maxMonth = Math.max(1, ...a.months.map((m) => m.checks));
+  const maxBucket = Math.max(1, ...a.buckets.map((m) => m.checks));
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -109,7 +117,7 @@ export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranche
 
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-bold text-neutral-900">By month</div>
+          <div className="text-sm font-bold text-neutral-900">{a.bucketUnit === "day" ? "By day" : "By month"}</div>
           <div className="flex gap-3 text-xs text-neutral-500">
             <span className="flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> passed first time
@@ -120,14 +128,14 @@ export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranche
           </div>
         </div>
         <div className="flex h-44 items-end gap-2 overflow-x-auto">
-          {a.months.map((m) => (
-            <div key={m.month} className="flex min-w-10 flex-1 flex-col items-center gap-1">
+          {a.buckets.map((m) => (
+            <div key={m.key} className="flex min-w-10 flex-1 flex-col items-center gap-1">
               <div className="text-[11px] font-semibold text-neutral-700 tabular-nums">{m.checks ? pct(m.firstPass, m.checks) : ""}</div>
-              <div className="flex w-full max-w-12 flex-col-reverse overflow-hidden rounded-t" style={{ height: `${(m.checks / maxMonth) * 120}px` }}>
+              <div className="flex w-full max-w-12 flex-col-reverse overflow-hidden rounded-t" style={{ height: `${(m.checks / maxBucket) * 120}px` }}>
                 <div className="bg-emerald-500" style={{ height: `${m.checks ? (m.firstPass / m.checks) * 100 : 0}%` }} />
                 <div className="flex-1 bg-red-400" />
               </div>
-              <div className="text-[11px] text-neutral-500">{monthName(m.month)}</div>
+              <div className="text-[11px] text-neutral-500">{a.bucketUnit === "day" ? dayName(m.key) : monthName(m.key)}</div>
               <div className="text-[11px] text-neutral-400 tabular-nums">{m.checks}</div>
             </div>
           ))}
@@ -155,7 +163,7 @@ export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranche
           </ul>
         </div>
       )}
-      {!a.checks && <p className="rounded-xl bg-white p-6 text-center text-sm text-neutral-500 shadow-sm ring-1 ring-neutral-200/70">No QC in these months.</p>}
+      {!a.checks && <p className="rounded-xl bg-white p-6 text-center text-sm text-neutral-500 shadow-sm ring-1 ring-neutral-200/70">No QC in this period.</p>}
     </div>
   );
 }
