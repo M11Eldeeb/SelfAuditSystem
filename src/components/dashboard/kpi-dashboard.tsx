@@ -132,7 +132,7 @@ export function KpiDashboard({
   manager?: boolean;
   /** The national manager (view only, every branch): the officer's dashboard plus the Audits tab and the rejected-claims card. */
   national?: boolean;
-  /** The branch's service manager: the manager's tabs plus Cycle Times & SLA (lead times). */
+  /** The branch's service manager: the manager's tabs plus Quality, Cycle Times & SLA, Claims & Financials and Warranty Room. */
   serviceManager?: boolean;
   /** Manager / national manager - the podium and standings of the Audits tab (built on the server). */
   auditsPanel?: React.ReactNode;

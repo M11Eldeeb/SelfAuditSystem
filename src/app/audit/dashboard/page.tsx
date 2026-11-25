@@ -43,8 +43,8 @@ export default async function BranchDashboardPage({
   const manager = user.managerKind === "service_manager";
   const rejected = !manager && (await getRejectedClaimsAccess(user)) === "full" ? getRejectedClaimsStats(scopeBranches.map((x) => x.id), to) : undefined;
   rejected?.catch(() => {});
-  // Quality control is not part of the manager's view.
-  const quality = manager ? undefined : getQcAnalysis(user, { range: qcRange });
+  // Quality control: the branch admin and the service manager (his own branch).
+  const quality = getQcAnalysis(user, { range: qcRange });
   quality?.catch(() => {});
   const data = await getDashboardData(supabase, { branches: scopeBranches, from, to }, getCachedClaimSide(scopeBranches, from, to));
 

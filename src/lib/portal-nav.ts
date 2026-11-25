@@ -205,7 +205,7 @@ export async function auditNav(user: CurrentUser): Promise<PortalNav> {
       links: withQueue(SERVICE_MANAGER_LINKS, service.queue),
       notifications,
       roleDetail: branch?.name,
-      kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, true, false, true), subDealer, extra: service.kpis }),
+      kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, true, false, true), subDealer, quality: true, extra: service.kpis }),
     };
   }
   const [notifications, diaryAccess, inquiryBadge, claimsWaiting, service] = await Promise.all([
