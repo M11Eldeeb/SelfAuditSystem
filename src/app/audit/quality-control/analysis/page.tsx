@@ -1,7 +1,11 @@
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
-import { QcAnalysisPage } from "@/components/qc/qc-pages";
 
+// The QC analysis is the Quality Dashboard tab of the dashboard now (one page, one set of numbers): old links and bookmarks land there.
 export default async function QualityControlAnalysisPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; branch?: string }> }) {
-  const user = await requireRole("branch_admin");
-  return <QcAnalysisPage user={user} base="/audit/quality-control" params={await searchParams} />;
+  await requireRole("branch_admin");
+  const p = await searchParams;
+  const q = new URLSearchParams({ tab: "quality" });
+  for (const k of ["from", "to", "branch"] as const) if (p[k]) q.set(k, p[k]);
+  redirect(`/audit/dashboard?${q}`);
 }

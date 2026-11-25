@@ -142,22 +142,11 @@ export async function qcFileFor(user: CurrentUser, fileId: string): Promise<{ dr
 
 // ---------------------------------------------------------------- analysis
 
-const MONTH = /^\d{4}-\d{2}$/;
 const ksaMonth = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 7);
 const shift = (m: string, n: number) => {
   const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1));
   return d.toISOString().slice(0, 7);
 };
-
-/** From / to months for the analysis (default: the last 3 months, this one included; at most 24). */
-export function qcRange(params: { from?: string; to?: string }): { from: string; to: string } {
-  const now = ksaMonth(new Date().toISOString());
-  let to = params.to && MONTH.test(params.to) ? params.to : now;
-  let from = params.from && MONTH.test(params.from) ? params.from : shift(to, -2);
-  if (from > to) [from, to] = [to, from];
-  if (from < shift(to, -23)) from = shift(to, -23);
-  return { from, to };
-}
 
 export type QcGroupRow = { key: string; checks: number; firstPass: number; fails: number; tests: number };
 export type QcAnalysis = {

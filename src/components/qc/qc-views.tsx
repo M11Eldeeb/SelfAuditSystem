@@ -62,6 +62,13 @@ export function QcStatusPill({ status, attempts }: { status: "failed" | "passed"
 }
 
 /** QC sub-tabs: records and analysis. */
+/** Where each viewer's Quality Dashboard is: the Quality Dashboard tab of their dashboard; the quality controller has no dashboard, so his own page. */
+const QUALITY_DASHBOARD: Record<string, string> = {
+  "/admin/quality-control": "/admin/dashboard?tab=quality",
+  "/audit/quality-control": "/audit/dashboard?tab=quality",
+  "/workshop/quality-control": "/workshop/dashboard?tab=quality",
+};
+
 export function QcTabs({ base, active, newHref }: { base: string; active: "list" | "analysis"; newHref?: string }) {
   const tab = (href: string, on: boolean, text: string) => (
     <Link href={href} className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${on ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}>
@@ -72,7 +79,7 @@ export function QcTabs({ base, active, newHref }: { base: string; active: "list"
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex gap-1">
         {tab(base, active === "list", "QC records")}
-        {tab(`${base}/analysis`, active === "analysis", "Analysis")}
+        {tab(QUALITY_DASHBOARD[base] ?? `${base}/analysis`, active === "analysis", "Quality Dashboard")}
       </div>
       {newHref && (
         <Link href={newHref} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">

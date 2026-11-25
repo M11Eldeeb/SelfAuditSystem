@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import type { CurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { countQc, getQcAnalysis, getQcDetail, listQc, qcBranchScope, qcRange } from "@/lib/qc/server";
+import { countQc, getQcAnalysis, getQcDetail, listQc, qcBranchScope } from "@/lib/qc/server";
+import { resolveMonthRange } from "@/lib/dashboard/range";
 import { QcDetailView, QcList, QcTabs } from "./qc-views";
 import { QcAnalysisView, QcRangeForm } from "./qc-analysis";
 
@@ -54,7 +55,8 @@ export async function QcDetailPage({ user, base, id, retest }: { user: CurrentUs
 }
 
 export async function QcAnalysisPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { from?: string; to?: string; branch?: string }; newHref?: string }) {
-  const { from, to } = qcRange(params);
+  // The same months as the Quality Dashboard tab (last month unless picked), so the two pages show the same numbers.
+  const { from, to } = resolveMonthRange(params);
   const all = !qcBranchScope(user);
   const branchId = all && params.branch && UUID.test(params.branch) ? params.branch : undefined;
   const [a, branches] = await Promise.all([getQcAnalysis(user, { from, to, branchId }), all ? allBranches() : Promise.resolve(undefined)]);
