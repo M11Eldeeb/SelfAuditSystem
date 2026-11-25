@@ -88,6 +88,8 @@ const inServerAction = async () => (await headers()).has("next-action");
 /** TEMPORARY (QC testing): accounts that may also act as a quality controller. */
 const TEMP_QC_TESTERS = new Set(["092bf5b6-a540-4384-aac1-c3050c8de0ca"]); // Mostafa Eldeeb (officer)
 const TEMP_QC_BRANCH = "12d47c61-e69f-4854-adfe-2a2196eea1ef"; // Jeddah Heraa
+/** TEMPORARY (QC testing): whether this account may also act as a quality controller (shows a "+ New QC" button on its QC records page). */
+export const isTempQcTester = (user: { id: string }) => TEMP_QC_TESTERS.has(user.id);
 
 async function resolve(roles: UserRole[], allowViewOnlyActions: boolean): Promise<CurrentUser> {
   const user = await getCurrentUser();
