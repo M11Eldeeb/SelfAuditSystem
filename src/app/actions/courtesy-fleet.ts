@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/gmail";
 import { siteOrigin } from "@/lib/site-origin";
 import { courtesyStaff } from "@/lib/courtesy/agreements-server";
-import { addEvent, canManageFleet, canRequestTransfer, receptionManagerEmails, transfersTable, vehiclesTable } from "@/lib/courtesy/fleet-server";
+import { addEvent, canEditTerms, canManageFleet, canRequestTransfer, receptionManagerEmails, transfersTable, vehiclesTable } from "@/lib/courtesy/fleet-server";
 import { CONDITIONS, conditionOf, type Condition, type Vehicle } from "@/lib/courtesy/fleet";
 
 const PATHS = ["/advisor/courtesy-cars", "/admin/courtesy-cars", "/audit/courtesy-cars"];
@@ -167,7 +167,7 @@ export async function searchOtherApplication(query: string): Promise<{ hits?: Sh
  */
 export async function saveCourtesyTerms(branchId: string, terms: { en: string; ar: string }[], note: string): Promise<{ error?: string; version?: number }> {
   const s = await courtesyStaff();
-  if (!canManageFleet(s.user)) return { error: "Only the reception manager or a warranty officer can change the terms." };
+  if (!canEditTerms(s.user)) return { error: "Only the service manager, the reception manager or a warranty officer can change the terms." };
   if (s.branchId && s.branchId !== branchId) return { error: "Only your own branch's terms." };
   const why = String(note ?? "").trim().slice(0, 500);
   if (!why) return { error: "Write what you changed." };

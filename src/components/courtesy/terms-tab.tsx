@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { courtesyStaff } from "@/lib/courtesy/agreements-server";
-import { canManageFleet } from "@/lib/courtesy/fleet-server";
+import { canEditTerms } from "@/lib/courtesy/fleet-server";
 import { currentTerms, termsHistory } from "@/lib/courtesy/terms-server";
 import { TermsEditor } from "@/components/courtesy/terms-editor";
 
@@ -14,7 +14,7 @@ export async function TermsTab({ base, branch }: { base: string; branch?: string
   const branchId = s.branchId ?? (branches ?? []).find((b) => b.id === branch)?.id ?? branches?.[0]?.id ?? null;
   if (!branchId) return <p className="text-sm text-neutral-500">No branch.</p>;
   const [now, history] = await Promise.all([currentTerms(branchId), termsHistory(branchId)]);
-  const canEdit = canManageFleet(s.user);
+  const canEdit = canEditTerms(s.user);
   const branchName = (branches ?? []).find((b) => b.id === branchId)?.name ?? "";
 
   return (
@@ -38,7 +38,7 @@ export async function TermsTab({ base, branch }: { base: string; branch?: string
           "the standard terms (not changed for this branch yet)"
         )}
         . Customers read and sign the current version; every agreement keeps the version its customer signed.
-        {!canEdit && <span className="block text-xs text-neutral-500">Only the reception manager or a warranty officer can change them.</span>}
+        {!canEdit && <span className="block text-xs text-neutral-500">Only the service manager, the reception manager or a warranty officer can change them.</span>}
       </div>
 
       <TermsEditor key={`${branchId}:${now.id ?? "std"}`} branchId={branchId} initial={now.terms} canEdit={canEdit} />

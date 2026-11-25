@@ -15,6 +15,8 @@ export const transfersTable = () => db().from("self_audit_courtesy_transfers");
 
 /** Reception manager (customer queue manager) or warranty officer: sets conditions, records services, sends / receives transfers. */
 export const canManageFleet = (u: CurrentUser) => !u.viewOnly && (u.role === "officer" || u.queue_role === "manager");
+/** Who may change a branch's courtesy car terms: as canManageFleet, and the branch's service manager (his own branch). */
+export const canEditTerms = (u: CurrentUser) => canManageFleet(u) || u.managerKind === "service_manager" || u.role === "service_manager";
 /** Warranty officers and national managers ask a branch to move a car. */
 export const canRequestTransfer = (u: CurrentUser) => u.role === "officer" && (!u.viewOnly || u.managerKind === "national_manager");
 
