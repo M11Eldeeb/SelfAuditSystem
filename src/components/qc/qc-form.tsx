@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addQcTechnician, discardQcUpload, lookupQcWip, prepareQcUpload, retestQc, saveQcDraft, submitQc, type QcFormOptions, type QcWipInfo } from "@/app/actions/qc";
-import { QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, purposeLabel, type QcTechnician } from "@/lib/qc/constants";
+import { ASSIGNEE_ROLE_LABEL, QC_MAX_FILES, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, emptyRca, purposeLabel, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
 import { fmtBytes, uploadToSession } from "@/components/tech-claims/upload";
 import { emptyChecklist, sectionsFor, unanswered, type Checklist } from "@/lib/qc/checklist";
 import { ChecklistForm, flaggedItems } from "./checklist-form";
@@ -134,6 +134,9 @@ function ResultFields({
   setComment,
   finalOdometer,
   setFinalOdometer,
+  rca,
+  setRca,
+  assignees,
 }: {
   result: "pass" | "fail" | "close" | "";
   setResult: (r: "pass" | "fail" | "close") => void;
@@ -141,6 +144,9 @@ function ResultFields({
   setComment: (s: string) => void;
   finalOdometer: string;
   setFinalOdometer: (s: string) => void;
+  rca: QcRca;
+  setRca: (r: QcRca) => void;
+  assignees: QcAssignee[];
 }) {
   const card = (r: "pass" | "fail" | "close", icon: string, title: string, sub: string, tone: { on: string; dot: string; text: string; radio: string }) => {
     const on = result === r;
@@ -191,6 +197,42 @@ function ResultFields({
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : result === "close" ? "e.g. customer took the car before the retest" : ""} />
         </Field>
       )}
+      {result === "close" && <RcaFields rca={rca} onChange={setRca} assignees={assignees} />}
+    </div>
+  );
+}
+
+/** A case closed as failed: the 5 Whys, the root cause, the solution and who it is assigned to (this branch's team leader or workshop supervisor). */
+function RcaFields({ rca, onChange, assignees }: { rca: QcRca; onChange: (r: QcRca) => void; assignees: QcAssignee[] }) {
+  return (
+    <div className="space-y-4 rounded-2xl bg-neutral-50 p-3.5 ring-1 ring-neutral-200">
+      <div>
+        <div className="text-base font-bold text-neutral-900">Root cause analysis</div>
+        <p className="text-xs text-neutral-500">Needed to close a case as failed.</p>
+      </div>
+      <Field title="5 Whys *" hint="Start with why the vehicle failed, then ask why again for each answer - five times.">
+        <div className="space-y-2">
+          {rca.whys.map((w, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="mt-3 w-12 shrink-0 text-xs font-bold text-neutral-500">Why {i + 1}</span>
+              <textarea value={w} onChange={(e) => onChange({ ...rca, whys: rca.whys.map((x, j) => (j === i ? e.target.value : x)) })} rows={2} className={field} />
+            </div>
+          ))}
+        </div>
+      </Field>
+      <Field title="Root cause of the issue *">
+        <textarea value={rca.rootCause} onChange={(e) => onChange({ ...rca, rootCause: e.target.value })} rows={3} className={field} />
+      </Field>
+      <Field title="Solution *">
+        <textarea value={rca.solution} onChange={(e) => onChange({ ...rca, solution: e.target.value })} rows={3} className={field} />
+      </Field>
+      <Field title="Assigned to *" hint="A team leader or workshop supervisor of this branch.">
+        {assignees.length ? (
+          <Choice options={assignees.map((a) => ({ key: a.id, label: `${a.name} · ${ASSIGNEE_ROLE_LABEL[a.role] ?? a.role}` }))} value={rca.assignedTo} onChange={(v) => onChange({ ...rca, assignedTo: v })} cols={1} />
+        ) : (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">This branch has no team leader or workshop supervisor account yet - tell the warranty officer.</p>
+        )}
+      </Field>
     </div>
   );
 }
@@ -411,10 +453,10 @@ function SubmitBar({
 export type NewQcDraftData = {
   wip?: string; vin?: string; odometerIn?: string; group?: string; technicians?: QcTechnician[]; teamLeader?: string; serviceAdvisor?: string;
   model?: string; repairType?: string; checklist?: Checklist; replacedParts?: string; defectDescription?: string;
-  result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[];
+  result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[]; rca?: QcRca;
 };
 /** What a draft of the retest form keeps. */
-export type RetestDraftData = { technicians?: QcTechnician[]; checklist?: Checklist; result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[] };
+export type RetestDraftData = { technicians?: QcTechnician[]; checklist?: Checklist; result?: "pass" | "fail" | "close" | ""; comment?: string; finalOdometer?: string; files?: SavedFile[]; rca?: QcRca };
 
 /** Quality controller: a new QC for one vehicle (WIP). */
 export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: { id: string; data: NewQcDraftData; savedAt: string } | null }) {
@@ -436,6 +478,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   const [result, setResult] = useState<"pass" | "fail" | "close" | "">(d.result ?? "");
   const [comment, setComment] = useState(d.comment ?? "");
   const [finalOdometer, setFinalOdometer] = useState(d.finalOdometer ?? "");
+  const [rca, setRca] = useState<QcRca>(d.rca ?? emptyRca());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(draft?.id ?? null);
@@ -447,7 +490,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   async function saveDraft() {
     setError(null);
     setDraftSaving(true);
-    const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, serviceAdvisor, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, files: files.saved };
+    const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, serviceAdvisor, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, rca, files: files.saved };
     const r = await saveQcDraft({ id: draftId, kind: "new", data });
     setDraftSaving(false);
     if (r.error || !r.id) return setError(r.error ?? "Could not save.");
@@ -482,8 +525,10 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
     if (!result) return setError("Choose Pass, Fail or Close as Fail.");
     const left = sectionsFor(repairType).length ? unanswered({ ...checklist, repairType }) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
+    const rcaError = result === "close" ? rcaMissing(rca) : null;
+    if (rcaError) return setError(rcaError);
     setSaving(true);
-    const r = await submitQc({ wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType }, draftId: draftId ?? undefined });
+    const r = await submitQc({ rca: result === "close" ? rca : undefined, wip, uploadWips: files.wips, vin, odometerIn, purpose, model, teamLeader, serviceAdvisor, replacedParts, defectDescription, repairType, result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist: { ...checklist, repairType }, draftId: draftId ?? undefined });
     setSaving(false);
     if (r.error) return setError(r.error);
     // Saved: back to the QC records (a pass or close closes the case; a fail waits for its retest).
@@ -570,7 +615,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
       )}
 
       <Section n={sectionsFor(repairType).length ? 6 : 5} title="Result">
-        <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} />
+        <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} rca={rca} setRca={setRca} assignees={options.assignees} />
       </Section>
 
       <Section n={sectionsFor(repairType).length ? 7 : 6} title="Files">
@@ -614,6 +659,7 @@ export function QcRetestForm({
   const [result, setResult] = useState<"pass" | "fail" | "close" | "">(d.result ?? "");
   const [comment, setComment] = useState(d.comment ?? "");
   const [finalOdometer, setFinalOdometer] = useState(d.finalOdometer ?? "");
+  const [rca, setRca] = useState<QcRca>(d.rca ?? emptyRca());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -623,7 +669,7 @@ export function QcRetestForm({
   async function saveDraft() {
     setError(null);
     setDraftSaving(true);
-    const data: RetestDraftData = { technicians, checklist, result, comment, finalOdometer, files: files.saved };
+    const data: RetestDraftData = { technicians, checklist, result, comment, finalOdometer, rca, files: files.saved };
     const r = await saveQcDraft({ kind: "retest", checkId, data });
     setDraftSaving(false);
     if (r.error) return setError(r.error);
@@ -636,8 +682,10 @@ export function QcRetestForm({
     if (!result) return setError("Choose Pass, Fail or Close as Fail.");
     const left = hasSheet ? unanswered(checklist) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
+    const rcaError = result === "close" ? rcaMissing(rca) : null;
+    if (rcaError) return setError(rcaError);
     setSaving(true);
-    const r = await retestQc(checkId, { result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist });
+    const r = await retestQc(checkId, { result, comment, finalOdometer, technicians, driveFileIds: files.ids, checklist, rca: result === "close" ? rca : undefined });
     setSaving(false);
     if (r.error) return setError(r.error);
     router.push(result === "fail" ? "/qc?status=failed" : "/qc?status=closed");
@@ -657,7 +705,7 @@ export function QcRetestForm({
         </Section>
       )}
       <Section n={hasSheet ? 3 : 2} title="Result">
-        <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} />
+        <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} rca={rca} setRca={setRca} assignees={options.assignees} />
       </Section>
       <Section n={hasSheet ? 4 : 3} title="Files">
         <FilesField files={files} />

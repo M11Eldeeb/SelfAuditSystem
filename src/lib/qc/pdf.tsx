@@ -96,6 +96,15 @@ function qcDocument(qc: QcDetail) {
       ),
       block("Replaced parts", qc.replaced_parts),
       block("Defect description", qc.defect_description),
+      ...(qc.status === "closed" && (qc.rca_root_cause || qc.rca_whys?.length)
+        ? [
+            h(Text, { key: "rca-h", style: { fontSize: 12, fontWeight: 700, marginTop: 6, marginBottom: 6 } }, "Root cause analysis"),
+            ...(qc.rca_whys ?? []).map((w, i) => h(Text, { key: `why${i}`, style: { fontSize: 10, lineHeight: 1.5, marginBottom: 2, textAlign: align(w) } }, `Why ${i + 1}: ${w}`)),
+            block("Root cause of the issue", qc.rca_root_cause),
+            block("Solution", qc.rca_solution),
+            block("Assigned to", qc.rca_assigned_name ? `${qc.rca_assigned_name}${qc.rca_assigned_role ? ` - ${qc.rca_assigned_role === "team_leader" ? "Team leader" : "Workshop supervisor"}` : ""}` : null),
+          ]
+        : []),
       h(Text, { style: { fontSize: 12, fontWeight: 700, marginTop: 6, marginBottom: 8 } }, `Test history (${qc.tests.length})`),
       ...qc.tests.map((t, i) =>
         h(

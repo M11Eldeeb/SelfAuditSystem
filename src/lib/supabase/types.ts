@@ -121,6 +121,8 @@ export interface Database {
           team_leader: string | null; service_advisor: string | null; replaced_parts: string | null; defect_description: string | null;
           status: "failed" | "passed" | "closed"; attempts: number; final_odometer: number | null; passed_at: string | null; closed_at: string | null; drive_folder_id: string | null;
           controller_id: string | null; controller_name: string | null; created_at: string; updated_at: string;
+          /** Root cause analysis of a case closed as failed (migration 0199). */
+          rca_whys?: string[] | null; rca_root_cause?: string | null; rca_solution?: string | null; rca_assigned_to?: string | null; rca_assigned_name?: string | null; rca_assigned_role?: string | null;
         };
         Insert: {
           id?: string; qc_no?: string; branch_id: string; wip_no: string; vin?: string | null; model?: string | null; odometer_in?: number | null;
@@ -129,6 +131,7 @@ export interface Database {
           team_leader?: string | null; service_advisor?: string | null; replaced_parts?: string | null; defect_description?: string | null;
           status: "failed" | "passed" | "closed"; attempts?: number; final_odometer?: number | null; passed_at?: string | null; closed_at?: string | null; drive_folder_id?: string | null;
           controller_id?: string | null; controller_name?: string | null; created_at?: string; updated_at?: string;
+          rca_whys?: string[] | null; rca_root_cause?: string | null; rca_solution?: string | null; rca_assigned_to?: string | null; rca_assigned_name?: string | null; rca_assigned_role?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_qc_checks"]["Insert"]>;
         Relationships: [];

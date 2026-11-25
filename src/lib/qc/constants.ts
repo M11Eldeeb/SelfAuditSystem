@@ -94,3 +94,22 @@ export type QcTechnician = { id: string | null; name: string };
 
 export const QC_MAX_FILES = 40;
 export const QC_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+
+/**
+ * The root cause analysis a QC closed as failed carries: the 5 Whys, the root cause, the solution, and who it is assigned to
+ * (a team leader or workshop supervisor account of the branch).
+ */
+export const QC_WHYS = 5;
+export type QcRca = { whys: string[]; rootCause: string; solution: string; assignedTo: string };
+export const emptyRca = (): QcRca => ({ whys: Array.from({ length: QC_WHYS }, () => ""), rootCause: "", solution: "", assignedTo: "" });
+export type QcAssignee = { id: string; name: string; role: "team_leader" | "workshop_supervisor" };
+export const ASSIGNEE_ROLE_LABEL: Record<string, string> = { team_leader: "Team leader", workshop_supervisor: "Workshop supervisor" };
+/** What is still missing from a root cause analysis (null = complete). */
+export function rcaMissing(rca: QcRca | undefined | null): string | null {
+  if (!rca) return "Fill in the root cause analysis.";
+  if (rca.whys.slice(0, QC_WHYS).length < QC_WHYS || rca.whys.slice(0, QC_WHYS).some((w) => !String(w ?? "").trim())) return "Answer all 5 Whys.";
+  if (!String(rca.rootCause ?? "").trim()) return "Write the root cause of the issue.";
+  if (!String(rca.solution ?? "").trim()) return "Write the solution.";
+  if (!rca.assignedTo) return "Choose who the case is assigned to.";
+  return null;
+}

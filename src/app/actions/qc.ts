@@ -8,7 +8,7 @@ import type { Database } from "@/lib/supabase/types";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import { cleanChecklist, unanswered, type Checklist } from "@/lib/qc/checklist";
-import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, modelFromText, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_SERVICE_ADVISORS, QC_TEAM_LEADERS, QC_WHYS, modelFromText, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -48,15 +48,22 @@ function checkFile(f: QcFileMeta): string | null {
   return null;
 }
 
-export type QcFormOptions = { technicians: QcTechnician[]; models: string[]; teamLeaders: string[]; advisors: string[]; branchCode: string };
+export type QcFormOptions = { technicians: QcTechnician[]; models: string[]; teamLeaders: string[]; advisors: string[]; branchCode: string; /** Who a case closed as failed can be assigned to: the branch's team leaders and workshop supervisors. */ assignees: QcAssignee[] };
+
+/** The accounts a closed case can be assigned to: the team leaders and workshop supervisors of the branch. */
+async function branchAssignees(branchId: string): Promise<QcAssignee[]> {
+  const { data } = await createAdminClient().from("self_audit_users").select("id, full_name, email, role").in("role", ["team_leader", "workshop_supervisor"]).eq("branch_id", branchId).order("full_name");
+  return (data ?? []).map((u) => ({ id: u.id, name: u.full_name ?? u.email, role: u.role as QcAssignee["role"] }));
+}
 
 /** The form's lists: the branch's technicians (accounts + names added before), the batch models, team leaders, advisors. */
 export async function qcFormOptions(): Promise<QcFormOptions> {
   const { branch } = await controller();
   const admin = createAdminClient();
-  const [{ data: techs }, { data: extra }] = await Promise.all([
+  const [{ data: techs }, { data: extra }, assignees] = await Promise.all([
     admin.from("self_audit_users").select("id, full_name, email, employee_no").eq("role", "technician").eq("branch_id", branch.id).order("full_name"),
     admin.from("self_audit_qc_extra_technicians").select("name").eq("branch_id", branch.id).order("name"),
+    branchAssignees(branch.id),
   ]);
   const accounts: QcTechnician[] = (techs ?? []).map((t) => ({ id: t.id, name: `${t.full_name ?? t.email}${t.employee_no ? ` - ${t.employee_no}` : ""}` }));
   const taken = new Set(accounts.map((t) => t.name.toLowerCase()));
@@ -64,7 +71,7 @@ export async function qcFormOptions(): Promise<QcFormOptions> {
   // The model names (MG RX5, not the batch code AS22). A fixed list: reading the codes from the claims batches took
   // seconds on every page.
   const names = [...new Set(Object.values(QC_MODEL_BY_CODE))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "" };
+  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, advisors: QC_SERVICE_ADVISORS, branchCode: branch.code ?? "", assignees };
 }
 
 /** Quality controller: a technician without an account, kept for his branch's next QCs. */
@@ -186,7 +193,7 @@ const notYet = (message: string | undefined) => (message && /check constraint/i.
 /** Pass closes the case (passed); Closed closes it without a pass (justified); Fail keeps it open for a retest. */
 const STATUS_OF = { pass: "passed", fail: "failed", close: "closed" } as const;
 
-export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[]; checklist?: unknown; draftId?: string };
+export type QcResultInput = { result: "pass" | "fail" | "close"; comment: string; finalOdometer: string; technicians: QcTechnician[]; driveFileIds: string[]; checklist?: unknown; draftId?: string; /** Required when the case is closed as failed. */ rca?: QcRca };
 
 /** The inspection sheet of the repair type, every item answered (null when the repair type has no sheet). */
 function checkedSheet(raw: unknown, repairType: string | null): { sheet: Checklist | null } | { error: string } {
@@ -248,8 +255,29 @@ async function cleanResult(input: QcResultInput, branchId: string, odometerIn: n
     technicians.push({ id: t.id && ok.has(t.id) ? t.id : null, name });
   }
   if (!technicians.length) return { error: "Choose the technician." };
-  return { result: input.result, comment, finalOdometer, technicians };
+  // A case closed as failed carries its root cause analysis: the 5 Whys, root cause, solution and the person it is assigned to.
+  let rca: CleanRca | null = null;
+  if (input.result === "close") {
+    const missing = rcaMissing(input.rca);
+    if (missing || !input.rca) return { error: missing ?? "Fill in the root cause analysis." };
+    const given = input.rca;
+    const who = (await branchAssignees(branchId)).find((a) => a.id === given.assignedTo);
+    if (!who) return { error: "Choose who the case is assigned to - a team leader or workshop supervisor of this branch." };
+    // The database change (migration 0199) must be in before a case is closed: nothing is saved without it.
+    const probe = await createAdminClient().from("self_audit_qc_checks").select("rca_root_cause").limit(1);
+    if (probe.error) return { error: "Closing a case as failed is not available yet - the database needs an update (ask the warranty officer)." };
+    rca = {
+      rca_whys: given.whys.slice(0, QC_WHYS).map((w) => String(w).replace(/\s+/g, " ").trim().slice(0, 600)),
+      rca_root_cause: given.rootCause.trim().slice(0, 3000),
+      rca_solution: given.solution.trim().slice(0, 3000),
+      rca_assigned_to: who.id,
+      rca_assigned_name: who.name,
+      rca_assigned_role: who.role,
+    };
+  }
+  return { result: input.result, comment, finalOdometer, technicians, rca };
 }
+type CleanRca = { rca_whys: string[]; rca_root_cause: string; rca_solution: string; rca_assigned_to: string; rca_assigned_name: string; rca_assigned_role: string };
 
 /** Quality controller: records a QC (its first test) with the files attached. */
 export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?: string }> {
@@ -307,6 +335,7 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
         drive_folder_id: folder,
         controller_id: user.id,
         controller_name: name,
+        ...(r.rca ?? {}),
     };
     let { data: check, error } = await admin
       .from("self_audit_qc_checks")
@@ -353,7 +382,7 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     );
     if (error || !test) return { error: error?.code === "23505" ? "Someone tested this vehicle just now - reload the page." : (notYet(error?.message) ?? "Could not save the test.") };
     const now = new Date().toISOString();
-    const update = { attempts: attempt, status: STATUS_OF[r.result], final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now };
+    const update = { attempts: attempt, status: STATUS_OF[r.result], final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now, ...(r.rca ?? {}) };
     const { error: updateError } = await admin.from("self_audit_qc_checks").update({ ...update, closed_at: r.result === "fail" ? null : now }).eq("id", check.id);
     if (updateError) await admin.from("self_audit_qc_checks").update(update).eq("id", check.id);
     const folder = check.drive_folder_id ?? (await qcFolder(branch, check.wip_no));

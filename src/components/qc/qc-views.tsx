@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { QcDetail, QcSummary } from "@/lib/qc/server";
-import { purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
+import { ASSIGNEE_ROLE_LABEL, purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
 import { fmtDateTime } from "@/components/tech-claims/status";
 import { TechClaimFileGallery } from "@/components/tech-claims/file-gallery";
 import { BRAKE_MEASURES, MARK_LABEL, WHEELS, sectionsFor, sheetTitle, type Checklist, type Mark } from "@/lib/qc/checklist";
@@ -200,6 +200,39 @@ export function QcDetailView({ qc, back, retest }: { qc: QcDetail; back: string;
           <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900 ring-1 ring-red-200">
             <div className="text-xs font-semibold text-red-700">Last note to the workshop (test {last.attempt})</div>
             <p className="whitespace-pre-wrap">{last.comment}</p>
+          </div>
+        )}
+        {qc.status === "closed" && (qc.rca_root_cause || qc.rca_whys?.length) && (
+          <div className="mt-3 space-y-3 rounded-lg bg-neutral-50 px-3.5 py-3 text-sm ring-1 ring-neutral-200">
+            <div className="text-xs font-bold tracking-wide text-neutral-600 uppercase">Root cause analysis</div>
+            {qc.rca_whys && qc.rca_whys.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold text-neutral-500">5 Whys</div>
+                <ol className="space-y-1">
+                  {qc.rca_whys.map((w, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="w-12 shrink-0 text-xs font-bold text-neutral-500">Why {i + 1}</span>
+                      <span className="whitespace-pre-wrap text-neutral-900">{w}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <div>
+              <div className="text-xs font-semibold text-neutral-500">Root cause of the issue</div>
+              <p className="whitespace-pre-wrap text-neutral-900">{qc.rca_root_cause || "—"}</p>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-neutral-500">Solution</div>
+              <p className="whitespace-pre-wrap text-neutral-900">{qc.rca_solution || "—"}</p>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-neutral-500">Assigned to</div>
+              <p className="text-neutral-900">
+                {qc.rca_assigned_name ?? "—"}
+                {qc.rca_assigned_role ? <span className="text-neutral-500"> · {ASSIGNEE_ROLE_LABEL[qc.rca_assigned_role] ?? qc.rca_assigned_role}</span> : null}
+              </p>
+            </div>
           </div>
         )}
         <details className="group mt-3">
