@@ -27,7 +27,7 @@ export function daysRemaining(deadlineAt: string | null): number | null {
 
 /**
  * The one countdown every page shows for a cycle deadline, so they can never disagree: whole days left (rounded down),
- * "Less than 1 day left" during the last 24 hours, and passed only once the deadline moment itself has gone by. Before this,
+ * hours left ("5 hours left", "Less than 1 hour left") during the last 24 hours, and passed only once the deadline moment itself has gone by. Before this,
  * one page rounded up ("1 day left") and another rounded down to 0 ("Deadline passed") with a day still to go.
  */
 export function deadlineCountdown(deadlineAt: string | null): { passed: boolean; days: number; text: string | null } | null {
@@ -35,7 +35,10 @@ export function deadlineCountdown(deadlineAt: string | null): { passed: boolean;
   const ms = new Date(deadlineAt).getTime() - Date.now();
   if (ms <= 0) return { passed: true, days: 0, text: null };
   const days = Math.floor(ms / 86_400_000);
-  return { passed: false, days, text: days >= 1 ? `${days} day${days === 1 ? "" : "s"} left` : "Less than 1 day left" };
+  // In the last 24 hours: whole hours left (rounded down, like the days), "Less than 1 hour left" in the last hour.
+  const hours = Math.floor(ms / 3_600_000);
+  const text = days >= 1 ? `${days} day${days === 1 ? "" : "s"} left` : hours >= 1 ? `${hours} hour${hours === 1 ? "" : "s"} left` : "Less than 1 hour left";
+  return { passed: false, days, text };
 }
 
 /**
