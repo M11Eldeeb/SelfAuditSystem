@@ -1,5 +1,5 @@
+import { requireTechnician } from "@/lib/tech-claims/access";
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { getTechClaim } from "@/lib/tech-claims/server";
 import { TechClaimDetailView } from "@/components/tech-claims/claim-detail";
 import { getTechLang } from "@/lib/i18n/tech-server";
@@ -7,7 +7,7 @@ import { techT } from "@/lib/i18n/tech";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function TechnicianClaimPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sent?: string; saved?: string; added?: string }> }) {
-  const user = await requireRole("technician");
+  const user = await requireTechnician();
   const [{ id }, { sent, saved, added }, lang, { data: branch }] = await Promise.all([
     params,
     searchParams,

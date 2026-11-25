@@ -1,12 +1,12 @@
+import { requireTechnician } from "@/lib/tech-claims/access";
 import Link from "next/link";
-import { requireRole } from "@/lib/auth";
 import { countTechClaims, listTechClaims } from "@/lib/tech-claims/server";
 import { TechClaimList } from "@/components/tech-claims/claim-list";
 import { getTechLang } from "@/lib/i18n/tech-server";
 import { techT } from "@/lib/i18n/tech";
 
 export default async function TechnicianHome({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
-  const user = await requireRole("technician");
+  const user = await requireTechnician();
   const { status = "all", q } = await searchParams;
   const lang = await getTechLang();
   const t = techT(lang);

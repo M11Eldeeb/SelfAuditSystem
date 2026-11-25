@@ -1,5 +1,5 @@
+import { requireTechnician } from "@/lib/tech-claims/access";
 import Link from "next/link";
-import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTechLang } from "@/lib/i18n/tech-server";
 import { techT } from "@/lib/i18n/tech";
@@ -12,7 +12,7 @@ import { StatusPill, fmtDateTime } from "@/components/tech-claims/status";
  * more than one), attach the files. They are stamped and uploaded as for a new claim and go into that claim's folder.
  */
 export default async function AddEvidencePage({ searchParams }: { searchParams: Promise<{ wo?: string; claim?: string }> }) {
-  const user = await requireRole("technician");
+  const user = await requireTechnician();
   const [{ wo, claim }, lang, { data: branch }] = await Promise.all([
     searchParams,
     getTechLang(),

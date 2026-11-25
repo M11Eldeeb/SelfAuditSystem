@@ -1,11 +1,11 @@
-import { requireRole } from "@/lib/auth";
+import { requireTechnician } from "@/lib/tech-claims/access";
 import { TechClaimForm } from "@/components/tech-claims/claim-form";
 import { getTechLang } from "@/lib/i18n/tech-server";
 import { techT } from "@/lib/i18n/tech";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function NewTechClaimPage() {
-  const user = await requireRole("technician");
+  const user = await requireTechnician();
   const [lang, { data: branch }] = await Promise.all([
     getTechLang(),
     createAdminClient().from("self_audit_branches").select("code").eq("id", user.branch_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle(),

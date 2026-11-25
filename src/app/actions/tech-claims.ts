@@ -1,9 +1,10 @@
 "use server";
+import { requireTechnician } from "@/lib/tech-claims/access";
 
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireAnyRole, requireRole } from "@/lib/auth";
+import { requireAnyRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/drive-docs";
 import { cleanStagingFolder, driveFileInfo, ensureStagingFolder, ensureTechnicianFolder, ensureWipSubFolder, knownStagingFolder, moveDriveFile, relocateClaimFolder, renameDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
@@ -111,7 +112,7 @@ const techLabel = (name: string, employeeNo: string | null) => (employeeNo ? `${
 
 /** The signed-in technician, his branch name and his Drive staging folder. */
 async function technicianContext() {
-  const tech = await requireRole("technician");
+  const tech = await requireTechnician();
   if (!tech.branch_id) throw new DocsError("Your account has no branch.");
   const [connection, { data: branch }, known] = await Promise.all([
     getDocsConnection(),
@@ -203,7 +204,7 @@ export async function renameTechClaimFile(fileRowId: string, label: string): Pro
 
 /** The technician's own claim that he may still change: not sent yet (upload interrupted) or returned to him. */
 async function ownEditableClaim(claimId: string) {
-  const tech = await requireRole("technician");
+  const tech = await requireTechnician();
   const { data: claim } = await createAdminClient().from("self_audit_tech_claims").select("*").eq("id", claimId).maybeSingle();
   if (!claim || claim.technician_id !== tech.id) return { error: "Claim not found." as const };
   if (claim.status !== "uploading" && claim.status !== "returned") return { error: "This claim can no longer be changed." as const };
@@ -493,7 +494,7 @@ export async function reassignTechClaim(claimId: string, technicianId: string, c
 
 /** Technician: his claims with this work order number (for "Add evidence"). The branch code is added in front. */
 export async function findMyClaimsByWorkOrder(digits: string): Promise<{ claims?: { id: string; claimNo: string; workOrder: string; status: string; submittedAt: string | null }[]; error?: string }> {
-  const tech = await requireRole("technician");
+  const tech = await requireTechnician();
   const n = digits.replace(/\D/g, "");
   if (!n) return { error: "Enter the work order number." };
   const admin = createAdminClient();
@@ -582,7 +583,7 @@ export async function setTechClaimPartReceived(claimId: string, on: boolean): Pr
 /** The phone could not stamp or send a file: keep the reason (and the phone's browser) for the warranty team. Never throws. */
 export async function reportUploadProblem(input: { name: string; type: string; size: number; message: string }): Promise<void> {
   try {
-    const tech = await requireRole("technician");
+    const tech = await requireTechnician();
     const ua = (await headers()).get("user-agent");
     await createAdminClient()
       .from("self_audit_tech_upload_problems")

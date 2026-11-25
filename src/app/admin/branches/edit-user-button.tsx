@@ -13,6 +13,7 @@ type EditableUser = {
   branch_id: string | null;
   view_all: boolean | null;
   courtesy_access: boolean | null;
+  tech_submit: boolean | null;
 };
 
 const field =
@@ -161,6 +162,20 @@ export function EditUserButton({
                 <span>
                   Courtesy cars – may hand cars over and take them back in his
                   branch (not shown to customers as a service advisor)
+                </span>
+              </label>
+            )}
+            {role !== "technician" && needsBranch && (
+              <label className="flex items-start gap-2 text-xs text-neutral-700">
+                <input
+                  type="checkbox"
+                  name="tech_submit"
+                  defaultChecked={!!user.tech_submit}
+                  className="mt-0.5 accent-[#c4121a]"
+                />
+                <span>
+                  Technician claims – may also submit claims as a technician of
+                  his branch
                 </span>
               </label>
             )}

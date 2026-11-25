@@ -111,7 +111,7 @@ export default async function BranchesPage() {
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-start justify-end gap-3">
                       <EditUserButton
-                        user={{ id: u.id, email: u.email, full_name: u.full_name, role: u.role, queue_role: u.queue_role, branch_id: u.branch_id, view_all: u.view_all, courtesy_access: u.courtesy_access }}
+                        user={{ id: u.id, email: u.email, full_name: u.full_name, role: u.role, queue_role: u.queue_role, branch_id: u.branch_id, view_all: u.view_all, courtesy_access: u.courtesy_access, tech_submit: u.tech_submit }}
                         branches={branchList.filter((b) => b.active || b.id === u.branch_id).map((b) => ({ id: b.id, name: b.name }))}
                         self={u.id === currentUser?.id}
                       />

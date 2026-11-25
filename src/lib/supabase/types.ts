@@ -183,6 +183,8 @@ export interface Database {
           job_title: string | null;
           /** Courtesy cars: may hand cars over and take them back in his branch (not offered to customers as an advisor). */
           courtesy_access: boolean;
+          /** May also submit technician claims for his branch (e.g. a warranty admin who repairs). */
+          tech_submit: boolean;
         };
         Insert: {
           id: string;
@@ -199,6 +201,7 @@ export interface Database {
           queue_role?: QueueRole | null;
           job_title?: string | null;
           courtesy_access?: boolean;
+          tech_submit?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];

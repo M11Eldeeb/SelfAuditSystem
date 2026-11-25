@@ -226,6 +226,8 @@ export async function auditNav(user: CurrentUser): Promise<PortalNav> {
           : l
   );
   // The branch admin has no Major Service Indicators page: the other Service dashboards only.
+  // A warranty admin who also repairs: his technician claims.
+  if (user.tech_submit) links.push({ href: "/technician", label: "My technician claims" });
   return { links: withQueue(links, service.queue), notifications, kpis: kpiLinks({ base: "/audit/dashboard", tabs: tabsFor(false, false), quality: true, extra: service.kpis.filter((k) => !k.href.endsWith("/msi")) }) };
 }
 

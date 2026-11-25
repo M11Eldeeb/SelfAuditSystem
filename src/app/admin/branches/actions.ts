@@ -248,6 +248,7 @@ export async function updateUser(_prev: ActionState, formData: FormData): Promis
   const queueRole = (["advisor", "parts_advisor", "manager"] as const).find((r) => r === formData.get("queue_role")) ?? null;
   const viewAll = formData.get("view_all") === "on";
   const courtesyAccess = formData.get("courtesy_access") === "on";
+  const techSubmit = formData.get("tech_submit") === "on";
   if (!userId) return { error: "Missing user." };
   if (!EDIT_ALL_ROLES.includes(role)) return { error: "Choose a valid role." };
   if (role === "queue_user" && !queueRole) return { error: "Choose what this person does in the customer queue." };
@@ -272,6 +273,8 @@ export async function updateUser(_prev: ActionState, formData: FormData): Promis
       view_all: role === "officer" ? false : viewAll,
       // Courtesy cars (hand over / take back) for someone who is not a service advisor; needs a branch.
       courtesy_access: courtesyAccess,
+      // Technician claims for someone who is not a technician (his own branch).
+      tech_submit: role !== "technician" && techSubmit,
     })
     .eq("id", userId);
   if (error) return { error: error.message };
