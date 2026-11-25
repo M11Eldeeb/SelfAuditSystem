@@ -12,6 +12,7 @@ type EditableUser = {
   queue_role: string | null;
   branch_id: string | null;
   view_all: boolean | null;
+  courtesy_access: boolean | null;
 };
 
 const field =
@@ -147,6 +148,20 @@ export function EditUserButton({
                 {self && user.view_all && (
                   <input type="hidden" name="view_all" value="on" />
                 )}
+              </label>
+            )}
+            {!["officer", "service_advisor", "queue_user", "branch_admin", "service_manager"].includes(role) && (
+              <label className="flex items-start gap-2 text-xs text-neutral-700">
+                <input
+                  type="checkbox"
+                  name="courtesy_access"
+                  defaultChecked={!!user.courtesy_access}
+                  className="mt-0.5 accent-[#c4121a]"
+                />
+                <span>
+                  Courtesy cars – may hand cars over and take them back in his
+                  branch (not shown to customers as a service advisor)
+                </span>
               </label>
             )}
             {self && (

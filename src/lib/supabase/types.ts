@@ -181,6 +181,8 @@ export interface Database {
           /** Customer queue: advisor / parts advisor / queue manager (null = no queue access). */
           queue_role: QueueRole | null;
           job_title: string | null;
+          /** Courtesy cars: may hand cars over and take them back in his branch (not offered to customers as an advisor). */
+          courtesy_access: boolean;
         };
         Insert: {
           id: string;
@@ -196,6 +198,7 @@ export interface Database {
           home_layout?: import("@/lib/home/layout").HomeLayout | null;
           queue_role?: QueueRole | null;
           job_title?: string | null;
+          courtesy_access?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["self_audit_users"]["Insert"]>;
         Relationships: [];

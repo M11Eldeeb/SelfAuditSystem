@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAnyViewer, type CurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireAnyViewer, type CurrentUser } from "@/lib/auth";
 import { refuseNonReception } from "@/lib/reception";
 import { JIAD_DEALER_CODE_SUFFIX_MAP } from "@/lib/parse-claims";
 import { loadCourtesy, agreementOpen } from "./sheet";
@@ -64,6 +64,11 @@ export const agreementsTable = () => (createAdminClient() as any).from("self_aud
 
 /** Who may work with courtesy agreements: officers (all branches), branch admins, service advisors, reception. */
 export async function courtesyStaff(): Promise<{ user: CurrentUser; branchId: string | null; canEdit: boolean }> {
+  // Someone given courtesy car access on his account (e.g. a workshop supervisor): his own branch, hand over and return.
+  const own = await getCurrentUser();
+  if (own?.courtesy_access && own.branch_id && !["officer", "branch_admin", "service_advisor", "queue_user"].includes(own.role)) {
+    return { user: own, branchId: own.branch_id, canEdit: true };
+  }
   const user = await requireAnyViewer(["officer", "branch_admin", "service_advisor", "queue_user"]);
   refuseNonReception(user);
   const all = user.role === "officer";
