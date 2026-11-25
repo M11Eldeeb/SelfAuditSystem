@@ -64,8 +64,18 @@ const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "pn
 /** A technician's evidence file is named after the work order plus a counter, e.g. HER-12345_001.jpg (the extension is kept). */
 function evidenceName(workOrder: string, n: number, originalName: string, mimeType: string): string {
   const ext = originalName.match(/\.([A-Za-z0-9]{1,8})$/)?.[1]?.toLowerCase() ?? MIME_EXT[mimeType] ?? "";
-  return `${workOrder}_${String(n).padStart(3, "0")}${ext ? `.${ext}` : ""}`;
+  // A name the technician gave the file (or its photo box: Front view, Mileage, VIN) follows the counter.
+  const label = stagedLabel(originalName);
+  return `${workOrder}_${String(n).padStart(3, "0")}${label ? ` - ${label}` : ""}${ext ? `.${ext}` : ""}`;
 }
+
+/** A file's own name, as the technician typed it: no characters a file name cannot hold, at most 60. */
+const cleanLabel = (s: string) => String(s ?? "").replace(/[\\/:*?"<>|[\]\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+/** The name a staged file carries until it is sent: "[[Front view]].jpg" -> "Front view". */
+const stagedLabel = (name: string) => cleanLabel(name.match(/^\[\[(.+?)\]\]/)?.[1] ?? "") || null;
+
+/** The photos Riyadh Al Saleh's technicians must add to every claim, one of each (their own boxes on the form). */
+const REQUIRED_PHOTOS: Record<string, string[]> = { RSS: ["Front view", "Mileage", "VIN"] };
 
 /** The highest counter already used by this claim's files (0 when none), so new files carry on after it. */
 async function lastFileCounter(claimId: string, workOrder: string): Promise<number> {
@@ -154,6 +164,43 @@ export async function discardStagedFile(driveFileId: string): Promise<{ error?: 
   }
 }
 
+/** Technician: gives a file still in his staging folder its own name (kept when the claim is sent: WO_001 - <name>.jpg). */
+export async function renameStagedFile(driveFileId: string, label: string): Promise<{ error?: string }> {
+  const name = cleanLabel(label);
+  if (!name) return { error: "Type a name." };
+  try {
+    const { staging } = await technicianContext();
+    const info = await driveFileInfo(driveFileId);
+    if (!info || !info.parents.includes(staging)) return { error: "File not found." };
+    const ext = info.name.match(/\.([A-Za-z0-9]{1,8})$/)?.[1] ?? "";
+    await renameDriveFile(driveFileId, `[[${name}]]${ext ? `.${ext}` : ""}`);
+    return {};
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive." };
+  }
+}
+
+/** Technician: renames a file already on his claim (not sent yet or returned): WO_003.jpg -> WO_003 - <name>.jpg. */
+export async function renameTechClaimFile(fileRowId: string, label: string): Promise<{ error?: string }> {
+  const name = cleanLabel(label);
+  if (!name) return { error: "Type a name." };
+  const admin = createAdminClient();
+  const { data: file } = await admin.from("self_audit_tech_claim_files").select("id, claim_id, drive_file_id, file_name").eq("id", fileRowId).maybeSingle();
+  if (!file) return { error: "File not found." };
+  const own = await ownEditableClaim(file.claim_id);
+  if ("error" in own) return { error: own.error };
+  const m = file.file_name.match(/^(.+?_\d{3,})(?: - .*?)?(\.[A-Za-z0-9]{1,8})?$/);
+  const newName = m ? `${m[1]} - ${name}${m[2] ?? ""}` : `${name}${file.file_name.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? ""}`;
+  try {
+    await renameDriveFile(file.drive_file_id, newName);
+  } catch (e) {
+    return { error: e instanceof DocsError ? e.message : "Could not reach Google Drive." };
+  }
+  await admin.from("self_audit_tech_claim_files").update({ file_name: newName.slice(0, 300) }).eq("id", file.id);
+  revalidateAll();
+  return {};
+}
+
 /** The technician's own claim that he may still change: not sent yet (upload interrupted) or returned to him. */
 async function ownEditableClaim(claimId: string) {
   const tech = await requireRole("technician");
@@ -235,8 +282,12 @@ export async function submitTechClaim(fields: ClaimFields, stagedIds: string[], 
       return { claimId: claim.id };
     }
 
-    const { count } = await admin.from("self_audit_tech_claim_files").select("id", { count: "exact", head: true }).eq("claim_id", claim.id);
-    if (!count) return { claimId: claim.id, error: "No file reached Google Drive - please add the files again." };
+    const { data: onClaim } = await admin.from("self_audit_tech_claim_files").select("file_name").eq("claim_id", claim.id);
+    if (!onClaim?.length) return { claimId: claim.id, error: "No file reached Google Drive - please add the files again." };
+    // Branches that ask for fixed photos (Riyadh Al Saleh: front view, mileage, VIN): each must be on the claim.
+    const required = REQUIRED_PHOTOS[ctx.branchCode.toUpperCase()] ?? [];
+    if (required.some((label) => !onClaim.some((f) => f.file_name.toLowerCase().includes(` - ${label.toLowerCase()}`))))
+      return { claimId: claim.id, error: "Add the three required photos: Front view, Mileage and VIN." };
 
     const edited =
       !!claimId &&

@@ -8,6 +8,8 @@ import {
   prepareStagedUpload,
   reportUploadProblem,
   removeTechClaimFile,
+  renameStagedFile,
+  renameTechClaimFile,
   submitTechClaim,
   type ClaimFields,
 } from "@/app/actions/tech-claims";
@@ -34,6 +36,15 @@ import { techT, trServer, type Lang } from "@/lib/i18n/tech";
 
 type Existing = { id: string; name: string; mimeType: string; size: number };
 
+/** Riyadh Al Saleh: three photos every claim needs, one each, in their own boxes (the names go into the file names). */
+const SLOT_LABELS = ["Front view", "Mileage", "VIN"] as const;
+/** A staged file's own name: "[[Front view]].jpg" -> "Front view". */
+const labelFromName = (name: string) => name.match(/^\[\[(.+?)\]\]/)?.[1] ?? null;
+const extOf = (name: string) => name.match(/\.([A-Za-z0-9]{1,8})$/)?.[1] ?? "";
+const labelled = (label: string, name: string) => `[[${label}]]${extOf(name) ? `.${extOf(name)}` : ""}`;
+/** Which photo box a file already on the claim belongs to ("RSS-123_002 - Mileage.jpg" -> "Mileage"). */
+const existingSlot = (name: string) => SLOT_LABELS.find((l) => name.toLowerCase().includes(` - ${l.toLowerCase()}`)) ?? null;
+
 /** A file added to the form: it is stamped and sent in the background straight away (as WhatsApp does). */
 type Item = {
   key: string;
@@ -48,6 +59,8 @@ type Item = {
   unstamped?: string; // why the stamp could not be added (shown small, for support)
   /** A note for the technician (e.g. a 4K video on a browser without a video encoder is slow to stamp). */
   hint?: string;
+  /** The name the technician gave the file, or its photo box (Front view, Mileage, VIN). */
+  label?: string;
   /** A local link to the file (the stamped one once it is ready), so the technician can look at it before sending. */
   preview?: string;
 };
@@ -271,6 +284,12 @@ export function TechClaimForm({
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
+  // Riyadh Al Saleh: the three photo boxes (front view, mileage, VIN) above the other evidence.
+  const photoBoxes = !evidenceOnly && branchCode.toUpperCase() === "RSS";
+  const slotInput = useRef<HTMLInputElement>(null);
+  const slotTarget = useRef<string | null>(null);
+  /** The names given to files (by key): used as the upload name, and to rename a file already sent to Drive. */
+  const labels = useRef(new Map<string, string>());
 
   // Background work: original files, the promise of each item, the stamping chain, the upload slots.
   // A browser without a video encoder (Firefox on Android) is far slower with videos and can come out black: suggest Chrome.
@@ -440,13 +459,16 @@ export function TechClaimForm({
               })
             : await inOrder(photoChain, () => stampOne(true));
         if (!stamped || removed.current.has(key)) return;
+        // A file with a name of its own (renamed, or in a photo box) is uploaded as "[[name]].ext".
+        const wanted = labels.current.get(key);
+        const upName = wanted && labelFromName(stamped.name) !== wanted ? labelled(wanted, stamped.name) : stamped.name;
         const stampSecs = Math.round((Date.now() - t0) / 1000);
         if (!before?.stamped)
-          void keepPatch(key, { stamped: true, name: stamped.name, type: stamped.type, size: stamped.size, session: undefined }, stamped !== original ? stamped : undefined);
+          void keepPatch(key, { stamped: true, name: upName, type: stamped.type, size: stamped.size, session: undefined }, stamped !== original ? stamped : undefined);
         // 2. An upload session in the staging folder, then the bytes straight to Google Drive (three at a time).
         const ask = () =>
           prepareStagedUpload({
-            name: stamped.name,
+            name: upName,
             type: stamped.type,
             size: stamped.size,
           });
@@ -472,7 +494,7 @@ export function TechClaimForm({
           status: "sending",
           pct: 0,
           size: stamped.size,
-          name: stamped.name,
+          name: upName,
           ...(preview ? { preview, type: stamped.type } : {}),
         });
         const t1 = Date.now();
@@ -487,6 +509,12 @@ export function TechClaimForm({
           }
         });
         void keepPatch(key, { driveId });
+        // Renamed while it was on its way: the Drive file takes the new name now.
+        const nowLabel = labels.current.get(key);
+        if (nowLabel && nowLabel !== (labelFromName(upName) ?? undefined)) {
+          const r = await renameStagedFile(driveId, nowLabel);
+          if (!r.error) void keepPatch(key, { name: labelled(nowLabel, upName) });
+        }
         // How long a video took (to see what makes the sending slow): stamp method and seconds, upload seconds, sizes.
         if (isVideo && !before?.stamped)
           void reportUploadProblem({
@@ -511,7 +539,7 @@ export function TechClaimForm({
     jobs.current.set(key, job);
   }
 
-  async function add(list: FileList | null) {
+  async function add(list: FileList | null, slot?: string) {
     // Diagnostics: the phone came back from the picker with no file (an iPhone that could not prepare the video).
     if (!list?.length) {
       void reportUploadProblem({ name: "(none)", type: "", size: 0, message: "picked: the picker returned no file" });
@@ -536,7 +564,13 @@ export function TechClaimForm({
       if (f !== typed && f.size <= SNAPSHOT_MAX) held += f.size;
       picked.push(f);
     }
-    for (const f of picked) {
+    for (const f of slot ? picked.slice(0, 1) : picked) {
+      // A photo box takes one photo: a new one replaces the one it had.
+      if (slot && !f.type.startsWith("image/")) {
+        setError(t.errType(f.name));
+        continue;
+      }
+      if (slot) latest.current.filter((x) => x.label === slot).forEach(remove);
       if (!/^(image\/|video\/|application\/pdf$)/.test(f.type)) {
         setError(t.errType(f.name));
         void reportUploadProblem({ name: f.name, type: f.type || "(no type)", size: f.size, message: "type: not a photo, video or PDF" });
@@ -554,6 +588,7 @@ export function TechClaimForm({
       }
       const key = `f${++seq.current}`;
       sources.current.set(key, f);
+      if (slot) labels.current.set(key, slot);
       let hint: string | undefined;
       if (f.type.startsWith("video/")) {
         const info = await videoMeta(f).catch(() => null);
@@ -577,6 +612,7 @@ export function TechClaimForm({
           pct: 0,
           preview,
           hint,
+          label: slot,
         },
       ]);
       process(key);
@@ -609,6 +645,32 @@ export function TechClaimForm({
     else router.refresh();
   }
 
+  /** The technician names a file: kept in its final name (WO_001 - <name>.jpg). */
+  async function renameItem(it: Item) {
+    const v = window.prompt(t.renamePrompt, it.label ?? it.name.replace(/\.[^.]+$/, ""));
+    const label = v?.trim();
+    if (!label) return;
+    labels.current.set(it.key, label);
+    patch(it.key, { label });
+    if (it.driveId) {
+      const r = await renameStagedFile(it.driveId, label);
+      if (r.error) setError(trServer(t, r.error));
+      else void keepPatch(it.key, { name: labelled(label, it.name) });
+    }
+  }
+
+  async function renameExisting(f: Existing) {
+    const current = f.name.match(/_\d{3,} - (.+?)(\.[A-Za-z0-9]{1,8})?$/)?.[1] ?? f.name.replace(/\.[^.]+$/, "");
+    const v = window.prompt(t.renamePrompt, current);
+    const label = v?.trim();
+    if (!label) return;
+    setBusy(true);
+    const r = await renameTechClaimFile(f.id, label);
+    setBusy(false);
+    if (r.error) setError(trServer(t, r.error));
+    else router.refresh();
+  }
+
   // Leaving the page while files are on their way (or sent but not submitted) asks first.
   const unsent = items.length > 0 && !kept;
   useEffect(() => {
@@ -633,9 +695,11 @@ export function TechClaimForm({
       for (const it of e.items) {
         const n = Number(it.key.replace(/\D/g, ""));
         if (n > seq.current) seq.current = n;
+        const keptLabel = labelFromName(it.name) ?? undefined;
+        if (keptLabel) labels.current.set(it.key, keptLabel);
         if (it.driveId) {
           persisted.current.set(it.key, it);
-          update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "ready", pct: 100, driveId: it.driveId, unstamped: it.unstamped }]);
+          update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "ready", pct: 100, driveId: it.driveId, unstamped: it.unstamped, label: keptLabel }]);
           continue;
         }
         const blob = await getBlob(e.uid, it.key);
@@ -648,7 +712,7 @@ export function TechClaimForm({
         sources.current.set(it.key, f);
         const preview = URL.createObjectURL(f);
         previews.current.add(preview);
-        update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "waiting", pct: 0, preview, unstamped: it.unstamped }]);
+        update((cur) => [...cur, { key: it.key, name: it.name, type: it.type, size: it.size, status: "waiting", pct: 0, preview, unstamped: it.unstamped, label: keptLabel }]);
         process(it.key);
       }
     });
@@ -714,6 +778,10 @@ export function TechClaimForm({
       notes,
     };
     if (send && !items.length && !existing.length) return setError(t.errAddOne);
+    if (send && photoBoxes) {
+      const missing = SLOT_LABELS.filter((l) => !existing.some((f) => existingSlot(f.name) === l) && !latest.current.some((i) => i.label === l && i.status !== "failed"));
+      if (missing.length) return setError(t.errSlots(missing.map((m) => t.slotNames[m] ?? m).join(", ")));
+    }
     const plural = t.errFailed;
     if (failed.length) return setError(plural(failed.length));
     setBusy(true);
@@ -773,6 +841,11 @@ export function TechClaimForm({
     }
   }
 
+  // With the photo boxes, their photos are shown in the boxes, not in the list of other files.
+  const isBoxLabel = (l: string | undefined) => !!l && (SLOT_LABELS as readonly string[]).includes(l);
+  const listExisting = photoBoxes ? existing.filter((f) => !existingSlot(f.name)) : existing;
+  const listItems = photoBoxes ? items.filter((it) => !isBoxLabel(it.label)) : items;
+
   const statusText = (it: Item) =>
     it.status === "waiting"
       ? t.itemWaiting
@@ -831,9 +904,98 @@ export function TechClaimForm({
         </div>
       )}
 
+      {photoBoxes && (
+        <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
+          <div className="text-sm font-semibold text-neutral-900">{t.requiredPhotos}</div>
+          {/* One photo per box: the phone offers the camera or the gallery. */}
+          <input
+            ref={slotInput}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const input = e.currentTarget;
+              const slot = slotTarget.current ?? undefined;
+              void add(input.files, slot).finally(() => {
+                input.value = "";
+              });
+            }}
+          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {SLOT_LABELS.map((l) => {
+              const it = items.find((x) => x.label === l);
+              const ex = existing.find((f) => existingSlot(f.name) === l);
+              const pick = () => {
+                slotTarget.current = l;
+                slotInput.current?.click();
+              };
+              return (
+                <div key={l} className={`space-y-2 rounded-xl border-2 p-3 ${it || ex ? "border-emerald-200 bg-emerald-50/40" : "border-dashed border-neutral-300"}`}>
+                  <p className="text-sm font-semibold text-neutral-900">
+                    {t.slotNames[l] ?? l} <span className="text-[#c4121a]">*</span>
+                  </p>
+                  {it ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Thumb url={it.preview ?? null} type={it.type} onOpen={() => it.preview && setViewing({ url: it.preview, type: it.type, name: l })} />
+                        <span className={`text-xs ${it.status === "ready" ? "text-emerald-700" : it.status === "failed" ? "text-red-700" : "text-neutral-500"}`}>{statusText(it)}</span>
+                      </div>
+                      {(it.status === "stamping" || it.status === "sending") && (
+                        <div className="h-1 overflow-hidden rounded-full bg-neutral-100">
+                          <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${Math.max(it.pct, 4)}%` }} />
+                        </div>
+                      )}
+                      {it.error && <p className="text-xs text-red-700">{it.error}</p>}
+                      <div className="flex gap-3">
+                        {it.status === "failed" && (
+                          <button type="button" disabled={busy} onClick={() => retry(it)} className="text-xs font-semibold text-brand disabled:opacity-50">
+                            {t.retry}
+                          </button>
+                        )}
+                        <button type="button" disabled={busy} onClick={pick} className="text-xs font-semibold text-brand disabled:opacity-50">
+                          {t.replace}
+                        </button>
+                        <button type="button" disabled={busy} onClick={() => remove(it)} className="text-xs font-medium text-red-600 disabled:opacity-50">
+                          {t.remove}
+                        </button>
+                      </div>
+                    </>
+                  ) : ex ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Thumb
+                          url={`/api/tech-claims/file/${ex.id}?thumb=1`}
+                          still
+                          type={ex.mimeType}
+                          onOpen={() => setViewing({ url: `/api/tech-claims/file/${ex.id}`, type: ex.mimeType, name: ex.name })}
+                        />
+                        <span className="text-xs text-emerald-700">{t.saved}</span>
+                      </div>
+                      <button type="button" disabled={busy} onClick={() => removeExisting(ex)} className="text-xs font-medium text-red-600 disabled:opacity-50">
+                        {t.remove}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={pick}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-50 px-3 py-4 text-sm font-semibold text-neutral-800 hover:text-brand disabled:opacity-50"
+                    >
+                      <Glyph name="camera" size={20} className="text-brand" />
+                      {t.addPhoto}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
         <div className="text-sm font-semibold text-neutral-900">
-          {t.evidenceTitle}
+          {photoBoxes ? t.othersTitle : t.evidenceTitle}
         </div>
         <input
           ref={camera}
@@ -947,9 +1109,9 @@ export function TechClaimForm({
         )}
 
         {slowBrowser && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{t.slowBrowser}</p>}
-        {(existing.length > 0 || items.length > 0) && (
+        {(listExisting.length > 0 || listItems.length > 0) && (
           <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-100 text-sm">
-            {existing.map((f) => (
+            {listExisting.map((f) => (
               <li key={f.id} className="flex items-center gap-2 px-3 py-2">
                 <Thumb
                   // Files already on the claim: Drive's small preview picture (a video is not downloaded for it).
@@ -968,6 +1130,9 @@ export function TechClaimForm({
                 <span className="text-xs text-neutral-500">
                   {fmtBytes(f.size)}
                 </span>
+                <button type="button" disabled={busy} onClick={() => void renameExisting(f)} className="text-xs font-semibold text-neutral-700 disabled:opacity-50">
+                  {t.rename}
+                </button>
                 <button
                   type="button"
                   disabled={busy}
@@ -978,11 +1143,14 @@ export function TechClaimForm({
                 </button>
               </li>
             ))}
-            {items.map((it) => (
+            {listItems.map((it) => (
               <li key={it.key} className="space-y-1.5 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Thumb url={it.preview ?? null} type={it.type} onOpen={() => it.preview && setViewing({ url: it.preview, type: it.type, name: it.name })} />
-                  <span className="min-w-0 flex-1 truncate">{it.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{it.label ? `${it.label}${extOf(it.name) ? `.${extOf(it.name)}` : ""}` : it.name}</span>
+                  <button type="button" disabled={busy} onClick={() => void renameItem(it)} className="text-xs font-semibold text-neutral-700 disabled:opacity-50">
+                    {t.rename}
+                  </button>
                   {it.preview && (
                     <button type="button" onClick={() => setViewing({ url: it.preview!, type: it.type, name: it.name })} className="text-xs font-semibold text-brand">
                       {t.preview}
