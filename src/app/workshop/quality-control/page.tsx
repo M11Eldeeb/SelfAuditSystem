@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { QcListPage } from "@/components/qc/qc-pages";
 
 /** Quality control records (read only). */
-export default async function QualityControlPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; branch?: string }> }) {
+export default async function QualityControlPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; branch?: string; qc?: string }> }) {
   const user = await requireRole("workshop_supervisor");
   return <QcListPage user={user} base="/workshop/quality-control" params={await searchParams} />;
 }

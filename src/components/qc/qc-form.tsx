@@ -26,9 +26,9 @@ function Field({ title, children, hint }: { title: string; children: React.React
   );
 }
 
-function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+function Section({ n, title, children, id }: { n: number; title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:p-5">
+    <section id={id} className="scroll-mt-24 space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70 sm:p-5">
       <h2 className="flex items-center gap-2.5 text-base font-bold text-neutral-900">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-sm text-white">{n}</span>
         {title}
@@ -680,7 +680,8 @@ export function QcRetestForm({
     e.preventDefault();
     setError(null);
     if (!result) return setError("Choose Pass, Fail or Close as Fail.");
-    const left = hasSheet ? unanswered(checklist) : [];
+    // Closing the case as failed does not need the inspection sheet (a retest does).
+    const left = hasSheet && result !== "close" ? unanswered(checklist) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
     const rcaError = result === "close" ? rcaMissing(rca) : null;
     if (rcaError) return setError(rcaError);
@@ -694,6 +695,21 @@ export function QcRetestForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {result !== "close" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
+          <p className="min-w-0 flex-1 text-sm text-neutral-600">The vehicle cannot be tested again (the customer took it, no more repair)?</p>
+          <button
+            type="button"
+            onClick={() => {
+              setResult("close");
+              setTimeout(() => document.getElementById("qc-result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }}
+            className="min-h-11 rounded-xl bg-slate-800 px-4 text-sm font-bold text-white active:scale-[0.98]"
+          >
+            ■ Close as failed
+          </button>
+        </div>
+      )}
       <Section n={1} title="Test again">
         <Field title="Technician(s) who did the rework *" hint="Change it if the workshop gave the job to another technician.">
           <TechnicianPicker options={options.technicians} value={technicians} onChange={setTechnicians} />
@@ -704,7 +720,7 @@ export function QcRetestForm({
           <ChecklistForm value={checklist} onChange={setChecklist} previous={lastChecklist ? { ...lastChecklist, repairType: repairType ?? "" } : null} />
         </Section>
       )}
-      <Section n={hasSheet ? 3 : 2} title="Result">
+      <Section id="qc-result" n={hasSheet ? 3 : 2} title="Result">
         <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} rca={rca} setRca={setRca} assignees={options.assignees} />
       </Section>
       <Section n={hasSheet ? 4 : 3} title="Files">

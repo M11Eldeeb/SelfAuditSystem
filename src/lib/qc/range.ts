@@ -11,9 +11,9 @@ export const QC_RANGES = [
 export type QcRangeKey = (typeof QC_RANGES)[number]["key"];
 export const DEFAULT_QC_RANGE: QcRangeKey = "1m";
 
-export function parseQcRange(value: string | string[] | undefined): QcRangeKey {
+export function parseQcRange(value: string | string[] | undefined, fallback: QcRangeKey = DEFAULT_QC_RANGE): QcRangeKey {
   const v = Array.isArray(value) ? value[0] : value;
-  return QC_RANGES.find((r) => r.key === v)?.key ?? DEFAULT_QC_RANGE;
+  return QC_RANGES.find((r) => r.key === v)?.key ?? fallback;
 }
 
 const KSA_OFFSET_MS = 3 * 3_600_000;

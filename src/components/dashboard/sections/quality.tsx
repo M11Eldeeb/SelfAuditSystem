@@ -16,7 +16,7 @@ export function QualitySection({ quality, recordsHref, showBranches }: { quality
           QC records ›
         </Link>
       </div>
-      <QcAnalysisView a={a} showBranches={showBranches} />
+      <QcAnalysisView a={a} showBranches={showBranches} recordsHref={recordsHref} />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { DeleteDraftButton } from "@/components/qc/delete-draft-button";
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" });
 
-export default async function QcHome({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
+export default async function QcHome({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; qc?: string }> }) {
   const user = await requireRole("quality_controller");
   const drafts = await listQcDrafts(user);
   return (

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { QcAnalysis, QcGroupRow } from "@/lib/qc/server";
 import { QC_RANGES, type QcRangeKey } from "@/lib/qc/range";
 import { purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
+import { QcCards } from "./qc-cards";
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" });
@@ -10,17 +11,6 @@ const dayName = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleString("en-GB"
 export function qcPeriodLabel(a: Pick<QcAnalysis, "startDay" | "endDay">): string {
   const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   return a.startDay ? `${f(a.startDay)} → ${f(a.endDay)}` : `all time, up to ${f(a.endDay)}`;
-}
-
-function Tile({ title, value, sub, tone = "neutral" }: { title: string; value: string; sub?: string; tone?: "neutral" | "good" | "bad" }) {
-  const color = tone === "good" ? "text-emerald-700" : tone === "bad" ? "text-red-700" : "text-neutral-900";
-  return (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
-      <div className="text-xs font-semibold text-neutral-500">{title}</div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-neutral-500">{sub}</div>}
-    </div>
-  );
 }
 
 /** Rows of one breakdown: vehicles, first-time pass rate (with a bar), fails, tests per vehicle. */
@@ -68,8 +58,8 @@ function Breakdown({ title, rows, label = (k) => k, perTest }: { title: string; 
 }
 
 /** The period buttons (1 week ... All time) as links: the quality controller's page. The dashboard has the same buttons in its own filter bar. */
-export function QcRangePills({ action, range, branches, branchId }: { action: string; range: QcRangeKey; branches?: { id: string; name: string }[]; branchId?: string }) {
-  const href = (key: string) => `${action}?qc=${key}${branchId ? `&branch=${branchId}` : ""}`;
+export function QcRangePills({ action, range, branches, branchId, extra = {} }: { action: string; range: QcRangeKey; branches?: { id: string; name: string }[]; branchId?: string; /** Other parameters of the page kept when the period changes (the records list: status, search). */ extra?: Record<string, string> }) {
+  const href = (key: string) => `${action}?${new URLSearchParams({ ...extra, ...(branchId ? { branch: branchId } : {}), qc: key })}`;
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-neutral-200/70">
       <div className="flex flex-wrap gap-1 rounded-xl bg-neutral-100 p-1">
@@ -82,6 +72,9 @@ export function QcRangePills({ action, range, branches, branchId }: { action: st
       {branches && (
         <form action={action} className="flex items-center gap-2">
           <input type="hidden" name="qc" value={range} />
+          {Object.entries(extra).map(([k, v]) => (
+            <input key={k} type="hidden" name={k} value={v} />
+          ))}
           <select name="branch" defaultValue={branchId ?? ""} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm">
             <option value="">All branches</option>
             {branches.map((b) => (
@@ -98,22 +91,11 @@ export function QcRangePills({ action, range, branches, branchId }: { action: st
 }
 
 /** Quality KPIs of the quality control department. */
-export function QcAnalysisView({ a, showBranches }: { a: QcAnalysis; showBranches?: boolean }) {
-  const ftpr = a.checks ? a.firstPass / a.checks : 0;
-  const comebacks = a.byPurpose.find((r) => r.key === "comeback")?.checks ?? 0;
+export function QcAnalysisView({ a, showBranches, recordsHref }: { a: QcAnalysis; showBranches?: boolean; /** Where one QC opens: recordsHref/<id>. */ recordsHref: string }) {
   const maxBucket = Math.max(1, ...a.buckets.map((m) => m.checks));
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile title="Vehicles checked" value={String(a.checks)} sub={`${a.tests} tests in all`} />
-        <Tile title="First-time pass rate" value={pct(a.firstPass, a.checks)} sub={`${a.firstPass} passed at the first test`} tone={!a.checks ? "neutral" : ftpr >= 0.9 ? "good" : "bad"} />
-        <Tile title="Fail rate (per test)" value={pct(a.failedTests, a.tests)} sub={`${a.failedTests} failed tests`} tone={a.failedTests ? "bad" : "neutral"} />
-        <Tile title="Tests per passed vehicle" value={a.avgAttemptsToPass != null ? a.avgAttemptsToPass.toFixed(2) : "—"} sub="1.00 = all right first time" />
-        <Tile title="Waiting for retest" value={String(a.waiting)} sub={`${a.waitingOver24h} for more than 24 h`} tone={a.waiting ? "bad" : "good"} />
-        <Tile title="Fixed after a fail" value={String(a.recovered)} sub="failed, then passed" />
-        <Tile title="Rework time (median)" value={a.medianReworkHours != null ? (a.medianReworkHours >= 24 ? `${(a.medianReworkHours / 24).toFixed(1)} d` : `${a.medianReworkHours.toFixed(1)} h`) : "—"} sub="from the fail to the pass" />
-        <Tile title="Comebacks" value={String(comebacks)} sub={`${pct(comebacks, a.checks)} of the vehicles checked`} tone={comebacks ? "bad" : "neutral"} />
-      </div>
+      <QcCards a={a} recordsHref={recordsHref} showBranches={!!showBranches} />
 
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200/70">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

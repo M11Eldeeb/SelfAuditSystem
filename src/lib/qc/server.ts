@@ -60,13 +60,17 @@ async function latestTests(ids: string[]): Promise<Map<string, TestRow>> {
   return out;
 }
 
-export async function listQc(user: CurrentUser, opts: { status?: string; q?: string; branchId?: string } = {}): Promise<QcSummary[]> {
+export async function listQc(user: CurrentUser, opts: { status?: string; q?: string; branchId?: string; range?: QcRangeKey } = {}): Promise<QcSummary[]> {
   const scope = qcBranchScope(user);
   let q = createAdminClient().from("self_audit_qc_checks").select("*").order("updated_at", { ascending: false }).limit(300);
   if (scope) q = q.eq("branch_id", scope);
   else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
   if (opts.status === "failed" || opts.status === "passed") q = q.eq("status", opts.status);
   else if (opts.status === "closed") q = q.in("status", ["passed", "closed"]);
+  else if (opts.status === "closed_failed") q = q.eq("status", "closed");
+  // The period (by the day the QC form was submitted), same buttons as the Quality Dashboard.
+  const since = opts.range ? qcRangeStart(opts.range)?.toISOString() : null;
+  if (since) q = q.gte("created_at", since);
   const term = opts.q?.trim().replace(/[^A-Za-z0-9 -]/g, "");
   if (term) q = q.or(`wip_no.ilike.%${term}%,qc_no.ilike.%${term}%,model.ilike.%${term}%${/^[A-Za-z0-9]{6,17}$/.test(term) ? `,vin.ilike.%${term}%` : ""}`);
   const [{ data }, names] = await Promise.all([q, branchNames()]);
@@ -93,16 +97,18 @@ export async function listQc(user: CurrentUser, opts: { status?: string; q?: str
   });
 }
 
-export async function countQc(user: CurrentUser): Promise<{ failed: number; closed: number }> {
+export async function countQc(user: CurrentUser, range?: QcRangeKey): Promise<{ failed: number; closed: number; closedFailed: number }> {
   const scope = qcBranchScope(user);
   const admin = createAdminClient();
   const count = async (status: ("failed" | "passed" | "closed")[]) => {
     let q = admin.from("self_audit_qc_checks").select("id", { count: "exact", head: true }).in("status", status);
+    const since = range ? qcRangeStart(range)?.toISOString() : null;
+    if (since) q = q.gte("created_at", since);
     if (scope) q = q.eq("branch_id", scope);
     return (await q).count ?? 0;
   };
-  const [failed, closed] = await Promise.all([count(["failed"]), count(["passed", "closed"])]);
-  return { failed, closed };
+  const [failed, closed, closedFailed] = await Promise.all([count(["failed"]), count(["passed", "closed"]), count(["closed"])]);
+  return { failed, closed, closedFailed };
 }
 
 export async function getQcDetail(user: CurrentUser, id: string): Promise<QcDetail | null> {
@@ -150,6 +156,30 @@ const shift = (m: string, n: number) => {
   return d.toISOString().slice(0, 7);
 };
 
+/** One work order (QC) of the analysis, for the list a card opens. */
+export type QcCheckBrief = {
+  id: string;
+  qcNo: string;
+  wip: string;
+  branch: string;
+  model: string | null;
+  purpose: string;
+  status: CheckRow["status"];
+  /** Tests done / of them failed. */
+  tests: number;
+  fails: number;
+  firstPass: boolean;
+  /** Failed at least once and is now passed. */
+  recovered: boolean;
+  /** Hours from the first fail to the pass (recovered ones). */
+  reworkHours: number | null;
+  /** Failed and waiting for a retest for more than 24 hours. */
+  waitingOver24h: boolean;
+  controller: string | null;
+  technicians: string[];
+  createdAt: string;
+  updatedAt: string;
+};
 export type QcGroupRow = { key: string; checks: number; firstPass: number; fails: number; tests: number };
 export type QcAnalysis = {
   range: QcRangeKey;
@@ -159,6 +189,8 @@ export type QcAnalysis = {
   checks: number;
   passed: number;
   waiting: number;
+  /** Cases closed as failed (no retest). */
+  closedFailed: number;
   tests: number;
   failedTests: number;
   firstPass: number;
@@ -180,6 +212,8 @@ export type QcAnalysis = {
   byBranch: QcGroupRow[];
   byController: QcGroupRow[];
   topFailReasons: { text: string; count: number }[];
+  /** Every work order of the period, for the lists the cards open. */
+  checkList: QcCheckBrief[];
 };
 
 /**
@@ -247,6 +281,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
   let passed = 0;
   let waitingOver24h = 0;
   const rework: number[] = [];
+  const checkList: QcCheckBrief[] = [];
   const reasons = new Map<string, number>();
   const now = Date.now();
 
@@ -257,6 +292,8 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
     const fails = list.filter((t) => t.result === "fail").length;
     if (fp) firstPass++;
     failedTests += fails;
+    let reworkHours: number | null = null;
+    const waitingLong = c.status === "failed" && now - Date.parse(c.updated_at) > 24 * 3_600_000;
     if (c.status === "passed") {
       passed++;
       attemptsToPass += list.length || 1;
@@ -264,7 +301,10 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
         recovered++;
         const firstFail = list.find((t) => t.result === "fail");
         const pass = list.find((t) => t.result === "pass");
-        if (firstFail && pass) rework.push((Date.parse(pass.created_at) - Date.parse(firstFail.created_at)) / 3_600_000);
+        if (firstFail && pass) {
+          reworkHours = (Date.parse(pass.created_at) - Date.parse(firstFail.created_at)) / 3_600_000;
+          rework.push(reworkHours);
+        }
       }
     } else if (c.status === "failed" && now - Date.parse(c.updated_at) > 24 * 3_600_000) waitingOver24h++;
     for (const t of list) if (t.result === "fail" && t.comment) {
@@ -301,6 +341,25 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
         }
       }
     }
+    checkList.push({
+      id: c.id,
+      qcNo: c.qc_no,
+      wip: c.wip_no,
+      branch: names.get(c.branch_id) ?? "—",
+      model: c.model,
+      purpose: c.purpose,
+      status: c.status,
+      tests: list.length,
+      fails,
+      firstPass: fp,
+      recovered: c.status === "passed" && fails > 0,
+      reworkHours,
+      waitingOver24h: waitingLong,
+      controller: c.controller_name,
+      technicians: (list[list.length - 1]?.technicians ?? []).map((x) => x.name),
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+    });
     const m = buckets.get(bucketKey(ksaDayOf(c.created_at)));
     if (m) {
       m.checks++;
@@ -318,6 +377,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
     checks: checks.length,
     passed,
     waiting: checks.filter((c) => c.status === "failed").length,
+    closedFailed: checks.filter((c) => c.status === "closed").length,
     tests: tests.length,
     failedTests,
     firstPass,
@@ -335,6 +395,7 @@ export async function getQcAnalysis(user: CurrentUser, opts: { range: QcRangeKey
     byAdvisor: sorted(groups.advisor),
     byBranch: sorted(groups.branch),
     byController: sorted(groups.controller),
+    checkList,
     topFailReasons: [...reasons.entries()].map(([text, count]) => ({ text, count })).sort((a, b) => b.count - a.count).slice(0, 10),
   };
 }

@@ -372,7 +372,8 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     if (check.status !== "failed") return { error: "This case is closed already." };
     const r = await cleanResult(input, branch.id, check.odometer_in);
     if ("error" in r) return { error: r.error };
-    const sheetCheck = checkedSheet(input.checklist, check.repair_type);
+    // Closing the case as failed (no retest) does not need the inspection sheet: what was answered is kept.
+    const sheetCheck = input.result === "close" ? { sheet: cleanChecklist(input.checklist, check.repair_type ?? "") } : checkedSheet(input.checklist, check.repair_type);
     if ("error" in sheetCheck) return { error: sheetCheck.error };
     const admin = createAdminClient();
     const attempt = check.attempts + 1;
