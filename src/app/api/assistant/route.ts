@@ -5,7 +5,10 @@ import { TOOLS, runTool, type Proposal, type ResultTable } from "@/lib/assistant
 
 export const maxDuration = 120;
 
-const MODEL = "claude-sonnet-5-5";
+// Claude Haiku 5.5 by default (fast and about 20x cheaper); ASSISTANT_MODEL=claude-sonnet-5-5 for the stronger model.
+const MODEL = process.env.ASSISTANT_MODEL || "claude-haiku-5-5";
+// Server-side fallback exists for Sonnet, not for Haiku.
+const FALLBACK = MODEL.startsWith("claude-sonnet") ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {};
 const MAX_STEPS = 8;
 
 const SYSTEM = `You are MG Co-Pilot, the MG portal assistant for Jiad Modern Motors (MG after-sales, Saudi Arabia). You help warranty officers, the national manager and service managers with questions about their branches: open WIPs (job cards), warranty claims and KPIs, complaints, courtesy cars and agreements, the customer queue, appointments and technician claims.
@@ -63,8 +66,7 @@ export async function POST(req: Request) {
       const res = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 8000,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+        ...FALLBACK,
         thinking: { type: "adaptive" },
         output_config: { effort: "medium" },
         system,
