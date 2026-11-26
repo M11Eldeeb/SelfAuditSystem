@@ -30,6 +30,7 @@ type Turn = { role: "user" | "assistant"; text: string };
 export async function POST(req: Request) {
   const au = await assistantUser();
   if (!au) return Response.json({ error: "The assistant is for warranty officers, the national manager and service managers." }, { status: 403 });
+  if (process.env.NEXT_PUBLIC_ASSISTANT_LIVE !== "1") return Response.json({ error: "MG Co-Pilot is coming soon." }, { status: 503 });
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "The assistant is not set up (no API key)." }, { status: 500 });
 
   const body = (await req.json().catch(() => null)) as { history?: Turn[]; message?: string } | null;

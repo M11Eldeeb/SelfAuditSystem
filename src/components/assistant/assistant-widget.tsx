@@ -8,6 +8,8 @@ type Proposal = { token: string; summary: string; state?: "running" | "done" | "
 type Msg = { role: "user" | "assistant"; text: string; tables?: Table[]; proposals?: Proposal[]; error?: boolean };
 
 const STORE = "mg-assistant-chat";
+// Until the API key is in place the button shows "Coming soon". Set NEXT_PUBLIC_ASSISTANT_LIVE=1 in Vercel and redeploy to switch it on.
+const LIVE = process.env.NEXT_PUBLIC_ASSISTANT_LIVE === "1";
 const SUGGESTIONS = [
   "How many open WIPs per branch, and which are older than 30 days?",
   "Which courtesy cars are overdue?",
@@ -190,7 +192,8 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
             <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
             <path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
           </svg>
-          Ask MG Co-Pilot
+          {LIVE ? "Ask MG Co-Pilot" : "MG Co-Pilot"}
+          {!LIVE && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Soon</span>}
         </button>
       )}
 
@@ -210,7 +213,17 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
           </div>
 
           <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 text-sm text-neutral-800">
-            {msgs.length === 0 && (
+            {!LIVE && (
+              <div className="px-1 pt-6 text-center">
+                <p className="text-3xl">🚀</p>
+                <p className="mt-2 text-base font-semibold text-neutral-900">Coming soon</p>
+                <p className="mt-1 text-[13px] text-neutral-600">Hello {firstName}! MG Co-Pilot will soon answer your questions about open WIPs, warranty KPIs, complaints, courtesy cars, the customer queue and technician claims, in English or Arabic, and make reports you can download.</p>
+                <p dir="rtl" className="mt-4 text-base font-semibold text-neutral-900">قريباً</p>
+                <p dir="rtl" className="mt-1 text-[13px] text-neutral-600">مساعد إم جي سيجيب قريباً على أسئلتك عن أوامر العمل المفتوحة، مؤشرات الضمان، الشكاوى، السيارات البديلة، نظام انتظار العملاء ومطالبات الفنيين، بالعربية أو الإنجليزية، ويجهز لك تقارير قابلة للتحميل.</p>
+              </div>
+            )}
+
+            {LIVE && msgs.length === 0 && (
               <div className="px-1 pt-2">
                 <p className="font-semibold text-neutral-900">Hello {firstName}, I&apos;m your MG Co-Pilot 👋</p>
                 <p className="mt-1 text-[13px] text-neutral-600">Ask about open WIPs, warranty KPIs, complaints, courtesy cars, the customer queue or technician claims. I can also make a list you can download, or prepare a change for you to confirm.</p>
@@ -262,7 +275,7 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
             <div ref={end} />
           </div>
 
-          <form
+          {LIVE && <form
             onSubmit={(e) => { e.preventDefault(); send(input); }}
             className="flex items-end gap-2 border-t border-neutral-200 bg-white p-2.5"
           >
@@ -280,8 +293,8 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
             <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-dark disabled:opacity-40">
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
-          </form>
-          <p className="bg-white px-3 pb-2 text-center text-[10px] text-neutral-400">Answers come from the portal data; check important figures before you act on them.</p>
+          </form>}
+          {LIVE && <p className="bg-white px-3 pb-2 text-center text-[10px] text-neutral-400">Answers come from the portal data; check important figures before you act on them.</p>}
         </div>
       )}
     </div>
