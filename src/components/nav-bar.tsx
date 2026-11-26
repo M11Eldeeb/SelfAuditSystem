@@ -10,6 +10,7 @@ import { SettingsMenu } from "@/components/settings-menu";
 import { NavList, type NavLink } from "@/components/nav-menu";
 import { DeptSidebar } from "@/components/rail/dept-sidebar";
 import { DashboardBar } from "@/components/rail/dashboard-bar";
+import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { SIDEBAR_KEY } from "@/lib/site";
 import { homeHrefFor } from "@/lib/home/layout";
 import type { RailKpi } from "@/lib/rail";
@@ -317,6 +318,12 @@ export function NavBar({
 
       {/* On a dashboard: pick the department, then the dashboard. */}
       {kpis && kpis.length > 1 && <DashboardBar kpis={kpis} />}
+
+      {/* The portal assistant (chat): warranty officers, the national manager and service managers. */}
+      {!user.must_change_password &&
+        ((user.role === "officer" && user.managerKind !== "manager") || user.role === "national_manager" || user.role === "service_manager" || user.managerKind === "service_manager") && (
+          <AssistantWidget firstName={(user.full_name ?? user.email).split(/[\s@.]/)[0]} />
+        )}
 
       {/* Phone / tablet drawer: always mounted so it can animate both in and out; inert while closed keeps it out of tab
           order and from assistive tech. It sits outside <header> on purpose: the header's backdrop-filter would
