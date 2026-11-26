@@ -89,6 +89,7 @@ const ROLE_LABEL: Record<string, string> = {
   service_advisor: "Service advisor",
   queue_user: "Queue",
   quality_controller: "Quality controller",
+  quality_supervisor: "Quality supervisor",
 };
 
 export function NavBar({

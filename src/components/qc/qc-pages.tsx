@@ -5,6 +5,12 @@ import { countQc, getQcAnalysis, getQcDetail, listQc, qcBranchScope } from "@/li
 import { parseQcRange } from "@/lib/qc/range";
 import { QcDetailView, QcList, QcTabs } from "./qc-views";
 import { QcAnalysisView, QcRangePills, qcPeriodLabel } from "./qc-analysis";
+import { canCommentOnQc, listQcComments, qcExportMarks, type QcExportMark } from "@/lib/qc/supervisor";
+import { QcComments } from "./qc-comments";
+import { ExportedPill, QcExportButton } from "./qc-export";
+
+const exportedTitle = (m: QcExportMark) =>
+  `${m.format === "pdf" ? "PDF" : "Excel"} by ${m.by ?? "—"}, ${new Date(m.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })}`;
 
 // The QC pages every viewer shares: the records list, one QC and the analysis. `base` is the page, e.g. /audit/quality-control.
 
@@ -30,6 +36,12 @@ export async function QcListPage({ user, base, params, newHref }: { user: Curren
   const moreParams = new URLSearchParams({ ...listParams, status, more: "1" });
   if (params.q) moreParams.set("q", params.q);
   const moreHref = !more && found.length > SHORT_LIST ? `${base}?${moreParams.toString()}` : undefined;
+  // The quality supervisor exports the reports: the list marks the ones exported already.
+  const supervisor = user.role === "quality_supervisor";
+  const marks = supervisor ? await qcExportMarks(rows.map((r) => r.id)) : null;
+  const exported = marks ? Object.fromEntries([...marks].map(([id, m]) => [id, exportedTitle(m)])) : undefined;
+  const exportParams = new URLSearchParams({ ...listParams, status });
+  if (params.q) exportParams.set("q", params.q);
   const tabs = [
     { key: "failed", label: "Waiting for retest", count: counts.failed },
     { key: "closed", label: "Closed", count: counts.closed },
@@ -56,7 +68,14 @@ export async function QcListPage({ user, base, params, newHref }: { user: Curren
           <button className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700">Show</button>
         </form>
       )}
-      <QcList base={base} rows={rows} tabs={tabs} active={status} q={params.q} showBranch={all} extraParams={listParams} moreHref={moreHref} />
+      {supervisor && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-neutral-200/70">
+          <span className="me-1 text-sm font-semibold text-neutral-700">Export this list (Excel):</span>
+          <QcExportButton href={`/api/qc/excel?${exportParams.toString()}&new=1`} label="Not exported yet" primary />
+          <QcExportButton href={`/api/qc/excel?${exportParams.toString()}`} label="All" />
+        </div>
+      )}
+      <QcList base={base} rows={rows} tabs={tabs} active={status} q={params.q} showBranch={all} extraParams={listParams} moreHref={moreHref} exported={exported} />
     </div>
   );
 }
@@ -64,7 +83,27 @@ export async function QcListPage({ user, base, params, newHref }: { user: Curren
 export async function QcDetailPage({ user, base, id, retest }: { user: CurrentUser; base: string; id: string; retest?: (qc: NonNullable<Awaited<ReturnType<typeof getQcDetail>>>) => React.ReactNode }) {
   const qc = await getQcDetail(user, id);
   if (!qc) notFound();
-  return <QcDetailView qc={qc} back={base} retest={retest?.(qc)} />;
+  const supervisor = user.role === "quality_supervisor";
+  const [comments, marks] = await Promise.all([listQcComments(qc.id), supervisor ? qcExportMarks([qc.id]) : Promise.resolve(null)]);
+  const mark = marks?.get(qc.id);
+  return (
+    <div className="space-y-4">
+      {supervisor && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-neutral-200/70">
+          <span className="me-1 text-sm font-semibold text-neutral-700">Export this report:</span>
+          <QcExportButton href={`/api/qc/report/${qc.id}?download=1`} label="PDF" primary />
+          <QcExportButton href={`/api/qc/excel/${qc.id}`} label="Excel" />
+          {mark && (
+            <span className="flex items-center gap-2 text-xs text-neutral-500">
+              <ExportedPill title={exportedTitle(mark)} /> {exportedTitle(mark)}
+            </span>
+          )}
+        </div>
+      )}
+      <QcDetailView qc={qc} back={base} retest={retest?.(qc)} />
+      <QcComments checkId={qc.id} comments={comments} canComment={canCommentOnQc(user)} />
+    </div>
+  );
 }
 
 export async function QcAnalysisPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { qc?: string; branch?: string }; newHref?: string }) {

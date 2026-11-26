@@ -4,6 +4,7 @@ import type { QcDetail, QcSummary } from "@/lib/qc/server";
 import { ASSIGNEE_ROLE_LABEL, purposeLabel, repairTypeLabel } from "@/lib/qc/constants";
 import { fmtDateTime } from "@/components/tech-claims/status";
 import { TechClaimFileGallery } from "@/components/tech-claims/file-gallery";
+import { ExportedPill } from "./qc-export";
 import { BRAKE_MEASURES, MARK_LABEL, WHEELS, sectionsFor, sheetTitle, type Checklist, type Mark } from "@/lib/qc/checklist";
 
 const MARK_TONE: Record<Mark, string> = { G: "text-emerald-700", I: "text-amber-700", R: "text-red-700 font-semibold", NA: "text-neutral-500" };
@@ -67,6 +68,7 @@ const QUALITY_DASHBOARD: Record<string, string> = {
   "/admin/quality-control": "/admin/dashboard?tab=quality",
   "/audit/quality-control": "/audit/dashboard?tab=quality",
   "/workshop/quality-control": "/workshop/dashboard?tab=quality",
+  "/qs/reports": "/qs",
 };
 
 export function QcTabs({ base, active, newHref }: { base: string; active: "list" | "analysis"; newHref?: string }) {
@@ -99,6 +101,7 @@ export function QcList({
   showBranch,
   extraParams = {},
   moreHref,
+  exported,
 }: {
   base: string;
   rows: QcSummary[];
@@ -109,6 +112,8 @@ export function QcList({
   extraParams?: Record<string, string>;
   /** Set when only the latest records are shown: the link that lists them all. */
   moreHref?: string;
+  /** The quality supervisor's list: the reports exported already (id: who and when). */
+  exported?: Record<string, string>;
 }) {
   const href = (status: string) => {
     const p = new URLSearchParams({ ...extraParams, status });
@@ -145,7 +150,10 @@ export function QcList({
                     <span className="text-sm text-neutral-600">WIP {r.wip}</span>
                     <span className="text-xs text-neutral-500">{purposeLabel(r.purpose)}</span>
                   </div>
-                  <QcStatusPill status={r.status} attempts={r.attempts} />
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {exported?.[r.id] && <ExportedPill title={exported[r.id]} />}
+                    <QcStatusPill status={r.status} attempts={r.attempts} />
+                  </span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
                   {r.model && <span>{r.model}</span>}

@@ -105,7 +105,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
   if (role === "queue_user" && !queueRole) return { error: "Choose what this person does in the customer queue." };
 
   const WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor", "quality_controller"];
-  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "data_analyst" && role !== "technical" && role !== "queue_user" && !WORKSHOP_ROLES.includes(role))) {
+  if (!email || (role !== "officer" && role !== "manager" && role !== "national_manager" && role !== "data_analyst" && role !== "technical" && role !== "queue_user" && role !== "quality_supervisor" && !WORKSHOP_ROLES.includes(role))) {
     return { error: "Email and a valid role are required." };
   }
   if (WORKSHOP_ROLES.includes(role) && !branchId) {
@@ -130,7 +130,7 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     id: created.user.id,
     email,
     full_name: fullName || null,
-    role: role as "officer" | "manager" | "national_manager" | "data_analyst" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "queue_user",
+    role: role as "officer" | "manager" | "national_manager" | "data_analyst" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "quality_supervisor" | "queue_user",
     // A queue-only account may have no branch (head office queue manager / parts staff).
     branch_id: WORKSHOP_ROLES.includes(role) || (role === "queue_user" && branchId) ? branchId : null,
     queue_role: queueRole,
@@ -253,7 +253,7 @@ export async function sendWelcomeToAllNew(): Promise<{ sent: string[]; failed: {
 }
 
 const EDIT_WORKSHOP_ROLES = ["branch_admin", "workshop_supervisor", "team_leader", "service_manager", "technician", "claims_reviewer", "service_advisor", "quality_controller"];
-const EDIT_ALL_ROLES = [...EDIT_WORKSHOP_ROLES, "officer", "manager", "national_manager", "data_analyst", "technical", "queue_user"];
+const EDIT_ALL_ROLES = [...EDIT_WORKSHOP_ROLES, "officer", "manager", "national_manager", "data_analyst", "technical", "queue_user", "quality_supervisor"];
 
 /**
  * Change an account after it was made: name, role, customer queue access, branch and view-all access. A role that works
@@ -465,6 +465,7 @@ const ROLE_NAMES: Record<string, string> = {
   service_advisor: "Service advisor",
   queue_user: "Queue only",
   quality_controller: "Quality controller",
+  quality_supervisor: "Quality supervisor (QC of all branches)",
   technician: "Technician",
 };
 

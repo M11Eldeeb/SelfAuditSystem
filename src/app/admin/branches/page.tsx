@@ -32,6 +32,7 @@ const ROLE_LABEL: Record<string, string> = {
   claims_reviewer: "Technician claims reviewer",
   service_advisor: "Service advisor",
   quality_controller: "Quality controller",
+  quality_supervisor: "Quality supervisor",
   queue_user: "Queue only",
   branch_admin: "Branch admin",
 };

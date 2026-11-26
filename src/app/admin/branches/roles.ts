@@ -13,6 +13,7 @@ export const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "claims_reviewer", label: "Technician claims reviewer" },
   { value: "service_advisor", label: "Service advisor" },
   { value: "quality_controller", label: "Quality controller" },
+  { value: "quality_supervisor", label: "Quality supervisor (QC of all branches)" },
   { value: "queue_user", label: "Customer queue only (e.g. parts advisor, reception)" },
 ];
 

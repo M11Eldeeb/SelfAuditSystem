@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getQcDetail } from "@/lib/qc/server";
 import { renderQcReport } from "@/lib/qc/pdf";
+import { recordQcExport } from "@/lib/qc/supervisor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,6 +17,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const bytes = await renderQcReport(qc);
   const name = `${qc.qc_no} - ${qc.wip_no} - QC report.pdf`;
   const download = new URL(request.url).searchParams.get("download") === "1";
+  // A download (not a look in the browser) by the quality supervisor marks the report as exported.
+  if (download) await recordQcExport(user, [qc.id], "pdf");
   return new NextResponse(bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",

@@ -2,7 +2,7 @@
 // Once the Supabase project exists, prefer regenerating this with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/types.ts
 
-export type UserRole = "officer" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "manager" | "national_manager" | "data_analyst" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "queue_user";
+export type UserRole = "officer" | "branch_admin" | "technical" | "workshop_supervisor" | "team_leader" | "service_manager" | "manager" | "national_manager" | "data_analyst" | "technician" | "claims_reviewer" | "service_advisor" | "quality_controller" | "quality_supervisor" | "queue_user";
 /** What a person does in the customer queue, beside the portal role. */
 export type QueueRole = "advisor" | "parts_advisor" | "manager";
 export type CycleStatus = "draft" | "open" | "completed";
@@ -152,6 +152,18 @@ export interface Database {
         Row: { id: string; branch_id: string; name: string; created_at: string };
         Insert: { id?: string; branch_id: string; name: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["self_audit_qc_extra_technicians"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_exports: {
+        Row: { id: string; check_id: string; user_id: string | null; user_name: string | null; format: "pdf" | "excel"; exported_at: string };
+        Insert: { id?: string; check_id: string; user_id?: string | null; user_name?: string | null; format: "pdf" | "excel"; exported_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_exports"]["Insert"]>;
+        Relationships: [];
+      };
+      self_audit_qc_comments: {
+        Row: { id: string; check_id: string; author_id: string | null; author_name: string | null; author_role: string | null; body: string; created_at: string };
+        Insert: { id?: string; check_id: string; author_id?: string | null; author_name?: string | null; author_role?: string | null; body: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["self_audit_qc_comments"]["Insert"]>;
         Relationships: [];
       };
       self_audit_tech_upload_problems: {

@@ -56,7 +56,8 @@ function keyFor(href: string, label: string): string {
   }
   if (h === "/technician" || l === "my claims") return "list";
   if (h.endsWith("/query")) return "query";
-  if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || l === "qc records") return "quality";
+  if (h === "/qs") return "dashboard";
+  if (h.includes("quality-control") || h === "/qc" || h.startsWith("/qc/analysis") || h === "/qs/reports" || l === "qc records") return "quality";
   if (h.includes("/msi")) return "results";
   if (h.includes("dashboard") || h.includes("sub-dealer")) return "dashboard";
   if (h.includes("schedule")) return "schedule";
