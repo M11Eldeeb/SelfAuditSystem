@@ -183,14 +183,14 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Open MAX, the MG portal assistant"
+          aria-label="Open Morris, the MG portal assistant"
           className="fixed bottom-5 end-5 z-50 flex items-center gap-2 rounded-full bg-brand py-3 ps-3.5 pe-4 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-dark hover:shadow-xl"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
             <path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
           </svg>
-          Ask MAX
+          Ask Morris
         </button>
       )}
 
@@ -198,8 +198,8 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
         <div className="fixed inset-x-2 bottom-2 top-16 z-50 flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 shadow-2xl shadow-black/25 sm:inset-x-auto sm:end-5 sm:bottom-5 sm:top-auto sm:h-[min(640px,calc(100vh-6rem))] sm:w-[420px]">
           <div className="flex items-center gap-2 bg-brand-ink px-4 py-3 text-white">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">MAX <span className="font-normal text-white/60">· MG portal assistant</span></p>
-              <p className="truncate text-[11px] text-white/60">Mostafa + Ahmad eXpert · English or Arabic</p>
+              <p className="text-sm font-semibold">Morris <span className="font-normal text-white/60">· MG portal assistant</span></p>
+              <p className="truncate text-[11px] text-white/60">Named after Morris Garages, where MG began · English or Arabic</p>
             </div>
             {msgs.length > 0 && (
               <button type="button" onClick={() => setMsgs([])} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10 disabled:opacity-40">New chat</button>
@@ -212,7 +212,7 @@ export function AssistantWidget({ firstName }: { firstName: string }) {
           <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 text-sm text-neutral-800">
             {msgs.length === 0 && (
               <div className="px-1 pt-2">
-                <p className="font-semibold text-neutral-900">Hello {firstName}, I&apos;m MAX 👋</p>
+                <p className="font-semibold text-neutral-900">Hello {firstName}, I&apos;m Morris 👋</p>
                 <p className="mt-1 text-[13px] text-neutral-600">Ask about open WIPs, warranty KPIs, complaints, courtesy cars, the customer queue or technician claims. I can also make a list you can download, or prepare a change for you to confirm.</p>
                 <div className="mt-3 space-y-1.5">
                   {SUGGESTIONS.map((s) => (
