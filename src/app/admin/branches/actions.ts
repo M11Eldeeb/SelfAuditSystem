@@ -8,6 +8,7 @@ import { generateTempPassword } from "@/lib/temp-password";
 import { compareUsers } from "@/lib/user-roles";
 import { getsCourtesyWelcome, sendCourtesyWelcome, signedInIds, welcomeSentMap } from "@/lib/courtesy/welcome-mail";
 import { siteOrigin } from "@/lib/site-origin";
+import { QC_WELCOME_KIND, sendQcWelcome } from "@/lib/qc/welcome-mail";
 
 export type ActionState = { error?: string; success?: string; tempPassword?: string } | undefined;
 
@@ -186,6 +187,26 @@ async function welcomeOne(u: WelcomeUser, me: { id: string; full_name: string | 
   return sent.ok ? { ok: true as const } : { ok: false as const, error: sent.error, tempPassword };
 }
 
+/** A quality controller: a new temporary password (chosen again at the next sign-in), sent with the QC guide. */
+async function qcWelcomeOne(u: WelcomeUser & { branch_id: string | null }, me: { id: string; full_name: string | null }, site: string) {
+  const admin = createAdminClient();
+  const { data: branch } = u.branch_id ? await admin.from("self_audit_branches").select("name").eq("id", u.branch_id).maybeSingle() : { data: null };
+  const tempPassword = generateTempPassword();
+  const { error } = await admin.auth.admin.updateUserById(u.id, { password: tempPassword });
+  if (error) return { ok: false as const, error: error.message };
+  await admin.from("self_audit_users").update({ must_change_password: true }).eq("id", u.id);
+  const sent = await sendQcWelcome({
+    name: u.full_name?.trim() || u.email.split("@")[0],
+    email: u.email,
+    tempPassword,
+    branch: branch?.name ?? "your branch",
+    senderName: me.full_name?.trim() || "Warranty Team",
+    site,
+    sentBy: me.id,
+  }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : "Could not send." }));
+  return sent.ok ? { ok: true as const } : { ok: false as const, error: sent.error, tempPassword };
+}
+
 /**
  * The welcome e-mail for an account made before it existed (or whose e-mail failed): once per account. A new temporary
  * password is set and sent in it. Service advisors and the reception team only.
@@ -195,11 +216,12 @@ export async function sendWelcomeEmail(_prev: ActionState, formData: FormData): 
   if (me.viewOnly) return { error: "View only." };
   const userId = String(formData.get("user_id") ?? "");
   if (!userId) return { error: "Missing user." };
-  const { data: u } = await createAdminClient().from("self_audit_users").select("id, email, full_name, role, queue_role").eq("id", userId).maybeSingle();
+  const { data: u } = await createAdminClient().from("self_audit_users").select("id, email, full_name, role, queue_role, branch_id").eq("id", userId).maybeSingle();
   if (!u) return { error: "Account not found." };
-  if (!getsCourtesyWelcome(u.role, u.queue_role)) return { error: "Only for service advisors and the reception team." };
-  if ((await welcomeSentMap()).has(u.email.toLowerCase())) return { error: "The welcome e-mail was already sent to this account." };
-  const r = await welcomeOne(u, me, await siteOrigin());
+  const qc = u.role === "quality_controller";
+  if (!qc && !getsCourtesyWelcome(u.role, u.queue_role)) return { error: "Only for service advisors, the reception team and quality controllers." };
+  if ((await welcomeSentMap(qc ? QC_WELCOME_KIND : undefined)).has(u.email.toLowerCase())) return { error: "The welcome e-mail was already sent to this account." };
+  const r = qc ? await qcWelcomeOne(u, me, await siteOrigin()) : await welcomeOne(u, me, await siteOrigin());
   revalidatePath("/admin/branches");
   if (!r.ok) return { error: `The password was changed but the e-mail could not be sent (${r.error}).`, tempPassword: r.tempPassword };
   return { success: `Welcome e-mail sent to ${u.email}.` };

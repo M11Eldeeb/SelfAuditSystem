@@ -107,15 +107,18 @@ export async function sendCourtesyWelcome(o: { name: string; email: string; temp
 /** Who gets the welcome e-mail: service advisors and the reception team (queue advisors and reception managers). */
 export const getsCourtesyWelcome = (role: string, queueRole: string | null) => role === "service_advisor" || (role === "queue_user" && (queueRole === "advisor" || queueRole === "manager"));
 
-/** Who already got the welcome e-mail (from the portal's e-mail log): e-mail -> when it was sent. Each account gets it once. */
-export async function welcomeSentMap(): Promise<Map<string, string>> {
+/**
+ * Who already got the welcome e-mail (from the portal's e-mail log): e-mail -> when it was sent. Each account gets it once.
+ * `kind`: the Courtesy Cars welcome (default) or the quality controller's ("qc-welcome").
+ */
+export async function welcomeSentMap(kind: string = "courtesy-welcome"): Promise<Map<string, string>> {
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const out = new Map<string, string>();
   for (let from = 0; ; from += 1000) {
     const { data } = await createAdminClient()
       .from("self_audit_email_log")
       .select("recipients, sent_at")
-      .eq("kind", "courtesy-welcome")
+      .eq("kind", kind)
       .eq("status", "sent")
       .order("sent_at")
       .range(from, from + 999);
