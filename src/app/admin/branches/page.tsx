@@ -6,18 +6,11 @@ import { UserForm } from "./user-form";
 import { TechnicianImport } from "./technician-import";
 import { ExportUsersButton } from "./export-users";
 import { ResetPasswordButton } from "./reset-password-button";
-import { WelcomeEmailButton } from "./welcome-email-button";
-import { getsCourtesyWelcome, signedInIds, welcomeSentMap } from "@/lib/courtesy/welcome-mail";
-import { QC_WELCOME_KIND } from "@/lib/qc/welcome-mail";
-import { WelcomeAllButton } from "./welcome-all-button";
 import { EditUserButton } from "./edit-user-button";
 import { BranchRow } from "./branch-row";
 import { DeleteUserButton } from "./delete-user-button";
 import { compareUsers } from "@/lib/user-roles";
 import { UserFolders, type UserFolder } from "./user-folders";
-
-// Sending the welcome e-mail to many new accounts at once takes a while.
-export const maxDuration = 60;
 
 const ROLE_LABEL: Record<string, string> = {
   officer: "Warranty officer",
@@ -38,21 +31,13 @@ const ROLE_LABEL: Record<string, string> = {
 };
 const roleLabel = (role: string) => ROLE_LABEL[role] ?? "Branch admin";
 
-const sentOn = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Riyadh" });
-
 export default async function BranchesPage() {
   const [currentUser, supabase] = await Promise.all([getCurrentUser(), createClient()]);
 
-  const [{ data: branches }, { data: users }, courtesySent, signedIn, qcSent] = await Promise.all([
+  const [{ data: branches }, { data: users }] = await Promise.all([
     supabase.from("self_audit_branches").select("*").order("name"),
     supabase.from("self_audit_users").select("*").order("email"),
-    welcomeSentMap(),
-    signedInIds(),
-    welcomeSentMap(QC_WELCOME_KIND),
   ]);
-  const welcomeSent = courtesySent;
-  // New service advisor / reception accounts still waiting for the welcome e-mail (never signed in).
-  const welcomeWaiting = (users ?? []).filter((u) => getsCourtesyWelcome(u.role, u.queue_role) && !welcomeSent.has(u.email.toLowerCase()) && !signedIn.has(u.id)).length;
 
   const branchList = branches ?? [];
   const branchNameById = new Map(branchList.map((b) => [b.id, b.name]));
@@ -99,14 +84,6 @@ export default async function BranchesPage() {
                 </Link>
               ) : (
                 <>
-                  {(getsCourtesyWelcome(u.role, u.queue_role) || u.role === "quality_controller") &&
-                    ((u.role === "quality_controller" ? qcSent : welcomeSent).has(u.email.toLowerCase()) ? (
-                      <span className="text-xs text-emerald-700" title="The welcome e-mail is sent once per account">
-                        ✓ Welcome e-mail sent {sentOn((u.role === "quality_controller" ? qcSent : welcomeSent).get(u.email.toLowerCase())!)}
-                      </span>
-                    ) : (
-                      <WelcomeEmailButton userId={u.id} email={u.email} />
-                    ))}
                   <ResetPasswordButton userId={u.id} email={u.email} />
                   <DeleteUserButton userId={u.id} email={u.email} />
                 </>
@@ -159,7 +136,6 @@ export default async function BranchesPage() {
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <UserForm branches={branchList.filter((b) => b.active)} />
         </div>
-        <WelcomeAllButton count={welcomeWaiting} />
         <div className="rounded-xl border border-neutral-200/70 bg-white shadow-sm p-4">
           <TechnicianImport />
         </div>
