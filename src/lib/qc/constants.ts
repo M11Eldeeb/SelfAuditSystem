@@ -83,8 +83,6 @@ export const QC_REPAIR_TYPES = [
 ] as const;
 export type QcRepairType = (typeof QC_REPAIR_TYPES)[number]["key"];
 
-/** For now a fixed list - each team leader gets an account later. (The service advisor is not picked: it comes from the reports.) */
-export const QC_TEAM_LEADERS = ["Yousef Hamed", "Ahmad Khalil"];
 
 export const purposeLabel = (k: string | null | undefined) => QC_PURPOSES.find((p) => p.key === k)?.label ?? k ?? "—";
 export const repairTypeLabel = (k: string | null | undefined) => QC_REPAIR_TYPES.find((p) => p.key === k)?.label ?? k ?? "—";

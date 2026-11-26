@@ -9,7 +9,7 @@ import { DocsError, getDocsConnection, startDocsUpload } from "@/lib/documents/d
 import { driveFileInfo, ensureWipSubFolder, moveDriveFile, trashDriveFile } from "@/lib/tech-claims/drive";
 import { cleanChecklist, unanswered, type Checklist } from "@/lib/qc/checklist";
 import { cleanOperator, fillMissingQcVins } from "@/lib/qc/fill-vins";
-import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_TEAM_LEADERS, QC_WHYS, modelFromText, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
+import { QC_MAX_FILES, QC_MAX_FILE_BYTES, QC_MODEL_BY_CODE, QC_PURPOSE_GROUPS, QC_REPAIR_TYPES, QC_WHYS, modelFromText, rcaMissing, type QcAssignee, type QcRca, type QcTechnician } from "@/lib/qc/constants";
 
 const PATHS = ["/qc", "/admin/quality-control", "/audit/quality-control", "/workshop/quality-control"];
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p, "layout"));
@@ -72,7 +72,9 @@ export async function qcFormOptions(): Promise<QcFormOptions> {
   // The model names (MG RX5, not the batch code AS22). A fixed list: reading the codes from the claims batches took
   // seconds on every page.
   const names = [...new Set(Object.values(QC_MODEL_BY_CODE))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-  return { technicians: [...accounts, ...added], models: names, teamLeaders: QC_TEAM_LEADERS, branchCode: branch.code ?? "", assignees };
+  // The team leaders are the team leader accounts of the controller's own branch ("Other" types a name not in the list).
+  const teamLeaders = assignees.filter((a) => a.role === "team_leader").map((a) => a.name);
+  return { technicians: [...accounts, ...added], models: names, teamLeaders, branchCode: branch.code ?? "", assignees };
 }
 
 /** Quality controller: a technician without an account, kept for his branch's next QCs. */
@@ -227,9 +229,9 @@ const num = (s: string) => {
 
 /** The pass / fail part (shared by a new QC and a test again). */
 async function cleanResult(input: QcResultInput, branchId: string, odometerIn: number | null) {
-  if (input.result !== "pass" && input.result !== "fail" && input.result !== "close") return { error: "Choose Pass, Fail or Close as Fail." };
+  if (input.result !== "pass" && input.result !== "fail" && input.result !== "close") return { error: "Choose Pass, Rework or Close as Fail." };
   const comment = input.comment.trim().slice(0, 4000) || null;
-  if (input.result === "fail" && !comment) return { error: "Write why the vehicle failed." };
+  if (input.result === "fail" && !comment) return { error: "Write what must be reworked." };
   if (input.result === "close" && !comment) return { error: "Write why the case is closed as failed." };
   const finalOdometer = num(input.finalOdometer);
   if (finalOdometer == null) return { error: "Enter the current odometer." };
@@ -290,11 +292,13 @@ export async function submitQc(input: QcNewInput): Promise<{ id?: string; error?
     const sheetCheck = checkedSheet(input.checklist, input.repairType);
     if ("error" in sheetCheck) return { error: sheetCheck.error };
 
-    const folder = await qcFolder(branch, wip);
-    const files = await verifiedFiles(folder, input.driveFileIds);
+    // Files are optional: Google Drive is only reached when some were attached.
+    const hasFiles = input.driveFileIds.length > 0;
+    const folder = hasFiles ? await qcFolder(branch, wip) : null;
+    const files = folder ? await verifiedFiles(folder, input.driveFileIds) : [];
     // Files uploaded while another WIP number was typed: found in that WIP's QC folder and moved to this one.
-    for (const other of [...new Set((input.uploadWips ?? []).map((w) => normalizeWip(w, branch.code ?? "")))]) {
-      if (!other || other === wip) continue;
+    for (const other of hasFiles ? [...new Set((input.uploadWips ?? []).map((w) => normalizeWip(w, branch.code ?? "")))] : []) {
+      if (!other || other === wip || !folder) continue;
       const { data: known } = await createAdminClient().from("self_audit_drive_folders").select("drive_id").eq("key", qcFolderKey(branch.id, other)).maybeSingle();
       if (!known) continue;
       const stray = await verifiedFiles(known.drive_id, input.driveFileIds.filter((id) => !files.some((f) => f.id === id)));
@@ -377,8 +381,8 @@ export async function retestQc(checkId: string, input: QcResultInput): Promise<{
     const update = { attempts: attempt, status: STATUS_OF[r.result], final_odometer: r.finalOdometer, passed_at: r.result === "pass" ? now : null, updated_at: now, ...(r.rca ?? {}) };
     const { error: updateError } = await admin.from("self_audit_qc_checks").update({ ...update, closed_at: r.result === "fail" ? null : now }).eq("id", check.id);
     if (updateError) await admin.from("self_audit_qc_checks").update(update).eq("id", check.id);
-    const folder = check.drive_folder_id ?? (await qcFolder(branch, check.wip_no));
-    const files = await verifiedFiles(folder, input.driveFileIds);
+    const folder = input.driveFileIds.length ? (check.drive_folder_id ?? (await qcFolder(branch, check.wip_no))) : null;
+    const files = folder ? await verifiedFiles(folder, input.driveFileIds) : [];
     if (files.length) await admin.from("self_audit_qc_files").insert(files.map((f) => ({ check_id: check.id, test_id: test.id, drive_file_id: f.id, file_name: f.name.slice(0, 300), mime_type: f.mimeType, size_bytes: f.size, uploaded_by: user.id })));
     await dropDraft({ checkId: check.id });
     revalidateAll();
@@ -415,6 +419,7 @@ export async function saveQcDraft(input: { id?: string | null; kind: "new" | "re
     if (json.length > 300_000) return { error: "This draft is too large to save." };
     const data = JSON.parse(json) as Record<string, unknown>;
     const wip = typeof data.wip === "string" ? data.wip.replace(/\D/g, "").slice(0, 5) || null : null;
+    if (input.kind === "new" && (!wip || wip.length !== 5)) return { error: "Enter the WIP number (5 digits) before saving." };
     const now = new Date().toISOString();
     if (input.kind === "retest") {
       const check = input.checkId ? await failedCheck(input.checkId, branch.id) : null;

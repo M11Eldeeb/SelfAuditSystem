@@ -78,7 +78,7 @@ function buildCards(a: QcAnalysis): Card[] {
 
 function StatusPill({ status }: { status: QcCheckBrief["status"] }) {
   const cls = status === "passed" ? "bg-emerald-50 text-emerald-800" : status === "closed" ? "bg-neutral-200 text-neutral-700" : "bg-red-50 text-red-700";
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${cls}`}>{status === "passed" ? "Passed" : status === "closed" ? "Closed as failed" : "Waiting for retest"}</span>;
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${cls}`}>{status === "passed" ? "Passed" : status === "closed" ? "Closed as failed" : "Rework - waiting for retest"}</span>;
 }
 
 function Tile({ card, onOpen }: { card: Card; onOpen: () => void }) {

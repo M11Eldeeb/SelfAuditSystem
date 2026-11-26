@@ -173,7 +173,7 @@ function ResultFields({
     <div className="space-y-4">
       <div className="grid gap-2.5 sm:grid-cols-2">
         {card("pass", "✓", "Pass", "Vehicle is OK - the case closes", { on: "bg-emerald-600 ring-emerald-600", dot: "bg-emerald-50 text-emerald-700", text: "text-emerald-800", radio: "bg-emerald-600" })}
-        {card("fail", "✕", "Fail", "Back to the workshop - retest needed", { on: "bg-red-600 ring-red-600", dot: "bg-red-50 text-red-700", text: "text-red-800", radio: "bg-red-600" })}
+        {card("fail", "↻", "Rework", "Back to the workshop - retest needed", { on: "bg-red-600 ring-red-600", dot: "bg-red-50 text-red-700", text: "text-red-800", radio: "bg-red-600" })}
       </div>
       <div className="flex items-center gap-3 text-[11px] font-semibold tracking-wide text-neutral-400 uppercase">
         <span className="h-px flex-1 bg-neutral-200" />
@@ -192,7 +192,7 @@ function ResultFields({
       </Field>
       {result && (
         <Field
-          title={result === "fail" ? "Justification (why it failed) *" : result === "close" ? "Justification (why the case is closed as failed) *" : "Comment (optional)"}
+          title={result === "fail" ? "What must be reworked *" : result === "close" ? "Justification (why the case is closed as failed) *" : "Comment (optional)"}
         >
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} className={field} placeholder={result === "fail" ? "What the workshop must fix" : result === "close" ? "e.g. customer took the car before the retest" : ""} />
         </Field>
@@ -375,7 +375,7 @@ function DuplicateWipDialog({ info, onNew }: { info: QcWipInfo; onNew: () => voi
           <h2 className="text-lg font-bold text-neutral-900">Duplicate WIP number</h2>
           <p className="text-sm text-neutral-600">
             WIP <b>{info.wip}</b> already has {info.earlier.length === 1 ? "a QC" : `${info.earlier.length} QCs`}
-            {failed.length ? ", with a failed test waiting for a retest." : "."}
+            {failed.length ? ", sent back for rework and waiting for a retest." : "."}
           </p>
         </div>
         <ul className="space-y-2">
@@ -383,7 +383,7 @@ function DuplicateWipDialog({ info, onNew }: { info: QcWipInfo; onNew: () => voi
             <li key={e.id} className={`rounded-2xl p-3 ring-1 ${e.status === "failed" ? "bg-red-50 ring-red-200" : "bg-emerald-50 ring-emerald-200"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-neutral-900">{e.qcNo}</span>
-                <span className={`text-xs font-semibold ${e.status === "failed" ? "text-red-700" : "text-emerald-700"}`}>{e.status === "failed" ? "Failed - waiting for retest" : "Passed"}</span>
+                <span className={`text-xs font-semibold ${e.status === "failed" ? "text-red-700" : "text-emerald-700"}`}>{e.status === "failed" ? "Rework - waiting for retest" : "Passed"}</span>
               </div>
               <div className="mt-0.5 text-xs text-neutral-600">
                 {purposeLabel(e.purpose)} · {e.attempts} test{e.attempts > 1 ? "s" : ""} · {fmtDate(e.createdAt)}
@@ -488,6 +488,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   /** Save: keep everything as it is to finish later (nothing is checked). */
   async function saveDraft() {
     setError(null);
+    if (wip.length !== 5) return setError("Enter the WIP number (5 digits) before saving.");
     setDraftSaving(true);
     const data: NewQcDraftData = { wip, vin, odometerIn, group, technicians, teamLeader, model, repairType, checklist: { ...checklist, repairType }, replacedParts, defectDescription, result, comment, finalOdometer, rca, files: files.saved };
     const r = await saveQcDraft({ id: draftId, kind: "new", data });
@@ -520,7 +521,8 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!result) return setError("Choose Pass, Fail or Close as Fail.");
+    if (wip.length !== 5) return setError("Enter the WIP number (5 digits).");
+    if (!result) return setError("Choose Pass, Rework or Close as Fail.");
     const left = sectionsFor(repairType).length ? unanswered({ ...checklist, repairType }) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
     const rcaError = result === "close" ? rcaMissing(rca) : null;
@@ -596,10 +598,10 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
         <Field title="Repair type *">
           <Choice options={QC_REPAIR_TYPES.map((r) => ({ key: r.key as string, label: r.label }))} value={repairType} onChange={setRepairType} cols={3} />
         </Field>
-        <Field title="Replaced parts">
+        <Field title="Replaced parts (optional)">
           <textarea value={replacedParts} onChange={(e) => setReplacedParts(e.target.value)} rows={3} className={field} placeholder="Part numbers / names" />
         </Field>
-        <Field title="Defect description (of the replaced parts)">
+        <Field title="Defect description of the replaced parts (optional)">
           <textarea value={defectDescription} onChange={(e) => setDefectDescription(e.target.value)} rows={3} className={field} />
         </Field>
       </Section>
@@ -614,7 +616,7 @@ export function QcNewForm({ options, draft }: { options: QcFormOptions; draft?: 
         <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} rca={rca} setRca={setRca} assignees={options.assignees} />
       </Section>
 
-      <Section n={sectionsFor(repairType).length ? 7 : 6} title="Files">
+      <Section n={sectionsFor(repairType).length ? 7 : 6} title="Files (optional)">
         <FilesField files={files} />
       </Section>
 
@@ -675,7 +677,7 @@ export function QcRetestForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!result) return setError("Choose Pass, Fail or Close as Fail.");
+    if (!result) return setError("Choose Pass, Rework or Close as Fail.");
     // Closing the case as failed does not need the inspection sheet (a retest does).
     const left = hasSheet && result !== "close" ? unanswered(checklist) : [];
     if (left.length) return setError(`Answer every item of the inspection sheet (${left.length} left).`);
@@ -719,7 +721,7 @@ export function QcRetestForm({
       <Section id="qc-result" n={hasSheet ? 3 : 2} title="Result">
         <ResultFields result={result} setResult={setResult} comment={comment} setComment={setComment} finalOdometer={finalOdometer} setFinalOdometer={setFinalOdometer} rca={rca} setRca={setRca} assignees={options.assignees} />
       </Section>
-      <Section n={hasSheet ? 4 : 3} title="Files">
+      <Section n={hasSheet ? 4 : 3} title="Files (optional)">
         <FilesField files={files} />
       </Section>
       <SubmitBar label="Submit" busy={files.busy} saving={saving} error={error} onSave={saveDraft} draftSaving={draftSaving} savedAt={savedAt} />

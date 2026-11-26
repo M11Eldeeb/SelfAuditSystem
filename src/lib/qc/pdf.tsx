@@ -30,7 +30,7 @@ function qcDocument(qc: QcDetail) {
   const folderUrl = qc.drive_folder_id ? `https://drive.google.com/drive/folders/${qc.drive_folder_id}` : null;
   const filesOf = (testId: string) => qc.files.filter((f) => f.testId === testId);
   const status =
-    qc.status === "passed" ? `Passed${qc.attempts > 1 ? ` at test ${qc.attempts}` : " at the first test"} - closed` : qc.status === "closed" ? "Closed as failed" : "Failed - waiting for a retest";
+    qc.status === "passed" ? `Passed${qc.attempts > 1 ? ` at test ${qc.attempts}` : " at the first test"} - closed` : qc.status === "closed" ? "Closed as failed" : "Rework - waiting for a retest";
 
   const row = (name: string, value: string | null | undefined) =>
     value
@@ -114,7 +114,7 @@ function qcDocument(qc: QcDetail) {
             wrap: false,
             style: { borderLeftWidth: 3, borderLeftColor: t.result === "pass" ? "#059669" : t.result === "close" ? MUTED : BRAND, paddingLeft: 10, paddingBottom: 8, marginBottom: i === qc.tests.length - 1 ? 0 : 10 },
           },
-          h(Text, { style: { fontSize: 11, fontWeight: 700, color: t.result === "pass" ? "#047857" : t.result === "close" ? MUTED : BRAND } }, `Test ${t.attempt} - ${t.result === "pass" ? "PASS - CASE CLOSED" : t.result === "close" ? "CLOSED AS FAILED" : "FAIL"}`),
+          h(Text, { style: { fontSize: 11, fontWeight: 700, color: t.result === "pass" ? "#047857" : t.result === "close" ? MUTED : BRAND } }, `Test ${t.attempt} - ${t.result === "pass" ? "PASS - CASE CLOSED" : t.result === "close" ? "CLOSED AS FAILED" : "REWORK"}`),
           t.comment ? h(Text, { style: { fontSize: 10.5, lineHeight: 1.5, marginTop: 3, textAlign: align(t.comment) } }, t.comment) : null,
           h(Text, { style: { fontSize: 9, color: MUTED, marginTop: 4 } }, `Technician(s): ${t.technicians.map((x) => x.name).join(", ") || "-"}${t.finalOdometer != null ? `   ·   Current odometer: ${km(t.finalOdometer)}` : ""}`),
           filesOf(t.id).length ? h(Text, { style: { fontSize: 8.5, color: MUTED, marginTop: 2 } }, `Files: ${filesOf(t.id).map((f) => f.name).join(", ")}`) : null,
@@ -191,7 +191,7 @@ function sheetPage(qc: QcDetail, t: QcTest) {
         sheet.comments[sec.id] ? h(Text, { style: { fontSize: 8, color: MUTED, marginTop: 3, textAlign: align(sheet.comments[sec.id]) } }, `Comments: ${sheet.comments[sec.id]}`) : null
       )
     );
-  const resultText = t.result === "pass" ? "PASS" : t.result === "close" ? "NOT PASS - CLOSED AS FAILED" : "NOT PASS";
+  const resultText = t.result === "pass" ? "PASS" : t.result === "close" ? "NOT PASS - CLOSED AS FAILED" : "NOT PASS - REWORK";
   return h(
     Page,
     { key: `sheet-${t.id}`, size: "A4", style: { paddingTop: 22, paddingBottom: 48, paddingHorizontal: 30, fontFamily: "Tajawal", fontSize: 9, color: INK } },
