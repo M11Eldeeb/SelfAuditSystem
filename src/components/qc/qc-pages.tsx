@@ -9,19 +9,27 @@ import { QcAnalysisView, QcRangePills, qcPeriodLabel } from "./qc-analysis";
 // The QC pages every viewer shares: the records list, one QC and the analysis. `base` is the page, e.g. /audit/quality-control.
 
 const UUID = /^[0-9a-f-]{36}$/i;
+const SHORT_LIST = 10;
 
 async function allBranches() {
   const { data } = await createAdminClient().from("self_audit_branches").select("id, name").eq("active", true).order("name");
   return data ?? [];
 }
 
-export async function QcListPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { status?: string; q?: string; branch?: string; qc?: string }; newHref?: string }) {
+export async function QcListPage({ user, base, params, newHref }: { user: CurrentUser; base: string; params: { status?: string; q?: string; branch?: string; qc?: string; more?: string }; newHref?: string }) {
   const status = params.status ?? "failed";
   // The period (by the day the QC form was submitted): the same buttons as the Quality Dashboard; every QC unless one is picked.
   const range = parseQcRange(params.qc, "all");
   const all = !qcBranchScope(user);
   const branchId = all && params.branch && UUID.test(params.branch) ? params.branch : undefined;
-  const [rows, counts, branches] = await Promise.all([listQc(user, { status, q: params.q, branchId, range }), countQc(user, range), all ? allBranches() : Promise.resolve([])]);
+  // The last 10 records first; "Show more" lists them all (one more is read to know whether there are more).
+  const more = params.more === "1";
+  const [found, counts, branches] = await Promise.all([listQc(user, { status, q: params.q, branchId, range, limit: more ? 300 : SHORT_LIST + 1 }), countQc(user, range), all ? allBranches() : Promise.resolve([])]);
+  const rows = more ? found : found.slice(0, SHORT_LIST);
+  const listParams = { ...(branchId ? { branch: branchId } : {}), qc: range };
+  const moreParams = new URLSearchParams({ ...listParams, status, more: "1" });
+  if (params.q) moreParams.set("q", params.q);
+  const moreHref = !more && found.length > SHORT_LIST ? `${base}?${moreParams.toString()}` : undefined;
   const tabs = [
     { key: "failed", label: "Waiting for retest", count: counts.failed },
     { key: "closed", label: "Closed", count: counts.closed },
@@ -48,7 +56,7 @@ export async function QcListPage({ user, base, params, newHref }: { user: Curren
           <button className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700">Show</button>
         </form>
       )}
-      <QcList base={base} rows={rows} tabs={tabs} active={status} q={params.q} showBranch={all} extraParams={{ ...(branchId ? { branch: branchId } : {}), qc: range }} />
+      <QcList base={base} rows={rows} tabs={tabs} active={status} q={params.q} showBranch={all} extraParams={listParams} moreHref={moreHref} />
     </div>
   );
 }

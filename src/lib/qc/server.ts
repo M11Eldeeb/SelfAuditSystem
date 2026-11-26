@@ -60,9 +60,9 @@ async function latestTests(ids: string[]): Promise<Map<string, TestRow>> {
   return out;
 }
 
-export async function listQc(user: CurrentUser, opts: { status?: string; q?: string; branchId?: string; range?: QcRangeKey } = {}): Promise<QcSummary[]> {
+export async function listQc(user: CurrentUser, opts: { status?: string; q?: string; branchId?: string; range?: QcRangeKey; limit?: number } = {}): Promise<QcSummary[]> {
   const scope = qcBranchScope(user);
-  let q = createAdminClient().from("self_audit_qc_checks").select("*").order("updated_at", { ascending: false }).limit(300);
+  let q = createAdminClient().from("self_audit_qc_checks").select("*").order("updated_at", { ascending: false }).limit(opts.limit ?? 300);
   if (scope) q = q.eq("branch_id", scope);
   else if (opts.branchId) q = q.eq("branch_id", opts.branchId);
   if (opts.status === "failed" || opts.status === "passed") q = q.eq("status", opts.status);

@@ -9,7 +9,7 @@ export type QcWelcome = { name: string; email: string; tempPassword: string; bra
 const STEPS: { title: string; body: string }[] = [
   {
     title: "Sign in",
-    body: "Open the link on your phone or computer and sign in with the e-mail and temporary password above. You choose your own password the first time. In the menu: <b>QC records</b> and <b>New QC</b>.",
+    body: "Open the link on your phone or computer and sign in with the e-mail and temporary password above. You choose your own password the first time. In the menu: <b>QC records</b>, with the <b>+ New QC</b> button on it.",
   },
   {
     title: "Start a new QC",

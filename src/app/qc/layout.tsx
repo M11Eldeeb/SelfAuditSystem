@@ -12,8 +12,7 @@ export default async function QcLayout({ children }: { children: ReactNode }) {
       <NavBar
         user={user}
         links={[
-          { href: "/qc", label: "QC records", match: ["/qc/analysis"] },
-          { href: "/qc/new", label: "New QC" },
+          { href: "/qc", label: "QC records", match: ["/qc/analysis", "/qc/new"] },
           feedback,
         ]}
       />

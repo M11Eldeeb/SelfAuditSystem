@@ -98,6 +98,7 @@ export function QcList({
   q,
   showBranch,
   extraParams = {},
+  moreHref,
 }: {
   base: string;
   rows: QcSummary[];
@@ -106,6 +107,8 @@ export function QcList({
   q?: string;
   showBranch?: boolean;
   extraParams?: Record<string, string>;
+  /** Set when only the latest records are shown: the link that lists them all. */
+  moreHref?: string;
 }) {
   const href = (status: string) => {
     const p = new URLSearchParams({ ...extraParams, status });
@@ -156,6 +159,14 @@ export function QcList({
             </li>
           ))}
         </ul>
+      )}
+      {moreHref && (
+        <div className="flex items-center justify-center gap-3 pt-1">
+          <span className="text-xs text-neutral-500">Showing the last {rows.length}</span>
+          <Link href={moreHref} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand ring-1 ring-neutral-200 hover:bg-neutral-50">
+            Show more
+          </Link>
+        </div>
       )}
       {rows.length >= 300 && <p className="text-xs text-neutral-500">Showing the latest 300 - search to find older ones.</p>}
     </div>
