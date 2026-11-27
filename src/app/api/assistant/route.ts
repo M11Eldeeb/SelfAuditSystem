@@ -31,7 +31,10 @@ export async function POST(req: Request) {
   const au = await assistantUser();
   if (!au) return Response.json({ error: "The assistant is for warranty officers, the national manager and service managers." }, { status: 403 });
   if (process.env.NEXT_PUBLIC_ASSISTANT_LIVE !== "1") return Response.json({ error: "MG Co-Pilot is coming soon." }, { status: 503 });
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "The assistant is not set up (no API key)." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("[assistant] ANTHROPIC_API_KEY is not set");
+    return Response.json({ error: "MG Co-Pilot is coming soon." }, { status: 503 });
+  }
 
   const body = (await req.json().catch(() => null)) as { history?: Turn[]; message?: string } | null;
   const message = String(body?.message ?? "").trim().slice(0, 4000);
@@ -97,6 +100,10 @@ export async function POST(req: Request) {
     }
   } catch (e) {
     console.error("[assistant]", e);
+    // A missing or wrong key / no credit: people see "coming soon", the reason stays in the server log.
+    if (e instanceof Anthropic.APIError && (e.status === 401 || e.status === 403 || (e.status === 400 && /credit|billing/i.test(e.message)))) {
+      return Response.json({ error: "MG Co-Pilot is coming soon." }, { status: 503 });
+    }
     const msg = e instanceof Anthropic.APIError && e.status === 429 ? "The assistant is busy, try again in a minute." : "The assistant could not answer right now. Try again.";
     return Response.json({ error: msg }, { status: 502 });
   }
